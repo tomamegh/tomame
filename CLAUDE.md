@@ -26,12 +26,12 @@ This repository currently contains **design specifications only** — no source 
 
 Once the project is scaffolded:
 ```
-npm run dev          # Development server
-npm run build        # Production build
-npm run lint         # ESLint + Prettier
-npm run typecheck    # TypeScript strict mode check
-npm test             # Run tests
-npx tsx db/seeds/create-admin.ts  # Seed first admin user
+bun run dev          # Development server
+bun run build        # Production build
+bun run lint         # ESLint + Prettier
+bun run typecheck    # TypeScript strict mode check
+bun test             # Run tests
+bun run src/db/seeds/create-admin.ts  # Seed first admin user
 ```
 
 ## Required Environment Variables
