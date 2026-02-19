@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { insertUser } from "@/features/users/users.queries";
 import { logAuditEvent } from "@/features/audit/audit.service";
 import { sendEmail } from "@/lib/email/transport";
@@ -90,7 +90,7 @@ export async function login(
   email: string,
   password: string
 ): Promise<ServiceResult<AuthUserResponse>> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,

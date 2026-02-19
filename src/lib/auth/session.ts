@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserById } from "@/features/users/users.queries";
 import type { AuthenticatedUser } from "@/types/domain";
@@ -8,7 +8,7 @@ import type { AuthenticatedUser } from "@/types/domain";
  * Returns null if unauthenticated or if the user record is missing.
  */
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createClient();
 
   const {
     data: { user: authUser },

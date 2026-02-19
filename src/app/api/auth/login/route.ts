@@ -42,26 +42,33 @@ import { RATE_LIMIT } from "@/config/security";
  *         description: Rate limit exceeded
  */
 export async function POST(request: NextRequest) {
-  // Rate limit by IP
-  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-  const rl = checkRateLimit(`login:${ip}`, RATE_LIMIT.auth);
-  if (!rl.allowed) {
-    return errorResponse("Too many requests", 429);
+  try {
+    // Rate limit by IP
+    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+    const rl = checkRateLimit(`login:${ip}`, RATE_LIMIT.auth);
+    if (!rl.allowed) {
+      return errorResponse("Too many requests", 429);
+    }
+
+    // Validate input
+    const body: unknown = await request.json().catch(() => null);
+    const parsed = loginSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(
+        parsed.error.issues[0]?.message ?? "Invalid input",
+        400,
+      );
+    }
+
+    // Call service
+    const result = await login(parsed.data.email, parsed.data.password);
+
+    if (!result.success) {
+      return errorResponse(result.error, result.status);
+    }
+
+    return successResponse(result.data);
+  } catch (error) {
+    return errorResponse("Internal server error", 500);
   }
-
-  // Validate input
-  const body: unknown = await request.json().catch(() => null);
-  const parsed = loginSchema.safeParse(body);
-  if (!parsed.success) {
-    return errorResponse(parsed.error.issues[0]?.message ?? "Invalid input", 400);
-  }
-
-  // Call service
-  const result = await login(parsed.data.email, parsed.data.password);
-
-  if (!result.success) {
-    return errorResponse(result.error, result.status);
-  }
-
-  return successResponse(result.data);
 }
