@@ -32,14 +32,14 @@
 - [x] Admin-configurable service fee percentage
 - [x] Real-time price breakdown display
 
-### 4. Payment Integration - Paystack (MVP)
-- [ ] Full pre-payment requirement
-- [ ] Mobile Money (MoMo) support
-- [ ] Card payment support
-- [ ] Server-side payment verification
-- [ ] Payment status tracking (pending/success/failed)
-- [ ] Payment record creation
-- [ ] Secure payment flow (no card data storage)
+### 4. Payment Integration - Paystack (MVP) ✅
+- [x] Full pre-payment requirement
+- [x] Mobile Money (MoMo) support
+- [x] Card payment support
+- [x] Server-side payment verification
+- [x] Payment status tracking (pending/success/failed)
+- [x] Payment record creation
+- [x] Secure payment flow (no card data storage)
 
 ### 5. Order Management (MVP)
 - [x] Order creation on quote submission
@@ -76,7 +76,7 @@
 ### 9. Database Schema (MVP)
 - [x] Users table with RLS
 - [x] Orders table with RLS
-- [ ] Payments table with RLS
+- [x] Payments table with RLS
 - [x] Pricing_config table (admin-only)
 - [ ] Notifications table with RLS
 - [x] Database migrations system
@@ -93,8 +93,9 @@
 - [x] GET /api/orders (list user orders)
 - [x] GET /api/orders/:id (order details)
 - [ ] PATCH /api/admin/orders/:id/status (update status)
-- [ ] POST /api/payments/initialize
-- [ ] POST /api/payments/verify
+- [x] POST /api/payments/initialize
+- [x] GET /api/payments/callback
+- [x] POST /api/webhooks/paystack
 - [x] GET /api/admin/pricing-config
 - [x] PUT /api/admin/pricing-config
 
@@ -154,7 +155,7 @@
 ### Audit & Compliance
 - [x] Audit log system (append-only)
 - [x] Authentication event logging
-- [ ] Payment event logging
+- [x] Payment event logging
 - [x] Order state transition logging
 - [x] Admin action logging
 - [x] Role change logging
@@ -205,14 +206,14 @@
 
 ## 📋 Contract Compliance Checklist
 
-- [ ] Full pre-payment before processing
+- [x] Full pre-payment before processing
 - [x] Admin-configurable pricing (no code changes)
 - [ ] Order lifecycle tracking
 - [ ] Automated notifications (Email + WhatsApp)
-- [ ] Paystack integration (MoMo + Card)
+- [x] Paystack integration (MoMo + Card)
 - [ ] Admin dashboard
 - [ ] SSL enabled
-- [ ] No card data storage
+- [x] No card data storage
 - [x] Role-based admin access
 - [ ] Mobile responsive
 - [x] Password reset functionality

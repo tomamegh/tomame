@@ -34,6 +34,15 @@ export const ORDER_STATUSES = {
 
 export type OrderStatus = (typeof ORDER_STATUSES)[keyof typeof ORDER_STATUSES];
 
+export const PAYMENT_STATUSES = {
+  PENDING: "pending",
+  SUCCESS: "success",
+  FAILED: "failed",
+} as const;
+
+export type PaymentStatus =
+  (typeof PAYMENT_STATUSES)[keyof typeof PAYMENT_STATUSES];
+
 export const ORIGIN_COUNTRIES = {
   USA: "USA",
   UK: "UK",

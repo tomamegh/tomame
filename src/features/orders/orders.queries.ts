@@ -51,6 +51,54 @@ export async function getOrderById(
   return data as DbOrder;
 }
 
+export async function updateOrderStatus(
+  client: SupabaseClient,
+  orderId: string,
+  status: string
+): Promise<DbOrder | null> {
+  const { data, error } = await client
+    .from("orders")
+    .update({ status })
+    .eq("id", orderId)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("updateOrderStatus failed", {
+      orderId,
+      status,
+      code: error.code,
+      message: error.message,
+    });
+    return null;
+  }
+  return data as DbOrder;
+}
+
+export async function linkOrderToPayment(
+  client: SupabaseClient,
+  orderId: string,
+  paymentId: string
+): Promise<DbOrder | null> {
+  const { data, error } = await client
+    .from("orders")
+    .update({ payment_id: paymentId, status: "paid" })
+    .eq("id", orderId)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("linkOrderToPayment failed", {
+      orderId,
+      paymentId,
+      code: error.code,
+      message: error.message,
+    });
+    return null;
+  }
+  return data as DbOrder;
+}
+
 export async function getOrdersByUserId(
   client: SupabaseClient,
   userId: string

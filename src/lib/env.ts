@@ -12,6 +12,10 @@ export const env = {
     anonKey: required("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     serviceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
   },
+  paystack: {
+    secretKey: required("PAYSTACK_SECRET_KEY"),
+    publicKey: required("NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY"),
+  },
   app: {
     url: required("NEXT_PUBLIC_APP_URL"),
   },

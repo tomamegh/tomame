@@ -70,6 +70,12 @@ export interface UpdatePricingConfigRequest {
   serviceFeePercentage: number;
 }
 
+// ── Payment Requests ──────────────────────────────────────────
+
+export interface InitializePaymentRequest {
+  orderId: string;
+}
+
 // ── Response Data ───────────────────────────────────────────
 
 export interface AuthUserResponse {
@@ -100,6 +106,20 @@ export interface OrderResponse {
 export interface OrderListResponse {
   orders: OrderResponse[];
   count: number;
+}
+
+export interface PaymentResponse {
+  id: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface InitializePaymentResponse {
+  payment: PaymentResponse;
+  authorizationUrl: string;
 }
 
 export interface PricingConfigResponse {
