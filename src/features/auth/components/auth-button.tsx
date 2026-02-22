@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 import {
   BadgeCheckIcon,
   BellIcon,
@@ -15,8 +15,8 @@ import {
   CreditCardIcon,
   LayoutGridIcon,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { Button } from "./ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import LogoutButton from "./logout-button";
 
@@ -44,9 +44,9 @@ async function NavbarAuthButton() {
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
           <DropdownMenuItem>
-            <Link href={'/app'} className="flex items-center gap-2">
-            <LayoutGridIcon/>
-            Dashboard
+            <Link href={"/app"} className="flex items-center gap-2">
+              <LayoutGridIcon />
+              Dashboard
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem>

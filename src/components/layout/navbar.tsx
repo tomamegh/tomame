@@ -2,11 +2,10 @@ import Link from "next/link";
 import { NavLinks } from "./nav-links";
 import { MobileMenu } from "./mobile-menu";
 import { Suspense } from "react";
-import NavbarAuthButton from "../auth-button";
+import NavbarAuthButton from "@/features/auth/components/auth-button";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
-  { href: "/pricing", label: "Pricing" },
   { href: "/about", label: "About" },
   { href: "/faq", label: "FAQ" },
   { href: "/contact", label: "Contact" },

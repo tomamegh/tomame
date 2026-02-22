@@ -118,3 +118,28 @@ export async function getOrdersByUserId(
   }
   return (data ?? []) as DbOrder[];
 }
+
+export async function getAllOrders(
+  client: SupabaseClient,
+  filters?: { status?: string; userId?: string }
+): Promise<DbOrder[]> {
+  let query = client
+    .from("orders")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (filters?.status) {
+    query = query.eq("status", filters.status);
+  }
+  if (filters?.userId) {
+    query = query.eq("user_id", filters.userId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    logger.error("getAllOrders failed", { error: error.message });
+    return [];
+  }
+  return (data ?? []) as DbOrder[];
+}

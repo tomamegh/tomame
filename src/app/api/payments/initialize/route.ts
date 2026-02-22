@@ -3,7 +3,7 @@ import { initializePaymentSchema } from "@/features/payments/payments.validators
 import { initializePayment } from "@/features/payments/payments.service";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { requireAuth } from "@/lib/auth/guards";
-import { successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
@@ -40,36 +40,31 @@ import { RATE_LIMIT } from "@/config/security";
  *         description: Rate limit exceeded
  */
 export async function POST(request: NextRequest) {
-  // Rate limit by IP
-  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-  const rl = checkRateLimit(`payments-init:${ip}`, RATE_LIMIT.payments);
-  if (!rl.allowed) {
-    return errorResponse("Too many requests", 429);
+  try {
+    // Rate limit by IP
+    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+    if (!checkRateLimit(`payments-init:${ip}`, RATE_LIMIT.payments).allowed) {
+      throw new APIError(429, "Too many requests");
+    }
+
+    // Validate input
+    const body: unknown = await request.json().catch(() => { throw new APIError(400, "Invalid JSON"); });
+    const parsed = initializePaymentSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
+    }
+
+    // Require authenticated user
+    const user = await getAuthenticatedUser();
+    const auth = requireAuth(user);
+    if (!auth.ok) throw new APIError(auth.status, auth.error);
+
+    // Call service
+    const result = await initializePayment(auth.user, parsed.data.orderId);
+    if (!result.success) throw new APIError(result.status, result.error);
+
+    return successResponse(result.data, 201);
+  } catch (error) {
+    return errorResponse(error);
   }
-
-  // Validate input
-  const body: unknown = await request.json().catch(() => null);
-  const parsed = initializePaymentSchema.safeParse(body);
-  if (!parsed.success) {
-    return errorResponse(
-      parsed.error.issues[0]?.message ?? "Invalid input",
-      400
-    );
-  }
-
-  // Require authenticated user
-  const user = await getAuthenticatedUser();
-  const auth = requireAuth(user);
-  if (!auth.ok) {
-    return errorResponse(auth.error, auth.status);
-  }
-
-  // Call service
-  const result = await initializePayment(auth.user, parsed.data.orderId);
-
-  if (!result.success) {
-    return errorResponse(result.error, result.status);
-  }
-
-  return successResponse(result.data, 201);
 }

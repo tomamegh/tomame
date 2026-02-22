@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import type { ApiSuccessResponse, ApiErrorResponse } from "@/types/api";
+import type { ApiSuccessResponse } from "@/types/api";
 
-export class AppError extends Error {
+export class APIError extends Error {
   constructor(
     public statusCode: number,
     message: string,
@@ -15,7 +15,17 @@ export function successResponse<T>(data: T, status = 200) {
   return NextResponse.json(body, { status });
 }
 
-export function errorResponse(error: string, status: number) {
-  const body: ApiErrorResponse = { success: false, error };
-  return NextResponse.json(body, { status });
+export function errorResponse(error: unknown, statusCode: number = 500) {
+  if (error instanceof APIError) {
+    return NextResponse.json(
+      { error: error.message, success: false },
+      { status: error.statusCode },
+    );
+  }
+
+  const message = error instanceof Error ? error.message : "An error occurred";
+  return NextResponse.json(
+    { error: message, success: false },
+    { status: statusCode },
+  );
 }

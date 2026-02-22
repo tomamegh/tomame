@@ -3,6 +3,8 @@ import {
   insertOrder,
   getOrderById,
   getOrdersByUserId,
+  getAllOrders,
+  updateOrderStatus,
 } from "@/features/orders/orders.queries";
 import { calculatePricing } from "@/features/pricing/pricing.service";
 import { logAuditEvent } from "@/features/audit/audit.service";
@@ -128,4 +130,76 @@ export async function listUserOrders(
       count: orders.length,
     },
   };
+}
+
+/**
+ * Admin: list all orders with optional filters.
+ */
+export async function listAllOrders(
+  user: AuthenticatedUser,
+  filters?: { status?: string; userId?: string }
+): Promise<ServiceResult<OrderListResponse>> {
+  if (user.role !== "admin") {
+    return { success: false, error: "Admin access required", status: 403 };
+  }
+
+  const orders = await getAllOrders(supabaseAdmin, filters);
+
+  return {
+    success: true,
+    data: {
+      orders: orders.map(toResponse),
+      count: orders.length,
+    },
+  };
+}
+
+// Valid admin-driven transitions (paid → processing → completed; pending → cancelled)
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  pending: ["cancelled"],
+  paid: ["processing"],
+  processing: ["completed"],
+};
+
+/**
+ * Admin: update an order's status following the state machine.
+ */
+export async function updateOrderStatusAdmin(
+  user: AuthenticatedUser,
+  orderId: string,
+  newStatus: string
+): Promise<ServiceResult<OrderResponse>> {
+  if (user.role !== "admin") {
+    return { success: false, error: "Admin access required", status: 403 };
+  }
+
+  const order = await getOrderById(supabaseAdmin, orderId);
+  if (!order) {
+    return { success: false, error: "Order not found", status: 404 };
+  }
+
+  const allowed = ALLOWED_TRANSITIONS[order.status] ?? [];
+  if (!allowed.includes(newStatus)) {
+    return {
+      success: false,
+      error: `Cannot transition order from '${order.status}' to '${newStatus}'`,
+      status: 400,
+    };
+  }
+
+  const updated = await updateOrderStatus(supabaseAdmin, orderId, newStatus);
+  if (!updated) {
+    return { success: false, error: "Failed to update order status", status: 500 };
+  }
+
+  await logAuditEvent({
+    actorId: user.id,
+    actorRole: "admin",
+    action: "order_status_changed",
+    entityType: "order",
+    entityId: orderId,
+    metadata: { from: order.status, to: newStatus },
+  });
+
+  return { success: true, data: toResponse(updated) };
 }

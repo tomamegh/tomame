@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { forgotPasswordSchema } from "@/features/auth/auth.validators";
 import { forgotPassword } from "@/features/auth/auth.service";
-import { successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
@@ -37,26 +37,26 @@ import { RATE_LIMIT } from "@/config/security";
  *         description: Rate limit exceeded
  */
 export async function POST(request: NextRequest) {
-  // Rate limit by IP
-  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-  const rl = checkRateLimit(`forgot-password:${ip}`, RATE_LIMIT.auth);
-  if (!rl.allowed) {
-    return errorResponse("Too many requests", 429);
+  try {
+    // Rate limit by IP
+    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+    if (!checkRateLimit(`forgot-password:${ip}`, RATE_LIMIT.auth).allowed) {
+      throw new APIError(429, "Too many requests");
+    }
+
+    // Validate input
+    const body: unknown = await request.json().catch(() => { throw new APIError(400, "Invalid JSON"); });
+    const parsed = forgotPasswordSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
+    }
+
+    // Call service — always returns success to prevent email enumeration
+    const result = await forgotPassword(parsed.data.email);
+    if (!result.success) throw new APIError(result.status, result.error);
+
+    return successResponse(result.data);
+  } catch (error) {
+    return errorResponse(error);
   }
-
-  // Validate input
-  const body: unknown = await request.json().catch(() => null);
-  const parsed = forgotPasswordSchema.safeParse(body);
-  if (!parsed.success) {
-    return errorResponse(parsed.error.issues[0]?.message ?? "Invalid input", 400);
-  }
-
-  // Call service — always returns success to prevent email enumeration
-  const result = await forgotPassword(parsed.data.email);
-
-  if (!result.success) {
-    return errorResponse(result.error, result.status);
-  }
-
-  return successResponse(result.data);
 }

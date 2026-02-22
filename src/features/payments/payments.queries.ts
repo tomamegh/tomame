@@ -45,6 +45,44 @@ export async function getPaymentByReference(
   return data as DbPayment;
 }
 
+export async function getPaymentsByUserId(
+  client: SupabaseClient,
+  userId: string
+): Promise<DbPayment[]> {
+  const { data, error } = await client
+    .from("payments")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    logger.error("getPaymentsByUserId failed", { userId, error: error.message });
+    return [];
+  }
+  return (data ?? []) as DbPayment[];
+}
+
+export async function getAllPayments(
+  client: SupabaseClient,
+  filters?: { status?: string; userId?: string }
+): Promise<DbPayment[]> {
+  let query = client
+    .from("payments")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (filters?.status) query = query.eq("status", filters.status);
+  if (filters?.userId) query = query.eq("user_id", filters.userId);
+
+  const { data, error } = await query;
+
+  if (error) {
+    logger.error("getAllPayments failed", { error: error.message });
+    return [];
+  }
+  return (data ?? []) as DbPayment[];
+}
+
 export async function updatePaymentStatus(
   client: SupabaseClient,
   paymentId: string,

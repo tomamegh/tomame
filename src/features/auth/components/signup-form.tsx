@@ -28,7 +28,7 @@ export default function SignUpForm() {
 
   const onSubmit = async (data: SignupSchemaType) => {
     await mutateAsync(data);
-    router.push("/auth/login");
+    router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`);
   };
 
   return (

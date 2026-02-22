@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { LogOutIcon } from "lucide-react";
-import { DropdownMenuItem } from "./ui/dropdown-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 type Variant = "navbar" | "other";
 

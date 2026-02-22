@@ -1,30 +1,26 @@
-import { LoginSchemaType } from "@/lib/validators/auth";
-import axios, {AxiosError} from "axios";
+import { loginSchema, LoginSchemaType } from "../schema";
 
 export async function login(data: LoginSchemaType) {
-  const res = await fetch("/api/auth/login", {
+  const parsed = loginSchema.safeParse(data);
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message || "Invalid credentials");
+  }
+
+  const response = await fetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      email: parsed.data.email,
+      password: parsed.data.password,
+    }),
   });
 
-  if (!res.ok) {
-    const errorData = await res.json();
-    throw new Error(errorData.error || "Failed to sign in");
+  const json = await response.json();
+
+  if (!response.ok) {
+    throw new Error(json.error || "Login failed");
   }
-  const resData = await res.json();
-  console.log('first res fromm auth', resData)
-  return resData;
+
+  return json.data;
 }
-
-
-
-// export async function login(data: LoginSchemaType) {
-//   try {
-//     const res = await axios.post("/api/auth/login", data);
-//     return res.data;
-//   } catch (error) {
-//     error = error instanceof AxiosError ? error.response?.data : error;
-//     throw error;
-//   }
-// }

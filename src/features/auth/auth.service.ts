@@ -1,84 +1,49 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { insertUser } from "@/features/users/users.queries";
 import { logAuditEvent } from "@/features/audit/audit.service";
-import { sendEmail } from "@/lib/email/transport";
-import { verifyEmailTemplate } from "@/lib/email/templates/verify-email";
 import { resetPasswordTemplate } from "@/lib/email/templates/reset-password";
+import { sendEmail } from "@/lib/email/transport";
 import { logger } from "@/lib/logger";
 import type { ServiceResult } from "@/types/domain";
 import type { AuthUserResponse, MessageResponse } from "@/types/api";
+import { LoginSchemaType } from "./schema";
 
 /**
  * Register a new user.
- * Creates Supabase Auth user + application users row.
- * Sends verification email via Nodemailer.
- * If the users insert fails, the auth user is rolled back.
+ * Supabase sends the confirmation email automatically.
+ * The DB trigger (on_auth_user_created) creates the public.users profile row.
  */
 export async function signup(
   email: string,
   password: string
 ): Promise<ServiceResult<AuthUserResponse>> {
-  // Create auth user (email_confirm: false — we send verification ourselves)
-  const { data: authData, error: authError } =
-    await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: false,
-    });
+  const supabase = await createClient();
 
-  if (authError) {
-    if (authError.message.includes("already been registered")) {
+  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  if (error) {
+    if (error.status === 422 || error.message.toLowerCase().includes("already registered")) {
       return { success: false, error: "Email already registered", status: 409 };
     }
-    logger.error("Supabase auth createUser failed", { error: authError.message });
+    logger.error("Supabase signUp failed", { error: error.message });
     return { success: false, error: "Registration failed", status: 500 };
   }
 
-  const userId = authData.user.id;
-
-  // Insert application user record
-  const dbUser = await insertUser(supabaseAdmin, {
-    id: userId,
-    email,
-    role: "user",
-  });
-
-  if (!dbUser) {
-    // Rollback: delete the auth user
-    await supabaseAdmin.auth.admin.deleteUser(userId);
-    logger.error("Users table insert failed, rolled back auth user", { userId });
+  if (!data.user) {
     return { success: false, error: "Registration failed", status: 500 };
-  }
-
-  // Generate verification link and send via Nodemailer
-  const { data: linkData, error: linkError } =
-    await supabaseAdmin.auth.admin.generateLink({
-      type: "signup",
-      email,
-      password,
-    });
-
-  if (linkError) {
-    logger.error("Failed to generate verification link", { error: linkError.message });
-  } else {
-    const template = verifyEmailTemplate(linkData.properties.action_link);
-    await sendEmail({ to: email, ...template }).catch((err) =>
-      logger.error("Failed to send verification email", { error: String(err) })
-    );
   }
 
   await logAuditEvent({
-    actorId: userId,
+    actorId: data.user.id,
     actorRole: "user",
     action: "user_registered",
     entityType: "user",
-    entityId: userId,
+    entityId: data.user.id,
   });
 
   return {
     success: true,
-    data: { id: dbUser.id, email: dbUser.email, role: dbUser.role },
+    data: { id: data.user.id, email: data.user.email!, role: "user" },
   };
 }
 
@@ -87,15 +52,11 @@ export async function signup(
  * Returns the authoritative user role from the users table.
  */
 export async function login(
-  email: string,
-  password: string
+  details: LoginSchemaType
 ): Promise<ServiceResult<AuthUserResponse>> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  const { data, error } = await supabase.auth.signInWithPassword(details);
 
   if (error) {
     return { success: false, error: "Invalid email or password", status: 401 };
@@ -103,9 +64,9 @@ export async function login(
 
   // Load authoritative role from DB using admin client (bypasses RLS)
   // The server client's session may not be available for RLS in the same request
-  const { data: dbUser } = await supabaseAdmin
+  const { data: dbUser, error:userError } = await supabase
     .from("users")
-    .select("id, email, role")
+    .select("id, role")
     .eq("id", data.user.id)
     .single();
 
@@ -113,9 +74,19 @@ export async function login(
     return { success: false, error: "User record not found", status: 500 };
   }
 
+  console.log(userError)
+
+  await logAuditEvent({
+    actorId: dbUser.id,
+    actorRole: dbUser.role,
+    action: "user_logged_in",
+    entityType: "user",
+    entityId: dbUser.id,
+  });
+
   return {
     success: true,
-    data: { id: dbUser.id, email: dbUser.email, role: dbUser.role },
+    data: { email: data.user.email!, id: data.user.id, role: dbUser.role },
   };
 }
 

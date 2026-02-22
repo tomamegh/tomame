@@ -2,6 +2,8 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   insertPayment,
   getPaymentByReference,
+  getPaymentsByUserId,
+  getAllPayments,
   updatePaymentStatus,
 } from "@/features/payments/payments.queries";
 import {
@@ -273,4 +275,48 @@ export async function handleWebhookEvent(event: {
   }
 
   return { success: true, data: { message: "Webhook processed" } };
+}
+
+export interface TransactionListResponse {
+  transactions: PaymentResponse[];
+  count: number;
+}
+
+/**
+ * List all payment transactions for the authenticated user.
+ */
+export async function listUserTransactions(
+  user: AuthenticatedUser
+): Promise<ServiceResult<TransactionListResponse>> {
+  const payments = await getPaymentsByUserId(supabaseAdmin, user.id);
+
+  return {
+    success: true,
+    data: {
+      transactions: payments.map(toPaymentResponse),
+      count: payments.length,
+    },
+  };
+}
+
+/**
+ * Admin: list all transactions with optional filters.
+ */
+export async function listAllTransactions(
+  user: AuthenticatedUser,
+  filters?: { status?: string; userId?: string }
+): Promise<ServiceResult<TransactionListResponse>> {
+  if (user.role !== "admin") {
+    return { success: false, error: "Admin access required", status: 403 };
+  }
+
+  const payments = await getAllPayments(supabaseAdmin, filters);
+
+  return {
+    success: true,
+    data: {
+      transactions: payments.map(toPaymentResponse),
+      count: payments.length,
+    },
+  };
 }

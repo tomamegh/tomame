@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { motion } from 'motion/react';
+import type { Variants } from 'motion/react';
 import { Button } from '@/components/ui/button';
 
 /* ─── data ──────────────────────────────────────────────── */
@@ -129,128 +131,144 @@ export default function HomePage() {
 
 /* ─── hero ──────────────────────────────────────────────── */
 
+const heroContainer: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.11, delayChildren: 0.05 } },
+};
+const heroItem: Variants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.65 } },
+};
+
+const floatConfig = (delay = 0, duration = 5) => ({
+  animate: { y: [0, -10, 0] },
+  transition: { duration, delay, repeat: Infinity, ease: 'easeInOut' as const },
+});
+
 function HeroSection() {
   return (
-    <section className="relative overflow-hidden bg-stone-950 text-white min-h-screen flex items-center">
-      {/* Subtle dot-grid */}
+    <section className="relative overflow-hidden bg-white flex items-center">
+      {/* Dot grid */}
       <div
-        className="absolute inset-0 opacity-[0.035]"
+        className="absolute inset-0 opacity-[0.45]"
         style={{
-          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
+          backgroundImage: 'radial-gradient(circle, #e7e5e4 1px, transparent 1px)',
+          backgroundSize: '28px 28px',
         }}
       />
+      {/* Soft gradient washes */}
+      <div className="absolute top-0 left-0 size-150 bg-rose-100/60 rounded-full blur-[120px] pointer-events-none -translate-x-1/3 -translate-y-1/3" />
+      <div className="absolute bottom-0 right-0 size-125 bg-amber-100/50 rounded-full blur-[100px] pointer-events-none translate-x-1/4 translate-y-1/4" />
 
-      {/* Ambient orbs — animate-orb keeps them drifting */}
-      <div className="animate-orb absolute -top-32 -left-20 w-[520px] h-[520px] rounded-full bg-rose-500/18 blur-[130px] pointer-events-none" />
-      <div className="animate-orb absolute -bottom-40 -right-20 w-[440px] h-[440px] rounded-full bg-amber-500/14 blur-[110px] pointer-events-none" style={{ animationDelay: '4s', animationDuration: '15s' }} />
-
-      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-28 sm:py-36 lg:py-0 lg:min-h-screen lg:flex lg:items-center">
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-28 sm:py-36 lg:flex lg:items-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-20 items-center">
 
           {/* ── Left: copy ── */}
-          <div className="flex flex-col items-start gap-6">
-
+          <motion.div
+            variants={heroContainer}
+            initial="hidden"
+            animate="show"
+            className="flex flex-col items-start gap-6"
+          >
             {/* Badge */}
-            <div className="hero-badge inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/5 text-xs text-white/50">
+            <motion.div variants={heroItem} className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-stone-200 bg-stone-50 text-xs text-stone-500 shadow-sm shadow-rose-300/20">
               <span>🇬🇭</span>
-              <span>Built for Ghana</span>
-              <span className="w-px h-3 bg-white/15" />
+              <span className="font-medium">Built for Ghana</span>
+              <span className="w-px h-3 bg-stone-300" />
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-emerald-400 font-medium">Live</span>
-            </div>
+              <span className="text-emerald-600 font-semibold">Live</span>
+            </motion.div>
 
             {/* Headline */}
-            <h1 className="hero-h1 text-[2.6rem] sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.06]">
+            <motion.h1 variants={heroItem} className="text-[2.7rem] sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.06] text-stone-900">
               Shop the World.
               <br />
-              <span className="bg-linear-to-r from-rose-400 via-orange-400 to-amber-400 bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-rose-500 via-orange-400 to-amber-400 bg-clip-text text-transparent">
                 Pay in Ghana.
               </span>
-            </h1>
+            </motion.h1>
 
             {/* Subtext */}
-            <p className="hero-sub text-white/45 text-base sm:text-lg leading-relaxed max-w-md">
-              Paste a product link from anywhere — Amazon, ASOS, Alibaba. We buy it, ship it, deliver it. You pay with Mobile Money. No forex, no hassle.
-            </p>
+            <motion.p variants={heroItem} className="text-stone-500 text-base sm:text-lg leading-relaxed max-w-md">
+              Paste a product link from Amazon, ASOS, or Alibaba. We handle everything — you pay with Mobile Money or card. No forex, no stress.
+            </motion.p>
 
             {/* CTAs */}
-            <div className="hero-ctas flex flex-wrap gap-3">
+            <motion.div variants={heroItem} className="flex flex-wrap gap-3">
               <Link href="/auth/signup">
                 <Button variant="primary" size="lg">Start for Free</Button>
               </Link>
-              <Link href="/pricing">
-                <button className="px-6 py-3 text-sm font-semibold rounded-xl border border-white/12 text-white/70 hover:border-white/25 hover:text-white transition-all duration-300 cursor-pointer">
-                  See Pricing
-                </button>
-              </Link>
-            </div>
+            </motion.div>
 
-            {/* Trust micro-row */}
-            <div className="hero-trust flex items-center gap-4 text-[11px] text-white/30">
+            {/* Trust row */}
+            <motion.div variants={heroItem} className="flex items-center gap-3 text-[11px] text-stone-400 flex-wrap">
               <span>Mobile Money</span>
-              <span className="w-1 h-1 rounded-full bg-white/20" />
+              <span className="w-1 h-1 rounded-full bg-stone-300" />
               <span>USA · UK · China</span>
-              <span className="w-1 h-1 rounded-full bg-white/20" />
-              <span>Full price transparency</span>
-            </div>
-          </div>
+              <span className="w-1 h-1 rounded-full bg-stone-300" />
+              <span>Transparent pricing</span>
+            </motion.div>
+          </motion.div>
 
           {/* ── Right: floating order cards ── */}
-          <div className="hero-mockup relative w-full max-w-sm mx-auto lg:mx-0 lg:ml-auto h-[420px] sm:h-[460px]">
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.7, ease: 'easeOut' as const, delay: 0.3 }}
+            className="relative hidden lg:block w-full max-w-sm mx-auto lg:mx-0 lg:ml-auto h-105"
+          >
+            {/* Soft inner glow */}
+            <div className="absolute inset-0 m-auto size-56 bg-rose-200/40 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Soft glow centre */}
-            <div className="absolute inset-0 m-auto w-48 h-48 bg-rose-500/10 rounded-full blur-3xl" />
-
-            {/* Card 1 — top-left, floats slowest */}
-            <div className="animate-float absolute top-0 left-0 right-4 sm:right-8 rounded-2xl border border-white/8 bg-white/5 backdrop-blur-md p-4 flex items-center gap-3.5 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5)]">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/20 flex items-center justify-center text-xl shrink-0">👟</div>
+            {/* Card 1 */}
+            <motion.div {...floatConfig(0, 5)} className="absolute top-0 left-0 right-6 sm:right-10 rounded-2xl border border-stone-200/80 bg-white p-4 flex items-center gap-3.5 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.08)]">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-xl shrink-0">👟</div>
               <div className="flex-1 min-w-0">
-                <p className="text-white/80 text-xs font-semibold truncate">Nike Air Max 270</p>
-                <p className="text-white/35 text-[10px] mt-0.5">🇺🇸 Amazon US · GH₵ 1,240</p>
+                <p className="text-stone-800 text-xs font-semibold truncate">Nike Air Max 270</p>
+                <p className="text-stone-400 text-[10px] mt-0.5">🇺🇸 Amazon US · GH₵ 1,240</p>
               </div>
-              <span className="shrink-0 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/20 text-amber-400 text-[10px] font-semibold">
+              <span className="shrink-0 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-600 text-[10px] font-semibold">
                 In Transit
               </span>
-            </div>
+            </motion.div>
 
-            {/* Card 2 — middle, floats with offset */}
-            <div className="animate-float-alt absolute top-[38%] left-4 sm:left-8 right-0 rounded-2xl border border-white/8 bg-white/5 backdrop-blur-md p-4 flex items-center gap-3.5 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5)]" style={{ animationDelay: '1.2s' }}>
-              <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/20 flex items-center justify-center text-xl shrink-0">💄</div>
+            {/* Card 2 */}
+            <motion.div {...floatConfig(1.4, 6)} className="absolute top-[38%] left-6 sm:left-10 right-0 rounded-2xl border border-stone-200/80 bg-white p-4 flex items-center gap-3.5 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.08)]">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-xl shrink-0">💄</div>
               <div className="flex-1 min-w-0">
-                <p className="text-white/80 text-xs font-semibold truncate">Charlotte Tilbury Kit</p>
-                <p className="text-white/35 text-[10px] mt-0.5">🇬🇧 ASOS UK · GH₵ 890</p>
+                <p className="text-stone-800 text-xs font-semibold truncate">Charlotte Tilbury Kit</p>
+                <p className="text-stone-400 text-[10px] mt-0.5">🇬🇧 ASOS UK · GH₵ 890</p>
               </div>
-              <span className="shrink-0 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 text-[10px] font-semibold">
+              <span className="shrink-0 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 text-[10px] font-semibold">
                 Delivered ✓
               </span>
-            </div>
+            </motion.div>
 
-            {/* Card 3 — bottom, floats fastest */}
-            <div className="animate-float absolute bottom-0 left-2 right-6 sm:right-12 rounded-2xl border border-white/8 bg-white/5 backdrop-blur-md p-4 flex items-center gap-3.5 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5)]" style={{ animationDelay: '2.5s', animationDuration: '4s' }}>
-              <div className="w-10 h-10 rounded-xl bg-orange-500/15 border border-orange-500/20 flex items-center justify-center text-xl shrink-0">📱</div>
+            {/* Card 3 */}
+            <motion.div {...floatConfig(2.6, 4.5)} className="absolute bottom-0 left-2 right-8 sm:right-14 rounded-2xl border border-stone-200/80 bg-white p-4 flex items-center gap-3.5 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.08)]">
+              <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-xl shrink-0">📱</div>
               <div className="flex-1 min-w-0">
-                <p className="text-white/80 text-xs font-semibold truncate">iPhone 15 Pro</p>
-                <p className="text-white/35 text-[10px] mt-0.5">🇨🇳 Apple CN · GH₵ 9,450</p>
+                <p className="text-stone-800 text-xs font-semibold truncate">iPhone 15 Pro</p>
+                <p className="text-stone-400 text-[10px] mt-0.5">🇨🇳 Apple CN · GH₵ 9,450</p>
               </div>
-              <span className="shrink-0 px-2.5 py-1 rounded-full bg-sky-500/15 border border-sky-500/20 text-sky-400 text-[10px] font-semibold">
+              <span className="shrink-0 px-2.5 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-600 text-[10px] font-semibold">
                 Processing
               </span>
-            </div>
+            </motion.div>
 
-            {/* Floating chip — payment confirmed */}
-            <div className="animate-float-alt absolute -bottom-4 -right-2 sm:-right-6 flex items-center gap-2 bg-stone-900/90 border border-emerald-500/20 rounded-full px-3.5 py-2 shadow-xl backdrop-blur-sm" style={{ animationDelay: '0.8s' }}>
-              <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-[9px] font-bold">✓</span>
-              <span className="text-emerald-400/80 text-[11px] font-medium">Payment confirmed</span>
-            </div>
+            {/* Chip — payment confirmed */}
+            <motion.div {...floatConfig(0.9, 4)} className="absolute -bottom-4 -right-2 sm:-right-5 flex items-center gap-2 bg-white border border-emerald-200 rounded-full px-3.5 py-2 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.1)]">
+              <span className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-[9px] font-bold">✓</span>
+              <span className="text-emerald-700 text-[11px] font-medium">Payment confirmed</span>
+            </motion.div>
 
-            {/* Floating chip — shipped */}
-            <div className="animate-float absolute -top-4 -right-2 sm:-right-4 flex items-center gap-2 bg-stone-900/90 border border-white/10 rounded-full px-3.5 py-2 shadow-xl backdrop-blur-sm" style={{ animationDelay: '2s' }}>
-              <span className="text-sm">📦</span>
-              <span className="text-white/60 text-[11px] font-medium">Order shipped</span>
-            </div>
+            {/* Chip — shipped */}
+            <motion.div {...floatConfig(2, 5.5)} className="absolute -top-4 -right-2 sm:-right-4 flex items-center gap-2 bg-white border border-stone-200 rounded-full px-3.5 py-2 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.1)]">
+              <span className="text-sm leading-none">📦</span>
+              <span className="text-stone-600 text-[11px] font-medium">Order shipped</span>
+            </motion.div>
 
-          </div>
+          </motion.div>
         </div>
       </div>
     </section>

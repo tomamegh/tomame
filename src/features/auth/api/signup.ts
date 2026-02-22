@@ -1,17 +1,25 @@
-import { createClient } from "@/lib/supabase/client";
-import { SignupSchemaType } from "@/lib/validators/auth";
+import { signupSchema, SignupSchemaType } from "../schema";
 
 export async function signup(data: SignupSchemaType) {
-  const supabase = createClient();
+  const parsed = signupSchema.safeParse(data);
 
-  const { email, password } = data;
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: `${window.location.origin}/app`,
-    },
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message || "Invalid signup data",
+    );
+  }
+
+  const response = await fetch("/api/auth/signup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(parsed.data),
   });
 
-  if (error) throw error;
+  const json = await response.json();
+
+  if (!response.ok) {
+    throw new Error(json.error || "Signup failed");
+  }
+
+  return json.data;
 }

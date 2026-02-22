@@ -1,74 +1,30 @@
 import { NextRequest } from "next/server";
 import { loginSchema } from "@/features/auth/auth.validators";
 import { login } from "@/features/auth/auth.service";
-import { successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
-/**
- * @swagger
- * /api/auth/login:
- *   post:
- *     tags: [Auth]
- *     summary: Log in
- *     description: Authenticates a user and returns session tokens. Rate limited to 10 requests per 15 minutes per IP.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [email, password]
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: user@example.com
- *               password:
- *                 type: string
- *                 example: MySecurePass123
- *     responses:
- *       200:
- *         description: Login successful, returns session data
- *       400:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       401:
- *         description: Invalid credentials
- *       429:
- *         description: Rate limit exceeded
- */
 export async function POST(request: NextRequest) {
   try {
-    // Rate limit by IP
     const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    const rl = checkRateLimit(`login:${ip}`, RATE_LIMIT.auth);
-    if (!rl.allowed) {
-      return errorResponse("Too many requests", 429);
+    if (!checkRateLimit(`login:${ip}`, RATE_LIMIT.auth).allowed) {
+      throw new APIError(429, "Too many requests");
     }
 
-    // Validate input
-    const body: unknown = await request.json().catch(() => null);
+    const body: unknown = await request.json().catch(() => {
+      throw new APIError(400, "Invalid JSON");
+    });
     const parsed = loginSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse(
-        parsed.error.issues[0]?.message ?? "Invalid input",
-        400,
-      );
+      throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    // Call service
-    const result = await login(parsed.data.email, parsed.data.password);
-
-    if (!result.success) {
-      return errorResponse(result.error, result.status);
-    }
+    const result = await login(parsed.data);
+    if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result.data);
   } catch (error) {
-    return errorResponse("Internal server error", 500);
+    return errorResponse(error);
   }
 }
