@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { updatePricingConfigSchema } from "@/features/pricing/pricing.validators";
 import { getAll, updateRegionPricing } from "@/features/pricing/pricing.service";
-import { getAuthenticatedUser } from "@/lib/auth/session";
+import { getAuthenticatedUser } from "@/features/auth/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";

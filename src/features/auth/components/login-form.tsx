@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginSchemaType } from "@/features/auth/schema";
@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/form";
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const resetSuccess = searchParams.get("reset") === "success";
   const { mutateAsync, error, isPending } = useLogin();
 
   const { control, handleSubmit } = useForm<LoginSchemaType>({
@@ -24,8 +26,9 @@ export default function LoginForm() {
   });
 
   const onSubmit = async (data: LoginSchemaType) => {
-      await mutateAsync(data);
-      router.push("/app");
+    const{error} = await mutateAsync(data);
+    console.log(error)
+    router.push("/app");
   };
 
   return (
@@ -36,6 +39,11 @@ export default function LoginForm() {
       </div>
 
       <form id="signin-form" className="space-y-4">
+        {resetSuccess && (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
+            Password reset successfully. Sign in with your new password.
+          </div>
+        )}
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
             {error.message}
@@ -102,7 +110,7 @@ export default function LoginForm() {
 
         <div className="flex justify-end items-center mb-5 w-fit ml-auto">
           <Link
-            href="/reset-password"
+            href="/auth/forgot-password"
             className="text-xs text-rose-500 hover:text-amber-600 transition-colors"
           >
             Forgot password?
@@ -112,6 +120,7 @@ export default function LoginForm() {
         <Button
           variant="primary"
           size="lg"
+          type="button"
           className="w-full"
           disabled={isPending}
           onClick={handleSubmit(onSubmit)}

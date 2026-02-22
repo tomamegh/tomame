@@ -145,6 +145,7 @@ export default function SignUpForm() {
           className="w-full"
           onClick={handleSubmit(onSubmit)}
           disabled={isPending}
+          type="button"
         >
           {isPending ? "Creating Account..." : "Create Account"}
         </Button>

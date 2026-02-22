@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { resetPasswordSchema } from "@/features/auth/auth.validators";
-import { resetPassword } from "@/features/auth/auth.service";
-import { getAuthenticatedUser } from "@/lib/auth/session";
+import { resetPassword, getAuthenticatedUser } from "@/features/auth/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -51,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate input
-    const body: unknown = await request.json().catch(() => { throw new APIError(400, "Invalid JSON"); });
+    const body: unknown = await request.json();
     const parsed = resetPasswordSchema.safeParse(body);
     if (!parsed.success) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");

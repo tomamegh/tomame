@@ -5,6 +5,8 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   role: Role;
+  first_name: string | null;
+  last_name: string | null;
 }
 
 /** Input shape for writing an audit log */

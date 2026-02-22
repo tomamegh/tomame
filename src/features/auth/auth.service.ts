@@ -1,10 +1,8 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAuditEvent } from "@/features/audit/audit.service";
-import { resetPasswordTemplate } from "@/lib/email/templates/reset-password";
-import { sendEmail } from "@/lib/email/transport";
 import { logger } from "@/lib/logger";
-import type { ServiceResult } from "@/types/domain";
+import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type { AuthUserResponse, MessageResponse } from "@/types/api";
 import { LoginSchemaType } from "./schema";
 
@@ -15,14 +13,17 @@ import { LoginSchemaType } from "./schema";
  */
 export async function signup(
   email: string,
-  password: string
+  password: string,
 ): Promise<ServiceResult<AuthUserResponse>> {
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signUp({ email, password });
 
   if (error) {
-    if (error.status === 422 || error.message.toLowerCase().includes("already registered")) {
+    if (
+      error.status === 422 ||
+      error.message.toLowerCase().includes("already registered")
+    ) {
       return { success: false, error: "Email already registered", status: 409 };
     }
     logger.error("Supabase signUp failed", { error: error.message });
@@ -52,7 +53,7 @@ export async function signup(
  * Returns the authoritative user role from the users table.
  */
 export async function login(
-  details: LoginSchemaType
+  details: LoginSchemaType,
 ): Promise<ServiceResult<AuthUserResponse>> {
   const supabase = await createClient();
 
@@ -64,7 +65,7 @@ export async function login(
 
   // Load authoritative role from DB using admin client (bypasses RLS)
   // The server client's session may not be available for RLS in the same request
-  const { data: dbUser, error:userError } = await supabase
+  const { data: dbUser, } = await supabase
     .from("users")
     .select("id, role")
     .eq("id", data.user.id)
@@ -73,8 +74,6 @@ export async function login(
   if (!dbUser) {
     return { success: false, error: "User record not found", status: 500 };
   }
-
-  console.log(userError)
 
   await logAuditEvent({
     actorId: dbUser.id,
@@ -95,20 +94,35 @@ export async function login(
  * Always returns success to prevent email enumeration.
  */
 export async function forgotPassword(
-  email: string
+  email: string,
 ): Promise<ServiceResult<MessageResponse>> {
-  // Generate reset link via admin API (no email sent by Supabase)
-  const { data: linkData, error: linkError } =
-    await supabaseAdmin.auth.admin.generateLink({
-      type: "recovery",
-      email,
-    });
+  const supabase = await createClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
-  if (!linkError && linkData) {
-    const template = resetPasswordTemplate(linkData.properties.action_link);
-    await sendEmail({ to: email, ...template }).catch((err) =>
-      logger.error("Failed to send reset email", { error: String(err) })
-    );
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${appUrl}/auth/reset-password`,
+  });
+
+  if (error) {
+    logger.error("resetPasswordForEmail failed", { error: error.message });
+  }
+
+  // Look up user to audit log — do this after the reset call so we don't
+  // reveal existence via timing. Failure is non-fatal (enumeration-safe).
+  const { data: userData } = await supabaseAdmin
+    .from("users")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (userData) {
+    await logAuditEvent({
+      actorId: userData.id,
+      actorRole: "user",
+      action: "password_reset_requested",
+      entityType: "user",
+      entityId: userData.id,
+    });
   }
 
   // Always return success — never reveal whether email exists
@@ -124,7 +138,7 @@ export async function forgotPassword(
  */
 export async function resetPassword(
   userId: string,
-  password: string
+  password: string,
 ): Promise<ServiceResult<MessageResponse>> {
   const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
     password,
@@ -147,7 +161,7 @@ export async function resetPassword(
  */
 export async function changePassword(
   userId: string,
-  newPassword: string
+  newPassword: string,
 ): Promise<ServiceResult<MessageResponse>> {
   const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
     password: newPassword,
@@ -161,5 +175,36 @@ export async function changePassword(
   return {
     success: true,
     data: { message: "Password changed successfully" },
+  };
+}
+
+/**
+ * Validates the current session and loads the user's authoritative role from DB.
+ * Returns null if unauthenticated or if the user record is missing.
+ */
+export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
+  const supabase = await createClient();
+
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+
+  if (!authUser) return null;
+
+  // Use admin client to bypass RLS for the user lookup
+  const {data:user, error} = await supabase
+    .from("users")
+    .select('*')
+    .eq("id", authUser.id)
+    .single();
+
+  if (!user|| error) return null;
+
+  return {
+    id: user.id,
+    email: authUser.email!,
+    role: user.role,
+    first_name: user?.first_name,
+    last_name: user?.last_name,
   };
 }

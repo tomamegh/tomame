@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { initializePaymentSchema } from "@/features/payments/payments.validators";
 import { initializePayment } from "@/features/payments/payments.service";
-import { getAuthenticatedUser } from "@/lib/auth/session";
+import { getAuthenticatedUser } from "@/features/auth/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getOrder, updateOrderStatusAdmin } from "@/features/orders/orders.service";
-import { getAuthenticatedUser } from "@/lib/auth/session";
+import { getAuthenticatedUser } from "@/features/auth/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 
