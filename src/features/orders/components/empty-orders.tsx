@@ -11,12 +11,12 @@ export function EmptyOrders() {
         </EmptyMedia>
         <EmptyTitle>You have no orders</EmptyTitle>
         <EmptyDescription>
-          Upload files to your cloud storage to access them anywhere.
+          You have no orders to show. Try reloading the page to see your new orders.
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
         <Button variant="outline" size="sm">
-          Upload Files
+          Reload
         </Button>
       </EmptyContent>
     </Empty>

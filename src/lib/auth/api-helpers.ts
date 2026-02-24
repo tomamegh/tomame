@@ -29,3 +29,10 @@ export function errorResponse(error: unknown, statusCode: number = 500) {
     { status: statusCode },
   );
 }
+
+export async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, options);
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? "Request failed");
+  return json.data as T;
+}

@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CreateOrderRequest, OrderResponse, OrderListResponse } from "@/types/api";
+import { apiFetch } from "@/lib/auth/api-helpers";
 
 // ── Query keys ───────────────────────────────────────────────
 
@@ -12,15 +13,6 @@ export const orderKeys = {
     [...orderKeys.all, "admin", filters ?? {}] as const,
   detail: (id: string) => [...orderKeys.all, id] as const,
 };
-
-// ── Helpers ──────────────────────────────────────────────────
-
-async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, options);
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? "Request failed");
-  return json.data as T;
-}
 
 // ── User hooks ───────────────────────────────────────────────
 

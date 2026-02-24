@@ -562,17 +562,11 @@ function FAQSection() {
 
 function CTASection() {
   return (
-    <section className='py-20 sm:py-28 lg:py-32'>
-      <div className="max-w-7xl mx-auto relative overflow-hidden bg-linear-to-b from-stone-950 via-stone-900 to-stone-950 text-white py-20 sm:py-20 rounded-3xl">
+    <section className='py-20 sm:py-28 lg:py-32 px-4 max-w-7xl mx-auto sm:px-6 lg:px-8'>
+      <div className=" relative overflow-hidden bg-linear-to-b from-stone-950 via-stone-900 to-stone-950 text-white py-20 sm:py-20 rounded-3xl">
       {/* Decorative elements */}
       <div className="absolute top-[10%] left-[5%] size-120 rounded-full bg-rose-500/10 blur-[120px]" />
       <div className="absolute bottom-[10%] right-[5%] size-100 rounded-full bg-amber-500/8 blur-[100px]" />
-
-      {/* Floating avatar circles (Genesis-style) */}
-      <div className="absolute top-[15%] left-[8%] w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm flex items-center justify-center text-white/40 text-xs font-bold lg:flex">SC</div>
-      <div className="absolute top-[20%] right-[12%] w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm flex items-center justify-center text-white/40 text-xs font-bold lg:flex">MT</div>
-      <div className="absolute bottom-[20%] left-[15%] w-10 h-10 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm flex items-center justify-center text-white/40 text-xs font-bold lg:flex">EW</div>
-      <div className="absolute bottom-[25%] right-[8%] w-14 h-14 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm flex items-center justify-center text-white/40 text-xs font-bold lg:flex">JD</div>
 
       {/* Concentric rings */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-160 rounded-full border border-dashed border-white/4" />
