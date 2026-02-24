@@ -3,8 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { logAuditEvent } from "@/features/audit/audit.service";
 import { logger } from "@/lib/logger";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
-import type { AuthUserResponse, MessageResponse } from "@/types/api";
+import type { MessageResponse } from "@/types/api";
 import { LoginSchemaType } from "./schema";
+import { AuthUserResponse } from "./types";
 
 /**
  * Register a new user.

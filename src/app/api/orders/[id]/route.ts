@@ -2,11 +2,15 @@ import { NextRequest } from "next/server";
 import { getOrder } from "@/features/orders/orders.service";
 import { getAuthenticatedUser } from "@/features/auth/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
-import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import {
+  APIError,
+  successResponse,
+  errorResponse,
+} from "@/lib/auth/api-helpers";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const user = await getAuthenticatedUser();

@@ -16,11 +16,11 @@ export async function login(data: LoginSchemaType) {
     }),
   });
 
-  const json = await response.json();
+  const res = await response.json();
 
   if (!response.ok) {
-    throw new Error(json.error || "Login failed");
+    throw new Error("Login failed");
   }
 
-  return json.data;
+  return res;
 }

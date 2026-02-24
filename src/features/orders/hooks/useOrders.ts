@@ -1,8 +1,9 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { CreateOrderRequest, OrderResponse, OrderListResponse } from "@/types/api";
 import { apiFetch } from "@/lib/auth/api-helpers";
+import { CreateOrderInput, Order, OrderList } from "../types";
+import { PaginatedDataResponse } from "@/types/api";
 
 // ── Query keys ───────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ export const orderKeys = {
 
 /** List the current user's orders */
 export function useUserOrders() {
-  return useQuery<OrderListResponse>({
+  return useQuery<PaginatedDataResponse<Order>>({
     queryKey: orderKeys.user(),
     queryFn: () => apiFetch("/api/orders"),
   });
@@ -26,7 +27,7 @@ export function useUserOrders() {
 
 /** Get a single order by ID (user sees their own; admin sees any) */
 export function useOrder(id: string) {
-  return useQuery<OrderResponse>({
+  return useQuery<Order>({
     queryKey: orderKeys.detail(id),
     queryFn: () => apiFetch(`/api/orders/${id}`),
     enabled: !!id,
@@ -37,7 +38,7 @@ export function useOrder(id: string) {
 export function useCreateOrder() {
   const queryClient = useQueryClient();
 
-  return useMutation<OrderResponse, Error, CreateOrderRequest>({
+  return useMutation<Order, Error, CreateOrderInput>({
     mutationFn: (data) =>
       apiFetch("/api/orders", {
         method: "POST",
@@ -54,7 +55,7 @@ export function useCreateOrder() {
 
 /** Admin: list all orders with optional filters */
 export function useAdminOrders(filters?: { status?: string; userId?: string }) {
-  return useQuery<OrderListResponse>({
+  return useQuery<OrderList>({
     queryKey: orderKeys.admin(filters),
     queryFn: () => {
       const params = new URLSearchParams();
@@ -68,27 +69,10 @@ export function useAdminOrders(filters?: { status?: string; userId?: string }) {
 
 /** Admin: get any order by ID */
 export function useAdminOrder(id: string) {
-  return useQuery<OrderResponse>({
+  return useQuery<OrderList>({
     queryKey: orderKeys.detail(id),
     queryFn: () => apiFetch(`/api/admin/orders/${id}`),
     enabled: !!id,
   });
 }
 
-/** Admin: update an order's status */
-export function useUpdateOrderStatus() {
-  const queryClient = useQueryClient();
-
-  return useMutation<OrderResponse, Error, { id: string; status: string }>({
-    mutationFn: ({ id, status }) =>
-      apiFetch(`/api/admin/orders/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      }),
-    onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: orderKeys.all });
-      queryClient.setQueryData(orderKeys.detail(updated.id), updated);
-    },
-  });
-}

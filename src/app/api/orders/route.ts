@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createOrderSchema } from "@/features/orders/orders.validators";
-import { createOrder, listUserOrders } from "@/features/orders/orders.service";
+import { createOrder, getUserOrders } from "@/features/orders/orders.service";
 import { getAuthenticatedUser } from "@/features/auth/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
@@ -49,8 +49,9 @@ export async function GET() {
     const auth = requireAuth(user);
     if (!auth.ok) throw new APIError(auth.status, auth.error);
 
-    const result = await listUserOrders(auth.user);
-    if (!result.success) throw new APIError(result.status, result.error);
+    const result = await getUserOrders(auth.user.id);
+
+    console.log(result)
 
     return successResponse(result.data);
   } catch (error) {

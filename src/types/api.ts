@@ -1,4 +1,4 @@
-/** Standard API success response */
+// /** Standard API success response */
 export interface ApiSuccessResponse<T> {
   success: true;
   data: T;
@@ -134,3 +134,11 @@ export interface PricingConfigResponse {
 export interface PricingConfigListResponse {
   configs: PricingConfigResponse[];
 }
+
+export type PaginatedDataResponse<T> = {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};

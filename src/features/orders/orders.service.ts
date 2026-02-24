@@ -9,11 +9,17 @@ import {
 import { calculatePricing } from "@/features/pricing/pricing.service";
 import { logAuditEvent } from "@/features/audit/audit.service";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
-import type { OrderResponse, OrderListResponse } from "@/types/api";
+import type {
+  // OrderResponse,
+  // OrderListResponse,
+  PaginatedDataResponse,
+} from "@/types/api";
 import type { DbOrder } from "@/types/db";
+import { createClient } from "@/lib/supabase/server";
+import { Order, OrderList } from "./types";
 
 /** Map a DB order row to the API response shape */
-function toResponse(order: DbOrder): OrderResponse {
+function toResponse(order: DbOrder): Order {
   return {
     id: order.id,
     productUrl: order.product_url,
@@ -43,13 +49,13 @@ export async function createOrder(
     quantity: number;
     originCountry: "USA" | "UK" | "CHINA";
     specialInstructions?: string;
-  }
-): Promise<ServiceResult<OrderResponse>> {
+  },
+): Promise<ServiceResult<Order>> {
   // Calculate pricing server-side (never trust client-provided totals)
   const pricingResult = await calculatePricing(
     input.estimatedPriceUsd,
     input.quantity,
-    input.originCountry
+    input.originCountry,
   );
 
   if (!pricingResult.success) {
@@ -93,14 +99,44 @@ export async function createOrder(
   return { success: true, data: toResponse(order) };
 }
 
+export const getUserOrders = async (
+  userId: string,
+  page: number = 1,
+  limit: number = 10,
+): Promise<PaginatedDataResponse<Order>> => {
+  const supabase = await createClient();
+
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data, error, count } = await supabase
+    .from("orders")
+    .select("*", { count: "exact" })
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    data,
+    total: count || 0,
+    page,
+    limit,
+    totalPages: count ? Math.ceil(count / limit) : 0,
+  };
+};
+
 /**
  * Get a single order by ID.
  * Users can only see their own orders; admins can see any order.
  */
 export async function getOrder(
   user: AuthenticatedUser,
-  orderId: string
-): Promise<ServiceResult<OrderResponse>> {
+  orderId: string,
+): Promise<ServiceResult<Order>> {
   const order = await getOrderById(supabaseAdmin, orderId);
 
   if (!order) {
@@ -119,8 +155,8 @@ export async function getOrder(
  * List all orders for the authenticated user.
  */
 export async function listUserOrders(
-  user: AuthenticatedUser
-): Promise<ServiceResult<OrderListResponse>> {
+  user: AuthenticatedUser,
+): Promise<ServiceResult<OrderList>> {
   const orders = await getOrdersByUserId(supabaseAdmin, user.id);
 
   return {
@@ -137,8 +173,8 @@ export async function listUserOrders(
  */
 export async function listAllOrders(
   user: AuthenticatedUser,
-  filters?: { status?: string; userId?: string }
-): Promise<ServiceResult<OrderListResponse>> {
+  filters?: { status?: string; userId?: string },
+): Promise<ServiceResult<OrderList>> {
   if (user.role !== "admin") {
     return { success: false, error: "Admin access required", status: 403 };
   }
@@ -167,8 +203,8 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 export async function updateOrderStatusAdmin(
   user: AuthenticatedUser,
   orderId: string,
-  newStatus: string
-): Promise<ServiceResult<OrderResponse>> {
+  newStatus: string,
+): Promise<ServiceResult<Order>> {
   if (user.role !== "admin") {
     return { success: false, error: "Admin access required", status: 403 };
   }
@@ -189,7 +225,11 @@ export async function updateOrderStatusAdmin(
 
   const updated = await updateOrderStatus(supabaseAdmin, orderId, newStatus);
   if (!updated) {
-    return { success: false, error: "Failed to update order status", status: 500 };
+    return {
+      success: false,
+      error: "Failed to update order status",
+      status: 500,
+    };
   }
 
   await logAuditEvent({

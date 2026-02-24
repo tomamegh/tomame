@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 function ContactForm() {
-  const [sent, setSent] = React.useState(false);
+  const [sent] = React.useState(false);
   const form = useForm({
     resolver: zodResolver(contactSchema),
   });

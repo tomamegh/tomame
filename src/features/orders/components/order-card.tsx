@@ -34,7 +34,7 @@ export function OrderCard({ order }: OrderCardProps) {
               <span className="truncate">{order.productUrl}</span>
             </a>
             <p className="text-xs text-stone-400 mt-1">
-              Qty: {order.quantity} · Est. ${order.estimatedPriceUsd.toFixed(2)}
+              Qty: {order.quantity} · Est. ${order.estimatedPriceUsd}
             </p>
           </div>
 

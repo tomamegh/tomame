@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginSchemaType } from "@/features/auth/schema";
@@ -14,11 +14,11 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/form";
+import { Suspense } from "react";
+import ResetSuccess from "./reset-success";
 
 export default function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const resetSuccess = searchParams.get("reset") === "success";
   const { mutateAsync, error, isPending } = useLogin();
 
   const { control, handleSubmit } = useForm<LoginSchemaType>({
@@ -26,8 +26,8 @@ export default function LoginForm() {
   });
 
   const onSubmit = async (data: LoginSchemaType) => {
-    const{error} = await mutateAsync(data);
-    console.log(error)
+    const { error } = await mutateAsync(data);
+    console.log(error);
     router.push("/app");
   };
 
@@ -39,11 +39,9 @@ export default function LoginForm() {
       </div>
 
       <form id="signin-form" className="space-y-4">
-        {resetSuccess && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
-            Password reset successfully. Sign in with your new password.
-          </div>
-        )}
+        <Suspense>
+          <ResetSuccess />
+        </Suspense>
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
             {error.message}

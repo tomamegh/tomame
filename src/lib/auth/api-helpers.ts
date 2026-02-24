@@ -1,5 +1,6 @@
+import { ApiSuccessResponse } from "@/types/api";
 import { NextResponse } from "next/server";
-import type { ApiSuccessResponse } from "@/types/api";
+
 
 export class APIError extends Error {
   constructor(
@@ -34,5 +35,5 @@ export async function apiFetch<T>(url: string, options?: RequestInit): Promise<T
   const res = await fetch(url, options);
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? "Request failed");
-  return json.data as T;
+  return json as T;
 }
