@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { CircleDollarSignIcon, PackageSearchIcon, ShoppingCartIcon } from "lucide-react";
@@ -37,18 +37,18 @@ export default function DashboardPage() {
       {/* </div> */}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
         {stats.map((stat, i) => (
           <Card key={i} className="card-hover">
-            <CardContent className="pt-6 space-y-4">
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle className="text-stone-800">{stat.label}</CardTitle>
+              <div className="bg-stone-100 p-2 rounded-md"><stat.icon className="stroke-stone-800"/></div>
+            </CardHeader>
+            <CardContent>
               <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-sm text-stone-500">{stat.label}</p>
-                  <p className="text-3xl font-bold text-stone-800 mt-1">
+                  <p className="text-3xl font-bold text-stone-800">
                     {stat.value}
                   </p>
-                </div>
-                <div className="text-3xl"><stat.icon/></div>
               </div>
               <p className="text-xs text-stone-400">{stat.change}</p>
             </CardContent>
