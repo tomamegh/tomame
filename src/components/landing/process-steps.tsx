@@ -74,7 +74,7 @@ export default function ProcessZigzag() {
               >
                 {/* Center dot */}
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full gradient-primary hidden md:block z-10" >
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-violet-500/40 to-fuchsia-500/40 animate-ping" />
+                  <div className="absolute inset-0 rounded-full gradient-primary animate-ping" />
                 </div>  
 
                 {/* <div
