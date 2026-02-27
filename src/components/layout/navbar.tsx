@@ -5,12 +5,20 @@ import { Suspense } from "react";
 import NavbarAuthButton from "@/features/auth/components/auth-button";
 import { createClient } from "@/lib/supabase/server";
 
-const NAV_LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/about", label: "About" },
-  { href: "/faq", label: "FAQ" },
-  { href: "/contact", label: "Contact" },
-] as const;
+const NAV_LINKS = {
+  authenticated: [
+    { href: "/app", label: "Dashboard" },
+    { href: "/app/orders", label: "My Orders" },
+    { href: "/app/products", label: "Products" },
+    { href: "/app/notifications", label: "Notifications" },
+  ],
+  unauthenticated: [
+    { href: "/", label: "Home" },
+    { href: "/about", label: "About" },
+    { href: "/faq", label: "FAQ" },
+    { href: "/contact", label: "Contact" },
+  ],
+} as const;
 
 export async function MainNav() {
   const supabase = await createClient();
@@ -27,10 +35,10 @@ export async function MainNav() {
         </Link>
 
         {/* Desktop nav links */}
-        <NavLinks links={NAV_LINKS} />
+        <NavLinks links={NAV_LINKS.unauthenticated} />
 
         {/* Mobile menu */}
-        <MobileMenu links={NAV_LINKS} user={data.user} />
+        <MobileMenu links={data.user ? NAV_LINKS.authenticated: NAV_LINKS.unauthenticated} user={data.user} />
 
         <Suspense>
           <NavbarAuthButton />
