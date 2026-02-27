@@ -5,15 +5,21 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { User } from "@supabase/supabase-js";
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 
-type NavLink = { href: string; label: string };
+type NavLink = { href: string; label: string; icon: LucideIcon | null };
 
 type Props = {
-  links: readonly NavLink[];
+  primaryLinks: readonly NavLink[];
+  secondaryLinks: readonly NavLink[];
   user: User | null;
 };
 
-export function MobileMenu({ links, user = null }: Props) {
+export function MobileMenu({
+  primaryLinks,
+  secondaryLinks,
+  user = null,
+}: Props) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -44,17 +50,18 @@ export function MobileMenu({ links, user = null }: Props) {
       {open && (
         <div className="absolute top-16 left-0 right-0 md:hidden border-t border-stone-200/40 bg-white fade-in shadow-md">
           <div className="px-4 py-4 space-y-1">
-            {links.map((link) => (
+            {primaryLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 onClick={() => setOpen(false)}
-                className={`block px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                className={`group flex items-center gap-2 px-4 border-b first:border-none last:border-none nth-[2]:border-t text-sm font-medium transition-colors ${
                   pathname === link.href
                     ? "bg-stone-100 text-stone-900"
                     : "text-stone-600 hover:bg-stone-50"
-                }`}
+                } ${user ? "py-2" : "py-3"}`}
               >
+                {link.icon && <link.icon className={`${pathname === link.href ? 'stroke-stone-900': 'stroke-stone-600'}`} />}
                 {link.label}
               </Link>
             ))}
@@ -81,11 +88,16 @@ export function MobileMenu({ links, user = null }: Props) {
               </Link>
             </div>
           ) : (
-            <div className="px-4 py-2 border-t border-stone-200/40 flex flex-wrap gap-2 m-2">
-              <Link href="/" className="w-fit p-1 text-stone-500 text-sm">Home</Link>
-              <Link href="/app/orders" className="w-fit p-1 text-stone-500 text-sm">Orders</Link>
-              <Link href="/app/products" className="w-fit p-1 text-stone-500 text-sm">Products</Link>
-              <Link href="/app/notifications" className="w-fit p-1 text-stone-500 text-sm">Notifications</Link>
+            <div className="px-4 py-2 border-t border-stone-200/40 flex flex-wrap gap-5 m-2">
+              {secondaryLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="w-fit p-1 text-stone-400 text-sm"
+                >
+                  {link.label}
+                </Link>
+              ))}
             </div>
           )}
         </div>

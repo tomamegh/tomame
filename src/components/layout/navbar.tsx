@@ -7,16 +7,16 @@ import { createClient } from "@/lib/supabase/server";
 
 const NAV_LINKS = {
   authenticated: [
-    { href: "/app", label: "Dashboard" },
-    { href: "/app/orders", label: "My Orders" },
-    { href: "/app/products", label: "Products" },
-    { href: "/app/notifications", label: "Notifications" },
+    { href: "/app", label: "Dashboard", icon: null },
+    { href: "/app/orders", label: "My Orders", icon: null },
+    { href: "/app/products", label: "My Products", icon: null },
+    { href: "/app/notifications", label: "Notifications", icon: null },
   ],
   unauthenticated: [
-    { href: "/", label: "Home" },
-    { href: "/about", label: "About" },
-    { href: "/faq", label: "FAQ" },
-    { href: "/contact", label: "Contact" },
+    { href: "/", label: "Home", icon: null },
+    { href: "/about", label: "About", icon: null },
+    { href: "/faq", label: "FAQ", icon: null },
+    { href: "/contact", label: "Contact", icon: null },
   ],
 } as const;
 
@@ -38,7 +38,13 @@ export async function MainNav() {
         <NavLinks links={NAV_LINKS.unauthenticated} />
 
         {/* Mobile menu */}
-        <MobileMenu links={data.user ? NAV_LINKS.authenticated: NAV_LINKS.unauthenticated} user={data.user} />
+        <MobileMenu
+          primaryLinks={
+            data.user ? NAV_LINKS.authenticated : NAV_LINKS.unauthenticated
+          }
+          secondaryLinks={NAV_LINKS.unauthenticated}
+          user={data.user}
+        />
 
         <Suspense>
           <NavbarAuthButton />
