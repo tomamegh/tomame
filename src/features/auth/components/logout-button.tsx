@@ -15,6 +15,7 @@ export default function LogoutButton({variant= 'navbar', className}: {variant?: 
     const supabase = createClient();
     await supabase.auth.signOut();
     router.replace("/");
+    router.refresh()
   };
 
   return variant==="navbar" ? (

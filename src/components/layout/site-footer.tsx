@@ -6,8 +6,8 @@ export function SiteFooter() {
   return (
     <footer className="bg-linear-to-br from-stone-950 via-stone-900 to-stone-950 text-stone-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-          <div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+          <div className='max-md:col-span-2'>
             <h3 className="font-bold mb-4 text-lg bg-linear-to-r from-rose-400 to-amber-400 bg-clip-text text-transparent">Tomame</h3>
             <p className="text-sm">The simplest way to source products globally.</p>
           </div>
