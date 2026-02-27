@@ -27,7 +27,7 @@ async function NavbarAuthButton() {
 
   return user ? (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger asChild className="max-sm:hidden">
         <Button
           variant="ghost"
           size="lg"
@@ -37,7 +37,7 @@ async function NavbarAuthButton() {
             <AvatarImage src="https://github.com/shadcn.png" alt="shadcn" />
             <AvatarFallback>LR</AvatarFallback>
           </Avatar>
-          <span className="font-normal text-sm">{user.email}</span>
+          {/* <span className="font-normal text-sm">{user.email}</span> */}
           <ChevronDown className="w-4 h-4 opacity-50" />
         </Button>
       </DropdownMenuTrigger>

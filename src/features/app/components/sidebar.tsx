@@ -47,7 +47,7 @@ const data = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // const {} = usePath
   return (
-    <div className="basis-1/4 shrink-0 p-6 bg-white shadow-md rounded-xl sticky top-28">
+    <div className="basis-1/4 shrink-0 p-6 bg-white shadow-md rounded-xl sticky top-28 hidden md:block">
       <nav className="space-y-1">
         {data.navMain.map((item) => (
           <Link

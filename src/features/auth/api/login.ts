@@ -19,7 +19,7 @@ export async function login(data: LoginSchemaType) {
   const res = await response.json();
 
   if (!response.ok) {
-    throw new Error("Login failed");
+    throw new Error(res.error || "Login failed");
   }
 
   return res;
