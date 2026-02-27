@@ -1,27 +1,9 @@
 import { z } from "zod";
-import { ALLOWED_PRODUCT_DOMAINS } from "@/config/constants";
-
-/**
- * Validates that a URL belongs to an allowed e-commerce domain.
- */
-function isAllowedDomain(url: string): boolean {
-  try {
-    const hostname = new URL(url).hostname.toLowerCase();
-    return ALLOWED_PRODUCT_DOMAINS.some(
-      (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
-    );
-  } catch {
-    return false;
-  }
-}
 
 export const createOrderSchema = z.object({
   productUrl: z
     .string({ error: "Product URL is required" })
-    .url("Must be a valid URL")
-    .refine(isAllowedDomain, {
-      message: `Product URL must be from a supported store (${ALLOWED_PRODUCT_DOMAINS.join(", ")})`,
-    }),
+    .url("Must be a valid URL"),
   productName: z
     .string({ error: "Product name is required" })
     .min(1, "Product name is required")
@@ -47,4 +29,7 @@ export const createOrderSchema = z.object({
     .max(2000, "Special instructions must be under 2000 characters")
     .trim()
     .optional(),
+  needsReview: z.boolean().optional(),
+  reviewReasons: z.array(z.string()).optional(),
+  extractionMetadata: z.record(z.string(), z.unknown()).optional(),
 });
