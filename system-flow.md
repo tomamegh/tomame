@@ -80,31 +80,64 @@
 
 ---
 
-### **PHASE 2: Product Request Submission**
+### **PHASE 2: Product Request Submission (with Auto-Extraction)**
 
 ```
 ┌─ Customer Action ─────────────────────────────────────────┐
 │ 1. Navigate to "Request Product" page                     │
-│ 2. Fill out form:                                         │
-│    - Product URL: https://amazon.com/product/xyz          │
-│    - Product Name: "Wireless Headphones"                  │
-│    - Estimated Price: $50 (user sees this on Amazon)      │
-│    - Quantity: 1                                          │
-│    - Origin Country: [Dropdown: USA / UK / CHINA]         │
-│    - Special Instructions: "Black color preferred"        │
-│ 3. Complete CAPTCHA                                       │
-│ 4. Click "Submit Request"                                 │
+│ 2. Paste product URL: https://amazon.com/product/xyz      │
+│ 3. System validates URL format + supported store domain    │
+└───────────────────────────────────────────────────────────┘
+                           ↓
+┌─ API: POST /api/products/extract ─────────────────────────┐
+│ 1. Authenticate user (rate limit: 15 req / 15 min)        │
+│ 2. Validate URL against supported_stores table             │
+│ 3. Fetch product page (10s timeout, browser-like UA)       │
+│ 4. Extract data using priority sources:                    │
+│    a. JSON-LD structured data (highest confidence)         │
+│    b. Open Graph meta tags (medium confidence)             │
+│    c. <title> / meta tags (low confidence)                 │
+│    d. Domain → country mapping (e.g. amazon.com → USA)     │
+│ 5. Return per-field results with source + confidence:      │
+│    {                                                       │
+│      fields: {                                             │
+│        name:    { value, source, confidence },             │
+│        price:   { value, source, confidence, currency },   │
+│        image:   { value, source, confidence },             │
+│        country: { value, source, confidence }              │
+│      },                                                    │
+│      extractionSuccess: true/false,                        │
+│      errors: [...]                                         │
+│    }                                                       │
+└────────────────────────────────────────────────────────────┘
+                           ↓
+┌─ Frontend: Auto-Fill or Manual Entry ─────────────────────┐
 │                                                           │
-│ NOTE: User manually checks product price on the website   │
-│       and enters it as estimated price                    │
+│ IF extraction succeeds (all key fields retrieved):         │
+│   → Form auto-fills with extracted data                   │
+│   → User confirms details, sets quantity, instructions    │
+│   → Order created with needs_review = false               │
+│                                                           │
+│ IF extraction partially fails (some fields missing):      │
+│   → Form auto-fills available fields                      │
+│   → Missing fields highlighted for manual entry           │
+│   → Order created with needs_review = true                │
+│   → review_reasons = ["price_manual_entry", ...]          │
+│                                                           │
+│ IF extraction completely fails:                           │
+│   → Full manual entry form shown                          │
+│   → Order created with needs_review = true                │
+│   → review_reasons = ["extraction_failed"]                │
+│                                                           │
+│ NOTE: Extraction never blocks submission — always falls    │
+│       back to manual entry on failure.                    │
 └───────────────────────────────────────────────────────────┘
                            ↓
 ┌─ Frontend Validation ─────────────────────────────────────┐
 │ - URL format check (valid HTTP/HTTPS)                     │
 │ - Domain whitelist (amazon.com, ebay.com, etc.)           │
-│ - Required fields present                                 │
+│ - Required fields present (name, price, country)          │
 │ - Origin country must be one of: USA, UK, CHINA           │
-│ - CAPTCHA verified                                        │
 └───────────────────────────────────────────────────────────┘
                            ↓
 ┌─ API: POST /api/orders ───────────────────────────────────┐
@@ -113,7 +146,8 @@
 │ 3. Load user record from database                         │
 │ 4. Rate limit check (max 5 requests/hour)                 │
 │ 5. Validate input data                                    │
-│ 6. Create order record:                                   │
+│ 6. Calculate pricing server-side                          │
+│ 7. Create order record:                                   │
 │    {                                                      │
 │      id: uuid,                                            │
 │      user_id: authenticated_user_id,                      │
@@ -122,17 +156,26 @@
 │      estimated_price_usd: 50,                             │
 │      quantity: 1,                                         │
 │      origin_country: "USA",                               │
-│      status: "pending_payment",                           │
+│      status: "pending",                                   │
+│      needs_review: true/false,                            │
+│      review_reasons: ["price_manual_entry", ...] or [],   │
+│      extraction_metadata: { ... },                        │
 │      created_at: timestamp                                │
 │    }                                                      │
-│ 7. Create audit log: "order_created"                      │
-│ 8. Return order_id and redirect to pricing page           │
+│ 8. Create audit log: "order_created"                      │
+│ 9. Return order_id and redirect to pricing page           │
 └───────────────────────────────────────────────────────────┘
 ```
 
 **Database Changes:**
-- ✅ New record in `orders` table (status: `pending_payment`)
+- ✅ New record in `orders` table (status: `pending`, with `needs_review` flag)
 - ✅ New record in `audit_logs` table
+
+**Needs Review Triggers:**
+- Price was manually entered by customer
+- Product name was manually entered
+- Extraction completely failed
+- Any required field could not be auto-detected
 
 ---
 
@@ -330,14 +373,84 @@
 
 ---
 
-### **PHASE 6: Admin Order Management**
+### **PHASE 6: Admin Order Review (Flagged Orders)**
 
 ```
 ┌─ Admin Action ────────────────────────────────────────────┐
 │ 1. Login to admin dashboard                               │
 │    - Supabase Auth with role check                        │
 │    - Only role = 'admin' can access                       │
-│ 2. Navigate to "Paid Orders" page                         │
+│ 2. Navigate to "Orders Needing Review" section            │
+│    GET /api/admin/orders?needsReview=true                 │
+└───────────────────────────────────────────────────────────┘
+                           ↓
+┌─ Admin View: Flagged Orders ─────────────────────────────┐
+│ Orders Needing Review                                     │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ #042  amazon.com   GHS 1,240   REVIEW                    │
+│  → Price was manually entered by customer                 │
+│  → Product name was manually entered                      │
+│                                                           │
+│ #045  ebay.co.uk   GHS 890     REVIEW                    │
+│  → Automatic extraction failed entirely                   │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+└───────────────────────────────────────────────────────────┘
+                           ↓
+┌─ Admin Reviews Flagged Order ────────────────────────────┐
+│ Order #042 — Needs Review                                 │
+│                                                           │
+│ Product URL: https://amazon.com/dp/B09XS7JWHH            │
+│ [Open Product Page →]                                     │
+│                                                           │
+│ FIELD            VALUE                SOURCE              │
+│ ─────────────────────────────────────────────────         │
+│ Product Name     Wireless Headphones  User-provided       │
+│ Price (USD)      $50.00               User-provided       │
+│ Image            (none provided)      —                   │
+│ Origin Country   USA                  Auto-detected       │
+│                                                           │
+│ Review Reasons:                                           │
+│  - Price was manually entered by customer                 │
+│  - Product name was manually entered                      │
+│                                                           │
+│ Extraction Metadata: { ... } (raw extraction results)     │
+│                                                           │
+│ Admin Actions:                                            │
+│ [Approve]  [Edit & Approve]  [Reject]                    │
+└───────────────────────────────────────────────────────────┘
+                           ↓
+┌─ API: POST /api/admin/orders/:id/review ─────────────────┐
+│                                                           │
+│ APPROVE:                                                  │
+│ 1. Optionally apply admin corrections (name, price, etc.) │
+│ 2. Set needs_review = false                               │
+│ 3. Set reviewed_by = admin_id, reviewed_at = now()        │
+│ 4. Audit log: "order_review_approved"                     │
+│ 5. Order proceeds normally through payment/processing     │
+│                                                           │
+│ REJECT:                                                   │
+│ 1. Set status = "cancelled", needs_review = false         │
+│ 2. Set reviewed_by = admin_id, reviewed_at = now()        │
+│ 3. Audit log: "order_review_rejected" with reason         │
+│ 4. Customer is notified and can resubmit                  │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+**Database Changes:**
+- ✅ Order record updated (`needs_review`, `reviewed_by`, `reviewed_at`, optionally corrected fields)
+- ✅ New record in `audit_logs` table
+
+**Key Principle:** Orders where extraction succeeded fully (needs_review = false) skip this phase entirely and proceed directly to payment → admin purchase.
+
+---
+
+### **PHASE 7: Admin Order Processing (Paid Orders)**
+
+```
+┌─ Admin Action ────────────────────────────────────────────┐
+│ 1. Navigate to "Paid Orders" page                         │
+│    GET /api/admin/orders?status=paid                      │
 └───────────────────────────────────────────────────────────┘
                            ↓
 ┌─ Admin View ──────────────────────────────────────────────┐
@@ -363,6 +476,7 @@
 │    - Special Instructions: "Black color preferred"        │
 │    - Amount Paid: GHS 1,240                               │
 │    - Payment Date: 2024-01-15 10:30 AM                   │
+│    - Review Status: Approved / Not flagged                │
 │                                                           │
 │ 3. Admin clicks product URL to open in new tab            │
 │    → Views actual product on Amazon                       │
@@ -375,13 +489,12 @@
 │ 5. Admin clicks "Mark as Processing"                      │
 └───────────────────────────────────────────────────────────┘
                            ↓
-┌─ API: PATCH /api/admin/orders/:id/status ─────────────────┐
+┌─ API: PATCH /api/admin/orders/:id ───────────────────────┐
 │ 1. Authenticate admin                                     │
 │ 2. Verify role = 'admin'                                  │
 │ 3. Validate status transition (paid → processing)         │
 │ 4. Update order record:                                   │
 │    - status = "processing"                                │
-│    - processing_started_at = timestamp                    │
 │ 5. Create audit log:                                      │
 │    {                                                      │
 │      action: "order_status_changed",                      │
@@ -406,18 +519,19 @@
 - ✅ New record in `notifications` table
 
 **Admin Workflow Summary:**
-1. Admin sees paid order in dashboard
-2. Admin clicks order to view full details
-3. Admin sees product URL as clickable link
-4. Admin clicks URL → Opens product page in new tab
-5. Admin verifies product details
-6. Admin purchases product manually
-7. Admin marks order as "Processing"
-8. Customer receives notification
+1. Admin reviews flagged orders first (Phase 6) — approves, edits, or rejects
+2. Admin sees paid orders in dashboard
+3. Admin clicks order to view full details
+4. Admin sees product URL as clickable link
+5. Admin clicks URL → Opens product page in new tab
+6. Admin verifies product details
+7. Admin purchases product manually
+8. Admin marks order as "Processing"
+9. Customer receives notification
 
 ---
 
-### **PHASE 7: Order Status Updates**
+### **PHASE 8: Order Status Updates**
 
 ```
 ┌─ Admin Updates Order Through Lifecycle ───────────────────┐
@@ -443,7 +557,7 @@
 
 ---
 
-### **PHASE 8: Customer Order Tracking**
+### **PHASE 9: Customer Order Tracking**
 
 ```
 ┌─ Customer Action ─────────────────────────────────────────┐
@@ -488,7 +602,7 @@
 
 ---
 
-### **PHASE 9: Notification Delivery (Background)**
+### **PHASE 10: Notification Delivery (Background)**
 
 ```
 ┌─ Cron Job: Every 30 seconds ──────────────────────────────┐
@@ -531,7 +645,7 @@
 
 ---
 
-### **PHASE 10: Admin Pricing Configuration**
+### **PHASE 11: Admin Pricing Configuration**
 
 ```
 ┌─ Admin Action ────────────────────────────────────────────┐
@@ -657,6 +771,11 @@ pending → failed (after 3 retries)
 | Rate limit exceeded | 429 error, customer must wait |
 | Notification failure | Retry 3 times with exponential backoff |
 | Admin wrong status update | Audit log tracks all changes, can be corrected |
+| Product page blocks extraction (403) | Fall back to manual entry, order flagged `needs_review` |
+| Extraction timeout (>10s) | Fall back to manual entry, order flagged `needs_review` |
+| Partial extraction (some fields missing) | Auto-fill available fields, user completes rest, order flagged |
+| Price in non-USD currency | Logged in extraction metadata, user confirms USD estimate |
+| Admin rejects flagged order | Order cancelled, customer notified to resubmit |
 
 ---
 
