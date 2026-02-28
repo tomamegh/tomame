@@ -32,6 +32,11 @@ export interface Order {
   specialInstructions: string | null;
   status: OrderStatus;
   pricing: OrderPricing;
+  needsReview: boolean;
+  reviewReasons: string[];
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  extractionMetadata: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }
