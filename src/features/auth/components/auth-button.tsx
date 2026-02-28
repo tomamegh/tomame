@@ -19,26 +19,27 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import LogoutButton from "./logout-button";
+import { JwtPayload } from "@supabase/supabase-js";
 
-async function NavbarAuthButton() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  const user = data?.claims;
+async function NavbarAuthButton({user}:{user?:JwtPayload | undefined}) {
+  // const supabase = await createClient();
+  // const { data } = await supabase.auth.getClaims();
+  // const user = data?.claims;
 
   return user ? (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild className="max-sm:hidden">
+      <DropdownMenuTrigger asChild className="max-md:ml-auto">
         <Button
           variant="ghost"
-          size="lg"
-          className="rounded-xl py-5 gap-2 px-2 rounded-l-full rounded-r-full"
+          size="icon"
+          className=""
         >
           <Avatar>
             <AvatarImage src="https://github.com/shadcn.png" alt="shadcn" />
             <AvatarFallback>LR</AvatarFallback>
           </Avatar>
           {/* <span className="font-normal text-sm">{user.email}</span> */}
-          <ChevronDown className="w-4 h-4 opacity-50" />
+          {/* <ChevronDown className="w-4 h-4 opacity-50" /> */}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
