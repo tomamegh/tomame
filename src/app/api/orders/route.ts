@@ -34,6 +34,9 @@ export async function POST(request: NextRequest) {
       quantity: parsed.data.quantity,
       originCountry: parsed.data.originCountry,
       specialInstructions: parsed.data.specialInstructions,
+      needsReview: parsed.data.needsReview,
+      reviewReasons: parsed.data.reviewReasons,
+      extractionMetadata: parsed.data.extractionMetadata,
     });
     if (!result.success) throw new APIError(result.status, result.error);
 

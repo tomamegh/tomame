@@ -59,6 +59,9 @@ export interface CreateOrderRequest {
   quantity?: number;
   originCountry: "USA" | "UK" | "CHINA";
   specialInstructions?: string;
+  needsReview?: boolean;
+  reviewReasons?: string[];
+  extractionMetadata?: Record<string, unknown>;
 }
 
 // ── Pricing Requests ───────────────────────────────────────
@@ -99,6 +102,11 @@ export interface OrderResponse {
   specialInstructions: string | null;
   status: string;
   pricing: import("@/types/db").OrderPricingBreakdown;
+  needsReview: boolean;
+  reviewReasons: string[];
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  extractionMetadata: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -133,6 +141,33 @@ export interface PricingConfigResponse {
 
 export interface PricingConfigListResponse {
   configs: PricingConfigResponse[];
+}
+
+// ── Store Requests ────────────────────────────────────────
+
+export interface CreateStoreRequest {
+  domain: string;
+  displayName: string;
+}
+
+export interface UpdateStoreRequest {
+  displayName?: string;
+  enabled?: boolean;
+}
+
+// ── Store Responses ───────────────────────────────────────
+
+export interface SupportedStoreResponse {
+  id: string;
+  domain: string;
+  displayName: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupportedStoreListResponse {
+  stores: SupportedStoreResponse[];
 }
 
 export type PaginatedDataResponse<T> = {

@@ -8,6 +8,7 @@ import {
 } from "@/features/orders/orders.queries";
 import { calculatePricing } from "@/features/pricing/pricing.service";
 import { logAuditEvent } from "@/features/audit/audit.service";
+import { isDomainAllowed } from "@/features/stores/stores.service";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type {
   // OrderResponse,
@@ -31,6 +32,11 @@ function toResponse(order: DbOrder): Order {
     specialInstructions: order.special_instructions,
     status: order.status,
     pricing: order.pricing,
+    needsReview: order.needs_review,
+    reviewReasons: order.review_reasons,
+    reviewedBy: order.reviewed_by,
+    reviewedAt: order.reviewed_at,
+    extractionMetadata: order.extraction_metadata,
     createdAt: order.created_at,
     updatedAt: order.updated_at,
   };
@@ -49,8 +55,21 @@ export async function createOrder(
     quantity: number;
     originCountry: "USA" | "UK" | "CHINA";
     specialInstructions?: string;
+    needsReview?: boolean;
+    reviewReasons?: string[];
+    extractionMetadata?: Record<string, unknown> | null;
   },
 ): Promise<ServiceResult<Order>> {
+  // Validate product URL domain against supported stores
+  const domainAllowed = await isDomainAllowed(input.productUrl);
+  if (!domainAllowed) {
+    return {
+      success: false,
+      error: "Product URL must be from a supported store",
+      status: 400,
+    };
+  }
+
   // Calculate pricing server-side (never trust client-provided totals)
   const pricingResult = await calculatePricing(
     input.estimatedPriceUsd,
@@ -77,6 +96,9 @@ export async function createOrder(
     special_instructions: input.specialInstructions ?? null,
     pricing: pricingResult.data,
     status: "pending",
+    needs_review: input.needsReview ?? false,
+    review_reasons: input.reviewReasons ?? [],
+    extraction_metadata: input.extractionMetadata ?? null,
   });
 
   if (!order) {
@@ -173,7 +195,7 @@ export async function listUserOrders(
  */
 export async function listAllOrders(
   user: AuthenticatedUser,
-  filters?: { status?: string; userId?: string },
+  filters?: { status?: string; userId?: string; needsReview?: boolean },
 ): Promise<ServiceResult<OrderList>> {
   if (user.role !== "admin") {
     return { success: false, error: "Admin access required", status: 403 };
