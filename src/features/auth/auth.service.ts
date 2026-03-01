@@ -1,4 +1,3 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAuditEvent } from "@/features/audit/audit.service";
 import { logger } from "@/lib/logger";
@@ -64,9 +63,8 @@ export async function login(
     return { success: false, error: "Invalid email or password", status: 401 };
   }
 
-  // Load authoritative role from DB using admin client (bypasses RLS)
-  // The server client's session may not be available for RLS in the same request
-  const { data: dbUser, } = await supabase
+  // Load authoritative role from DB (the server client session is set after signIn)
+  const { data: dbUser } = await supabase
     .from("users")
     .select("id, role")
     .eq("id", data.user.id)
@@ -108,23 +106,16 @@ export async function forgotPassword(
     logger.error("resetPasswordForEmail failed", { error: error.message });
   }
 
-  // Look up user to audit log — do this after the reset call so we don't
-  // reveal existence via timing. Failure is non-fatal (enumeration-safe).
-  const { data: userData } = await supabaseAdmin
-    .from("users")
-    .select("id")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (userData) {
-    await logAuditEvent({
-      actorId: userData.id,
-      actorRole: "user",
-      action: "password_reset_requested",
-      entityType: "user",
-      entityId: userData.id,
-    });
-  }
+  // Audit the request without looking up the user (no session = no RLS access).
+  // The email is stored in metadata; actorId is null to avoid leaking existence.
+  await logAuditEvent({
+    actorId: null,
+    actorRole: "system",
+    action: "password_reset_requested",
+    entityType: "user",
+    entityId: null,
+    metadata: { email },
+  });
 
   // Always return success — never reveal whether email exists
   return {
@@ -135,15 +126,15 @@ export async function forgotPassword(
 
 /**
  * Set a new password using an active session (from the reset link callback).
- * Takes the authenticated userId from the session (never from client input).
+ * The caller (route handler) already verified the session via getAuthenticatedUser().
  */
 export async function resetPassword(
-  userId: string,
+  _userId: string,
   password: string,
 ): Promise<ServiceResult<MessageResponse>> {
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-    password,
-  });
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
     logger.error("Reset password failed", { error: error.message });
@@ -158,15 +149,15 @@ export async function resetPassword(
 
 /**
  * Change password for an authenticated user.
- * Takes the authenticated userId from the session (never from client input).
+ * The caller (route handler) already verified the session via getAuthenticatedUser().
  */
 export async function changePassword(
-  userId: string,
+  _userId: string,
   newPassword: string,
 ): Promise<ServiceResult<MessageResponse>> {
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-    password: newPassword,
-  });
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
 
   if (error) {
     logger.error("Change password failed", { error: error.message });
@@ -192,8 +183,8 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
 
   if (!authUser) return null;
 
-  // Use admin client to bypass RLS for the user lookup
-  const {data:user, error} = await supabase
+  // Load user profile — server client has the session so RLS allows the read
+  const { data: user, error } = await supabase
     .from("users")
     .select('*')
     .eq("id", authUser.id)
