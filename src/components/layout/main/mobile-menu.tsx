@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 
 type NavLink = { href: string; label: string };
 
@@ -21,7 +21,7 @@ type Props = {
   isAuthenticated: boolean;
 };
 
-export function MobileMenu({ links, isAuthenticated }: Props) {
+export default function MobileMenu({ links, isAuthenticated }: Props) {
   return (
     <>
       <DropdownMenu>

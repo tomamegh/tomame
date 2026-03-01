@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun dev:*)",
+      "Bash(bun install:*)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "Bash(bun run:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "shadcn"
+  ]
+}

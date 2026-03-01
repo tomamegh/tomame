@@ -7,14 +7,14 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { CreateOrderRequest, OrderResponse, OrderListResponse } from "@/types/api";
+import type { CreateOrderRequest, OrderResponse, OrderListResponse } from "@/features/orders/types";
 
 // ── Query keys ───────────────────────────────────────────────
 
 export const productKeys = {
   all: ["products"] as const,
   user: () => [...productKeys.all, "user"] as const,
-  admin: (filters?: { status?: string; userId?: string }) =>
+  admin: (filters?: { status?: string; userId?: string; needsReview?: boolean }) =>
     [...productKeys.all, "admin", filters ?? {}] as const,
   detail: (id: string) => [...productKeys.all, id] as const,
 };
@@ -67,13 +67,19 @@ export function useRequestProduct() {
 // ── Admin hooks ──────────────────────────────────────────────
 
 /** Admin: list all product requests with optional filters */
-export function useAdminProducts(filters?: { status?: string; userId?: string }) {
+export function useAdminProducts(filters?: {
+  status?: string;
+  userId?: string;
+  needsReview?: boolean;
+}) {
   return useQuery<OrderListResponse>({
     queryKey: productKeys.admin(filters),
     queryFn: () => {
       const params = new URLSearchParams();
       if (filters?.status) params.set("status", filters.status);
       if (filters?.userId) params.set("userId", filters.userId);
+      if (filters?.needsReview !== undefined)
+        params.set("needsReview", String(filters.needsReview));
       const qs = params.toString();
       return apiFetch(`/api/admin/orders${qs ? `?${qs}` : ""}`);
     },

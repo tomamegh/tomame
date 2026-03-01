@@ -9,6 +9,8 @@ export const RATE_LIMIT = {
   payments: { windowMs: 15 * 60 * 1000, maxRequests: 10 },
   /** Webhook endpoints — 100 requests per minute */
   webhooks: { windowMs: 60 * 1000, maxRequests: 100 },
+  /** Product extraction — 15 requests per 15 minutes */
+  extraction: { windowMs: 15 * 60 * 1000, maxRequests: 15 },
 } as const;
 
 export const PASSWORD = {

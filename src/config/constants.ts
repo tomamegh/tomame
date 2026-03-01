@@ -10,6 +10,7 @@ export const AUDIT_ENTITY_TYPES = {
   PAYMENT: "payment",
   ORDER: "order",
   JOB: "job",
+  STORE: "store",
 } as const;
 
 export type AuditEntityType =
@@ -52,17 +53,3 @@ export const ORIGIN_COUNTRIES = {
 export type OriginCountry =
   (typeof ORIGIN_COUNTRIES)[keyof typeof ORIGIN_COUNTRIES];
 
-/** Allowed product URL domains for order submission */
-export const ALLOWED_PRODUCT_DOMAINS = [
-  "amazon.com",
-  "amazon.co.uk",
-  "ebay.com",
-  "ebay.co.uk",
-  "aliexpress.com",
-  "alibaba.com",
-  "walmart.com",
-  "target.com",
-  "bestbuy.com",
-  "asos.com",
-  "shein.com",
-] as const;

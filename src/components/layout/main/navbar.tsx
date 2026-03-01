@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { NavLinks } from "./nav-links";
-import { MobileMenu } from "./mobile-menu";
 import { Suspense } from "react";
 import NavbarAuthButton from "@/features/auth/components/auth-button";
 import { createClient } from "@/lib/supabase/server";
+import NavLinks from "./nav-links";
+import MobileMenu from "./mobile-menu";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
@@ -12,7 +12,7 @@ const NAV_LINKS = [
   { href: "/contact", label: "Contact" },
 ] as const;
 
-export async function MainNav() {
+export default async function MainNav() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;

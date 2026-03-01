@@ -6,7 +6,7 @@ export async function getOrders() {
   } catch (error) {
     throw new Error(
       "Failed to fetch orders: " +
-        (error instanceof Error ? error.message : String(error)),
+      (error instanceof Error ? error.message : String(error)),
     );
   }
 }

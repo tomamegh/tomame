@@ -13,6 +13,9 @@ interface OrderInsert {
   special_instructions?: string | null;
   pricing: OrderPricingBreakdown;
   status: string;
+  needs_review?: boolean;
+  review_reasons?: string[];
+  extraction_metadata?: Record<string, unknown> | null;
 }
 
 export async function insertOrder(
@@ -121,7 +124,7 @@ export async function getOrdersByUserId(
 
 export async function getAllOrders(
   client: SupabaseClient,
-  filters?: { status?: string; userId?: string }
+  filters?: { status?: string; userId?: string; needsReview?: boolean }
 ): Promise<DbOrder[]> {
   let query = client
     .from("orders")
@@ -134,6 +137,9 @@ export async function getAllOrders(
   if (filters?.userId) {
     query = query.eq("user_id", filters.userId);
   }
+  if (filters?.needsReview !== undefined) {
+    query = query.eq("needs_review", filters.needsReview);
+  }
 
   const { data, error } = await query;
 
@@ -142,4 +148,37 @@ export async function getAllOrders(
     return [];
   }
   return (data ?? []) as DbOrder[];
+}
+
+export async function updateOrderReview(
+  client: SupabaseClient,
+  orderId: string,
+  updates: Partial<{
+    needs_review: boolean;
+    review_reasons: string[];
+    reviewed_by: string;
+    reviewed_at: string;
+    product_name: string;
+    product_image_url: string | null;
+    estimated_price_usd: number;
+    origin_country: string;
+    status: string;
+  }>,
+): Promise<DbOrder | null> {
+  const { data, error } = await client
+    .from("orders")
+    .update(updates)
+    .eq("id", orderId)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("updateOrderReview failed", {
+      orderId,
+      code: error.code,
+      message: error.message,
+    });
+    return null;
+  }
+  return data as DbOrder;
 }
