@@ -56,10 +56,10 @@ export async function initializePayment(
     return { success: false, error: "Order not found", status: 404 };
   }
 
-  if (order.status !== "pending") {
+  if (order.status !== "approved") {
     return {
       success: false,
-      error: "Order is not awaiting payment",
+      error: "Order has not been approved for payment yet",
       status: 400,
     };
   }
@@ -200,7 +200,7 @@ export async function handlePaymentCallback(
         action: "order_status_changed",
         entityType: "order",
         entityId: orderId,
-        metadata: { from: "pending", to: "paid", paymentId: payment.id },
+        metadata: { from: "approved", to: "paid", paymentId: payment.id },
       });
     }
 

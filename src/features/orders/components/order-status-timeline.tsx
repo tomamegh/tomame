@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const STATUS_SEQUENCE: { status: OrderStatus; label: string }[] = [
   { status: "pending", label: "Order Placed" },
+  { status: "approved", label: "Approved" },
   { status: "paid", label: "Payment Confirmed" },
   { status: "processing", label: "Processing" },
   { status: "in_transit", label: "In Transit" },

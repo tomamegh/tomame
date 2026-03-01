@@ -6,6 +6,18 @@ interface OrderEmailData {
   estimatedDeliveryDate?: string;
 }
 
+export function orderApprovedTemplate(data: OrderEmailData) {
+  return {
+    subject: "Your Tomame order has been approved — ready to pay",
+    html: `
+      <h2>Order Approved</h2>
+      <p>Great news! Your order for <strong>${data.productName}</strong> has been reviewed and approved.</p>
+      <p>Order ID: <strong>${data.orderId}</strong></p>
+      <p>You can now proceed to payment. Log in to your Tomame account and click "Pay Now" on your order to complete the purchase.</p>
+    `,
+  };
+}
+
 export function orderPaidTemplate(data: OrderEmailData) {
   return {
     subject: "Payment confirmed — your Tomame order is being prepared",

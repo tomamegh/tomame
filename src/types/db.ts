@@ -35,7 +35,7 @@ export interface DbOrder {
   id: string;
   user_id: string;
   payment_id: string | null;
-  status: "pending" | "paid" | "processing" | "in_transit" | "delivered" | "completed" | "cancelled";
+  status: "pending" | "approved" | "paid" | "processing" | "in_transit" | "delivered" | "completed" | "cancelled";
   tracking_number: string | null;
   carrier: string | null;
   estimated_delivery_date: string | null;

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +10,20 @@ import { Field } from "@/components/ui/field";
 import { CircleDollarSignIcon, PackageSearchIcon, ShoppingCartIcon } from "lucide-react";
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const [productUrl, setProductUrl] = useState("");
+
   const stats = [
     { label: "Total Orders", value: "12", change: "+2 this month", icon: ShoppingCartIcon },
     { label: "Saved", value: "$340", change: "+$120 this month", icon: CircleDollarSignIcon },
     { label: "Products", value: "8", change: "2 pending", icon: PackageSearchIcon },
   ];
+
+  function handleDiscover() {
+    const trimmed = productUrl.trim();
+    if (!trimmed) return;
+    router.push(`/app/orders?productUrl=${encodeURIComponent(trimmed)}`);
+  }
 
   return (
     <div className="space-y-8">
@@ -25,16 +36,24 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* <div className="p-12 rounded-lg shadow-md bg-white space-y-5"> */}
-        {/* <div>
-          <h1 className="text-lg font-medium">Have your product link copied?</h1>
-          <p className="text-stone-800">Paste it down here and let&apos;s handle to purchase down to delivery</p>
-        </div> */}
-        <Field orientation="horizontal" className="py-5">
-        <Input type="search" placeholder="Paste your product link..." className="bg-white p-5 rounded-r-full rounded-l-full border-0"/>
-        <Button className="p-5 rounded-r-full rounded-l-full gradient-primary">Discover</Button>
+      <Field orientation="horizontal" className="py-5">
+        <Input
+          type="search"
+          placeholder="Paste your product link..."
+          className="bg-white p-5 rounded-r-full rounded-l-full border-0"
+          value={productUrl}
+          onChange={(e) => setProductUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleDiscover();
+          }}
+        />
+        <Button
+          className="p-5 rounded-r-full rounded-l-full gradient-primary"
+          onClick={handleDiscover}
+        >
+          Discover
+        </Button>
       </Field>
-      {/* </div> */}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">

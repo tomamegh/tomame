@@ -12,6 +12,7 @@ import { logAuditEvent } from "@/features/audit/audit.service";
 import { isDomainAllowed } from "@/features/stores/stores.service";
 import { sendEmail } from "@/lib/email/transport";
 import {
+  orderApprovedTemplate,
   orderPaidTemplate,
   orderProcessingTemplate,
   orderShippedTemplate,
@@ -77,6 +78,9 @@ async function sendOrderStatusEmail(
     let template: { subject: string; html: string } | null = null;
 
     switch (newStatus) {
+      case "approved":
+        template = orderApprovedTemplate(emailData);
+        break;
       case "paid":
         template = orderPaidTemplate(emailData);
         break;
@@ -283,7 +287,8 @@ export async function listAllOrders(
 
 // Valid admin-driven transitions
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  pending: ["cancelled"],
+  pending: ["approved", "cancelled"],
+  approved: ["cancelled"],
   paid: ["processing"],
   processing: ["in_transit"],
   in_transit: ["delivered"],
@@ -383,10 +388,10 @@ export async function cancelOrderByUser(
     return { success: false, error: "Order not found", status: 404 };
   }
 
-  if (order.status !== "pending") {
+  if (order.status !== "pending" && order.status !== "approved") {
     return {
       success: false,
-      error: "Only pending orders can be cancelled",
+      error: "Only pending or approved orders can be cancelled",
       status: 400,
     };
   }
@@ -406,7 +411,7 @@ export async function cancelOrderByUser(
     action: "order_cancelled_by_user",
     entityType: "order",
     entityId: orderId,
-    metadata: { from: "pending", to: "cancelled" },
+    metadata: { from: order.status, to: "cancelled" },
   });
 
   // Fire-and-forget email notification

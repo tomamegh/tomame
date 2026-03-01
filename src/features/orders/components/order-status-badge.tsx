@@ -5,6 +5,7 @@ const statusConfig: Record<
   { label: string; className: string }
 > = {
   pending: { label: "Pending", className: "bg-amber-50 text-amber-700" },
+  approved: { label: "Approved", className: "bg-green-50 text-green-700" },
   paid: { label: "Paid", className: "bg-blue-50 text-blue-700" },
   processing: { label: "Processing", className: "bg-purple-50 text-purple-700" },
   in_transit: { label: "In Transit", className: "bg-indigo-50 text-indigo-700" },

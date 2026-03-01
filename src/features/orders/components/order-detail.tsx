@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { OrderStatusBadge } from "./order-status-badge";
 import { OrderStatusTimeline } from "./order-status-timeline";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useOrder, useCancelOrder } from "../hooks/useOrders";
+import { useOrder, useCancelOrder, useInitializePayment } from "../hooks/useOrders";
 
 interface OrderDetailProps {
   orderId: string;
@@ -16,6 +16,7 @@ interface OrderDetailProps {
 export function OrderDetail({ orderId }: OrderDetailProps) {
   const { data: order, isPending, error } = useOrder(orderId);
   const cancelMutation = useCancelOrder();
+  const paymentMutation = useInitializePayment();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   if (isPending) {
@@ -83,6 +84,30 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
           )}
 
           {order.status === "pending" && (
+            <div className="p-3 bg-amber-50 rounded-xl text-sm text-amber-700">
+              Your order is awaiting admin approval. You&apos;ll be notified once it&apos;s approved and ready for payment.
+            </div>
+          )}
+
+          {order.status === "approved" && (
+            <div className="pt-2">
+              <Button
+                size="sm"
+                disabled={paymentMutation.isPending}
+                onClick={() =>
+                  paymentMutation.mutate(orderId, {
+                    onSuccess: (data) => {
+                      window.location.href = data.authorizationUrl;
+                    },
+                  })
+                }
+              >
+                {paymentMutation.isPending ? "Redirecting..." : "Pay Now"}
+              </Button>
+            </div>
+          )}
+
+          {(order.status === "pending" || order.status === "approved") && (
             <div className="pt-2">
               {!showCancelConfirm ? (
                 <Button

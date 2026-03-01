@@ -115,7 +115,28 @@ export function useReviewOrder() {
   });
 }
 
-/** User: cancel a pending order */
+/** User: initialize payment for an approved order */
+export function useInitializePayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { payment: { id: string; reference: string; amount: number; currency: string; status: string; createdAt: string }; authorizationUrl: string },
+    Error,
+    string
+  >({
+    mutationFn: (orderId) =>
+      apiFetch("/api/payments/initialize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+    },
+  });
+}
+
+/** User: cancel a pending or approved order */
 export function useCancelOrder() {
   const queryClient = useQueryClient();
 

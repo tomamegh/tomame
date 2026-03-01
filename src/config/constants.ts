@@ -27,6 +27,7 @@ export type AuditActorRole =
 
 export const ORDER_STATUSES = {
   PENDING: "pending",
+  APPROVED: "approved",
   PAID: "paid",
   PROCESSING: "processing",
   IN_TRANSIT: "in_transit",
