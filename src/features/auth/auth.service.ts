@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAuditEvent } from "@/features/audit/audit.service";
 import { logger } from "@/lib/logger";
@@ -64,9 +64,7 @@ export async function login(
     return { success: false, error: "Invalid email or password", status: 401 };
   }
 
-  // Load authoritative role from DB using admin client (bypasses RLS)
-  // The server client's session may not be available for RLS in the same request
-  const { data: dbUser, } = await supabase
+  const { data: dbUser } = await supabase
     .from("users")
     .select("id, role")
     .eq("id", data.user.id)
@@ -108,9 +106,8 @@ export async function forgotPassword(
     logger.error("resetPasswordForEmail failed", { error: error.message });
   }
 
-  // Look up user to audit log — do this after the reset call so we don't
-  // reveal existence via timing. Failure is non-fatal (enumeration-safe).
-  const { data: userData } = await supabaseAdmin
+  // Look up user to audit log — non-fatal, enumeration-safe
+  const { data: userData } = await createAdminClient()
     .from("users")
     .select("id")
     .eq("email", email)
@@ -126,7 +123,6 @@ export async function forgotPassword(
     });
   }
 
-  // Always return success — never reveal whether email exists
   return {
     success: true,
     data: { message: "If an account exists, a reset link has been sent" },
@@ -141,7 +137,7 @@ export async function resetPassword(
   userId: string,
   password: string,
 ): Promise<ServiceResult<MessageResponse>> {
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+  const { error } = await createAdminClient().auth.admin.updateUserById(userId, {
     password,
   });
 
@@ -150,10 +146,7 @@ export async function resetPassword(
     return { success: false, error: "Password reset failed", status: 400 };
   }
 
-  return {
-    success: true,
-    data: { message: "Password has been reset" },
-  };
+  return { success: true, data: { message: "Password has been reset" } };
 }
 
 /**
@@ -164,7 +157,7 @@ export async function changePassword(
   userId: string,
   newPassword: string,
 ): Promise<ServiceResult<MessageResponse>> {
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+  const { error } = await createAdminClient().auth.admin.updateUserById(userId, {
     password: newPassword,
   });
 
@@ -173,10 +166,7 @@ export async function changePassword(
     return { success: false, error: "Password change failed", status: 400 };
   }
 
-  return {
-    success: true,
-    data: { message: "Password changed successfully" },
-  };
+  return { success: true, data: { message: "Password changed successfully" } };
 }
 
 /**
@@ -192,14 +182,13 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
 
   if (!authUser) return null;
 
-  // Use admin client to bypass RLS for the user lookup
-  const {data:user, error} = await supabase
+  const { data: user, error } = await supabase
     .from("users")
-    .select('*')
+    .select("*")
     .eq("id", authUser.id)
     .single();
 
-  if (!user|| error) return null;
+  if (!user || error) return null;
 
   return {
     id: user.id,

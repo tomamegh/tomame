@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 type NavLink = { href: string; label: string };
 
-export function NavLinks({ links }: { links: readonly NavLink[] }) {
+export default function NavLinks({ links }: { links: readonly NavLink[] }) {
   const pathname = usePathname();
 
   return (

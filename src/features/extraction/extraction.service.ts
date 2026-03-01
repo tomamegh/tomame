@@ -1,34 +1,7 @@
 import * as cheerio from "cheerio";
 import type { ServiceResult } from "@/types/domain";
 import { logger } from "@/lib/logger";
-
-// ── Types ──────────────────────────────────────────────────
-
-export interface ExtractionField {
-  value: string | number | null;
-  source:
-    | "json_ld"
-    | "og_meta"
-    | "meta_tag"
-    | "dom_selector"
-    | "domain_mapping"
-    | null;
-  confidence: "high" | "medium" | "low" | null;
-}
-
-export interface ExtractionResult {
-  extractionAttempted: boolean;
-  extractionSuccess: boolean;
-  fields: {
-    name: ExtractionField;
-    price: ExtractionField & { currency?: string };
-    image: ExtractionField;
-    country: ExtractionField;
-  };
-  errors: string[];
-  fetchedAt: string;
-  responseStatus: number | null;
-}
+import { JsonLdProduct, ExtractionResult, ExtractionField } from "./types";
 
 // ── Domain → Country mapping ───────────────────────────────
 
@@ -65,21 +38,18 @@ function getCountryFromDomain(
 
 // ── JSON-LD extraction ─────────────────────────────────────
 
-interface JsonLdProduct {
-  name?: string;
-  image?: string | string[] | { url?: string };
-  offers?:
-    | { price?: string | number; priceCurrency?: string }
-    | Array<{ price?: string | number; priceCurrency?: string }>;
-}
-
 function extractFromJsonLd($: cheerio.CheerioAPI): {
   name?: string;
   price?: number;
   currency?: string;
   image?: string;
 } {
-  const result: { name?: string; price?: number; currency?: string; image?: string } = {};
+  const result: {
+    name?: string;
+    price?: number;
+    currency?: string;
+    image?: string;
+  } = {};
 
   $('script[type="application/ld+json"]').each((_, el) => {
     try {
@@ -91,7 +61,10 @@ function extractFromJsonLd($: cheerio.CheerioAPI): {
       const items: unknown[] = Array.isArray(data) ? data : [data];
 
       for (const item of items) {
-        const typed = item as JsonLdProduct & { "@type"?: string | string[]; "@graph"?: unknown[] };
+        const typed = item as JsonLdProduct & {
+          "@type"?: string | string[];
+          "@graph"?: unknown[];
+        };
 
         // Check @graph for nested Product types
         if (typed["@graph"] && Array.isArray(typed["@graph"])) {
@@ -149,7 +122,12 @@ function extractFromOgMeta($: cheerio.CheerioAPI): {
   price?: number;
   currency?: string;
 } {
-  const result: { title?: string; image?: string; price?: number; currency?: string } = {};
+  const result: {
+    title?: string;
+    image?: string;
+    price?: number;
+    currency?: string;
+  } = {};
 
   const ogTitle = $('meta[property="og:title"]').attr("content");
   if (ogTitle) result.title = ogTitle.trim();
@@ -190,7 +168,11 @@ export async function extractProductData(
   const errors: string[] = [];
   let responseStatus: number | null = null;
 
-  const emptyField: ExtractionField = { value: null, source: null, confidence: null };
+  const emptyField: ExtractionField = {
+    value: null,
+    source: null,
+    confidence: null,
+  };
   const fields: ExtractionResult["fields"] = {
     name: { ...emptyField },
     price: { ...emptyField },
@@ -209,7 +191,8 @@ export async function extractProductData(
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
       },
       redirect: "follow",
@@ -268,9 +251,17 @@ export async function extractProductData(
   if (jsonLd.name) {
     fields.name = { value: jsonLd.name, source: "json_ld", confidence: "high" };
   } else if (ogMeta.title) {
-    fields.name = { value: ogMeta.title, source: "og_meta", confidence: "medium" };
+    fields.name = {
+      value: ogMeta.title,
+      source: "og_meta",
+      confidence: "medium",
+    };
   } else if (metaTags.title) {
-    fields.name = { value: metaTags.title, source: "meta_tag", confidence: "low" };
+    fields.name = {
+      value: metaTags.title,
+      source: "meta_tag",
+      confidence: "low",
+    };
   }
 
   // ── Price ────────────────────────────────────────────────
@@ -292,9 +283,17 @@ export async function extractProductData(
 
   // ── Image ────────────────────────────────────────────────
   if (jsonLd.image) {
-    fields.image = { value: jsonLd.image, source: "json_ld", confidence: "high" };
+    fields.image = {
+      value: jsonLd.image,
+      source: "json_ld",
+      confidence: "high",
+    };
   } else if (ogMeta.image) {
-    fields.image = { value: ogMeta.image, source: "og_meta", confidence: "medium" };
+    fields.image = {
+      value: ogMeta.image,
+      source: "og_meta",
+      confidence: "medium",
+    };
   }
 
   // ── Country (domain mapping) ─────────────────────────────

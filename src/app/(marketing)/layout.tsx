@@ -1,5 +1,4 @@
-import { MainNav } from "@/components/layout/navbar";
-import { SiteFooter } from "@/components/layout/site-footer";
+import { Navbar, Footer } from "@/components/layout/main";
 
 export default function MarketingLayout({
   children,
@@ -8,9 +7,9 @@ export default function MarketingLayout({
 }) {
   return (
     <main className="relative">
-      <MainNav />
+      <Navbar />
       <div className="min-h-screen bg-white">{children}</div>
-      <SiteFooter />
+      <Footer />
     </main>
   );
 }

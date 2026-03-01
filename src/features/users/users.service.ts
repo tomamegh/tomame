@@ -1,19 +1,21 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserById, getUserByEmail, updateUserRole, insertUser } from "@/features/users/users.queries";
 import { logAuditEvent } from "@/features/audit/audit.service";
 import { logger } from "@/lib/logger";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
-import type { AuthUserResponse, MessageResponse } from "@/types/api";
+import type { AuthUserResponse } from "@/features/auth/types";
+import type { MessageResponse } from "@/types/api";
 
 /**
  * Promote an existing user to admin.
  */
 export async function promoteUserToAdmin(
   admin: AuthenticatedUser,
-  targetUserId: string
+  targetUserId: string,
 ): Promise<ServiceResult<AuthUserResponse>> {
-  const targetUser = await getUserById(supabaseAdmin, targetUserId);
+  const client = createAdminClient();
 
+  const targetUser = await getUserById(client, targetUserId);
   if (!targetUser) {
     return { success: false, error: "User not found", status: 404 };
   }
@@ -22,7 +24,7 @@ export async function promoteUserToAdmin(
     return { success: false, error: "User is already an admin", status: 409 };
   }
 
-  const updated = await updateUserRole(supabaseAdmin, targetUserId, "admin");
+  const updated = await updateUserRole(client, targetUserId, "admin");
   if (!updated) {
     return { success: false, error: "Failed to update role", status: 500 };
   }
@@ -48,21 +50,20 @@ export async function promoteUserToAdmin(
 export async function createAdminUser(
   admin: AuthenticatedUser,
   email: string,
-  password: string
+  password: string,
 ): Promise<ServiceResult<AuthUserResponse>> {
-  // Check if email already exists
-  const existing = await getUserByEmail(supabaseAdmin, email);
+  const client = createAdminClient();
+
+  const existing = await getUserByEmail(client, email);
   if (existing) {
     return { success: false, error: "Email already in use", status: 409 };
   }
 
-  // Create auth user with confirmed email
-  const { data: authData, error: authError } =
-    await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
+  const { data: authData, error: authError } = await client.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
 
   if (authError) {
     logger.error("Admin createUser failed", { error: authError.message });
@@ -71,15 +72,9 @@ export async function createAdminUser(
 
   const newUserId = authData.user.id;
 
-  const dbUser = await insertUser(supabaseAdmin, {
-    id: newUserId,
-    email,
-    role: "admin",
-  });
-
+  const dbUser = await insertUser(client, { id: newUserId, email, role: "admin" });
   if (!dbUser) {
-    // Rollback auth user
-    await supabaseAdmin.auth.admin.deleteUser(newUserId);
+    await client.auth.admin.deleteUser(newUserId);
     return { success: false, error: "Failed to create user record", status: 500 };
   }
 
@@ -103,20 +98,19 @@ export async function createAdminUser(
  */
 export async function adminResetUserPassword(
   admin: AuthenticatedUser,
-  targetEmail: string
+  targetEmail: string,
 ): Promise<ServiceResult<MessageResponse>> {
+  const client = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
-  // Verify target user exists
-  const targetUser = await getUserByEmail(supabaseAdmin, targetEmail);
+  const targetUser = await getUserByEmail(client, targetEmail);
   if (!targetUser) {
     return { success: false, error: "User not found", status: 404 };
   }
 
-  const { error } = await supabaseAdmin.auth.resetPasswordForEmail(
-    targetEmail,
-    { redirectTo: `${appUrl}/auth/reset-password` }
-  );
+  const { error } = await client.auth.resetPasswordForEmail(targetEmail, {
+    redirectTo: `${appUrl}/auth/reset-password`,
+  });
 
   if (error) {
     logger.error("Admin reset password failed", { error: error.message });
@@ -132,8 +126,5 @@ export async function adminResetUserPassword(
     metadata: { targetEmail },
   });
 
-  return {
-    success: true,
-    data: { message: "Password reset email sent" },
-  };
+  return { success: true, data: { message: "Password reset email sent" } };
 }

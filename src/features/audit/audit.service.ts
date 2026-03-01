@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { insertAuditLog } from "@/features/audit/audit.queries";
 import type { AuditLogEntry } from "@/types/domain";
 
@@ -7,7 +7,7 @@ import type { AuditLogEntry } from "@/types/domain";
  * Failures are caught internally — audit logging never blocks business logic.
  */
 export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
-  await insertAuditLog(supabaseAdmin, {
+  await insertAuditLog(createAdminClient(), {
     actor_id: entry.actorId,
     actor_role: entry.actorRole,
     action: entry.action,

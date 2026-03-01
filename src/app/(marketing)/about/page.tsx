@@ -1,19 +1,20 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { BlendIcon, EarthIcon, GemIcon, GlobeIcon, RocketIcon, ShieldCheckIcon } from "lucide-react";
 
 export default function AboutPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
-      <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-center mb-4 bg-gradient-to-r from-rose-500 to-amber-500 bg-clip-text text-transparent">
+      <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-center mb-4 bg-linear-to-r from-rose-500 to-amber-500 bg-clip-text text-transparent">
         About Tomame
       </h1>
-      <p className="text-base sm:text-lg lg:text-xl text-stone-500 text-center mb-10 sm:mb-16 max-w-2xl mx-auto">
+      <p className="text-base sm:text-lg lg:text-xl text-stone-500 text-center mb-10 sm:mb-20 max-w-2xl mx-auto">
         We&apos;re simplifying global commerce for businesses and entrepreneurs
         worldwide.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-16">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-24">
         <div className="space-y-6">
           <h2 className="text-3xl font-bold text-stone-800">Our Mission</h2>
           <p className="text-stone-500 leading-relaxed">
@@ -27,10 +28,10 @@ export default function AboutPage() {
             eliminating middlemen and hidden costs.
           </p>
         </div>
-        <Card variant="gradient" className="h-fit">
+        <Card className="h-fit dark-card">
           <CardContent className="text-center py-12">
-            <div className="text-6xl mb-4">🌍</div>
-            <h3 className="font-bold text-lg text-stone-800 mb-2">
+            <div className="gradient-primary w-fit mx-auto p-2 mb-4 rounded-md"><GlobeIcon className="stroke-stone-200 size-12" /></div>
+            <h3 className="font-bold text-lg text-stone-200 mb-2">
               Global Reach
             </h3>
             <p className="text-stone-500">
@@ -41,13 +42,13 @@ export default function AboutPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-16">
-        <Card variant="gradient" className="h-fit">
+        <Card className="h-fit dark-card">
           <CardContent className="text-center py-12">
-            <div className="text-6xl mb-4">💎</div>
-            <h3 className="font-bold text-lg text-stone-800 mb-2">
+            <div className="gradient-primary w-fit mx-auto p-2 mb-4 rounded-md hover:from"><GemIcon className="stroke-stone-200 size-12" /></div>
+            <h3 className="font-bold text-lg text-stone-200">
               Quality First
             </h3>
-            <p className="text-stone-500">
+            <p className="text-stone-400">
               Only verified suppliers with excellent track records.
             </p>
           </CardContent>
@@ -56,14 +57,14 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold text-stone-800">Our Values</h2>
           <ul className="space-y-4 text-stone-500">
             <li className="flex gap-3">
-              <span className="text-2xl">✨</span>
+              <span className="text-2xl bg-stone-100 p-2 rounded-md"><BlendIcon /></span>
               <div>
                 <h4 className="font-bold text-stone-800">Transparency</h4>
                 <p className="text-sm">Every cost itemized and explained</p>
               </div>
             </li>
             <li className="flex gap-3">
-              <span className="text-2xl">🚀</span>
+              <span className="text-2xl bg-stone-100 p-2 rounded-md"><RocketIcon /></span>
               <div>
                 <h4 className="font-bold text-stone-800">Speed</h4>
                 <p className="text-sm">
@@ -72,7 +73,7 @@ export default function AboutPage() {
               </div>
             </li>
             <li className="flex gap-3">
-              <span className="text-2xl">🛡️</span>
+              <span className="text-2xl bg-stone-100 p-2 rounded-md"><ShieldCheckIcon /></span>
               <div>
                 <h4 className="font-bold text-stone-800">Security</h4>
                 <p className="text-sm">

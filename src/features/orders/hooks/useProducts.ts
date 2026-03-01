@@ -7,7 +7,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { CreateOrderRequest, OrderResponse, OrderListResponse } from "@/types/api";
+import type { CreateOrderRequest, OrderResponse, OrderListResponse } from "@/features/orders/types";
 
 // ── Query keys ───────────────────────────────────────────────
 

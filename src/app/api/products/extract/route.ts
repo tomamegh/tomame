@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { extractProductSchema } from "@/features/extraction/extraction.validators";
+import { extractProductSchema } from "@/features/extraction/schema";
 import { extractProductData } from "@/features/extraction/extraction.service";
 import { isDomainAllowed } from "@/features/stores/stores.service";
 import { getAuthenticatedUser } from "@/features/auth/auth.service";

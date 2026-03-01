@@ -1,3 +1,7 @@
+import type { OrderPricingBreakdown } from "@/types/db";
+
+// ── Domain types ─────────────────────────────────────────────────────────────
+
 export type OrderStatus =
   | "pending"
   | "paid"
@@ -54,4 +58,44 @@ export interface CreateOrderInput {
   quantity?: number;
   originCountry: OriginCountry;
   specialInstructions?: string;
+}
+
+// ── API request / response types ─────────────────────────────────────────────
+
+export interface CreateOrderRequest {
+  productUrl: string;
+  productName: string;
+  productImageUrl?: string;
+  estimatedPriceUsd: number;
+  quantity?: number;
+  originCountry: OriginCountry;
+  specialInstructions?: string;
+  needsReview?: boolean;
+  reviewReasons?: string[];
+  extractionMetadata?: Record<string, unknown>;
+}
+
+export interface OrderResponse {
+  id: string;
+  productUrl: string;
+  productName: string;
+  productImageUrl: string | null;
+  estimatedPriceUsd: number;
+  quantity: number;
+  originCountry: string;
+  specialInstructions: string | null;
+  status: string;
+  pricing: OrderPricingBreakdown;
+  needsReview: boolean;
+  reviewReasons: string[];
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  extractionMetadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderListResponse {
+  orders: OrderResponse[];
+  count: number;
 }

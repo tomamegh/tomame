@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
-import { reviewOrderSchema } from "@/features/orders/orders.review.validators";
+import { reviewOrderSchema } from "@/features/orders/schema";
 import { reviewOrder } from "@/features/orders/orders.review.service";
 import { getAuthenticatedUser } from "@/features/auth/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
@@ -32,7 +33,7 @@ export async function POST(
     if (!admin.ok) throw new APIError(admin.status, admin.error);
 
     const { id } = await params;
-    const result = await reviewOrder(admin.user, id, parsed.data);
+    const result = await reviewOrder(createAdminClient(), admin.user, id, parsed.data);
     if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result.data);
