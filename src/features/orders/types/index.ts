@@ -2,6 +2,8 @@ export type OrderStatus =
   | "pending"
   | "paid"
   | "processing"
+  | "in_transit"
+  | "delivered"
   | "completed"
   | "cancelled";
 
@@ -37,6 +39,10 @@ export interface Order {
   reviewedBy: string | null;
   reviewedAt: string | null;
   extractionMetadata: Record<string, unknown> | null;
+  trackingNumber: string | null;
+  carrier: string | null;
+  estimatedDeliveryDate: string | null;
+  deliveredAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

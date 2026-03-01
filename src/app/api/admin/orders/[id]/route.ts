@@ -58,7 +58,11 @@ export async function PATCH(
     if (!admin.ok) throw new APIError(admin.status, admin.error);
 
     const { id } = await params;
-    const result = await updateOrderStatusAdmin(admin.user, id, parsed.data.status);
+    const { status, trackingNumber, carrier, estimatedDeliveryDate } = parsed.data;
+    const trackingData = trackingNumber || carrier || estimatedDeliveryDate
+      ? { trackingNumber, carrier, estimatedDeliveryDate }
+      : undefined;
+    const result = await updateOrderStatusAdmin(admin.user, id, status, trackingData);
     if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result.data);

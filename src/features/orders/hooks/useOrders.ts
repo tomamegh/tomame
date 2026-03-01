@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import { CreateOrderInput, Order, OrderList } from "../types";
 import { PaginatedDataResponse } from "@/types/api";
+import type { DbAuditLog } from "@/types/db";
 
 // ── Query keys ───────────────────────────────────────────────
 
@@ -13,6 +14,7 @@ export const orderKeys = {
   admin: (filters?: { status?: string; userId?: string; needsReview?: boolean }) =>
     [...orderKeys.all, "admin", filters ?? {}] as const,
   detail: (id: string) => [...orderKeys.all, id] as const,
+  history: (id: string) => [...orderKeys.all, id, "history"] as const,
 };
 
 // ── User hooks ───────────────────────────────────────────────
@@ -110,6 +112,30 @@ export function useReviewOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
     },
+  });
+}
+
+/** User: cancel a pending order */
+export function useCancelOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Order, Error, string>({
+    mutationFn: (orderId) =>
+      apiFetch(`/api/orders/${orderId}/cancel`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+    },
+  });
+}
+
+/** Get audit history for an order (used for timeline) */
+export function useOrderHistory(orderId: string) {
+  return useQuery<DbAuditLog[]>({
+    queryKey: orderKeys.history(orderId),
+    queryFn: () => apiFetch(`/api/orders/${orderId}/history`),
+    enabled: !!orderId,
   });
 }
 

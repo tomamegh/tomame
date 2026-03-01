@@ -5,17 +5,23 @@ import {
   getOrdersByUserId,
   getAllOrders,
   updateOrderStatus,
+  getOrderAuditLogs,
 } from "@/features/orders/orders.queries";
 import { calculatePricing } from "@/features/pricing/pricing.service";
 import { logAuditEvent } from "@/features/audit/audit.service";
 import { isDomainAllowed } from "@/features/stores/stores.service";
+import { sendEmail } from "@/lib/email/transport";
+import {
+  orderPaidTemplate,
+  orderProcessingTemplate,
+  orderShippedTemplate,
+  orderDeliveredTemplate,
+  orderCancelledTemplate,
+} from "@/lib/email/templates/order-status";
+import { logger } from "@/lib/logger";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
-import type {
-  // OrderResponse,
-  // OrderListResponse,
-  PaginatedDataResponse,
-} from "@/types/api";
-import type { DbOrder } from "@/types/db";
+import type { PaginatedDataResponse } from "@/types/api";
+import type { DbOrder, DbAuditLog } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList } from "./types";
 
@@ -37,9 +43,72 @@ function toResponse(order: DbOrder): Order {
     reviewedBy: order.reviewed_by,
     reviewedAt: order.reviewed_at,
     extractionMetadata: order.extraction_metadata,
+    trackingNumber: order.tracking_number,
+    carrier: order.carrier,
+    estimatedDeliveryDate: order.estimated_delivery_date,
+    deliveredAt: order.delivered_at,
     createdAt: order.created_at,
     updatedAt: order.updated_at,
   };
+}
+
+/**
+ * Send an order status notification email. Fire-and-forget — errors are
+ * logged but never thrown so they never block status transitions.
+ */
+async function sendOrderStatusEmail(
+  userId: string,
+  order: DbOrder,
+  newStatus: string,
+  trackingData?: { trackingNumber?: string; carrier?: string; estimatedDeliveryDate?: string },
+): Promise<void> {
+  try {
+    const { data: userData, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+    if (error || !userData?.user?.email) return;
+
+    const emailData = {
+      productName: order.product_name,
+      orderId: order.id,
+      trackingNumber: trackingData?.trackingNumber,
+      carrier: trackingData?.carrier,
+      estimatedDeliveryDate: trackingData?.estimatedDeliveryDate,
+    };
+
+    let template: { subject: string; html: string } | null = null;
+
+    switch (newStatus) {
+      case "paid":
+        template = orderPaidTemplate(emailData);
+        break;
+      case "processing":
+        template = orderProcessingTemplate(emailData);
+        break;
+      case "in_transit":
+        template = orderShippedTemplate(emailData);
+        break;
+      case "delivered":
+        template = orderDeliveredTemplate(emailData);
+        break;
+      case "cancelled":
+        template = orderCancelledTemplate(emailData);
+        break;
+    }
+
+    if (template) {
+      await sendEmail({
+        to: userData.user.email,
+        subject: template.subject,
+        html: template.html,
+      });
+    }
+  } catch (err) {
+    logger.error("sendOrderStatusEmail failed", {
+      userId,
+      orderId: order.id,
+      newStatus,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 /**
@@ -212,11 +281,13 @@ export async function listAllOrders(
   };
 }
 
-// Valid admin-driven transitions (paid → processing → completed; pending → cancelled)
+// Valid admin-driven transitions
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   pending: ["cancelled"],
   paid: ["processing"],
-  processing: ["completed"],
+  processing: ["in_transit"],
+  in_transit: ["delivered"],
+  delivered: ["completed"],
 };
 
 /**
@@ -226,6 +297,11 @@ export async function updateOrderStatusAdmin(
   user: AuthenticatedUser,
   orderId: string,
   newStatus: string,
+  trackingData?: {
+    trackingNumber?: string;
+    carrier?: string;
+    estimatedDeliveryDate?: string;
+  },
 ): Promise<ServiceResult<Order>> {
   if (user.role !== "admin") {
     return { success: false, error: "Admin access required", status: 403 };
@@ -245,7 +321,28 @@ export async function updateOrderStatusAdmin(
     };
   }
 
-  const updated = await updateOrderStatus(supabaseAdmin, orderId, newStatus);
+  // Build update payload
+  const updatePayload: {
+    status: string;
+    tracking_number?: string;
+    carrier?: string;
+    estimated_delivery_date?: string;
+    delivered_at?: string;
+  } = { status: newStatus };
+
+  // When transitioning to in_transit, save tracking fields
+  if (newStatus === "in_transit" && trackingData) {
+    if (trackingData.trackingNumber) updatePayload.tracking_number = trackingData.trackingNumber;
+    if (trackingData.carrier) updatePayload.carrier = trackingData.carrier;
+    if (trackingData.estimatedDeliveryDate) updatePayload.estimated_delivery_date = trackingData.estimatedDeliveryDate;
+  }
+
+  // When transitioning to delivered, auto-set delivered_at
+  if (newStatus === "delivered") {
+    updatePayload.delivered_at = new Date().toISOString();
+  }
+
+  const updated = await updateOrderStatus(supabaseAdmin, orderId, updatePayload);
   if (!updated) {
     return {
       success: false,
@@ -263,5 +360,78 @@ export async function updateOrderStatusAdmin(
     metadata: { from: order.status, to: newStatus },
   });
 
+  // Fire-and-forget email notification
+  sendOrderStatusEmail(order.user_id, updated, newStatus, trackingData);
+
   return { success: true, data: toResponse(updated) };
+}
+
+/**
+ * User: cancel a pending order.
+ * Only the order owner can cancel, and only when status is "pending".
+ */
+export async function cancelOrderByUser(
+  user: AuthenticatedUser,
+  orderId: string,
+): Promise<ServiceResult<Order>> {
+  const order = await getOrderById(supabaseAdmin, orderId);
+  if (!order) {
+    return { success: false, error: "Order not found", status: 404 };
+  }
+
+  if (order.user_id !== user.id) {
+    return { success: false, error: "Order not found", status: 404 };
+  }
+
+  if (order.status !== "pending") {
+    return {
+      success: false,
+      error: "Only pending orders can be cancelled",
+      status: 400,
+    };
+  }
+
+  const updated = await updateOrderStatus(supabaseAdmin, orderId, { status: "cancelled" });
+  if (!updated) {
+    return {
+      success: false,
+      error: "Failed to cancel order",
+      status: 500,
+    };
+  }
+
+  await logAuditEvent({
+    actorId: user.id,
+    actorRole: "user",
+    action: "order_cancelled_by_user",
+    entityType: "order",
+    entityId: orderId,
+    metadata: { from: "pending", to: "cancelled" },
+  });
+
+  // Fire-and-forget email notification
+  sendOrderStatusEmail(user.id, updated, "cancelled");
+
+  return { success: true, data: toResponse(updated) };
+}
+
+/**
+ * Get audit history for an order. Enforces ownership for non-admin users.
+ */
+export async function getOrderAuditHistory(
+  user: AuthenticatedUser,
+  orderId: string,
+): Promise<ServiceResult<DbAuditLog[]>> {
+  const order = await getOrderById(supabaseAdmin, orderId);
+  if (!order) {
+    return { success: false, error: "Order not found", status: 404 };
+  }
+
+  if (user.role !== "admin" && order.user_id !== user.id) {
+    return { success: false, error: "Order not found", status: 404 };
+  }
+
+  const logs = await getOrderAuditLogs(supabaseAdmin, orderId);
+
+  return { success: true, data: logs };
 }

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DbOrder, OrderPricingBreakdown } from "@/types/db";
+import type { DbOrder, DbAuditLog, OrderPricingBreakdown } from "@/types/db";
 import { logger } from "@/lib/logger";
 
 interface OrderInsert {
@@ -57,11 +57,17 @@ export async function getOrderById(
 export async function updateOrderStatus(
   client: SupabaseClient,
   orderId: string,
-  status: string
+  updates: {
+    status: string;
+    tracking_number?: string;
+    carrier?: string;
+    estimated_delivery_date?: string;
+    delivered_at?: string;
+  }
 ): Promise<DbOrder | null> {
   const { data, error } = await client
     .from("orders")
-    .update({ status })
+    .update(updates)
     .eq("id", orderId)
     .select()
     .single();
@@ -69,7 +75,7 @@ export async function updateOrderStatus(
   if (error) {
     logger.error("updateOrderStatus failed", {
       orderId,
-      status,
+      status: updates.status,
       code: error.code,
       message: error.message,
     });
@@ -181,4 +187,25 @@ export async function updateOrderReview(
     return null;
   }
   return data as DbOrder;
+}
+
+export async function getOrderAuditLogs(
+  client: SupabaseClient,
+  orderId: string
+): Promise<DbAuditLog[]> {
+  const { data, error } = await client
+    .from("audit_logs")
+    .select("*")
+    .eq("entity_type", "order")
+    .eq("entity_id", orderId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    logger.error("getOrderAuditLogs failed", {
+      orderId,
+      error: error.message,
+    });
+    return [];
+  }
+  return (data ?? []) as DbAuditLog[];
 }

@@ -107,6 +107,10 @@ export interface OrderResponse {
   reviewedBy: string | null;
   reviewedAt: string | null;
   extractionMetadata: Record<string, unknown> | null;
+  trackingNumber: string | null;
+  carrier: string | null;
+  estimatedDeliveryDate: string | null;
+  deliveredAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -23,6 +23,10 @@ function toResponse(order: DbOrder): Order {
     reviewedBy: order.reviewed_by,
     reviewedAt: order.reviewed_at,
     extractionMetadata: order.extraction_metadata,
+    trackingNumber: order.tracking_number,
+    carrier: order.carrier,
+    estimatedDeliveryDate: order.estimated_delivery_date,
+    deliveredAt: order.delivered_at,
     createdAt: order.created_at,
     updatedAt: order.updated_at,
   };
