@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOrderById, updateOrderReview } from "@/features/orders/orders.queries";
 import { logAuditEvent } from "@/features/audit/audit.service";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
@@ -34,8 +34,10 @@ function toResponse(order: DbOrder): Order {
 
 /**
  * Admin: review a flagged order (approve or reject).
+ * Expects an admin-scoped client (createAdminClient()).
  */
 export async function reviewOrder(
+  client: SupabaseClient,
   admin: AuthenticatedUser,
   orderId: string,
   input: {
@@ -53,7 +55,7 @@ export async function reviewOrder(
     return { success: false, error: "Admin access required", status: 403 };
   }
 
-  const order = await getOrderById(supabaseAdmin, orderId);
+  const order = await getOrderById(client, orderId);
   if (!order) {
     return { success: false, error: "Order not found", status: 404 };
   }
@@ -69,7 +71,6 @@ export async function reviewOrder(
       reviewed_at: new Date().toISOString(),
     };
 
-    // Apply optional field corrections
     if (input.updates?.productName) {
       updates.product_name = input.updates.productName;
     }
@@ -83,7 +84,7 @@ export async function reviewOrder(
       updates.origin_country = input.updates.originCountry;
     }
 
-    const updated = await updateOrderReview(supabaseAdmin, orderId, updates);
+    const updated = await updateOrderReview(client, orderId, updates);
     if (!updated) {
       return { success: false, error: "Failed to approve order", status: 500 };
     }
@@ -104,7 +105,7 @@ export async function reviewOrder(
   }
 
   // Reject: cancel the order
-  const updated = await updateOrderReview(supabaseAdmin, orderId, {
+  const updated = await updateOrderReview(client, orderId, {
     needs_review: false,
     reviewed_by: admin.id,
     reviewed_at: new Date().toISOString(),

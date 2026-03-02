@@ -1,4 +1,5 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getAllPricingConfigs,
   getPricingConfigByRegion,
@@ -9,7 +10,7 @@ import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type {
   PricingConfigResponse,
   PricingConfigListResponse,
-} from "@/types/api";
+} from "@/features/pricing/types";
 import type { OrderPricingBreakdown } from "@/types/db";
 
 /** Map a DB row to the API response shape */
@@ -33,9 +34,12 @@ function toResponse(config: {
 
 /**
  * Get all pricing configs (all regions).
+ * Pass createAdminClient() — pricing_config is admin-managed data.
  */
-export async function getAll(): Promise<ServiceResult<PricingConfigListResponse>> {
-  const configs = await getAllPricingConfigs(supabaseAdmin);
+export async function getAll(
+  client: SupabaseClient,
+): Promise<ServiceResult<PricingConfigListResponse>> {
+  const configs = await getAllPricingConfigs(client);
 
   return {
     success: true,
@@ -45,21 +49,22 @@ export async function getAll(): Promise<ServiceResult<PricingConfigListResponse>
 
 /**
  * Update pricing config for a specific region (admin only).
+ * Expects an admin-scoped client (createAdminClient()).
  */
 export async function updateRegionPricing(
+  client: SupabaseClient,
   admin: AuthenticatedUser,
   region: "USA" | "UK" | "CHINA",
   baseShippingFeeUsd: number,
   exchangeRate: number,
-  serviceFeePercentage: number
+  serviceFeePercentage: number,
 ): Promise<ServiceResult<PricingConfigResponse>> {
-  // Fetch current config to include in audit metadata
-  const current = await getPricingConfigByRegion(supabaseAdmin, region);
+  const current = await getPricingConfigByRegion(client, region);
   if (!current) {
     return { success: false, error: "Pricing config not found for region", status: 404 };
   }
 
-  const updated = await updatePricingConfig(supabaseAdmin, region, {
+  const updated = await updatePricingConfig(client, region, {
     base_shipping_fee_usd: baseShippingFeeUsd,
     exchange_rate: exchangeRate,
     service_fee_percentage: serviceFeePercentage,
@@ -74,7 +79,7 @@ export async function updateRegionPricing(
     actorId: admin.id,
     actorRole: "admin",
     action: "pricing_config_updated",
-    entityType: "order", // pricing_config doesn't have its own entity type
+    entityType: "order",
     entityId: updated.id,
     metadata: {
       region,
@@ -83,11 +88,7 @@ export async function updateRegionPricing(
         exchangeRate: current.exchange_rate,
         serviceFeePercentage: current.service_fee_percentage,
       },
-      updated: {
-        baseShippingFeeUsd,
-        exchangeRate,
-        serviceFeePercentage,
-      },
+      updated: { baseShippingFeeUsd, exchangeRate, serviceFeePercentage },
     },
   });
 
@@ -96,6 +97,7 @@ export async function updateRegionPricing(
 
 /**
  * Calculate the full pricing breakdown for an order.
+ * System-level operation — uses admin client internally to read pricing_config.
  * This is the SINGLE SOURCE OF TRUTH for all money math.
  *
  * Formula: total_ghs = (item_price * qty + shipping + service_fee) * exchange_rate
@@ -104,15 +106,11 @@ export async function updateRegionPricing(
 export async function calculatePricing(
   itemPriceUsd: number,
   quantity: number,
-  region: "USA" | "UK" | "CHINA"
+  region: "USA" | "UK" | "CHINA",
 ): Promise<ServiceResult<OrderPricingBreakdown>> {
-  const config = await getPricingConfigByRegion(supabaseAdmin, region);
+  const config = await getPricingConfigByRegion(createAdminClient(), region);
   if (!config) {
-    return {
-      success: false,
-      error: "Pricing config not found for region",
-      status: 500,
-    };
+    return { success: false, error: "Pricing config not found for region", status: 500 };
   }
 
   const subtotalUsd = roundTo2(itemPriceUsd * quantity);

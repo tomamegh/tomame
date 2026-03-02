@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 
-export function SiteFooter() {
+export default function SiteFooter() {
   return (
     <footer className="bg-linear-to-br from-stone-950 via-stone-900 to-stone-950 text-stone-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

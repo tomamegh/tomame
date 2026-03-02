@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
-import { updateStoreSchema } from "@/features/stores/stores.validators";
+import { updateStoreSchema } from "@/features/stores/schema";
 import { updateStoreById, deleteStoreById } from "@/features/stores/stores.service";
 import { getAuthenticatedUser } from "@/features/auth/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
@@ -32,7 +33,7 @@ export async function PATCH(
     if (!admin.ok) throw new APIError(admin.status, admin.error);
 
     const { id } = await params;
-    const result = await updateStoreById(admin.user, id, parsed.data);
+    const result = await updateStoreById(createAdminClient(), admin.user, id, parsed.data);
     if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result.data);
@@ -58,7 +59,7 @@ export async function DELETE(
     if (!admin.ok) throw new APIError(admin.status, admin.error);
 
     const { id } = await params;
-    const result = await deleteStoreById(admin.user, id);
+    const result = await deleteStoreById(createAdminClient(), admin.user, id);
     if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result.data);

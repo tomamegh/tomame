@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   insertOrder,
   getOrderById,
@@ -24,6 +24,7 @@ import type { PaginatedDataResponse } from "@/types/api";
 import type { DbOrder, DbAuditLog } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList } from "./types";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /** Map a DB order row to the API response shape */
 function toResponse(order: DbOrder): Order {
@@ -63,7 +64,8 @@ async function sendOrderStatusEmail(
   trackingData?: { trackingNumber?: string; carrier?: string; estimatedDeliveryDate?: string },
 ): Promise<void> {
   try {
-    const { data: userData, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const supabase = createAdminClient()
+    const { data: userData, error } = await supabase.auth.admin.getUserById(userId);
     if (error || !userData?.user?.email) return;
 
     const emailData = {
@@ -115,6 +117,7 @@ async function sendOrderStatusEmail(
  * Create a new order with server-calculated pricing.
  */
 export async function createOrder(
+  client: SupabaseClient,
   user: AuthenticatedUser,
   input: {
     productUrl: string;
@@ -154,7 +157,7 @@ export async function createOrder(
     };
   }
 
-  const order = await insertOrder(supabaseAdmin, {
+  const order = await insertOrder(client, {
     user_id: user.id,
     product_url: input.productUrl,
     product_name: input.productName,
@@ -190,6 +193,10 @@ export async function createOrder(
   return { success: true, data: toResponse(order) };
 }
 
+/**
+ * List orders for the authenticated user (paginated).
+ * Uses the user-scoped client so RLS enforces ownership automatically.
+ */
 export const getUserOrders = async (
   userId: string,
   page: number = 1,
@@ -222,19 +229,21 @@ export const getUserOrders = async (
 
 /**
  * Get a single order by ID.
- * Users can only see their own orders; admins can see any order.
+ * Pass createClient() for user routes (RLS enforces ownership).
+ * Pass createAdminClient() for admin routes (bypasses RLS).
  */
 export async function getOrder(
+  client: SupabaseClient,
   user: AuthenticatedUser,
   orderId: string,
 ): Promise<ServiceResult<Order>> {
-  const order = await getOrderById(supabaseAdmin, orderId);
+  const order = await getOrderById(client, orderId);
 
   if (!order) {
     return { success: false, error: "Order not found", status: 404 };
   }
 
-  // Enforce ownership: users can only see their own orders
+  // Extra code-level ownership check for user-scoped calls
   if (user.role !== "admin" && order.user_id !== user.id) {
     return { success: false, error: "Order not found", status: 404 };
   }
@@ -246,9 +255,10 @@ export async function getOrder(
  * List all orders for the authenticated user.
  */
 export async function listUserOrders(
+  client: SupabaseClient,
   user: AuthenticatedUser,
 ): Promise<ServiceResult<OrderList>> {
-  const orders = await getOrdersByUserId(supabaseAdmin, user.id);
+  const orders = await getOrdersByUserId(client, user.id);
 
   return {
     success: true,
@@ -261,8 +271,10 @@ export async function listUserOrders(
 
 /**
  * Admin: list all orders with optional filters.
+ * Expects an admin-scoped client (createAdminClient()).
  */
 export async function listAllOrders(
+  client: SupabaseClient,
   user: AuthenticatedUser,
   filters?: { status?: string; userId?: string; needsReview?: boolean },
 ): Promise<ServiceResult<OrderList>> {
@@ -270,7 +282,7 @@ export async function listAllOrders(
     return { success: false, error: "Admin access required", status: 403 };
   }
 
-  const orders = await getAllOrders(supabaseAdmin, filters);
+  const orders = await getAllOrders(client, filters);
 
   return {
     success: true,
@@ -292,8 +304,10 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 
 /**
  * Admin: update an order's status following the state machine.
+ * Expects an admin-scoped client (createAdminClient()).
  */
 export async function updateOrderStatusAdmin(
+  client: SupabaseClient,
   user: AuthenticatedUser,
   orderId: string,
   newStatus: string,
@@ -307,7 +321,7 @@ export async function updateOrderStatusAdmin(
     return { success: false, error: "Admin access required", status: 403 };
   }
 
-  const order = await getOrderById(supabaseAdmin, orderId);
+  const order = await getOrderById(client, orderId);
   if (!order) {
     return { success: false, error: "Order not found", status: 404 };
   }
@@ -342,7 +356,8 @@ export async function updateOrderStatusAdmin(
     updatePayload.delivered_at = new Date().toISOString();
   }
 
-  const updated = await updateOrderStatus(supabaseAdmin, orderId, updatePayload);
+  const supabase = createAdminClient()
+  const updated = await updateOrderStatus(supabase, orderId, updatePayload);
   if (!updated) {
     return {
       success: false,
@@ -374,7 +389,8 @@ export async function cancelOrderByUser(
   user: AuthenticatedUser,
   orderId: string,
 ): Promise<ServiceResult<Order>> {
-  const order = await getOrderById(supabaseAdmin, orderId);
+  const supabase = createAdminClient()
+  const order = await getOrderById(supabase, orderId);
   if (!order) {
     return { success: false, error: "Order not found", status: 404 };
   }
@@ -391,7 +407,7 @@ export async function cancelOrderByUser(
     };
   }
 
-  const updated = await updateOrderStatus(supabaseAdmin, orderId, { status: "cancelled" });
+  const updated = await updateOrderStatus(supabase, orderId, { status: "cancelled" });
   if (!updated) {
     return {
       success: false,
@@ -422,7 +438,8 @@ export async function getOrderAuditHistory(
   user: AuthenticatedUser,
   orderId: string,
 ): Promise<ServiceResult<DbAuditLog[]>> {
-  const order = await getOrderById(supabaseAdmin, orderId);
+  const supabase = createAdminClient()
+  const order = await getOrderById(supabase, orderId);
   if (!order) {
     return { success: false, error: "Order not found", status: 404 };
   }
@@ -431,7 +448,7 @@ export async function getOrderAuditHistory(
     return { success: false, error: "Order not found", status: 404 };
   }
 
-  const logs = await getOrderAuditLogs(supabaseAdmin, orderId);
+  const logs = await getOrderAuditLogs(supabase, orderId);
 
   return { success: true, data: logs };
 }

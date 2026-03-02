@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
-import { updateOrderStatusSchema } from "@/features/orders/orders.review.validators";
+import { updateOrderStatusSchema } from "@/features/orders/schema";
 import { getOrder, updateOrderStatusAdmin } from "@/features/orders/orders.service";
 import { getAuthenticatedUser } from "@/features/auth/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
@@ -24,7 +25,7 @@ export async function GET(
     if (!admin.ok) throw new APIError(admin.status, admin.error);
 
     const { id } = await params;
-    const result = await getOrder(admin.user, id);
+    const result = await getOrder(createAdminClient(), admin.user, id);
     if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result.data);
@@ -62,7 +63,7 @@ export async function PATCH(
     const trackingData = trackingNumber || carrier || estimatedDeliveryDate
       ? { trackingNumber, carrier, estimatedDeliveryDate }
       : undefined;
-    const result = await updateOrderStatusAdmin(admin.user, id, status, trackingData);
+    const result = await updateOrderStatusAdmin(createAdminClient() ,admin.user, id, status, trackingData);
     if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result.data);

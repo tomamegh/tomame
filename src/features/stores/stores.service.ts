@@ -1,6 +1,8 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getEnabledStoreDomains,
+  getEnabledStores,
   getAllStores,
   getStoreById,
   insertStore,
@@ -12,7 +14,7 @@ import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type {
   SupportedStoreResponse,
   SupportedStoreListResponse,
-} from "@/types/api";
+} from "@/features/stores/types";
 import type { DbSupportedStore } from "@/types/db";
 
 /** Map a DB row to the API response shape */
@@ -29,36 +31,37 @@ function toResponse(store: DbSupportedStore): SupportedStoreResponse {
 
 /**
  * Admin: list all stores (enabled + disabled).
+ * Expects an admin-scoped client (createAdminClient()).
  */
 export async function listStores(
+  client: SupabaseClient,
   user: AuthenticatedUser,
 ): Promise<ServiceResult<SupportedStoreListResponse>> {
   if (user.role !== "admin") {
     return { success: false, error: "Admin access required", status: 403 };
   }
 
-  const stores = await getAllStores(supabaseAdmin);
+  const stores = await getAllStores(client);
   return { success: true, data: { stores: stores.map(toResponse) } };
 }
 
 /**
  * Public: list enabled stores only.
+ * Pass createClient() — RLS already filters to enabled=true for non-admins.
  */
-export async function listEnabledStores(): Promise<
-  ServiceResult<SupportedStoreListResponse>
-> {
-  const domains = await getEnabledStoreDomains(supabaseAdmin);
-  // We need full store objects for enabled stores — fetch all and filter
-  const allStores = await getAllStores(supabaseAdmin);
-  const enabledStores = allStores.filter((s) => s.enabled);
-
-  return { success: true, data: { stores: enabledStores.map(toResponse) } };
+export async function listEnabledStores(
+  client: SupabaseClient,
+): Promise<ServiceResult<SupportedStoreListResponse>> {
+  const stores = await getEnabledStores(client);
+  return { success: true, data: { stores: stores.map(toResponse) } };
 }
 
 /**
  * Admin: create a new supported store.
+ * Expects an admin-scoped client (createAdminClient()).
  */
 export async function createStore(
+  client: SupabaseClient,
   admin: AuthenticatedUser,
   input: { domain: string; displayName: string },
 ): Promise<ServiceResult<SupportedStoreResponse>> {
@@ -66,7 +69,7 @@ export async function createStore(
     return { success: false, error: "Admin access required", status: 403 };
   }
 
-  const store = await insertStore(supabaseAdmin, {
+  const store = await insertStore(client, {
     domain: input.domain,
     display_name: input.displayName,
     created_by: admin.id,
@@ -94,8 +97,10 @@ export async function createStore(
 
 /**
  * Admin: update a supported store.
+ * Expects an admin-scoped client (createAdminClient()).
  */
 export async function updateStoreById(
+  client: SupabaseClient,
   admin: AuthenticatedUser,
   storeId: string,
   input: { displayName?: string; enabled?: boolean },
@@ -104,7 +109,7 @@ export async function updateStoreById(
     return { success: false, error: "Admin access required", status: 403 };
   }
 
-  const existing = await getStoreById(supabaseAdmin, storeId);
+  const existing = await getStoreById(client, storeId);
   if (!existing) {
     return { success: false, error: "Store not found", status: 404 };
   }
@@ -113,7 +118,7 @@ export async function updateStoreById(
   if (input.displayName !== undefined) updates.display_name = input.displayName;
   if (input.enabled !== undefined) updates.enabled = input.enabled;
 
-  const updated = await updateStore(supabaseAdmin, storeId, updates);
+  const updated = await updateStore(client, storeId, updates);
   if (!updated) {
     return { success: false, error: "Failed to update store", status: 500 };
   }
@@ -125,10 +130,7 @@ export async function updateStoreById(
     entityType: "store",
     entityId: storeId,
     metadata: {
-      previous: {
-        displayName: existing.display_name,
-        enabled: existing.enabled,
-      },
+      previous: { displayName: existing.display_name, enabled: existing.enabled },
       updated: input,
     },
   });
@@ -138,8 +140,10 @@ export async function updateStoreById(
 
 /**
  * Admin: delete a supported store.
+ * Expects an admin-scoped client (createAdminClient()).
  */
 export async function deleteStoreById(
+  client: SupabaseClient,
   admin: AuthenticatedUser,
   storeId: string,
 ): Promise<ServiceResult<{ message: string }>> {
@@ -147,12 +151,12 @@ export async function deleteStoreById(
     return { success: false, error: "Admin access required", status: 403 };
   }
 
-  const existing = await getStoreById(supabaseAdmin, storeId);
+  const existing = await getStoreById(client, storeId);
   if (!existing) {
     return { success: false, error: "Store not found", status: 404 };
   }
 
-  const deleted = await deleteStore(supabaseAdmin, storeId);
+  const deleted = await deleteStore(client, storeId);
   if (!deleted) {
     return { success: false, error: "Failed to delete store", status: 500 };
   }
@@ -171,12 +175,14 @@ export async function deleteStoreById(
 
 /**
  * Check if a product URL's domain is in the enabled supported stores.
- * Replaces the hardcoded ALLOWED_PRODUCT_DOMAINS check.
+ * System-level check — uses admin client internally (no user session needed).
  */
 export async function isDomainAllowed(url: string): Promise<boolean> {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
-    const domains = await getEnabledStoreDomains(supabaseAdmin);
+    const domains = await getEnabledStoreDomains(createAdminClient());
+    // No configured stores means the table hasn't been seeded yet — allow all
+    if (domains.length === 0) return true;
     return domains.some(
       (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
     );

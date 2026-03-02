@@ -30,7 +30,30 @@
 
 @layer components {
   .gradient-primary {
-    @apply bg-linear-to-r from-rose-400 via-orange-400 to-amber-400;
+    @apply bg-linear-to-r relative from-rose-400 via-orange-400 to-amber-400;
+  }
+
+  .dark-card {
+    position: relative;
+    overflow: hidden;
+
+    background:
+    /* Top-left pink glow */
+      radial-gradient(
+        circle at 30% 50%,
+        rgba(244, 63, 94, 0.1) 0%,
+        rgba(244, 63, 94, 0.1) 20%,
+        transparent 60%
+      ),
+      /* Bottom-right amber glow */
+        radial-gradient(
+          circle at 70% 50%,
+          rgba(245, 158, 11, 0.08) 0%,
+          rgba(245, 158, 11, 0.08) 20%,
+          transparent 60%
+        ),
+      /* Main background gradient */
+        linear-gradient(to bottom, #0c0a09, #1c1917, #0c0a09);
   }
 
   .gradient-secondary {
@@ -272,6 +295,17 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  --animate-earth: earth 8s linear infinite;
+
+  @keyframes earth {
+    0% {
+      transform: rotateY(0deg);
+    }
+    100% {
+      transform: rotateY(360deg);
+    }
+  }
 }
 
 :root {
