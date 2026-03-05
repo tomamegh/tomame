@@ -27,16 +27,20 @@ export async function POST(request: NextRequest) {
     const auth = requireAuth(user);
     if (!auth.ok) throw new APIError(auth.status, auth.error);
 
-    // Validate URL domain against supported stores
-    const domainAllowed = await isDomainAllowed(parsed.data.productUrl);
+    // Validate URL domain against supported stores (resolves shortened URLs)
+    const { allowed: domainAllowed, resolvedUrl } = await isDomainAllowed(parsed.data.productUrl);
     if (!domainAllowed) {
       throw new APIError(400, "Product URL must be from a supported store");
     }
 
-    const result = await extractProductData(parsed.data.productUrl);
+    // Use the resolved URL for extraction so domain selectors and country mapping work
+    const result = await extractProductData(resolvedUrl);
     if (!result.success) throw new APIError(result.status, result.error);
 
-    return successResponse(result.data);
+    return successResponse({
+      ...result.data,
+      resolvedUrl: resolvedUrl !== parsed.data.productUrl ? resolvedUrl : undefined,
+    });
   } catch (error) {
     return errorResponse(error);
   }

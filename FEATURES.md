@@ -41,19 +41,20 @@
 - [x] Payment record creation
 - [x] Secure payment flow (no card data storage)
 
-### 5. Order Management (MVP)
+### 5. Order Management (MVP) ✅
 - [x] Order creation on quote submission
-- [ ] Order lifecycle state machine (pending_payment → paid → processing → in_transit → delivered)
-- [ ] Order cancellation (payment failed only)
-- [ ] Order status updates (admin-driven)
+- [x] Order lifecycle state machine (pending → approved → paid → processing → in_transit → delivered → completed)
+- [x] Order cancellation (pending/approved orders)
+- [x] Order status updates (admin-driven)
 - [x] Order history view (user)
-- [ ] All orders view (admin)
+- [x] All orders view (admin API)
 - [x] Order details with pricing breakdown
 
-### 6. Order Tracking (MVP)
-- [ ] Real-time order status display
-- [ ] Order reference tracking
-- [ ] Status timeline view
+### 6. Order Tracking (MVP) ✅
+- [x] Real-time order status display
+- [x] Order reference tracking
+- [x] Status timeline view
+- [x] Order audit history
 
 ### 7. Admin Dashboard (MVP)
 - [ ] Order management panel
@@ -65,13 +66,14 @@
 - [ ] Order status update controls
 
 ### 8. Notification System (MVP)
-- [ ] Email notifications (default channel)
+- [x] Email notifications for order status changes (approved/paid/processing/shipped/delivered/cancelled)
 - [ ] Payment event notifications (initialized/successful/failed)
-- [ ] Order event notifications (created/paid/processing/completed/cancelled)
+- [x] Order event notifications (status change emails, fire-and-forget)
 - [ ] Admin notifications for new orders
 - [ ] Notification outbox pattern implementation
-- [ ] Asynchronous notification delivery
+- [ ] Asynchronous notification delivery with retry
 - [ ] Notification status tracking (pending/sent/failed)
+- [ ] Notifications table in database
 
 ### 9. Database Schema (MVP)
 - [x] Users table with RLS
@@ -86,18 +88,22 @@
 - [x] POST /api/auth/forgot-password
 - [x] POST /api/auth/reset-password
 - [x] POST /api/auth/change-password
-- [x] POST /api/admin/users/reset-password
-- [x] POST /api/admin/users/promote
-- [x] POST /api/admin/users/create-admin
+- [x] POST /api/admin/users/reset-password (service only, no API route)
+- [x] POST /api/admin/users/promote (service only, no API route)
+- [x] POST /api/admin/users/create-admin (service only, no API route)
 - [x] POST /api/orders (create order)
 - [x] GET /api/orders (list user orders)
 - [x] GET /api/orders/:id (order details)
-- [ ] PATCH /api/admin/orders/:id/status (update status)
+- [x] PATCH /api/admin/orders/:id (update status)
+- [x] GET /api/admin/orders (list all orders)
+- [x] POST /api/admin/orders/:id/review (review order)
+- [x] POST /api/orders/:id/cancel (user cancel)
+- [x] GET /api/orders/:id/history (audit history)
 - [x] POST /api/payments/initialize
 - [x] GET /api/payments/callback
 - [x] POST /api/webhooks/paystack
-- [x] GET /api/admin/pricing-config
-- [x] PUT /api/admin/pricing-config
+- [ ] GET /api/admin/pricing-config (service exists, no API route)
+- [ ] PUT /api/admin/pricing-config (service exists, no API route)
 
 ### 11. Core Security (MVP)
 - [x] Row Level Security (RLS) on all tables
@@ -105,18 +111,18 @@
 - [x] Environment variable validation
 - [x] Input validation and sanitization
 - [x] No client-side money calculations
-- [ ] Secure token generation
-- [ ] SSL/TLS enforcement
+- [x] Secure token generation
+- [ ] SSL/TLS enforcement (deployment concern)
 
 ### 12. UI/UX Essentials (MVP)
 - [ ] Mobile responsive design
 - [ ] Page load time < 3 seconds
-- [ ] Intuitive quote submission form
-- [ ] Clear pricing breakdown display
-- [ ] Order tracking interface
+- [x] Intuitive quote submission form
+- [x] Clear pricing breakdown display
+- [x] Order tracking interface
 - [ ] Admin dashboard interface
 - [ ] Settings page (password change)
-- [ ] Error handling and user feedback
+- [x] Error handling and user feedback
 
 ### 13. Technical Foundation (MVP) ✅
 - [x] Next.js App Router implementation
@@ -208,11 +214,11 @@
 
 - [x] Full pre-payment before processing
 - [x] Admin-configurable pricing (no code changes)
-- [ ] Order lifecycle tracking
-- [ ] Automated notifications (Email + WhatsApp)
+- [x] Order lifecycle tracking
+- [~] Automated notifications (Email order status done; WhatsApp, outbox, retry pending)
 - [x] Paystack integration (MoMo + Card)
-- [ ] Admin dashboard
-- [ ] SSL enabled
+- [ ] Admin dashboard (UI)
+- [ ] SSL enabled (deployment)
 - [x] No card data storage
 - [x] Role-based admin access
 - [ ] Mobile responsive

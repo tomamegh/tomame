@@ -4,9 +4,11 @@ import { useMutation } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import type { ExtractionResult } from "@/features/extraction/extraction.service";
 
+export type ExtractionResponse = ExtractionResult & { resolvedUrl?: string };
+
 /** Extract product data from a URL */
 export function useExtractProduct() {
-  return useMutation<ExtractionResult, Error, { productUrl: string }>({
+  return useMutation<ExtractionResponse, Error, { productUrl: string }>({
     mutationFn: (data) =>
       apiFetch("/api/products/extract", {
         method: "POST",

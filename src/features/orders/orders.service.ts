@@ -133,8 +133,8 @@ export async function createOrder(
     extractionMetadata?: Record<string, unknown> | null;
   },
 ): Promise<ServiceResult<Order>> {
-  // Validate product URL domain against supported stores
-  const domainAllowed = await isDomainAllowed(input.productUrl);
+  // Validate product URL domain against supported stores (resolves shortened URLs)
+  const { allowed: domainAllowed, resolvedUrl } = await isDomainAllowed(input.productUrl);
   if (!domainAllowed) {
     return {
       success: false,

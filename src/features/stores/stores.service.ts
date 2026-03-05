@@ -170,17 +170,67 @@ export async function deleteStoreById(
 }
 
 /**
- * Check if a product URL's domain is in the enabled supported stores.
- * Replaces the hardcoded ALLOWED_PRODUCT_DOMAINS check.
+ * Follow redirects on a shortened URL and return the final destination URL.
+ * Returns the original URL unchanged if it is not a redirect.
+ * Uses a HEAD request with a short timeout to avoid hanging on slow servers.
  */
-export async function isDomainAllowed(url: string): Promise<boolean> {
+export async function resolveUrl(url: string): Promise<string> {
   try {
-    const hostname = new URL(url).hostname.toLowerCase();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5_000);
+
+    const response = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    });
+
+    clearTimeout(timeout);
+
+    // response.url is the final URL after all redirects
+    return response.url || url;
+  } catch {
+    // If HEAD fails (some servers block it), try GET with redirect follow
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5_000);
+
+      const response = await fetch(url, {
+        method: "GET",
+        redirect: "follow",
+        signal: controller.signal,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+      });
+
+      clearTimeout(timeout);
+      return response.url || url;
+    } catch {
+      return url;
+    }
+  }
+}
+
+/**
+ * Check if a product URL's domain is in the enabled supported stores.
+ * Automatically resolves shortened URLs (e.g. a.co, amzn.to) before checking.
+ */
+export async function isDomainAllowed(url: string): Promise<{ allowed: boolean; resolvedUrl: string }> {
+  try {
+    const resolvedUrl = await resolveUrl(url);
+    const hostname = new URL(resolvedUrl).hostname.toLowerCase();
     const domains = await getEnabledStoreDomains(supabaseAdmin);
-    return domains.some(
+    const allowed = domains.some(
       (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
     );
+    return { allowed, resolvedUrl };
   } catch {
-    return false;
+    return { allowed: false, resolvedUrl: url };
   }
 }
