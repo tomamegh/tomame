@@ -14,8 +14,5 @@ export const reviewOrderSchema = z.object({
 });
 
 export const updateOrderStatusSchema = z.object({
-  status: z.enum(["pending", "paid", "processing", "in_transit", "delivered", "completed", "cancelled"]),
-  trackingNumber: z.string().min(1).max(100).optional(),
-  carrier: z.string().min(1).max(100).optional(),
-  estimatedDeliveryDate: z.string().optional(),
+  status: z.enum(["pending", "paid", "processing", "completed", "cancelled"]),
 });

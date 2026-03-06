@@ -1,6 +1,7 @@
 /**
  * Database row types — mirror the canonical SQL schema in agent.md.
  */
+import type { OrderExtractionMetadata } from "@/features/orders/types";
 
 export interface DbUser {
   id: string;
@@ -52,7 +53,8 @@ export interface DbOrder {
   review_reasons: string[];
   reviewed_by: string | null;
   reviewed_at: string | null;
-  extraction_metadata: Record<string, unknown> | null;
+  extraction_metadata: OrderExtractionMetadata | null;
+  extraction_data: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }

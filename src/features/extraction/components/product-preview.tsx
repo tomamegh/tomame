@@ -66,9 +66,13 @@ export function ProductPreview({
         ? parseFloat(fields.price.value)
         : null;
   const priceNum = price !== null && !isNaN(price) ? price : null;
-  const currency = fields.price.currency ?? "USD";
+  const currency = (fields.currency.value as string | null) ?? fields.price.currency ?? null;
   const image = fields.image.value as string | null;
   const country = fields.country.value as string | null;
+  const platform = fields.platform.value || null;
+  const weight = fields.weight.value as string | null;
+  const dimensions = fields.dimensions.value as string | null;
+  const volume = fields.volume.value as string | null;
 
   const hasLowConfidence =
     fields.name.confidence === "low" || fields.price.confidence === "low";
@@ -159,17 +163,17 @@ export function ProductPreview({
               </p>
             </div>
 
-            {/* Price & Country */}
-            <div className="space-y-1.5 w-full md:w-1/3">
+            {/* Price & specs */}
+            <div className="space-y-1.5 w-full md:w-fit">
               {/* Price */}
-              <div className="flex items-center gap-4 justify-between">
+              <div className="flex items-center gap-5 justify-between">
                 <span className="text-sm font-semibold text-stone-700 block">
                   Price:
                 </span>
                 {priceNum ? (
-                  <div className=" text-stone-800 self-end">
+                  <div className="text-stone-800 self-end">
                     <span className="text-xs font-medium text-stone-500 mr-0.5">
-                      {currency}
+                      {currency ?? "USD"}
                     </span>
                     <p className="text-bold text-base inline-block">
                       {priceNum.toFixed(2)}
@@ -182,26 +186,45 @@ export function ProductPreview({
                 )}
               </div>
 
-              {/* Origin country */}
-              {country && (
-                <div className="flex items-center gap-2 justify-between">
-                  <p className="text-sm font-semibold text-stone-700">
-                    Platform
-                  </p>
-                  <p className="font-semibold text-stone-800 text-sm self-end">
-                    {country}
-                  </p>
+              {currency && !priceNum && (
+                <div className="flex items-center gap-5 justify-between">
+                  <p className="text-sm font-semibold text-stone-700">Currency</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end">{currency}</p>
                 </div>
               )}
-              {/* Origin country */}
+
+              {weight && (
+                <div className="flex items-center gap-5 justify-between">
+                  <p className="text-sm font-semibold text-stone-700">Weight</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end">{weight}</p>
+                </div>
+              )}
+
+              {dimensions && (
+                <div className="flex items-center gap-5 justify-between">
+                  <p className="text-sm font-semibold text-stone-700">Dimensions</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end">{dimensions}</p>
+                </div>
+              )}
+
+              {volume && (
+                <div className="flex items-center gap-5 justify-between">
+                  <p className="text-sm font-semibold text-stone-700">Volume</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end">{volume}</p>
+                </div>
+              )}
+
+              {platform && (
+                <div className="flex items-center gap-5 justify-between">
+                  <p className="text-sm font-semibold text-stone-700">Platform</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end">{platform}</p>
+                </div>
+              )}
+
               {country && (
-                <div className="flex items-center gap-2 justify-between">
-                  <p className="text-sm font-semibold text-stone-700">
-                    Ships from
-                  </p>
-                  <p className="font-semibold text-stone-800 text-sm self-end">
-                    {country}
-                  </p>
+                <div className="flex items-center gap-5 justify-between">
+                  <p className="text-sm font-semibold text-stone-700">Ships from</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end">{country}</p>
                 </div>
               )}
             </div>
@@ -236,7 +259,7 @@ export function ProductPreview({
             className="gap-1.5"
           >
             <ShoppingCartIcon className="size-3.5" />
-            Place Order
+            Review
           </Button>
         </CardFooter>
       </Card>

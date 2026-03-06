@@ -4,7 +4,9 @@
       "Bash(bun dev:*)",
       "Bash(bun install:*)",
       "WebFetch(domain:ui.shadcn.com)",
-      "Bash(bun run:*)"
+      "Bash(bun run:*)",
+      "Bash(ls:*)",
+      "mcp__ide__getDiagnostics"
     ]
   },
   "enableAllProjectMcpServers": true,

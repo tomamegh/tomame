@@ -127,7 +127,7 @@ function TimelineStep({
         )}
         {!isLast && (
           <div
-            className={`w-px flex-1 min-h-[24px] ${
+            className={`w-px flex-1 min-h-6 ${
               state === "completed" ? "bg-emerald-300" : "bg-stone-200"
             }`}
           />

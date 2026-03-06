@@ -16,6 +16,7 @@ interface OrderInsert {
   needs_review?: boolean;
   review_reasons?: string[];
   extraction_metadata?: Record<string, unknown> | null;
+  extraction_data?: Record<string, unknown> | null;
 }
 
 export async function insertOrder(

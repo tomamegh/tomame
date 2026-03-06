@@ -36,6 +36,29 @@ function getCountryFromDomain(
   }
 }
 
+// ── Unit code → human-readable label ───────────────────────
+
+function unitCodeToLabel(code?: string): string {
+  if (!code) return "";
+  const map: Record<string, string> = {
+    KGM: "kg", GRM: "g", LBR: "lbs", OZS: "oz",
+    CMT: "cm", MTR: "m", INH: "in", FTH: "ft",
+    MLT: "mL", LTR: "L", FOZ: "fl oz",
+  };
+  return map[code] ?? code;
+}
+
+function formatQuantitativeValue(
+  qv: { value?: string | number; unitCode?: string; unitText?: string } | string | undefined,
+): string | null {
+  if (!qv) return null;
+  if (typeof qv === "string") return qv.trim() || null;
+  const { value, unitCode, unitText } = qv;
+  if (value === undefined) return null;
+  const unit = unitText ?? unitCodeToLabel(unitCode);
+  return unit ? `${value} ${unit}` : String(value);
+}
+
 // ── JSON-LD extraction ─────────────────────────────────────
 
 function extractFromJsonLd($: cheerio.CheerioAPI): {
@@ -43,12 +66,18 @@ function extractFromJsonLd($: cheerio.CheerioAPI): {
   price?: number;
   currency?: string;
   image?: string;
+  weight?: string;
+  dimensions?: string;
+  volume?: string;
 } {
   const result: {
     name?: string;
     price?: number;
     currency?: string;
     image?: string;
+    weight?: string;
+    dimensions?: string;
+    volume?: string;
   } = {};
 
   $('script[type="application/ld+json"]').each((_, el) => {
@@ -105,6 +134,35 @@ function extractFromJsonLd($: cheerio.CheerioAPI): {
             }
           }
         }
+
+        if (typed.weight && !result.weight) {
+          const w = formatQuantitativeValue(typed.weight);
+          if (w) result.weight = w;
+        }
+
+        if (!result.dimensions) {
+          const d = formatQuantitativeValue(typed.depth);
+          const h = formatQuantitativeValue(typed.height);
+          const w = formatQuantitativeValue(typed.width);
+          const parts = [d, h, w].filter(Boolean);
+          if (parts.length === 3) result.dimensions = parts.join(" x ");
+          else if (parts.length > 0) result.dimensions = parts.join(" x ");
+        }
+
+        if (typed.size && !result.dimensions) {
+          const s = typeof typed.size === "string"
+            ? typed.size.trim()
+            : (typed.size as { name?: string }).name?.trim();
+          if (s) {
+            // Liquid measure → volume
+            if (/\d.*(ml|l\b|oz|litre|liter)/i.test(s)) {
+              if (!result.volume) result.volume = s;
+            } else if (/\d/.test(s)) {
+              // Looks like a measurement (contains a digit) → dimensions
+              result.dimensions = s;
+            }
+          }
+        }
       }
     } catch {
       // Ignore malformed JSON-LD
@@ -154,8 +212,19 @@ function extractFromMicrodata($: cheerio.CheerioAPI): {
   price?: number;
   currency?: string;
   image?: string;
+  weight?: string;
+  dimensions?: string;
+  volume?: string;
 } {
-  const result: { name?: string; price?: number; currency?: string; image?: string } = {};
+  const result: {
+    name?: string;
+    price?: number;
+    currency?: string;
+    image?: string;
+    weight?: string;
+    dimensions?: string;
+    volume?: string;
+  } = {};
 
   // Product name via itemprop="name" inside a product context
   const nameEl = $('[itemprop="name"]').first();
@@ -187,6 +256,30 @@ function extractFromMicrodata($: cheerio.CheerioAPI): {
     if (src) result.image = src;
   }
 
+  // Weight via itemprop="weight"
+  const weightEl = $('[itemprop="weight"]').first();
+  if (weightEl.length) {
+    const val = weightEl.attr("content") || weightEl.text().trim();
+    if (val) result.weight = val;
+  }
+
+  // Dimensions from depth/height/width itemprop
+  const depth = $('[itemprop="depth"]').first().attr("content") || $('[itemprop="depth"]').first().text().trim();
+  const height = $('[itemprop="height"]').first().attr("content") || $('[itemprop="height"]').first().text().trim();
+  const width = $('[itemprop="width"]').first().attr("content") || $('[itemprop="width"]').first().text().trim();
+  const dimParts = [depth, height, width].filter(Boolean);
+  if (dimParts.length > 0) result.dimensions = dimParts.join(" x ");
+
+  // Volume via additionalProperty itemprop
+  $('[itemprop="additionalProperty"]').each((_, el) => {
+    const propName = $(el).find('[itemprop="name"]').text().trim().toLowerCase();
+    const propValue = $(el).find('[itemprop="value"]').text().trim();
+    if (!propValue) return;
+    if (/\bvolume\b|\bcapacity\b/.test(propName) && !result.volume) result.volume = propValue;
+    if (/\bweight\b/.test(propName) && !result.weight) result.weight = propValue;
+    if (/\bdimensions?\b|\bsize\b/.test(propName) && !result.dimensions) result.dimensions = propValue;
+  });
+
   return result;
 }
 
@@ -196,8 +289,18 @@ function extractFromDomSelectors($: cheerio.CheerioAPI, url: string): {
   price?: number;
   currency?: string;
   image?: string;
+  weight?: string;
+  dimensions?: string;
+  volume?: string;
 } {
-  const result: { price?: number; currency?: string; image?: string } = {};
+  const result: {
+    price?: number;
+    currency?: string;
+    image?: string;
+    weight?: string;
+    dimensions?: string;
+    volume?: string;
+  } = {};
   let hostname = "";
   try {
     hostname = new URL(url).hostname.toLowerCase();
@@ -340,6 +443,38 @@ function extractFromDomSelectors($: cheerio.CheerioAPI, url: string): {
     }
   }
 
+  // ── Spec table extraction (weight, dimensions, volume) ──
+
+  if (hostname.includes("amazon")) {
+    const specRows = $(
+      "#productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr, .prodDetTable tr",
+    );
+    specRows.each((_, row) => {
+      const label = $(row).find("th, .label").text().trim().toLowerCase();
+      const value = $(row).find("td, .value").text().trim().replace(/\s+/g, " ");
+      if (!value || !label) return;
+      if (!result.weight && /item\s*weight|weight/.test(label)) result.weight = value;
+      if (!result.dimensions && /dimensions?|size/.test(label)) result.dimensions = value;
+      if (!result.volume && /volume|capacity|fluid/.test(label)) result.volume = value;
+    });
+  }
+
+  // Generic: look for spec/detail rows on any site
+  if (!result.weight || !result.dimensions) {
+    $(
+      '.product-specs tr, .product-details tr, [class*="spec"] tr, [class*="detail"] tr',
+    ).each((_, row) => {
+      const cells = $(row).find("td, th");
+      if (cells.length < 2) return;
+      const label = cells.first().text().trim().toLowerCase();
+      const value = cells.last().text().trim().replace(/\s+/g, " ");
+      if (!value) return;
+      if (!result.weight && /\bweight\b/.test(label)) result.weight = value;
+      if (!result.dimensions && /\bdimensions?\b|\bsize\b/.test(label)) result.dimensions = value;
+      if (!result.volume && /\bvolume\b|\bcapacity\b/.test(label)) result.volume = value;
+    });
+  }
+
   return result;
 }
 
@@ -386,6 +521,11 @@ function parseHtml(
     price: { ...emptyField },
     image: { ...emptyField },
     country: { ...emptyField },
+    platform: { ...emptyField },
+    currency: { ...emptyField },
+    weight: { ...emptyField },
+    dimensions: { ...emptyField },
+    volume: { ...emptyField },
   };
 
   const $ = cheerio.load(html);
@@ -467,7 +607,7 @@ function parseHtml(
     fields.image = { value: ogMeta.image, source: "og_meta", confidence: "medium" };
   }
 
-  // ── Country (domain mapping) ─────────────────────────────
+  // ── Country + Platform (domain mapping) ─────────────────
   const countryMapping = getCountryFromDomain(url);
   if (countryMapping) {
     fields.country = {
@@ -475,6 +615,48 @@ function parseHtml(
       source: "domain_mapping",
       confidence: "high",
     };
+    fields.platform = {
+      value: countryMapping.domain,
+      source: "domain_mapping",
+      confidence: "high",
+    };
+  }
+
+  // ── Currency (mirrors price.currency as a top-level field) ─
+  const priceCurrency = (fields.price as ExtractionField & { currency?: string }).currency;
+  if (priceCurrency) {
+    fields.currency = {
+      value: priceCurrency,
+      source: fields.price.source,
+      confidence: fields.price.confidence,
+    };
+  }
+
+  // ── Weight ───────────────────────────────────────────────
+  if (jsonLd.weight) {
+    fields.weight = { value: jsonLd.weight, source: "json_ld", confidence: "high" };
+  } else if (microdata.weight) {
+    fields.weight = { value: microdata.weight, source: "meta_tag", confidence: "medium" };
+  } else if (domData.weight) {
+    fields.weight = { value: domData.weight, source: "dom_selector", confidence: "medium" };
+  }
+
+  // ── Dimensions ───────────────────────────────────────────
+  if (jsonLd.dimensions) {
+    fields.dimensions = { value: jsonLd.dimensions, source: "json_ld", confidence: "high" };
+  } else if (microdata.dimensions) {
+    fields.dimensions = { value: microdata.dimensions, source: "meta_tag", confidence: "medium" };
+  } else if (domData.dimensions) {
+    fields.dimensions = { value: domData.dimensions, source: "dom_selector", confidence: "medium" };
+  }
+
+  // ── Volume ───────────────────────────────────────────────
+  if (jsonLd.volume) {
+    fields.volume = { value: jsonLd.volume, source: "json_ld", confidence: "high" };
+  } else if (microdata.volume) {
+    fields.volume = { value: microdata.volume, source: "meta_tag", confidence: "medium" };
+  } else if (domData.volume) {
+    fields.volume = { value: domData.volume, source: "dom_selector", confidence: "medium" };
   }
 
   return fields;
@@ -488,7 +670,7 @@ function mergeFields(
 ): ExtractionResult["fields"] {
   const merged = { ...fetchFields };
 
-  for (const key of ["name", "price", "image", "country"] as const) {
+  for (const key of ["name", "price", "image", "country", "platform", "currency", "weight", "dimensions", "volume"] as const) {
     if (merged[key].value === null && puppeteerFields[key].value !== null) {
       merged[key] = puppeteerFields[key];
     }
@@ -524,6 +706,11 @@ export async function extractProductData(
     price: { ...emptyField },
     image: { ...emptyField },
     country: { ...emptyField },
+    platform: { ...emptyField },
+    currency: { ...emptyField },
+    weight: { ...emptyField },
+    dimensions: { ...emptyField },
+    volume: { ...emptyField },
   };
 
   // ── Step 1: Fast path — fetch() + Cheerio ────────────────
@@ -569,22 +756,16 @@ export async function extractProductData(
   }
 
   // ── Step 2: Check if Puppeteer fallback is needed ────────
-  const needsPuppeteer =
-    options?.forcePuppeteer ||
-    fields.price.value === null ||
-    fields.image.value === null;
+  const missingFields = (
+    ["name", "price", "image", "weight", "dimensions", "volume", "currency"] as const
+  ).filter((key) => fields[key].value === null);
+
+  const needsPuppeteer = options?.forcePuppeteer || missingFields.length > 0;
 
   if (needsPuppeteer) {
     logger.info("Puppeteer fallback triggered", {
       url,
-      reason: options?.forcePuppeteer
-        ? "forced"
-        : `missing ${[
-            fields.price.value === null && "price",
-            fields.image.value === null && "image",
-          ]
-            .filter(Boolean)
-            .join(", ")}`,
+      reason: options?.forcePuppeteer ? "forced" : `missing ${missingFields.join(", ")}`,
       fetchFailed,
     });
 

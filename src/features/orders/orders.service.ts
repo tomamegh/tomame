@@ -23,13 +23,14 @@ import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type { PaginatedDataResponse } from "@/types/api";
 import type { DbOrder, DbAuditLog } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
-import { Order, OrderList } from "./types";
+import { Order, OrderList, type OrderExtractionMetadata } from "./types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /** Map a DB order row to the API response shape */
 function toResponse(order: DbOrder): Order {
   return {
     id: order.id,
+    userId: order.user_id,
     productUrl: order.product_url,
     productName: order.product_name,
     productImageUrl: order.product_image_url,
@@ -44,6 +45,7 @@ function toResponse(order: DbOrder): Order {
     reviewedBy: order.reviewed_by,
     reviewedAt: order.reviewed_at,
     extractionMetadata: order.extraction_metadata,
+    extractionData: order.extraction_data,
     trackingNumber: order.tracking_number,
     carrier: order.carrier,
     estimatedDeliveryDate: order.estimated_delivery_date,
@@ -129,7 +131,8 @@ export async function createOrder(
     specialInstructions?: string;
     needsReview?: boolean;
     reviewReasons?: string[];
-    extractionMetadata?: Record<string, unknown> | null;
+    extractionMetadata?: OrderExtractionMetadata | null;
+    extractionData?: Record<string, unknown> | null;
   },
 ): Promise<ServiceResult<Order>> {
   // Validate product URL domain against supported stores
@@ -171,6 +174,8 @@ export async function createOrder(
     needs_review: input.needsReview ?? false,
     review_reasons: input.reviewReasons ?? [],
     extraction_metadata: input.extractionMetadata ?? null,
+    // Only included once migration 010 (ADD COLUMN extraction_data JSONB) has been run
+    ...(input.extractionData != null ? { extraction_data: input.extractionData } : {}),
   });
 
   if (!order) {

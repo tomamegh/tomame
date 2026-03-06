@@ -9,6 +9,7 @@ import type { DbOrder } from "@/types/db";
 function toResponse(order: DbOrder): Order {
   return {
     id: order.id,
+    userId: order.user_id,
     productUrl: order.product_url,
     productName: order.product_name,
     productImageUrl: order.product_image_url,
@@ -23,6 +24,7 @@ function toResponse(order: DbOrder): Order {
     reviewedBy: order.reviewed_by,
     reviewedAt: order.reviewed_at,
     extractionMetadata: order.extraction_metadata,
+    extractionData: order.extraction_data,
     trackingNumber: order.tracking_number,
     carrier: order.carrier,
     estimatedDeliveryDate: order.estimated_delivery_date,

@@ -95,9 +95,20 @@ export async function updateRegionPricing(
   return { success: true, data: toResponse(updated) };
 }
 
+/** Fallback pricing used when the DB has no row for a region yet. */
+const FALLBACK_PRICING: Record<
+  "USA" | "UK" | "CHINA",
+  { base_shipping_fee_usd: number; exchange_rate: number; service_fee_percentage: number }
+> = {
+  USA:   { base_shipping_fee_usd: 15.00, exchange_rate: 14.50, service_fee_percentage: 0.10 },
+  UK:    { base_shipping_fee_usd: 18.00, exchange_rate: 18.00, service_fee_percentage: 0.10 },
+  CHINA: { base_shipping_fee_usd: 10.00, exchange_rate: 14.50, service_fee_percentage: 0.10 },
+};
+
 /**
  * Calculate the full pricing breakdown for an order.
  * System-level operation — uses admin client internally to read pricing_config.
+ * Falls back to hardcoded defaults if the DB row is missing.
  * This is the SINGLE SOURCE OF TRUTH for all money math.
  *
  * Formula: total_ghs = (item_price * qty + shipping + service_fee) * exchange_rate
@@ -108,10 +119,9 @@ export async function calculatePricing(
   quantity: number,
   region: "USA" | "UK" | "CHINA",
 ): Promise<ServiceResult<OrderPricingBreakdown>> {
-  const config = await getPricingConfigByRegion(createAdminClient(), region);
-  if (!config) {
-    return { success: false, error: "Pricing config not found for region", status: 500 };
-  }
+  const config =
+    (await getPricingConfigByRegion(createAdminClient(), region)) ??
+    FALLBACK_PRICING[region];
 
   const subtotalUsd = roundTo2(itemPriceUsd * quantity);
   const shippingFeeUsd = roundTo2(config.base_shipping_fee_usd);

@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import { CreateOrderInput, Order, OrderList } from "../types";
-import { PaginatedDataResponse } from "@/types/api";
+import type { ApiSuccessResponse } from "@/types/api";
 import type { DbAuditLog } from "@/types/db";
 
 // ── Query keys ───────────────────────────────────────────────
@@ -14,6 +14,7 @@ export const orderKeys = {
   admin: (filters?: { status?: string; userId?: string; needsReview?: boolean }) =>
     [...orderKeys.all, "admin", filters ?? {}] as const,
   detail: (id: string) => [...orderKeys.all, id] as const,
+  adminDetail: (id: string) => [...orderKeys.all, "admin", id] as const,
   history: (id: string) => [...orderKeys.all, id, "history"] as const,
 };
 
@@ -21,17 +22,19 @@ export const orderKeys = {
 
 /** List the current user's orders */
 export function useUserOrders() {
-  return useQuery<PaginatedDataResponse<Order>>({
+  return useQuery<ApiSuccessResponse<Order[]>, Error, Order[]>({
     queryKey: orderKeys.user(),
-    queryFn: () => apiFetch("/api/orders"),
+    queryFn: () => apiFetch<ApiSuccessResponse<Order[]>>("/api/orders"),
+    select: (res) => res.data,
   });
 }
 
 /** Get a single order by ID (user sees their own; admin sees any) */
 export function useOrder(id: string) {
-  return useQuery<Order>({
+  return useQuery<ApiSuccessResponse<Order>, Error, Order>({
     queryKey: orderKeys.detail(id),
-    queryFn: () => apiFetch(`/api/orders/${id}`),
+    queryFn: () => apiFetch<ApiSuccessResponse<Order>>(`/api/orders/${id}`),
+    select: (res) => res.data,
     enabled: !!id,
   });
 }
@@ -41,12 +44,14 @@ export function useCreateOrder() {
   const queryClient = useQueryClient();
 
   return useMutation<Order, Error, CreateOrderInput>({
-    mutationFn: (data) =>
-      apiFetch("/api/orders", {
+    mutationFn: async (data) => {
+      const res = await apiFetch<ApiSuccessResponse<Order>>("/api/orders/new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      }),
+      });
+      return res.data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderKeys.user() });
     },
@@ -54,6 +59,16 @@ export function useCreateOrder() {
 }
 
 // ── Admin hooks ──────────────────────────────────────────────
+
+/** Admin: get a single order by ID (admin endpoint) */
+export function useAdminOrderDetail(id: string) {
+  return useQuery<ApiSuccessResponse<Order>, Error, Order>({
+    queryKey: orderKeys.adminDetail(id),
+    queryFn: () => apiFetch<ApiSuccessResponse<Order>>(`/api/admin/orders/${id}`),
+    select: (res) => res.data,
+    enabled: !!id,
+  });
+}
 
 /** Admin: list all orders with optional filters */
 export function useAdminOrders(filters?: {
@@ -120,10 +135,13 @@ export function useCancelOrder() {
   const queryClient = useQueryClient();
 
   return useMutation<Order, Error, string>({
-    mutationFn: (orderId) =>
-      apiFetch(`/api/orders/${orderId}/cancel`, {
-        method: "POST",
-      }),
+    mutationFn: async (orderId) => {
+      const res = await apiFetch<ApiSuccessResponse<Order>>(
+        `/api/orders/${orderId}/cancel`,
+        { method: "POST" },
+      );
+      return res.data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
     },
@@ -132,9 +150,10 @@ export function useCancelOrder() {
 
 /** Get audit history for an order (used for timeline) */
 export function useOrderHistory(orderId: string) {
-  return useQuery<DbAuditLog[]>({
+  return useQuery<ApiSuccessResponse<DbAuditLog[]>, Error, DbAuditLog[]>({
     queryKey: orderKeys.history(orderId),
-    queryFn: () => apiFetch(`/api/orders/${orderId}/history`),
+    queryFn: () => apiFetch<ApiSuccessResponse<DbAuditLog[]>>(`/api/orders/${orderId}/history`),
+    select: (res) => res.data,
     enabled: !!orderId,
   });
 }

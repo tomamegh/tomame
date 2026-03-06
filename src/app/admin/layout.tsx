@@ -1,13 +1,5 @@
 import React from "react";
-import { Sidebar } from "@/components/layout/admin"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
+import { AdminNotification, Sidebar } from "@/components/layout/admin"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
@@ -17,34 +9,24 @@ import {
 
 function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <SidebarProvider>
-      <Sidebar />
+    <SidebarProvider className="relative">
+      <Sidebar className="bg-white" />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2">
-          <div className="flex items-center gap-2 px-4">
+        <header className="sticky top-0 flex h-16 shrink-0 items-center gap-2 z-999 bg-white shadow-sm shadow-slate-100">
+          <div className="flex items-center gap-2 px-4 w-full">
             <SidebarTrigger className="-ml-1" />
             <Separator
               orientation="vertical"
               className="mr-2 data-[orientation=vertical]:h-4"
             />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="#">
-                    Build Your Application
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Data Fetching</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
+          <div className="ml-auto">
+            <AdminNotification />
+          </div>
           </div>
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <main className="flex flex-1 flex-col gap-4 p-5 bg-slate-100">
           {children}
-        </div>
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );

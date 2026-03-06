@@ -1,5 +1,37 @@
 import * as z from "zod";
 
+// ── Extraction metadata schema ────────────────────────────────────────────────
+
+const extractionFieldSchema = z.object({
+  value: z.union([z.string(), z.number(), z.null()]),
+  source: z
+    .enum(["json_ld", "og_meta", "meta_tag", "dom_selector", "domain_mapping"])
+    .nullable(),
+  confidence: z.enum(["high", "medium", "low"]).nullable(),
+});
+
+const extractionMetadataSchema = z.object({
+  extractionAttempted: z.boolean(),
+  extractionSuccess: z.boolean(),
+  usedPuppeteer: z.boolean(),
+  fields: z.object({
+    name: extractionFieldSchema,
+    price: extractionFieldSchema.extend({ currency: z.string().optional() }),
+    image: extractionFieldSchema,
+    country: extractionFieldSchema,
+    platform: extractionFieldSchema,
+    currency: extractionFieldSchema,
+    weight: extractionFieldSchema,
+    dimensions: extractionFieldSchema,
+    volume: extractionFieldSchema,
+  }),
+  errors: z.array(z.string()),
+  fetchedAt: z.string(),
+  responseStatus: z.number().nullable(),
+});
+
+// ── Order schemas ─────────────────────────────────────────────────────────────
+
 export const createOrderSchema = z.object({
   productUrl: z.url("Must be a valid URL"),
   productName: z
@@ -27,7 +59,8 @@ export const createOrderSchema = z.object({
     .optional(),
   needsReview: z.boolean().optional(),
   reviewReasons: z.array(z.string()).optional(),
-  extractionMetadata: z.record(z.string(), z.unknown()).optional(),
+  extractionMetadata: extractionMetadataSchema.optional(),
+  extractionData: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const reviewOrderSchema = z.object({
@@ -36,7 +69,7 @@ export const reviewOrderSchema = z.object({
     .object({
       productName: z.string().min(1).max(500).optional(),
       estimatedPriceUsd: z.number().positive().max(50_000).optional(),
-      productImageUrl: z.string().url().optional().nullable(),
+      productImageUrl: z.url().optional().nullable(),
       originCountry: z.enum(["USA", "UK", "CHINA"]).optional(),
     })
     .optional(),
@@ -44,8 +77,13 @@ export const reviewOrderSchema = z.object({
 });
 
 export const updateOrderStatusSchema = z.object({
-  status: z.enum(["pending", "paid", "processing", "completed", "cancelled"]),
+  status: z.enum(["pending", "paid", "processing", "in_transit", "delivered", "completed", "cancelled"]),
+  trackingNumber: z.string().min(1).max(100).optional(),
+  carrier: z.string().min(1).max(100).optional(),
+  estimatedDeliveryDate: z.string().optional(),
 });
+
 
 export type CreateOrderSchemaType = z.infer<typeof createOrderSchema>;
 export type ReviewOrderSchemaType = z.infer<typeof reviewOrderSchema>;
+export type UpdateOrderSchemaType = z.infer<typeof updateOrderStatusSchema>
