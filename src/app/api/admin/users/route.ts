@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
-import { getAuthenticatedUser } from "@/features/auth/auth.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
-import { listUsers, createUser } from "@/features/users/users.service";
+import { listUsers, createUser } from "@/features/users/services/users.service";
 import { z } from "zod";
 
 const createUserSchema = z.object({

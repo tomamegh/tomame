@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { NotificationListResponse } from "@/features/notifications/notifications.service";
+import type { NotificationListResponse } from "@/features/notifications/services/notifications.service";
 
 // ── Query keys ───────────────────────────────────────────────
 

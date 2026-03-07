@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createOrderSchema } from "@/features/orders/schema";
-import { createOrder, getUserOrders } from "@/features/orders/orders.service";
-import { getAuthenticatedUser } from "@/features/auth/auth.service";
+import { createOrder, getUserOrders } from "@/features/orders/services/orders.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { createClient } from "@/lib/supabase/server";

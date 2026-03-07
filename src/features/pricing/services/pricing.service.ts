@@ -1,17 +1,82 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  getAllPricingConfigs,
-  getPricingConfigByRegion,
-  updatePricingConfig,
-} from "@/features/pricing/pricing.queries";
-import { logAuditEvent } from "@/features/audit/audit.service";
+import { logger } from "@/lib/logger";
+import { logAuditEvent } from "@/features/audit/services/audit.service";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type {
   PricingConfigResponse,
   PricingConfigListResponse,
 } from "@/features/pricing/types";
-import type { OrderPricingBreakdown } from "@/types/db";
+import type { DbPricingConfig, OrderPricingBreakdown } from "@/types/db";
+
+// ── DB queries ────────────────────────────────────────────────────────────────
+
+async function getPricingConfigByRegion(
+  client: SupabaseClient,
+  region: "USA" | "UK" | "CHINA"
+): Promise<DbPricingConfig | null> {
+  const { data, error } = await client
+    .from("pricing_config")
+    .select("*")
+    .eq("region", region)
+    .single();
+
+  if (error) {
+    logger.error("getPricingConfigByRegion failed", {
+      region,
+      error: error.message,
+    });
+    return null;
+  }
+  return data as DbPricingConfig;
+}
+
+async function getAllPricingConfigs(
+  client: SupabaseClient
+): Promise<DbPricingConfig[]> {
+  const { data, error } = await client
+    .from("pricing_config")
+    .select("*")
+    .order("region");
+
+  if (error) {
+    logger.error("getAllPricingConfigs failed", { error: error.message });
+    return [];
+  }
+  return (data ?? []) as DbPricingConfig[];
+}
+
+async function updatePricingConfig(
+  client: SupabaseClient,
+  region: "USA" | "UK" | "CHINA",
+  updates: {
+    base_shipping_fee_usd: number;
+    exchange_rate: number;
+    service_fee_percentage: number;
+    updated_by: string;
+  }
+): Promise<DbPricingConfig | null> {
+  const { data, error } = await client
+    .from("pricing_config")
+    .update({
+      ...updates,
+      last_updated: new Date().toISOString(),
+    })
+    .eq("region", region)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("updatePricingConfig failed", {
+      region,
+      error: error.message,
+    });
+    return null;
+  }
+  return data as DbPricingConfig;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Map a DB row to the API response shape */
 function toResponse(config: {
@@ -31,6 +96,13 @@ function toResponse(config: {
     lastUpdated: config.last_updated,
   };
 }
+
+/** Round to 2 decimal places (avoids floating-point drift) */
+function roundTo2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+// ── Service functions ─────────────────────────────────────────────────────────
 
 /**
  * Get all pricing configs (all regions).
@@ -146,9 +218,4 @@ export async function calculatePricing(
       service_fee_percentage: config.service_fee_percentage,
     },
   };
-}
-
-/** Round to 2 decimal places (avoids floating-point drift) */
-function roundTo2(n: number): number {
-  return Math.round(n * 100) / 100;
 }

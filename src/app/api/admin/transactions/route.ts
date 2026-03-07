@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { listTransactions } from "@/features/transactions/transactions.service";
-import { getAuthenticatedUser } from "@/features/auth/auth.service";
+import { listTransactions } from "@/features/transactions/services/transactions.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";

@@ -1,9 +1,47 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getOrderById, updateOrderReview } from "@/features/orders/orders.queries";
-import { logAuditEvent } from "@/features/audit/audit.service";
+import { logger } from "@/lib/logger";
+import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { getOrderById } from "@/features/orders/services/orders.service";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
-import type { Order } from "./types";
+import type { Order } from "../types";
 import type { DbOrder } from "@/types/db";
+
+// ── DB queries ────────────────────────────────────────────────────────────────
+
+async function updateOrderReview(
+  client: SupabaseClient,
+  orderId: string,
+  updates: Partial<{
+    needs_review: boolean;
+    review_reasons: string[];
+    reviewed_by: string;
+    reviewed_at: string;
+    product_name: string;
+    product_image_url: string | null;
+    estimated_price_usd: number;
+    origin_country: string;
+    status: string;
+  }>,
+): Promise<DbOrder | null> {
+  const { data, error } = await client
+    .from("orders")
+    .update(updates)
+    .eq("id", orderId)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("updateOrderReview failed", {
+      orderId,
+      code: error.code,
+      message: error.message,
+    });
+    return null;
+  }
+  return data as DbOrder;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Map a DB order row to the API response shape */
 function toResponse(order: DbOrder): Order {
@@ -33,6 +71,8 @@ function toResponse(order: DbOrder): Order {
     updatedAt: order.updated_at,
   };
 }
+
+// ── Service functions ─────────────────────────────────────────────────────────
 
 /**
  * Admin: review a flagged order (approve or reject).

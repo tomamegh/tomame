@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import type { ApiSuccessResponse } from "@/types/api";
-import type { TransactionResponse } from "../transactions.service";
+import type { TransactionResponse } from "../services/transactions.service";
 
 export const transactionKeys = {
   all: ["transactions"] as const,

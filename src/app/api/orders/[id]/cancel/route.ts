@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { cancelOrderByUser } from "@/features/orders/orders.service";
-import { getAuthenticatedUser } from "@/features/auth/auth.service";
+import { cancelOrderByUser } from "@/features/orders/services/orders.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 

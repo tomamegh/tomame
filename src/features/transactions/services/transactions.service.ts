@@ -1,8 +1,33 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { logger } from "@/lib/logger";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type { DbPayment } from "@/types/db";
-import { getAllTransactions } from "./transactions.queries";
-import type { Transaction, TransactionStats } from "./types";
+import type { Transaction, TransactionStats } from "../types";
+
+// ── DB queries ────────────────────────────────────────────────────────────────
+
+async function getAllTransactions(
+  client: SupabaseClient,
+  filters?: { status?: string; userId?: string },
+): Promise<DbPayment[]> {
+  let query = client
+    .from("payments")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (filters?.status) query = query.eq("status", filters.status);
+  if (filters?.userId) query = query.eq("user_id", filters.userId);
+
+  const { data, error } = await query;
+
+  if (error) {
+    logger.error("getAllTransactions failed", { error: error.message });
+    return [];
+  }
+  return (data ?? []) as DbPayment[];
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function toResponse(p: DbPayment): Transaction {
   return {
@@ -17,6 +42,8 @@ function toResponse(p: DbPayment): Transaction {
     createdAt: p.created_at,
   };
 }
+
+// ── Service functions ─────────────────────────────────────────────────────────
 
 export interface TransactionResponse {
   transactions: Transaction[];

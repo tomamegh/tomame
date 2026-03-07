@@ -130,6 +130,28 @@ export function useReviewOrder() {
   });
 }
 
+/** Admin: update order status */
+export function useUpdateOrderStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Order, Error, { id: string; status: string }>({
+    mutationFn: async ({ id, status }) => {
+      const res = await apiFetch<ApiSuccessResponse<Order>>(
+        `/api/admin/orders/${id}/status`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        },
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+    },
+  });
+}
+
 /** User: cancel a pending order */
 export function useCancelOrder() {
   const queryClient = useQueryClient();

@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/item";
 import { cn } from "@/lib/utils";
 import { useAdminNotifications } from "@/features/notifications/hooks/useNotifications";
-import type { NotificationResponse } from "@/features/notifications/notifications.service";
+import type { NotificationResponse } from "@/features/notifications/services/notifications.service";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

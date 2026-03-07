@@ -1,21 +1,171 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  getEnabledStoreDomains,
-  getEnabledStores,
-  getAllStores,
-  getStoreById,
-  insertStore,
-  updateStore,
-  deleteStore,
-} from "@/features/stores/stores.queries";
-import { logAuditEvent } from "@/features/audit/audit.service";
+import { logger } from "@/lib/logger";
+import { logAuditEvent } from "@/features/audit/services/audit.service";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type {
   SupportedStoreResponse,
   SupportedStoreListResponse,
 } from "@/features/stores/types";
 import type { DbSupportedStore } from "@/types/db";
+
+// ── DB queries ────────────────────────────────────────────────────────────────
+
+async function getEnabledStoreDomains(
+  client: SupabaseClient,
+): Promise<string[]> {
+  try {
+    const { data, error } = await client
+      .from("supported_stores")
+      .select("domain")
+      .eq("enabled", true);
+
+    if (error) {
+      logger.error("getEnabledStoreDomains failed", { error: error.message });
+      return [];
+    }
+    return (data ?? []).map((row: { domain: string }) => row.domain);
+  } catch (err) {
+    logger.error("getEnabledStoreDomains threw", { error: String(err) });
+    return [];
+  }
+}
+
+async function getEnabledStores(
+  client: SupabaseClient,
+): Promise<DbSupportedStore[]> {
+  try {
+    const { data, error } = await client
+      .from("supported_stores")
+      .select("*")
+      .eq("enabled", true)
+      .order("domain");
+
+    if (error) {
+      logger.error("getEnabledStores failed", { error: error.message });
+      return [];
+    }
+    return (data ?? []) as DbSupportedStore[];
+  } catch (err) {
+    logger.error("getEnabledStores threw", { error: String(err) });
+    return [];
+  }
+}
+
+async function getAllStores(
+  client: SupabaseClient,
+): Promise<DbSupportedStore[]> {
+  try {
+    const { data, error } = await client
+      .from("supported_stores")
+      .select("*")
+      .order("domain");
+
+    if (error) {
+      logger.error("getAllStores failed", { error: error.message });
+      return [];
+    }
+    return (data ?? []) as DbSupportedStore[];
+  } catch (err) {
+    logger.error("getAllStores threw", { error: String(err) });
+    return [];
+  }
+}
+
+async function getStoreById(
+  client: SupabaseClient,
+  id: string,
+): Promise<DbSupportedStore | null> {
+  try {
+    const { data, error } = await client
+      .from("supported_stores")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      logger.error("getStoreById failed", { id, error: error.message });
+      return null;
+    }
+    return data as DbSupportedStore;
+  } catch (err) {
+    logger.error("getStoreById threw", { error: String(err) });
+    return null;
+  }
+}
+
+async function insertStore(
+  client: SupabaseClient,
+  store: {
+    domain: string;
+    display_name: string;
+    created_by: string;
+  },
+): Promise<DbSupportedStore | null> {
+  try {
+    const { data, error } = await client
+      .from("supported_stores")
+      .insert(store)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error("insertStore failed", { error: error.message });
+      return null;
+    }
+    return data as DbSupportedStore;
+  } catch (err) {
+    logger.error("insertStore threw", { error: String(err) });
+    return null;
+  }
+}
+
+async function updateStore(
+  client: SupabaseClient,
+  id: string,
+  updates: Partial<{ display_name: string; enabled: boolean }>,
+): Promise<DbSupportedStore | null> {
+  try {
+    const { data, error } = await client
+      .from("supported_stores")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error("updateStore failed", { id, error: error.message });
+      return null;
+    }
+    return data as DbSupportedStore;
+  } catch (err) {
+    logger.error("updateStore threw", { error: String(err) });
+    return null;
+  }
+}
+
+async function deleteStore(
+  client: SupabaseClient,
+  id: string,
+): Promise<boolean> {
+  try {
+    const { error } = await client
+      .from("supported_stores")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      logger.error("deleteStore failed", { id, error: error.message });
+      return false;
+    }
+    return true;
+  } catch (err) {
+    logger.error("deleteStore threw", { error: String(err) });
+    return false;
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Map a DB row to the API response shape */
 function toResponse(store: DbSupportedStore): SupportedStoreResponse {
@@ -28,6 +178,8 @@ function toResponse(store: DbSupportedStore): SupportedStoreResponse {
     updatedAt: store.updated_at,
   };
 }
+
+// ── Service functions ─────────────────────────────────────────────────────────
 
 /**
  * Admin: list all stores (enabled + disabled).

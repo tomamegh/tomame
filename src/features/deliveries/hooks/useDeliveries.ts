@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import type { ApiSuccessResponse } from "@/types/api";
-import type { DeliveryResponse } from "../deliveries.service";
+import type { DeliveryResponse } from "../services/deliveries.service";
 
 export const deliveryKeys = {
   all: ["deliveries"] as const,

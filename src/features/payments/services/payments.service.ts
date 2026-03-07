@@ -1,31 +1,139 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  insertPayment,
-  getPaymentByReference,
-  getPaymentsByUserId,
-  getAllPayments,
-  updatePaymentStatus,
-} from "@/features/payments/payments.queries";
+import { logger } from "@/lib/logger";
+import type { DbPayment } from "@/types/db";
 import {
   getOrderById,
   linkOrderToPayment,
-} from "@/features/orders/orders.queries";
+} from "@/features/orders/services/orders.service";
 import {
   initializeTransaction,
   verifyTransaction,
   generatePaymentReference,
 } from "@/lib/paystack/client";
-import { logAuditEvent } from "@/features/audit/audit.service";
+import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { env } from "@/lib/env";
-import { logger } from "@/lib/logger";
 import { PAYMENT_STATUSES } from "@/config/constants";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type {
   InitializePaymentResponse,
   PaymentResponse,
 } from "@/features/payments/types";
-import type { DbPayment } from "@/types/db";
+
+// ── DB queries ────────────────────────────────────────────────────────────────
+
+interface PaymentInsert {
+  user_id: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  status: string;
+  metadata?: Record<string, unknown> | null;
+}
+
+async function insertPayment(
+  client: SupabaseClient,
+  payment: PaymentInsert
+): Promise<DbPayment | null> {
+  const { data, error } = await client
+    .from("payments")
+    .insert(payment)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("insertPayment failed", {
+      code: error.code,
+      message: error.message,
+    });
+    return null;
+  }
+  return data as DbPayment;
+}
+
+async function getPaymentByReference(
+  client: SupabaseClient,
+  reference: string
+): Promise<DbPayment | null> {
+  const { data, error } = await client
+    .from("payments")
+    .select("*")
+    .eq("reference", reference)
+    .single();
+
+  if (error) return null;
+  return data as DbPayment;
+}
+
+async function getPaymentsByUserId(
+  client: SupabaseClient,
+  userId: string
+): Promise<DbPayment[]> {
+  const { data, error } = await client
+    .from("payments")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    logger.error("getPaymentsByUserId failed", { userId, error: error.message });
+    return [];
+  }
+  return (data ?? []) as DbPayment[];
+}
+
+async function getAllPayments(
+  client: SupabaseClient,
+  filters?: { status?: string; userId?: string }
+): Promise<DbPayment[]> {
+  let query = client
+    .from("payments")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (filters?.status) query = query.eq("status", filters.status);
+  if (filters?.userId) query = query.eq("user_id", filters.userId);
+
+  const { data, error } = await query;
+
+  if (error) {
+    logger.error("getAllPayments failed", { error: error.message });
+    return [];
+  }
+  return (data ?? []) as DbPayment[];
+}
+
+async function updatePaymentStatus(
+  client: SupabaseClient,
+  paymentId: string,
+  status: string,
+  metadata?: Record<string, unknown>
+): Promise<DbPayment | null> {
+  const update: Record<string, unknown> = { status };
+  if (metadata) {
+    update.metadata = metadata;
+  }
+
+  const { data, error } = await client
+    .from("payments")
+    .update(update)
+    .eq("id", paymentId)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("updatePaymentStatus failed", {
+      paymentId,
+      status,
+      code: error.code,
+      message: error.message,
+    });
+    return null;
+  }
+  return data as DbPayment;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function toPaymentResponse(payment: DbPayment): PaymentResponse {
   return {
@@ -37,6 +145,8 @@ function toPaymentResponse(payment: DbPayment): PaymentResponse {
     createdAt: payment.created_at,
   };
 }
+
+// ── Service functions ─────────────────────────────────────────────────────────
 
 /**
  * Initialize a payment for an order.

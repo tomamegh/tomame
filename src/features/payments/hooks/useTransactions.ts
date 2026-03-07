@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { TransactionListResponse } from "@/features/payments/payments.service";
+import type { TransactionListResponse } from "@/features/payments/services/payments.service";
 
 // ── Query keys ───────────────────────────────────────────────
 

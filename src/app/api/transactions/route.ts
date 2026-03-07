@@ -1,7 +1,7 @@
-import { getAuthenticatedUser } from "@/features/auth/auth.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { listUserTransactions } from "@/features/payments/payments.service";
+import { listUserTransactions } from "@/features/payments/services/payments.service";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {

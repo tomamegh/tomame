@@ -1,12 +1,11 @@
 import { NextRequest } from "next/server";
-import { getAuthenticatedUser } from "@/features/auth/auth.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
-import { getUserById } from "@/features/users/users.queries";
-import { adminResetUserPassword } from "@/features/users/users.service";
+import { getUserById, adminResetUserPassword } from "@/features/users/services/users.service";
 
 export async function POST(
   request: NextRequest,

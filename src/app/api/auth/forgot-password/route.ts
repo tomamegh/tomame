@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { forgotPasswordSchema } from "@/features/auth/auth.validators";
-import { forgotPassword } from "@/features/auth/auth.service";
+import { forgotPassword } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";

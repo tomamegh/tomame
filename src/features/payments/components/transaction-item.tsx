@@ -1,5 +1,5 @@
 import { CreditCardIcon } from "lucide-react";
-import type { Transaction } from "../types";
+import type { PaymentResponse as Transaction } from "../types";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   pending: { label: "Pending", className: "bg-amber-50 text-amber-700" },
@@ -12,7 +12,7 @@ interface TransactionItemProps {
 }
 
 export function TransactionItem({ transaction }: TransactionItemProps) {
-  const config = statusConfig[transaction.status] ?? statusConfig.pending;
+  const config = statusConfig[transaction.status] ?? { label: "Pending", className: "bg-amber-50 text-amber-700" };
   const amountGhs = (transaction.amount / 100).toFixed(2);
 
   return (

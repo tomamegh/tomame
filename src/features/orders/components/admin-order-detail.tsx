@@ -44,8 +44,8 @@ import type { DbAuditLog } from "@/types/db";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmt(n: number, decimals = 2) {
-  return n.toFixed(decimals);
+function fmt(n: number | null | undefined, decimals = 2) {
+  return (n ?? 0).toFixed(decimals);
 }
 
 function fmtDate(iso: string) {
@@ -198,6 +198,11 @@ function OrderTimeline({
 
 function PricingBreakdown({ order }: { order: Order }) {
   const p = order.pricing;
+
+  if (!p) {
+    return <p className="text-sm text-stone-400">Pricing not available</p>;
+  }
+
   const rows = [
     { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
     { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },

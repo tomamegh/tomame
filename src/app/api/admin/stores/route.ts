@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createStoreSchema } from "@/features/stores/schema";
-import { listStores, createStore } from "@/features/stores/stores.service";
-import { getAuthenticatedUser } from "@/features/auth/auth.service";
+import { listStores, createStore } from "@/features/stores/services/stores.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";

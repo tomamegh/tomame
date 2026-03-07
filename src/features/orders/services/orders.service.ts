@@ -1,15 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  insertOrder,
-  getOrderById,
-  getOrdersByUserId,
-  getAllOrders,
-  updateOrderStatus,
-  getOrderAuditLogs,
-} from "@/features/orders/orders.queries";
-import { calculatePricing } from "@/features/pricing/pricing.service";
-import { logAuditEvent } from "@/features/audit/audit.service";
-import { isDomainAllowed } from "@/features/stores/stores.service";
+import { calculatePricing } from "@/features/pricing/services/pricing.service";
+import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { isDomainAllowed } from "@/features/stores/services/stores.service";
 import { sendEmail } from "@/lib/email/transport";
 import {
   orderPaidTemplate,
@@ -21,10 +13,190 @@ import {
 import { logger } from "@/lib/logger";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type { PaginatedDataResponse } from "@/types/api";
-import type { DbOrder, DbAuditLog } from "@/types/db";
+import type { DbOrder, DbAuditLog, OrderPricingBreakdown } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
-import { Order, OrderList, type OrderExtractionMetadata } from "./types";
+import { Order, OrderList, type OrderExtractionMetadata } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+// ── DB queries ────────────────────────────────────────────────────────────────
+
+interface OrderInsert {
+  user_id: string;
+  product_url: string;
+  product_name: string;
+  product_image_url?: string | null;
+  estimated_price_usd: number;
+  quantity: number;
+  origin_country: "USA" | "UK" | "CHINA";
+  special_instructions?: string | null;
+  pricing: OrderPricingBreakdown;
+  status: string;
+  needs_review?: boolean;
+  review_reasons?: string[];
+  extraction_metadata?: Record<string, unknown> | null;
+  extraction_data?: Record<string, unknown> | null;
+}
+
+async function insertOrder(
+  client: SupabaseClient,
+  order: OrderInsert
+): Promise<DbOrder | null> {
+  const { data, error } = await client
+    .from("orders")
+    .insert(order)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("insertOrder failed", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    return null;
+  }
+  return data as DbOrder;
+}
+
+export async function getOrderById(
+  client: SupabaseClient,
+  orderId: string
+): Promise<DbOrder | null> {
+  const { data, error } = await client
+    .from("orders")
+    .select("*")
+    .eq("id", orderId)
+    .single();
+
+  if (error) return null;
+  return data as DbOrder;
+}
+
+async function updateOrderStatus(
+  client: SupabaseClient,
+  orderId: string,
+  updates: {
+    status: string;
+    tracking_number?: string;
+    carrier?: string;
+    estimated_delivery_date?: string;
+    delivered_at?: string;
+  }
+): Promise<DbOrder | null> {
+  const { data, error } = await client
+    .from("orders")
+    .update(updates)
+    .eq("id", orderId)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("updateOrderStatus failed", {
+      orderId,
+      status: updates.status,
+      code: error.code,
+      message: error.message,
+    });
+    return null;
+  }
+  return data as DbOrder;
+}
+
+export async function linkOrderToPayment(
+  client: SupabaseClient,
+  orderId: string,
+  paymentId: string
+): Promise<DbOrder | null> {
+  const { data, error } = await client
+    .from("orders")
+    .update({ payment_id: paymentId, status: "paid" })
+    .eq("id", orderId)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("linkOrderToPayment failed", {
+      orderId,
+      paymentId,
+      code: error.code,
+      message: error.message,
+    });
+    return null;
+  }
+  return data as DbOrder;
+}
+
+async function getOrdersByUserId(
+  client: SupabaseClient,
+  userId: string
+): Promise<DbOrder[]> {
+  const { data, error } = await client
+    .from("orders")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    logger.error("getOrdersByUserId failed", {
+      userId,
+      error: error.message,
+    });
+    return [];
+  }
+  return (data ?? []) as DbOrder[];
+}
+
+async function getAllOrders(
+  client: SupabaseClient,
+  filters?: { status?: string; userId?: string; needsReview?: boolean }
+): Promise<DbOrder[]> {
+  let query = client
+    .from("orders")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (filters?.status) {
+    query = query.eq("status", filters.status);
+  }
+  if (filters?.userId) {
+    query = query.eq("user_id", filters.userId);
+  }
+  if (filters?.needsReview !== undefined) {
+    query = query.eq("needs_review", filters.needsReview);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    logger.error("getAllOrders failed", { error: error.message });
+    return [];
+  }
+  return (data ?? []) as DbOrder[];
+}
+
+async function getOrderAuditLogs(
+  client: SupabaseClient,
+  orderId: string
+): Promise<DbAuditLog[]> {
+  const { data, error } = await client
+    .from("audit_logs")
+    .select("*")
+    .eq("entity_type", "order")
+    .eq("entity_id", orderId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    logger.error("getOrderAuditLogs failed", {
+      orderId,
+      error: error.message,
+    });
+    return [];
+  }
+  return (data ?? []) as DbAuditLog[];
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Map a DB order row to the API response shape */
 function toResponse(order: DbOrder): Order {
@@ -115,6 +287,8 @@ async function sendOrderStatusEmail(
   }
 }
 
+// ── Service functions ─────────────────────────────────────────────────────────
+
 /**
  * Create a new order with server-calculated pricing.
  */
@@ -140,7 +314,7 @@ export async function createOrder(
   if (!domainAllowed) {
     return {
       success: false,
-      error: "Product URL must be from a supported store",
+      error: "We currently do not support this store. Please try again",
       status: 400,
     };
   }
@@ -173,7 +347,7 @@ export async function createOrder(
     status: "pending",
     needs_review: input.needsReview ?? false,
     review_reasons: input.reviewReasons ?? [],
-    extraction_metadata: input.extractionMetadata ?? null,
+    extraction_metadata: (input.extractionMetadata ?? null) as Record<string, unknown> | null,
     // Only included once migration 010 (ADD COLUMN extraction_data JSONB) has been run
     ...(input.extractionData != null ? { extraction_data: input.extractionData } : {}),
   });

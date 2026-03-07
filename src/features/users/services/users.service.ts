@@ -1,24 +1,151 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  getUserById,
-  getUserByEmail,
-  updateUserRole,
-  insertUser,
-  getAllUsers,
-  getUserWithOrders,
-} from "@/features/users/users.queries";
-import { logAuditEvent } from "@/features/audit/audit.service";
 import { logger } from "@/lib/logger";
+import { logAuditEvent } from "@/features/audit/services/audit.service";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type { AuthUserResponse } from "@/features/auth/types";
 import type { MessageResponse } from "@/types/api";
+import type { DbUser, DbOrder } from "@/types/db";
 import type {
   AdminUser,
   UserListResponse,
   UserDetailResponse,
   UserRecentOrder,
 } from "@/features/users/types";
+
+// ── DB queries ────────────────────────────────────────────────────────────────
+
+export async function getUserById(
+  client: SupabaseClient,
+  id: string
+): Promise<DbUser | null> {
+  const { data, error } = await client
+    .from("users")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) return null;
+  return data as DbUser;
+}
+
+async function getUserByEmail(
+  client: SupabaseClient,
+  email: string
+): Promise<DbUser | null> {
+  const { data, error } = await client
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single();
+
+  if (error) return null;
+  return data as DbUser;
+}
+
+async function insertUser(
+  client: SupabaseClient,
+  user: { id: string; email: string; role: "user" | "admin" }
+): Promise<DbUser | null> {
+  const { data, error } = await client
+    .from("users")
+    .insert(user)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("insertUser failed", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    return null;
+  }
+  return data as DbUser;
+}
+
+async function updateUserRole(
+  client: SupabaseClient,
+  userId: string,
+  role: "user" | "admin"
+): Promise<DbUser | null> {
+  const { data, error } = await client
+    .from("users")
+    .update({ role })
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) return null;
+  return data as DbUser;
+}
+
+async function getAllUsers(
+  client: SupabaseClient,
+  filters?: { role?: string }
+): Promise<{ users: AdminUser[]; count: number }> {
+  // Fetch all auth users (up to 1000) and our roles table in parallel
+  const [authResult, rolesResult] = await Promise.all([
+    client.auth.admin.listUsers({ perPage: 1000 }),
+    client.from("users").select("id, role"),
+  ]);
+
+  if (authResult.error) {
+    logger.error("getAllUsers (auth.admin.listUsers) failed", {
+      error: authResult.error.message,
+    });
+    return { users: [], count: 0 };
+  }
+
+  const roleMap = new Map<string, "user" | "admin">(
+    ((rolesResult.data ?? []) as { id: string; role: "user" | "admin" }[]).map(
+      (u) => [u.id, u.role]
+    )
+  );
+
+  let users: AdminUser[] = authResult.data.users.map((authUser) => ({
+    id: authUser.id,
+    email: authUser.email ?? "",
+    role: roleMap.get(authUser.id) ?? "user",
+    createdAt: authUser.created_at,
+    lastSignInAt: authUser.last_sign_in_at ?? null,
+    emailConfirmed: !!authUser.email_confirmed_at,
+  }));
+
+  // Sort newest first
+  users.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  if (filters?.role) {
+    users = users.filter((u) => u.role === filters.role);
+  }
+
+  return { users, count: users.length };
+}
+
+async function getUserWithOrders(
+  client: SupabaseClient,
+  userId: string
+): Promise<{ user: DbUser | null; orders: DbOrder[] }> {
+  const [userResult, ordersResult] = await Promise.all([
+    client.from("users").select("*").eq("id", userId).single(),
+    client
+      .from("orders")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ]);
+
+  return {
+    user: userResult.error ? null : (userResult.data as DbUser),
+    orders: ordersResult.error ? [] : (ordersResult.data as DbOrder[]),
+  };
+}
+
+// ── Service functions ─────────────────────────────────────────────────────────
 
 /**
  * Promote an existing user to admin.

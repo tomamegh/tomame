@@ -47,7 +47,7 @@ export function CreateOrderForm({ onSuccess }: CreateOrderFormProps) {
   };
 
   return (
-    <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+    <form className="space-y-5">
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
           {error.message}
@@ -166,7 +166,8 @@ export function CreateOrderForm({ onSuccess }: CreateOrderFormProps) {
       </FieldGroup>
 
       <Button
-        type="submit"
+        type="button"
+        onClick={form.handleSubmit(onSubmit)}
         variant="primary"
         size="lg"
         className="w-full"

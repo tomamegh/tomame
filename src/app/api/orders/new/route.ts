@@ -1,9 +1,13 @@
 import { NextRequest } from "next/server";
 import { createOrderSchema } from "@/features/orders/schema";
-import { createOrder, getUserOrders } from "@/features/orders/orders.service";
-import { getAuthenticatedUser } from "@/features/auth/auth.service";
+import { createOrder, getUserOrders } from "@/features/orders/services/orders.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
-import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import {
+  APIError,
+  successResponse,
+  errorResponse,
+} from "@/lib/auth/api-helpers";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
@@ -18,9 +22,16 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json().catch(() => {
       throw new APIError(400, "Invalid JSON");
     });
-    const parsed = createOrderSchema.safeParse(body);
-    if (!parsed.success) {
-      throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
+    const {
+      success,
+      data,
+      error: validationError,
+    } = createOrderSchema.safeParse(body);
+    if (!success || validationError) {
+      throw new APIError(
+        400,
+        validationError.issues[0]?.message ?? "Invalid input",
+      );
     }
 
     const user = await getAuthenticatedUser();
@@ -29,17 +40,17 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
     const result = await createOrder(supabase, auth.user, {
-      productUrl: parsed.data.productUrl,
-      productName: parsed.data.productName,
-      productImageUrl: parsed.data.productImageUrl,
-      estimatedPriceUsd: parsed.data.estimatedPriceUsd,
-      quantity: parsed.data.quantity,
-      originCountry: parsed.data.originCountry,
-      specialInstructions: parsed.data.specialInstructions,
-      needsReview: parsed.data.needsReview,
-      reviewReasons: parsed.data.reviewReasons,
-      extractionMetadata: parsed.data.extractionMetadata,
-      extractionData: parsed.data.extractionData,
+      productUrl: data.productUrl,
+      productName: data.productName,
+      productImageUrl: data.productImageUrl,
+      estimatedPriceUsd: data.estimatedPriceUsd,
+      quantity: data.quantity,
+      originCountry: data.originCountry,
+      specialInstructions: data.specialInstructions,
+      needsReview: data.needsReview,
+      reviewReasons: data.reviewReasons,
+      extractionMetadata: data.extractionMetadata,
+      extractionData: data.extractionData,
     });
     if (!result.success) throw new APIError(result.status, result.error);
 
