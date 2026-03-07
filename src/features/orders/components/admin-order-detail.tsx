@@ -527,113 +527,122 @@ interface AdminOrderDetailProps {
 export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
   const { data: order, isPending, error } = useAdminOrderDetail(orderId);
 
-  if (isPending) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-48 w-full rounded-2xl" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Skeleton className="h-64 rounded-2xl lg:col-span-2" />
-          <Skeleton className="h-64 rounded-2xl" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !order) {
+  if (error) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-        {error?.message ?? "Order not found"}
+        {error.message}
       </div>
     );
   }
 
-  const hasImage = !!order.productImageUrl;
+  const hasImage = !!order?.productImageUrl;
   const hasTracking =
-    order.trackingNumber || order.carrier || order.estimatedDeliveryDate;
+    order?.trackingNumber || order?.carrier || order?.estimatedDeliveryDate;
 
   return (
     <div className="space-y-5">
       {/* ── Product card ──────────────────────────────────────── */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex gap-4 items-start">
-            <div className="shrink-0 size-20 sm:size-28 rounded-xl border border-stone-200/60 bg-stone-50 flex items-center justify-center overflow-hidden">
-              {hasImage ? (
-                <Image
-                  src={order.productImageUrl!}
-                  alt={order.productName}
-                  width={112}
-                  height={112}
-                  className="w-full h-full object-contain p-1"
-                  unoptimized
-                />
-              ) : (
-                <ImageIcon className="size-8 text-stone-300" />
-              )}
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2 flex-wrap">
-                <div className="min-w-0">
-                  <p className="font-semibold text-stone-900 leading-snug text-lg">
-                    {order.productName}
-                  </p>
-                  <a
-                    href={order.productUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-rose-500 hover:underline mt-0.5"
-                  >
-                    <ExternalLinkIcon className="size-3" />
-                    View product
-                  </a>
+          {isPending ? (
+            <div className="flex gap-4 items-start">
+              <Skeleton className="shrink-0 size-20 sm:size-28 rounded-xl" />
+              <div className="flex-1 space-y-3">
+                <div className="space-y-1.5">
+                  <Skeleton className="h-5 w-2/3" />
+                  <Skeleton className="h-3 w-32" />
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {order.needsReview && !order.reviewedBy && (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-700 border border-amber-300 px-2 py-0.5 rounded-full">
-                      <AlertTriangleIcon className="size-3" />
-                      Needs Review
-                    </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="space-y-1">
+                      <Skeleton className="h-3 w-12" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-4 items-start">
+                <div className="shrink-0 size-20 sm:size-28 rounded-xl border border-stone-200/60 bg-stone-50 flex items-center justify-center overflow-hidden">
+                  {hasImage ? (
+                    <Image
+                      src={order!.productImageUrl!}
+                      alt={order!.productName}
+                      width={112}
+                      height={112}
+                      className="w-full h-full object-contain p-1"
+                      unoptimized
+                    />
+                  ) : (
+                    <ImageIcon className="size-8 text-stone-300" />
                   )}
-                  <OrderStatusBadge status={order.status} />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-4 text-sm">
-                {[
-                  ["Origin", order.originCountry],
-                  ["Qty", String(order.quantity)],
-                  ["Est. price", `$${fmt(order.estimatedPriceUsd)}`],
-                  ["Placed", fmtDate(order.createdAt)],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <p className="text-xs text-stone-400">{label}</p>
-                    <p className="font-medium text-stone-800">{value}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-stone-900 leading-snug text-lg">
+                        {order!.productName}
+                      </p>
+                      <a
+                        href={order!.productUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-rose-500 hover:underline mt-0.5"
+                      >
+                        <ExternalLinkIcon className="size-3" />
+                        View product
+                      </a>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {order!.needsReview && !order!.reviewedBy && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-700 border border-amber-300 px-2 py-0.5 rounded-full">
+                          <AlertTriangleIcon className="size-3" />
+                          Needs Review
+                        </span>
+                      )}
+                      <OrderStatusBadge status={order!.status} />
+                    </div>
                   </div>
-                ))}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-4 text-sm">
+                    {[
+                      ["Origin", order!.originCountry],
+                      ["Qty", String(order!.quantity)],
+                      ["Est. price", `$${fmt(order!.estimatedPriceUsd)}`],
+                      ["Placed", fmtDate(order!.createdAt)],
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <p className="text-xs text-stone-400">{label}</p>
+                        <p className="font-medium text-stone-800">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {order!.specialInstructions && (
+                    <div className="mt-3 rounded-lg bg-stone-50 border border-stone-100 px-3 py-2 text-xs text-stone-600">
+                      <span className="font-medium text-stone-700">Notes: </span>
+                      {order!.specialInstructions}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {order.specialInstructions && (
-                <div className="mt-3 rounded-lg bg-stone-50 border border-stone-100 px-3 py-2 text-xs text-stone-600">
-                  <span className="font-medium text-stone-700">Notes: </span>
-                  {order.specialInstructions}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Order ID */}
-          <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-2 text-xs text-stone-400">
-            <span>Order ID</span>
-            <span className="font-mono bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded">
-              {order.id}
-            </span>
-          </div>
+              <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-2 text-xs text-stone-400">
+                <span>Order ID</span>
+                <span className="font-mono bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded">
+                  {order!.id}
+                </span>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
-      {/* ── Review panel (only when pending review) ────────────── */}
-      {order.needsReview && <ReviewPanel order={order} />}
+      {/* ── Review panel (only when flagged) ───────────────────── */}
+      {!isPending && order?.needsReview && <ReviewPanel order={order} />}
 
       {/* ── Main grid ──────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -647,7 +656,21 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <OrderTimeline orderId={orderId} currentStatus={order.status} />
+              {isPending ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex gap-3">
+                      <Skeleton className="size-5 rounded-full shrink-0" />
+                      <div className="space-y-1.5 flex-1">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-3 w-20" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <OrderTimeline orderId={orderId} currentStatus={order!.status} />
+              )}
             </CardContent>
           </Card>
 
@@ -659,16 +682,46 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <PricingBreakdown order={order} />
+              {isPending ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex justify-between">
+                      <Skeleton className="h-4 w-36" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  ))}
+                  <div className="flex justify-between pt-2 border-t border-stone-100">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-5 w-20" />
+                  </div>
+                </div>
+              ) : (
+                <PricingBreakdown order={order!} />
+              )}
             </CardContent>
           </Card>
         </div>
 
         {/* Right: customer + order metadata */}
         <div className="space-y-5">
-          <UserCard userId={order.userId} />
+          {isPending ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <UserIcon className="size-4 text-stone-500" />
+                  Customer
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-32" />
+              </CardContent>
+            </Card>
+          ) : (
+            <UserCard userId={order!.userId} />
+          )}
 
-          {/* Quick meta */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm text-stone-500 font-medium">
@@ -676,26 +729,39 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              {[
-                ["Status", <OrderStatusBadge key="s" status={order.status} />],
-                ["Created", fmtDateTime(order.createdAt)],
-                ["Updated", fmtDateTime(order.updatedAt)],
-                ...(order.reviewedAt
-                  ? [["Reviewed", fmtDateTime(order.reviewedAt)] as [string, React.ReactNode]]
-                  : []),
-              ].map(([label, value]) => (
-                <div key={String(label)} className="flex justify-between gap-3">
-                  <span className="text-stone-400 shrink-0">{label}</span>
-                  <span className="text-stone-700 text-right">{value}</span>
-                </div>
-              ))}
+              {isPending ? (
+                <>
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex justify-between gap-3">
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {[
+                    ["Status", <OrderStatusBadge key="s" status={order!.status} />],
+                    ["Created", fmtDateTime(order!.createdAt)],
+                    ["Updated", fmtDateTime(order!.updatedAt)],
+                    ...(order!.reviewedAt
+                      ? [["Reviewed", fmtDateTime(order!.reviewedAt)] as [string, React.ReactNode]]
+                      : []),
+                  ].map(([label, value]) => (
+                    <div key={String(label)} className="flex justify-between gap-3">
+                      <span className="text-stone-400 shrink-0">{label}</span>
+                      <span className="text-stone-700 text-right">{value}</span>
+                    </div>
+                  ))}
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
 
       {/* ── Tracking card ──────────────────────────────────────── */}
-      {hasTracking && (
+      {!isPending && hasTracking && (
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="text-base flex items-center gap-2">
@@ -705,33 +771,33 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-              {order.carrier && (
+              {order!.carrier && (
                 <div>
                   <p className="text-xs text-stone-400 mb-0.5">Carrier</p>
-                  <p className="font-medium text-stone-800">{order.carrier}</p>
+                  <p className="font-medium text-stone-800">{order!.carrier}</p>
                 </div>
               )}
-              {order.trackingNumber && (
+              {order!.trackingNumber && (
                 <div>
                   <p className="text-xs text-stone-400 mb-0.5">Tracking #</p>
                   <p className="font-medium text-stone-800 font-mono text-xs">
-                    {order.trackingNumber}
+                    {order!.trackingNumber}
                   </p>
                 </div>
               )}
-              {order.estimatedDeliveryDate && (
+              {order!.estimatedDeliveryDate && (
                 <div>
                   <p className="text-xs text-stone-400 mb-0.5">Est. Delivery</p>
                   <p className="font-medium text-stone-800">
-                    {fmtDate(order.estimatedDeliveryDate)}
+                    {fmtDate(order!.estimatedDeliveryDate)}
                   </p>
                 </div>
               )}
-              {order.deliveredAt && (
+              {order!.deliveredAt && (
                 <div>
                   <p className="text-xs text-stone-400 mb-0.5">Delivered At</p>
                   <p className="font-medium text-stone-800">
-                    {fmtDateTime(order.deliveredAt)}
+                    {fmtDateTime(order!.deliveredAt)}
                   </p>
                 </div>
               )}

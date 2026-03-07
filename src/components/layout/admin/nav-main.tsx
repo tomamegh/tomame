@@ -29,6 +29,15 @@ interface Props {
 
 export function NavMain({ label, links }: Props) {
   const pathname = usePathname();
+
+  const isActive = (url: string) => {
+    if (pathname === url) return true;
+    // Only do prefix matching for URLs with 2+ segments (e.g. /admin/orders).
+    // Single-segment paths like /admin must be exact-only so the dashboard
+    // link doesn't light up on /admin/orders, /admin/users, etc.
+    const depth = url.split("/").filter(Boolean).length;
+    return depth >= 2 && pathname.startsWith(`${url}/`);
+  };
   return (
     <>
       <SidebarGroup>
@@ -37,7 +46,7 @@ export function NavMain({ label, links }: Props) {
           {links.map((link) => (
             <Collapsible key={link.title} asChild defaultOpen={link.isActive}>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip={link.title} className={`transition-all hover:bg-neutral-100 ${link.url === pathname ? 'bg-primary text-white hover:bg-primary hover:text-white': 'text-stone-900'}`}>
+                <SidebarMenuButton asChild tooltip={link.title} className={`transition-all hover:bg-neutral-100 ${isActive(link.url) ? 'bg-primary text-white hover:bg-primary hover:text-white': 'text-stone-900'}`}>
                   <Link href={link.url}>
                     <link.icon />
                     <span>{link.title}</span>
