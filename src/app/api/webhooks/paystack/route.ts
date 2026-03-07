@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { paystackWebhookSchema } from "@/features/payments/payments.validators";
-import { handleWebhookEvent } from "@/features/payments/payments.service";
+import { handleWebhookEvent } from "@/features/payments/services/payments.service";
 import { verifyWebhookSignature } from "@/lib/paystack/client";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";

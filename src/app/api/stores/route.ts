@@ -1,4 +1,4 @@
-import { listEnabledStores } from "@/features/stores/stores.service";
+import { listEnabledStores } from "@/features/stores/services/stores.service";
 import { successResponse, errorResponse, APIError } from "@/lib/auth/api-helpers";
 import { createClient } from "@/lib/supabase/server";
 

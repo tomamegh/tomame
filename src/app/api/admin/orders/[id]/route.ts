@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { updateOrderStatusSchema } from "@/features/orders/schema";
-import { getOrder, updateOrderStatusAdmin } from "@/features/orders/orders.service";
-import { getAuthenticatedUser } from "@/features/auth/auth.service";
+import { getOrder, updateOrderStatusAdmin } from "@/features/orders/services/orders.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -59,7 +59,11 @@ export async function PATCH(
     if (!admin.ok) throw new APIError(admin.status, admin.error);
 
     const { id } = await params;
-    const result = await updateOrderStatusAdmin(createAdminClient(), admin.user, id, parsed.data.status);
+    const { status, trackingNumber, carrier, estimatedDeliveryDate } = parsed.data;
+    const trackingData = trackingNumber || carrier || estimatedDeliveryDate
+      ? { trackingNumber, carrier, estimatedDeliveryDate }
+      : undefined;
+    const result = await updateOrderStatusAdmin(createAdminClient() ,admin.user, id, status, trackingData);
     if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result.data);
