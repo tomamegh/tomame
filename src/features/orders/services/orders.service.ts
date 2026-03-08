@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
-import { isDomainAllowed } from "@/features/stores/services/stores.service";
+import { resolvePlatform } from "@/features/extraction/scrapers";
 import { sendEmail } from "@/lib/email/transport";
 import {
   orderPaidTemplate,
@@ -315,9 +315,9 @@ export async function createOrder(
     extractionData?: Record<string, unknown> | null;
   },
 ): Promise<ServiceResult<Order>> {
-  // Validate product URL domain against supported stores
-  const domainAllowed = await isDomainAllowed(input.productUrl);
-  if (!domainAllowed) {
+  // Validate product URL domain against supported platforms
+  const platform = resolvePlatform(input.productUrl);
+  if (!platform) {
     return {
       success: false,
       error: "We currently do not support this store. Please try again",
