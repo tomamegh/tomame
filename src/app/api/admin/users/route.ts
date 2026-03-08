@@ -1,9 +1,4 @@
 import { NextRequest } from "next/server";
-<<<<<<<< HEAD:src/app/api/admin/users/route.ts
-========
-import { createStoreSchema } from "@/features/stores/schema";
-import { listStores, createStore } from "@/features/stores/services/stores.service";
->>>>>>>> origin/features/scraping-rewrite:src/app/api/admin/stores/route.ts
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
