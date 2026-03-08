@@ -2,32 +2,28 @@ import * as z from "zod";
 
 // ── Extraction metadata schema ────────────────────────────────────────────────
 
-const extractionFieldSchema = z.object({
-  value: z.union([z.string(), z.number(), z.null()]),
-  source: z
-    .enum(["json_ld", "og_meta", "meta_tag", "dom_selector", "domain_mapping"])
-    .nullable(),
-  confidence: z.enum(["high", "medium", "low"]).nullable(),
+const scrapedProductSchema = z.object({
+  title: z.string().nullable(),
+  image: z.string().nullable(),
+  price: z.number().nullable(),
+  currency: z.string().nullable(),
+  description: z.string().nullable(),
+  brand: z.string().nullable(),
+  size: z.string().nullable(),
+  weight: z.string().nullable(),
+  dimensions: z.string().nullable(),
+  specifications: z.record(z.string(), z.string()),
+  metadata: z.record(z.string(), z.unknown()),
 });
 
 const extractionMetadataSchema = z.object({
   extractionAttempted: z.boolean(),
   extractionSuccess: z.boolean(),
-  usedPuppeteer: z.boolean(),
-  fields: z.object({
-    name: extractionFieldSchema,
-    price: extractionFieldSchema.extend({ currency: z.string().optional() }),
-    image: extractionFieldSchema,
-    country: extractionFieldSchema,
-    platform: extractionFieldSchema,
-    currency: extractionFieldSchema,
-    weight: extractionFieldSchema,
-    dimensions: extractionFieldSchema,
-    volume: extractionFieldSchema,
-  }),
+  platform: z.string().nullable(),
+  country: z.enum(["USA", "UK", "CHINA"]).nullable(),
+  product: scrapedProductSchema,
   errors: z.array(z.string()),
   fetchedAt: z.string(),
-  responseStatus: z.number().nullable(),
 });
 
 // ── Order schemas ─────────────────────────────────────────────────────────────

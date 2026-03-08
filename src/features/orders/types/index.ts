@@ -2,40 +2,30 @@ import type { OrderPricingBreakdown } from "@/types/db";
 
 // ── Extraction metadata ───────────────────────────────────────────────────────
 
-export interface ExtractionFieldMetadata {
-  value: string | number | null;
-  source:
-    | "json_ld"
-    | "og_meta"
-    | "meta_tag"
-    | "dom_selector"
-    | "domain_mapping"
-    | null;
-  confidence: "high" | "medium" | "low" | null;
-}
-
 /**
  * Full extraction result stored on every order.
- * All fields are present whether successfully extracted or null.
+ * Matches the ExtractionResult shape from the extraction feature.
  */
 export interface OrderExtractionMetadata {
   extractionAttempted: boolean;
   extractionSuccess: boolean;
-  usedPuppeteer: boolean;
-  fields: {
-    name: ExtractionFieldMetadata;
-    price: ExtractionFieldMetadata & { currency?: string };
-    image: ExtractionFieldMetadata;
-    country: ExtractionFieldMetadata;
-    platform: ExtractionFieldMetadata;
-    currency: ExtractionFieldMetadata;
-    weight: ExtractionFieldMetadata;
-    dimensions: ExtractionFieldMetadata;
-    volume: ExtractionFieldMetadata;
+  platform: string | null;
+  country: "USA" | "UK" | "CHINA" | null;
+  product: {
+    title: string | null;
+    image: string | null;
+    price: number | null;
+    currency: string | null;
+    description: string | null;
+    brand: string | null;
+    size: string | null;
+    weight: string | null;
+    dimensions: string | null;
+    specifications: Record<string, string>;
+    metadata: Record<string, unknown>;
   };
   errors: string[];
   fetchedAt: string;
-  responseStatus: number | null;
 }
 
 // ── Domain types ─────────────────────────────────────────────────────────────

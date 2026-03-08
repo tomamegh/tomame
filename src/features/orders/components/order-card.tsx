@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { ExternalLinkIcon } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { OrderStatusBadge } from "./order-status-badge";
 import type { Order } from "../types";
 
@@ -12,9 +11,8 @@ interface OrderCardProps {
 
 export function OrderCard({ order }: OrderCardProps) {
   return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="pt-5">
-        <div className="flex items-start justify-between gap-4">
+    <>
+    <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <p className="font-semibold text-stone-800 truncate">
@@ -24,7 +22,7 @@ export function OrderCard({ order }: OrderCardProps) {
                 {order.originCountry}
               </span>
             </div>
-            <a
+            <Link
               href={order.productUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -32,7 +30,7 @@ export function OrderCard({ order }: OrderCardProps) {
             >
               <ExternalLinkIcon className="w-3 h-3 shrink-0" />
               <span className="truncate">{order.productUrl}</span>
-            </a>
+            </Link>
             <p className="text-xs text-stone-400 mt-1">
               Qty: {order.quantity} · Est. ${order.estimatedPriceUsd}
             </p>
@@ -57,7 +55,6 @@ export function OrderCard({ order }: OrderCardProps) {
             View details →
           </Link>
         </div>
-      </CardContent>
-    </Card>
+    </>
   );
 }
