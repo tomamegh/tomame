@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { extractProductSchema } from "@/features/extraction/schema";
 import { extractProductData } from "@/features/extraction/extraction.service";
-import { isDomainAllowed } from "@/features/stores/services/stores.service";
+import { resolvePlatform } from "@/features/extraction/scrapers";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
@@ -27,9 +27,9 @@ export async function POST(request: NextRequest) {
     const auth = requireAuth(user);
     if (!auth.ok) throw new APIError(auth.status, auth.error);
 
-    // Validate URL domain against supported stores
-    const domainAllowed = await isDomainAllowed(parsed.data.productUrl);
-    if (!domainAllowed) {
+    // Validate URL domain against supported platforms (hardcoded in scrapers)
+    const platform = resolvePlatform(parsed.data.productUrl);
+    if (!platform) {
       throw new APIError(400, "Product URL must be from a supported store");
     }
 

@@ -14,6 +14,7 @@ const DOMAIN_COUNTRY_MAP: Record<string, "USA" | "UK" | "CHINA"> = {
   "amazon.com.au": "USA",
   "amazon.in": "CHINA",
   "amazon.co.jp": "CHINA",
+  "a.co": "USA", // Amazon short URL defaults to USA
   "ebay.com": "USA",
   "ebay.co.uk": "UK",
   "walmart.com": "USA",

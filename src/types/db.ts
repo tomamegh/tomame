@@ -15,7 +15,7 @@ export interface DbAuditLog {
   actor_id: string | null;
   actor_role: "user" | "admin" | "system";
   action: string;
-  entity_type: "user" | "payment" | "order" | "job" | "store";
+  entity_type: "user" | "payment" | "order" | "job";
   entity_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
@@ -105,12 +105,3 @@ export interface DbPricingConfig {
   updated_by: string | null;
 }
 
-export interface DbSupportedStore {
-  id: string;
-  domain: string;
-  display_name: string;
-  enabled: boolean;
-  created_at: string;
-  updated_at: string;
-  created_by: string | null;
-}
