@@ -212,8 +212,8 @@ function NewOrderContent() {
   const [extractionError, setExtractionError] = useState<string | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
 
-  const { mutate: extractProduct } = useExtractProduct();
-  const { mutate: createOrder, isPending: isOrdering } = useCreateOrder();
+  const { mutateAsync: extractProduct } = useExtractProduct();
+  const { mutateAsync: createOrder, isPending: isOrdering } = useCreateOrder();
 
   useEffect(()=>{
     if(orderError) {
@@ -243,7 +243,8 @@ function NewOrderContent() {
     );
   }, []);
 
-  const handleOrderSubmit = (data: CreateOrderSchemaType) => {
+  const handleOrderSubmit = async (data: CreateOrderSchemaType) => {
+    console.log('first')
     setOrderError(null);
     createOrder(data, {
       onSuccess: (result) => {

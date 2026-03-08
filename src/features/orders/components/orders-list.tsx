@@ -71,10 +71,12 @@ export function OrdersList() {
   }
 
   return (
-    <div className="space-y-4 bg-white">
-      {data.map((order) => (
+    <Card className="space-y-4 bg-white">
+      <CardContent>
+        {data.map((order) => (
         <OrderCard key={order.id} order={order} />
       ))}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
