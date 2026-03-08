@@ -58,16 +58,9 @@ interface OrderFormProps {
 function buildReviewReasons(data: ExtractionResult): string[] {
   const reasons: string[] = [];
   if (!data.extractionSuccess) reasons.push("Automatic extraction failed");
-  if (!data.fields.name.value)
-    reasons.push("Product name could not be detected");
-  if (data.fields.name.confidence === "low")
-    reasons.push("Product name extracted with low confidence");
-  if (data.fields.price.value === null)
-    reasons.push("Price could not be detected");
-  if (data.fields.price.confidence === "low")
-    reasons.push("Price extracted with low confidence");
-  if (!data.fields.country.value)
-    reasons.push("Origin country could not be determined");
+  if (!data.product.title) reasons.push("Product name could not be detected");
+  if (data.product.price === null) reasons.push("Price could not be detected");
+  if (!data.country) reasons.push("Origin country could not be determined");
   return reasons;
 }
 
@@ -87,13 +80,12 @@ export function OrderForm({
   onSubmit,
   onBack,
 }: OrderFormProps) {
-  const { fields } = extractionData;
+  const { product, country } = extractionData;
 
   const reviewReasons = buildReviewReasons(extractionData);
   const needsReview = reviewReasons.length > 0;
 
-  const defaultOrigin =
-    (fields.country.value as "USA" | "UK" | "CHINA" | null) ?? "USA";
+  const defaultOrigin = country ?? "USA";
 
   const {
     handleSubmit,
@@ -105,9 +97,9 @@ export function OrderForm({
     resolver: zodResolver(createOrderSchema),
     defaultValues: {
       productUrl,
-      productName: (fields.name.value as string | null) ?? "",
-      productImageUrl: (fields.image.value as string | null) ?? undefined,
-      estimatedPriceUsd: parsePriceValue(fields.price.value),
+      productName: product.title ?? "",
+      productImageUrl: product.image ?? undefined,
+      estimatedPriceUsd: parsePriceValue(product.price),
       quantity: 1,
       originCountry: defaultOrigin,
       specialInstructions: "",
@@ -115,7 +107,6 @@ export function OrderForm({
       reviewReasons,
       // Full extraction result — all fields whether null or not
       extractionMetadata: extractionData,
-      // extractionData omitted until migration 010 (ADD COLUMN extraction_data JSONB) is run
     },
   });
 
