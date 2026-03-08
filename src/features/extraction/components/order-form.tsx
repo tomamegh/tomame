@@ -87,13 +87,7 @@ export function OrderForm({
 
   const defaultOrigin = country ?? "USA";
 
-  const {
-    handleSubmit,
-    watch,
-    setValue,
-    control,
-    formState: { errors },
-  } = useForm<OrderFormValues>({
+  const form = useForm<OrderFormValues>({
     resolver: zodResolver(createOrderSchema),
     defaultValues: {
       productUrl,
@@ -110,7 +104,7 @@ export function OrderForm({
     },
   });
 
-  const quantity = watch("quantity") ?? 1;
+  const quantity = form.watch("quantity") ?? 1;
 
   return (
     <div className="space-y-4 fade-in">
@@ -131,16 +125,10 @@ export function OrderForm({
       {/* Form card */}
       <Card>
         <CardContent className="pt-6">
-          <form
-            onSubmit={handleSubmit((data) =>
-              onSubmit(data as unknown as CreateOrderSchemaType),
-            )}
-            className="space-y-5"
-            noValidate
-          >
+          <form className="space-y-5" noValidate>
             <FieldGroup>
               <Controller
-                control={control}
+                control={form.control}
                 name="productName"
                 render={({ field, fieldState }) => {
                   return (
@@ -160,8 +148,8 @@ export function OrderForm({
                         aria-invalid={fieldState.invalid}
                         disabled={isLoading}
                       />
-                      {errors.productName && (
-                        <FieldError errors={[errors.productName]} />
+                      {fieldState.error && (
+                        <FieldError errors={[fieldState.error]} />
                       )}
                     </Field>
                   );
@@ -172,7 +160,7 @@ export function OrderForm({
               <Field className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Estimated Price */}
                 <Controller
-                  control={control}
+                  control={form.control}
                   name="estimatedPriceUsd"
                   render={({ field, fieldState }) => {
                     return (
@@ -209,11 +197,11 @@ export function OrderForm({
 
                 {/* Origin Country */}
                 <Controller
-                  control={control}
+                  control={form.control}
                   name="originCountry"
                   render={({ field, fieldState }) => {
                     return (
-                      <Field data-invalid={!!errors.originCountry}>
+                      <Field data-invalid={!!fieldState.error}>
                         <FieldLabel
                           htmlFor="order-country"
                           className="text-sm font-medium text-stone-700"
@@ -240,9 +228,9 @@ export function OrderForm({
                             ))}
                           </SelectContent>
                         </Select>
-                        {errors.originCountry && (
-                          <FieldError errors={[errors.originCountry]} />
-                        )}
+                        {fieldState.error && (
+                        <FieldError errors={[fieldState.error]} />
+                      )}
                       </Field>
                     );
                   }}
@@ -251,7 +239,7 @@ export function OrderForm({
 
               {/* Quantity */}
               <Controller
-                control={control}
+                control={form.control}
                 name="quantity"
                 render={(_props) => {
                   return (
@@ -268,7 +256,7 @@ export function OrderForm({
                           variant="outline"
                           size="icon-sm"
                           onClick={() =>
-                            setValue("quantity", Math.max(1, quantity - 1))
+                            form.setValue("quantity", Math.max(1, quantity - 1))
                           }
                           disabled={quantity <= 1 || isLoading}
                           aria-label="Decrease quantity"
@@ -283,7 +271,7 @@ export function OrderForm({
                           variant="outline"
                           size="icon-sm"
                           onClick={() =>
-                            setValue("quantity", Math.min(100, quantity + 1))
+                            form.setValue("quantity", Math.min(100, quantity + 1))
                           }
                           disabled={quantity >= 100 || isLoading}
                           aria-label="Increase quantity"
@@ -298,7 +286,7 @@ export function OrderForm({
 
               {/* Special Instructions */}
               <Controller
-                control={control}
+                control={form.control}
                 name="specialInstructions"
                 render={({ field, fieldState }) => {
                   return (
@@ -349,7 +337,8 @@ export function OrderForm({
                 Back
               </Button>
               <Button
-                type="submit"
+                type="button"
+                onClick={form.handleSubmit((data) => onSubmit(data as CreateOrderSchemaType))}
                 variant="primary"
                 disabled={isLoading}
                 className="gap-1.5"
