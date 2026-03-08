@@ -15,6 +15,7 @@ import {
   createOrderSchema,
   type CreateOrderSchemaType,
 } from "@/features/orders/schema";
+import type { ExtractionResult } from "@/features/extraction/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +27,6 @@ import {
   FieldError,
   FieldGroup,
 } from "@/components/ui/field";
-import type { ExtractionResult } from "@/features/extraction/types";
 import {
   InputGroup,
   InputGroupAddon,
@@ -113,20 +113,9 @@ export function OrderForm({
       specialInstructions: "",
       needsReview,
       reviewReasons,
-      extractionMetadata: {
-        extractionAttempted: extractionData.extractionAttempted,
-        extractionSuccess: extractionData.extractionSuccess,
-        nameSource: fields.name.source,
-        nameConfidence: fields.name.confidence,
-        priceSource: fields.price.source,
-        priceConfidence: fields.price.confidence,
-        imageSource: fields.image.source,
-        imageConfidence: fields.image.confidence,
-        countrySource: fields.country.source,
-        fetchedAt: extractionData.fetchedAt,
-        responseStatus: extractionData.responseStatus,
-        errors: extractionData.errors,
-      },
+      // Full extraction result — all fields whether null or not
+      extractionMetadata: extractionData,
+      // extractionData omitted until migration 010 (ADD COLUMN extraction_data JSONB) is run
     },
   });
 

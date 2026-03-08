@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { signupSchema } from "@/features/auth/auth.validators";
-import { signup } from "@/features/auth/auth.service";
+import { signup } from "@/features/auth/services/auth.service";
 import {
   APIError,
   successResponse,

@@ -1,11 +1,51 @@
 import type { OrderPricingBreakdown } from "@/types/db";
 
+// ── Extraction metadata ───────────────────────────────────────────────────────
+
+export interface ExtractionFieldMetadata {
+  value: string | number | null;
+  source:
+    | "json_ld"
+    | "og_meta"
+    | "meta_tag"
+    | "dom_selector"
+    | "domain_mapping"
+    | null;
+  confidence: "high" | "medium" | "low" | null;
+}
+
+/**
+ * Full extraction result stored on every order.
+ * All fields are present whether successfully extracted or null.
+ */
+export interface OrderExtractionMetadata {
+  extractionAttempted: boolean;
+  extractionSuccess: boolean;
+  usedPuppeteer: boolean;
+  fields: {
+    name: ExtractionFieldMetadata;
+    price: ExtractionFieldMetadata & { currency?: string };
+    image: ExtractionFieldMetadata;
+    country: ExtractionFieldMetadata;
+    platform: ExtractionFieldMetadata;
+    currency: ExtractionFieldMetadata;
+    weight: ExtractionFieldMetadata;
+    dimensions: ExtractionFieldMetadata;
+    volume: ExtractionFieldMetadata;
+  };
+  errors: string[];
+  fetchedAt: string;
+  responseStatus: number | null;
+}
+
 // ── Domain types ─────────────────────────────────────────────────────────────
 
 export type OrderStatus =
   | "pending"
   | "paid"
   | "processing"
+  | "in_transit"
+  | "delivered"
   | "completed"
   | "cancelled";
 
@@ -27,6 +67,7 @@ export interface OrderPricing {
 
 export interface Order {
   id: string;
+  userId: string;
   productUrl: string;
   productName: string;
   productImageUrl: string | null;
@@ -40,7 +81,12 @@ export interface Order {
   reviewReasons: string[];
   reviewedBy: string | null;
   reviewedAt: string | null;
-  extractionMetadata: Record<string, unknown> | null;
+  extractionMetadata: OrderExtractionMetadata | null;
+  extractionData: Record<string, unknown> | null;
+  trackingNumber: string | null;
+  carrier: string | null;
+  estimatedDeliveryDate: string | null;
+  deliveredAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -72,7 +118,7 @@ export interface CreateOrderRequest {
   specialInstructions?: string;
   needsReview?: boolean;
   reviewReasons?: string[];
-  extractionMetadata?: Record<string, unknown>;
+  extractionMetadata?: OrderExtractionMetadata;
 }
 
 export interface OrderResponse {
@@ -90,7 +136,7 @@ export interface OrderResponse {
   reviewReasons: string[];
   reviewedBy: string | null;
   reviewedAt: string | null;
-  extractionMetadata: Record<string, unknown> | null;
+  extractionMetadata: OrderExtractionMetadata | null;
   createdAt: string;
   updatedAt: string;
 }

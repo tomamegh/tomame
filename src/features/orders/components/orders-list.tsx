@@ -47,7 +47,7 @@ export function OrdersList() {
     );
   }
 
-  if (!data?.data.length) {
+  if (!data?.length) {
     return (
       <Empty className="bg-white">
         <EmptyHeader>
@@ -72,7 +72,7 @@ export function OrdersList() {
 
   return (
     <div className="space-y-4 bg-white">
-      {data.data.map((order) => (
+      {data.map((order) => (
         <OrderCard key={order.id} order={order} />
       ))}
     </div>
