@@ -1,5 +1,4 @@
 import React from "react";
-import { createClient } from "@/lib/supabase/server";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +10,6 @@ import {
 import {
   BadgeCheckIcon,
   BellIcon,
-  ChevronDown,
   CreditCardIcon,
   LayoutGridIcon,
 } from "lucide-react";

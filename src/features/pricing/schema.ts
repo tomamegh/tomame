@@ -15,3 +15,5 @@ export const updatePricingConfigSchema = z.object({
     .min(0, "Service fee percentage cannot be negative")
     .max(1, "Service fee percentage must be between 0 and 1"),
 });
+
+export type UpdatePricingConfigSchemaType = z.infer<typeof updatePricingConfigSchema>

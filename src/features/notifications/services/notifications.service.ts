@@ -4,33 +4,6 @@ import { logger } from "@/lib/logger";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type { DbNotification } from "@/types/db";
 
-// ── DB queries ────────────────────────────────────────────────────────────────
-
-interface NotificationInsert {
-  user_id: string;
-  channel: "email" | "whatsapp";
-  event: string;
-  payload: Record<string, unknown>;
-  status: "pending" | "sent" | "failed";
-}
-
-async function insertNotification(
-  client: SupabaseClient,
-  notification: NotificationInsert
-): Promise<DbNotification | null> {
-  const { data, error } = await client
-    .from("notifications")
-    .insert(notification)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error("insertNotification failed", { error: error.message });
-    return null;
-  }
-  return data as DbNotification;
-}
-
 async function getNotificationsByUserId(
   client: SupabaseClient,
   userId: string
@@ -69,31 +42,6 @@ async function getAllNotifications(
   }
   return (data ?? []) as DbNotification[];
 }
-
-async function updateNotificationStatus(
-  client: SupabaseClient,
-  notificationId: string,
-  status: "sent" | "failed",
-  sentAt?: string
-): Promise<DbNotification | null> {
-  const update: Record<string, unknown> = { status };
-  if (sentAt) update.sent_at = sentAt;
-
-  const { data, error } = await client
-    .from("notifications")
-    .update(update)
-    .eq("id", notificationId)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error("updateNotificationStatus failed", { notificationId, error: error.message });
-    return null;
-  }
-  return data as DbNotification;
-}
-
-// ── Response types ────────────────────────────────────────────────────────────
 
 export interface NotificationResponse {
   id: string;

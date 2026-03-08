@@ -15,15 +15,6 @@ function SocialAuthButtons() {
   };
   return (
     <Field className="grid grid-cols-1 gap-4">
-      {/* <Button variant="outline" className="py-2" size={"lg"} type="button">
-        <Image
-          src={"/icons/Apple_light.svg"}
-          alt="Apple Logo"
-          width={28}
-          height={28}
-        />
-        <span className="sr-only">Sign up with Apple</span>
-      </Button> */}
       <Button variant="outline" className="py-2 gap-3" size={"lg"} type="button" onClick={handleGoogleSignin}>
         <Image
           src={"/icons/google.svg"}
@@ -33,10 +24,6 @@ function SocialAuthButtons() {
         />
         <span className="font-normal">Sign up with Google</span>
       </Button>
-      {/* <Button variant="outline" className="py-2" size={"lg"} type="button">
-        <Image src={"/icons/meta.svg"} alt="Meta Logo" width={30} height={30} />
-        <span className="sr-only">Sign up with Meta</span>
-      </Button> */}
     </Field>
   );
 }

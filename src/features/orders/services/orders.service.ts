@@ -13,51 +13,11 @@ import {
 import { logger } from "@/lib/logger";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type { PaginatedDataResponse } from "@/types/api";
-import type { DbOrder, DbAuditLog, OrderPricingBreakdown } from "@/types/db";
+import type { DbOrder, DbAuditLog } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList, type OrderExtractionMetadata } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-// ── DB queries ────────────────────────────────────────────────────────────────
-
-interface OrderInsert {
-  user_id: string;
-  product_url: string;
-  product_name: string;
-  product_image_url?: string | null;
-  estimated_price_usd: number;
-  quantity: number;
-  origin_country: "USA" | "UK" | "CHINA";
-  special_instructions?: string | null;
-  pricing: OrderPricingBreakdown;
-  status: string;
-  needs_review?: boolean;
-  review_reasons?: string[];
-  extraction_metadata?: Record<string, unknown> | null;
-  extraction_data?: Record<string, unknown> | null;
-}
-
-async function insertOrder(
-  client: SupabaseClient,
-  order: OrderInsert
-): Promise<DbOrder | null> {
-  const { data, error } = await client
-    .from("orders")
-    .insert(order)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error("insertOrder failed", {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-    });
-    return null;
-  }
-  return data as DbOrder;
-}
+import { APIError } from "@/lib/auth/api-helpers";
 
 export async function getOrderById(
   client: SupabaseClient,
@@ -82,7 +42,7 @@ async function updateOrderStatus(
     carrier?: string;
     estimated_delivery_date?: string;
     delivered_at?: string;
-  }
+  },
 ): Promise<DbOrder | null> {
   const { data, error } = await client
     .from("orders")
@@ -235,11 +195,16 @@ async function sendOrderStatusEmail(
   userId: string,
   order: DbOrder,
   newStatus: string,
-  trackingData?: { trackingNumber?: string; carrier?: string; estimatedDeliveryDate?: string },
+  trackingData?: {
+    trackingNumber?: string;
+    carrier?: string;
+    estimatedDeliveryDate?: string;
+  },
 ): Promise<void> {
   try {
-    const supabase = createAdminClient()
-    const { data: userData, error } = await supabase.auth.admin.getUserById(userId);
+    const supabase = createAdminClient();
+    const { data: userData, error } =
+      await supabase.auth.admin.getUserById(userId);
     if (error || !userData?.user?.email) return;
 
     const emailData = {
@@ -334,7 +299,7 @@ export async function createOrder(
     };
   }
 
-  const order = await insertOrder(client, {
+  const orderToCreate = {
     user_id: user.id,
     product_url: input.productUrl,
     product_name: input.productName,
@@ -347,13 +312,34 @@ export async function createOrder(
     status: "pending",
     needs_review: input.needsReview ?? false,
     review_reasons: input.reviewReasons ?? [],
-    extraction_metadata: (input.extractionMetadata ?? null) as Record<string, unknown> | null,
+    extraction_metadata: (input.extractionMetadata ?? null) as Record<
+      string,
+      unknown
+    > | null,
     // Only included once migration 010 (ADD COLUMN extraction_data JSONB) has been run
-    ...(input.extractionData != null ? { extraction_data: input.extractionData } : {}),
-  });
+    ...(input.extractionData != null
+      ? { extraction_data: input.extractionData }
+      : {}),
+  };
+
+  const { data: order, error } = await client
+    .from("orders")
+    .insert(orderToCreate)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("insertOrder failed", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new APIError(500, "Failed to create order.");
+  }
 
   if (!order) {
-    return { success: false, error: "Failed to create order", status: 500 };
+    throw new APIError(500, "Failed to create order.");
   }
 
   await logAuditEvent({

@@ -48,7 +48,7 @@ const TRANSITION_LABELS: Record<string, string> = {
 
 // ── Sortable header ───────────────────────────────────────────────────────────
 
-function SortableHeader<T>({
+function SortableHeader({
   column,
   children,
 }: {
@@ -119,14 +119,13 @@ export const columns: ColumnDef<Order>[] = [
     enableHiding: true,
   },
 
-  // ── Product ──────────────────────────────────────────────────────────────────
   {
     accessorKey: "productName",
     header: ({ column }) => (
       <SortableHeader column={column}>Product</SortableHeader>
     ),
     cell: ({ row }: { row: Row<Order> }) => (
-      <div className="space-y-0.5 max-w-[260px]">
+      <div className="space-y-0.5 max-w-65">
         <Link
           href={`/admin/orders/${row.original.id}`}
           className="font-medium text-stone-800 hover:text-rose-600 hover:underline line-clamp-2 text-sm leading-snug block"

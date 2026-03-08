@@ -20,8 +20,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Order, OrderStatus } from "../../types";
 
-// ── Faceted filter ────────────────────────────────────────────────────────────
-
 const COLUMN_LABELS: Record<string, string> = {
   id: "Order ID",
   productName: "Product",

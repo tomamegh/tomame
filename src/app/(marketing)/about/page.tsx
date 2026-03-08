@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { BlendIcon, EarthIcon, GemIcon, GlobeIcon, RocketIcon, ShieldCheckIcon } from "lucide-react";
+import { BlendIcon, GemIcon, GlobeIcon, RocketIcon, ShieldCheckIcon } from "lucide-react";
 
 export default function AboutPage() {
   return (

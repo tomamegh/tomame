@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Suspense } from "react";
 import NavbarAuthButton from "@/features/auth/components/auth-button";
 import { createClient } from "@/lib/supabase/server";
 import NavLinks from "./nav-links";

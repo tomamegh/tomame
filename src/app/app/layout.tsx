@@ -1,5 +1,3 @@
-import { AppSidebar } from "@/features/app/components/sidebar";
-
 import { Navbar, Footer } from "@/components/layout/main";
 
 export default function AppDashboardLayout({
