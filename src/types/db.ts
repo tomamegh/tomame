@@ -105,3 +105,13 @@ export interface DbPricingConfig {
   updated_by: string | null;
 }
 
+export interface DbExchangeRate {
+  id: string;
+  base_currency: string;
+  target_currency: string;
+  rate: number;
+  provider: string;
+  fetched_at: string;
+  created_at: string;
+  updated_at: string;
+}
