@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { PASSWORD } from "@/config/security";
 
-const email = z.string().email("Invalid email address").trim().toLowerCase();
+const email = z.email("Invalid email address").trim().toLowerCase();
 
 const password = z
   .string()
   .min(PASSWORD.minLength, `Password must be at least ${PASSWORD.minLength} characters`);
 
 export const promoteUserSchema = z.object({
-  userId: z.string().uuid("Invalid user ID"),
+  userId: z.uuid("Invalid user ID"),
 });
 
 export const createAdminSchema = z.object({

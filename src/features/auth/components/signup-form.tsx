@@ -16,7 +16,6 @@ import {
   FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/form";
-import Image from "next/image";
 import SocialAuthButtons from "./social-auth-button";
 
 export default function SignUpForm() {

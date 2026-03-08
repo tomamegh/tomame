@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import {
   ExternalLinkIcon,
@@ -20,8 +19,6 @@ import { OrderStatusBadge } from "./order-status-badge";
 import { useOrder, useCancelOrder, useOrderHistory } from "../hooks/useOrders";
 import type { Order, OrderStatus } from "../types";
 import type { DbAuditLog } from "@/types/db";
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number, decimals = 2) {
   return n.toFixed(decimals);

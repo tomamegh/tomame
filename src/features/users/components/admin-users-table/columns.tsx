@@ -28,7 +28,7 @@ export interface UsersTableMeta {
 
 // ── Sortable header ───────────────────────────────────────────────────────────
 
-function SortableHeader<T>({
+function SortableHeader({
   column,
   children,
 }: {

@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
-import { isDomainAllowed } from "@/features/stores/services/stores.service";
 import { sendEmail } from "@/lib/email/transport";
 import {
   orderPaidTemplate,
@@ -13,55 +12,16 @@ import {
 import { logger } from "@/lib/logger";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type { PaginatedDataResponse } from "@/types/api";
-import type { DbOrder, DbAuditLog, OrderPricingBreakdown } from "@/types/db";
+import type { DbOrder, DbAuditLog } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList, type OrderExtractionMetadata } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-// ── DB queries ────────────────────────────────────────────────────────────────
-
-interface OrderInsert {
-  user_id: string;
-  product_url: string;
-  product_name: string;
-  product_image_url?: string | null;
-  estimated_price_usd: number;
-  quantity: number;
-  origin_country: "USA" | "UK" | "CHINA";
-  special_instructions?: string | null;
-  pricing: OrderPricingBreakdown;
-  status: string;
-  needs_review?: boolean;
-  review_reasons?: string[];
-  extraction_metadata?: Record<string, unknown> | null;
-  extraction_data?: Record<string, unknown> | null;
-}
-
-async function insertOrder(
-  client: SupabaseClient,
-  order: OrderInsert
-): Promise<DbOrder | null> {
-  const { data, error } = await client
-    .from("orders")
-    .insert(order)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error("insertOrder failed", {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-    });
-    return null;
-  }
-  return data as DbOrder;
-}
+import { isPlatformSupported } from "@/features/stores/services/stores.service";
+import { APIError } from "@/lib/auth/api-helpers";
 
 export async function getOrderById(
   client: SupabaseClient,
-  orderId: string
+  orderId: string,
 ): Promise<DbOrder | null> {
   const { data, error } = await client
     .from("orders")
@@ -82,7 +42,7 @@ async function updateOrderStatus(
     carrier?: string;
     estimated_delivery_date?: string;
     delivered_at?: string;
-  }
+  },
 ): Promise<DbOrder | null> {
   const { data, error } = await client
     .from("orders")
@@ -106,7 +66,7 @@ async function updateOrderStatus(
 export async function linkOrderToPayment(
   client: SupabaseClient,
   orderId: string,
-  paymentId: string
+  paymentId: string,
 ): Promise<DbOrder | null> {
   const { data, error } = await client
     .from("orders")
@@ -129,7 +89,7 @@ export async function linkOrderToPayment(
 
 async function getOrdersByUserId(
   client: SupabaseClient,
-  userId: string
+  userId: string,
 ): Promise<DbOrder[]> {
   const { data, error } = await client
     .from("orders")
@@ -149,7 +109,7 @@ async function getOrdersByUserId(
 
 async function getAllOrders(
   client: SupabaseClient,
-  filters?: { status?: string; userId?: string; needsReview?: boolean }
+  filters?: { status?: string; userId?: string; needsReview?: boolean },
 ): Promise<DbOrder[]> {
   let query = client
     .from("orders")
@@ -177,7 +137,7 @@ async function getAllOrders(
 
 async function getOrderAuditLogs(
   client: SupabaseClient,
-  orderId: string
+  orderId: string,
 ): Promise<DbAuditLog[]> {
   const { data, error } = await client
     .from("audit_logs")
@@ -235,11 +195,16 @@ async function sendOrderStatusEmail(
   userId: string,
   order: DbOrder,
   newStatus: string,
-  trackingData?: { trackingNumber?: string; carrier?: string; estimatedDeliveryDate?: string },
+  trackingData?: {
+    trackingNumber?: string;
+    carrier?: string;
+    estimatedDeliveryDate?: string;
+  },
 ): Promise<void> {
   try {
-    const supabase = createAdminClient()
-    const { data: userData, error } = await supabase.auth.admin.getUserById(userId);
+    const supabase = createAdminClient();
+    const { data: userData, error } =
+      await supabase.auth.admin.getUserById(userId);
     if (error || !userData?.user?.email) return;
 
     const emailData = {
@@ -310,7 +275,8 @@ export async function createOrder(
   },
 ): Promise<ServiceResult<Order>> {
   // Validate product URL domain against supported stores
-  const domainAllowed = await isDomainAllowed(input.productUrl);
+  const domainAllowed = isPlatformSupported(input.productUrl);
+  // const domainAllowed = await isDomainAllowed(input.productUrl);
   if (!domainAllowed) {
     return {
       success: false,
@@ -334,7 +300,7 @@ export async function createOrder(
     };
   }
 
-  const order = await insertOrder(client, {
+  const orderToCreate = {
     user_id: user.id,
     product_url: input.productUrl,
     product_name: input.productName,
@@ -347,13 +313,34 @@ export async function createOrder(
     status: "pending",
     needs_review: input.needsReview ?? false,
     review_reasons: input.reviewReasons ?? [],
-    extraction_metadata: (input.extractionMetadata ?? null) as Record<string, unknown> | null,
+    extraction_metadata: (input.extractionMetadata ?? null) as Record<
+      string,
+      unknown
+    > | null,
     // Only included once migration 010 (ADD COLUMN extraction_data JSONB) has been run
-    ...(input.extractionData != null ? { extraction_data: input.extractionData } : {}),
-  });
+    ...(input.extractionData != null
+      ? { extraction_data: input.extractionData }
+      : {}),
+  };
+
+  const { data: order, error } = await client
+    .from("orders")
+    .insert(orderToCreate)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error("insertOrder failed", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new APIError(500, "Failed to create order.");
+  }
 
   if (!order) {
-    return { success: false, error: "Failed to create order", status: 500 };
+    throw new APIError(500, "Failed to create order.");
   }
 
   await logAuditEvent({
@@ -525,9 +512,12 @@ export async function updateOrderStatusAdmin(
 
   // When transitioning to in_transit, save tracking fields
   if (newStatus === "in_transit" && trackingData) {
-    if (trackingData.trackingNumber) updatePayload.tracking_number = trackingData.trackingNumber;
+    if (trackingData.trackingNumber)
+      updatePayload.tracking_number = trackingData.trackingNumber;
     if (trackingData.carrier) updatePayload.carrier = trackingData.carrier;
-    if (trackingData.estimatedDeliveryDate) updatePayload.estimated_delivery_date = trackingData.estimatedDeliveryDate;
+    if (trackingData.estimatedDeliveryDate)
+      updatePayload.estimated_delivery_date =
+        trackingData.estimatedDeliveryDate;
   }
 
   // When transitioning to delivered, auto-set delivered_at
@@ -535,7 +525,7 @@ export async function updateOrderStatusAdmin(
     updatePayload.delivered_at = new Date().toISOString();
   }
 
-  const supabase = createAdminClient()
+  const supabase = createAdminClient();
   const updated = await updateOrderStatus(supabase, orderId, updatePayload);
   if (!updated) {
     return {
@@ -568,7 +558,7 @@ export async function cancelOrderByUser(
   user: AuthenticatedUser,
   orderId: string,
 ): Promise<ServiceResult<Order>> {
-  const supabase = createAdminClient()
+  const supabase = createAdminClient();
   const order = await getOrderById(supabase, orderId);
   if (!order) {
     return { success: false, error: "Order not found", status: 404 };
@@ -586,7 +576,9 @@ export async function cancelOrderByUser(
     };
   }
 
-  const updated = await updateOrderStatus(supabase, orderId, { status: "cancelled" });
+  const updated = await updateOrderStatus(supabase, orderId, {
+    status: "cancelled",
+  });
   if (!updated) {
     return {
       success: false,
@@ -617,7 +609,7 @@ export async function getOrderAuditHistory(
   user: AuthenticatedUser,
   orderId: string,
 ): Promise<ServiceResult<DbAuditLog[]>> {
-  const supabase = createAdminClient()
+  const supabase = createAdminClient();
   const order = await getOrderById(supabase, orderId);
   if (!order) {
     return { success: false, error: "Order not found", status: 404 };

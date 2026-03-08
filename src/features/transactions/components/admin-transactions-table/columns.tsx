@@ -19,7 +19,7 @@ import type { Transaction, TransactionStatus } from "../../types";
 
 // ── Sortable header ───────────────────────────────────────────────────────────
 
-function SortableHeader<T>({
+function SortableHeader({
   column,
   children,
 }: {

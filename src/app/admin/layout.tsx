@@ -10,9 +10,9 @@ import {
 function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider className="relative">
-      <Sidebar className="bg-white" />
+      <Sidebar className="bg-white z-999" />
       <SidebarInset>
-        <header className="sticky top-0 flex h-16 shrink-0 items-center gap-2 z-999 bg-white shadow-sm shadow-slate-100">
+        <header className="sticky top-0 flex h-16 shrink-0 items-center gap-2 z-99 bg-white shadow-sm shadow-slate-100">
           <div className="flex items-center gap-2 px-4 w-full">
             <SidebarTrigger className="-ml-1" />
             <Separator
