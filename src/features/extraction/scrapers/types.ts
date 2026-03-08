@@ -1,4 +1,5 @@
 import type { CheerioAPI } from "cheerio";
+import type { BrowserlessClient } from "@/lib/browserless/client";
 
 export interface ScrapedProduct {
   /** Product title */
@@ -25,9 +26,19 @@ export interface ScrapedProduct {
   metadata: Record<string, unknown>;
 }
 
-export interface PlatformScraper {
+export abstract class PlatformScraper {
+  protected browserless: BrowserlessClient;
+
   /** Domains this scraper handles */
-  domains: string[];
-  /** Extract product data from parsed HTML */
-  extract($: CheerioAPI): ScrapedProduct;
+  public abstract readonly domains: string[];
+
+  constructor(browserless: BrowserlessClient) {
+    this.browserless = browserless;
+  }
+
+  /** Fetch the page via browserless and extract product data */
+  public abstract scrape(url: string): Promise<ScrapedProduct>;
+
+  /** Extract product data from already-parsed HTML (useful for tests) */
+  public abstract extract($: CheerioAPI): ScrapedProduct;
 }

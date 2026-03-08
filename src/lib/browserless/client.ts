@@ -31,7 +31,7 @@ interface ScrapeContentResult {
  * Uses the /content endpoint to fetch fully-rendered HTML
  * from a headless Chrome browser.
  */
-class BrowserlessClient {
+export class BrowserlessClient {
   private apiUrl: string;
 
   constructor(apiUrl: string = BROWSERLESS_API_URL) {

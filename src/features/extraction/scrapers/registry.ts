@@ -1,15 +1,30 @@
-import type { PlatformScraper } from "./types";
-import { amazonScraper } from "./amazon";
+import { PlatformScraper } from "./types";
+import { AmazonScraper } from "./amazon";
+import { browserlessClient, type BrowserlessClient } from "@/lib/browserless/client";
 
 export enum SupportedPlatform {
   AMAZON = "amazon",
 }
 
-/** Platform → scraper mapping. Add new platforms here. */
-export const scraperRegistry: Record<SupportedPlatform, PlatformScraper> = {
-  [SupportedPlatform.AMAZON]: amazonScraper,
+/** Platform → scraper class mapping. Add new platforms here. */
+const scraperClasses: Record<SupportedPlatform, new (b: BrowserlessClient) => PlatformScraper> = {
+  [SupportedPlatform.AMAZON]: AmazonScraper,
 };
 
+/** Instantiated scrapers keyed by platform (lazy singleton per platform). */
+const instances = new Map<SupportedPlatform, PlatformScraper>();
+
 export function getScraperByPlatform(platform: SupportedPlatform): PlatformScraper {
-  return scraperRegistry[platform];
+  let scraper = instances.get(platform);
+  if (!scraper) {
+    const Ctor = scraperClasses[platform];
+    scraper = new Ctor(browserlessClient);
+    instances.set(platform, scraper);
+  }
+  return scraper;
+}
+
+/** Get the domains array for a given platform (used by resolvePlatform). */
+export function getDomainsForPlatform(platform: SupportedPlatform): string[] {
+  return getScraperByPlatform(platform).domains;
 }

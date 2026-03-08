@@ -13,72 +13,24 @@ import { Button } from "@/components/ui/button";
 import type { ProductPreviewProps } from "@/features/extraction/types";
 import Image from "next/image";
 
-const CONFIDENCE_CONFIG = {
-  high: {
-    label: "Verified",
-    className: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
-    dot: "bg-emerald-500",
-  },
-  medium: {
-    label: "Estimated",
-    className: "bg-amber-50 text-amber-700 border-amber-200/60",
-    dot: "bg-amber-500",
-  },
-  low: {
-    label: "Low confidence",
-    className: "bg-orange-50 text-orange-600 border-orange-200/60",
-    dot: "bg-orange-500",
-  },
-} as const;
-
-function ConfidenceBadge({
-  confidence,
-}: {
-  confidence: "high" | "medium" | "low" | null;
-}) {
-  if (!confidence) return null;
-  const config = CONFIDENCE_CONFIG[confidence];
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${config.className}`}
-    >
-      <span className={`size-1.5 rounded-full ${config.dot}`} />
-      {config.label}
-    </span>
-  );
-}
-
-// ── Component ──────────────────────────────────────────────────────────────
-
 export function ProductPreview({
   data,
   productUrl,
   onOrder,
   onReset,
 }: ProductPreviewProps) {
-  const { fields, extractionSuccess } = data;
+  const { product, extractionSuccess, platform, country } = data;
 
-  const name = fields.name.value as string | null;
-  const price =
-    typeof fields.price.value === "number"
-      ? fields.price.value
-      : typeof fields.price.value === "string"
-        ? parseFloat(fields.price.value)
-        : null;
-  const priceNum = price !== null && !isNaN(price) ? price : null;
-  const currency = (fields.currency.value as string | null) ?? fields.price.currency ?? null;
-  const image = fields.image.value as string | null;
-  const country = fields.country.value as string | null;
-  const platform = fields.platform.value || null;
-  const weight = fields.weight.value as string | null;
-  const dimensions = fields.dimensions.value as string | null;
-  const volume = fields.volume.value as string | null;
+  const name = product.title;
+  const price = product.price;
+  const currency = product.currency;
+  const image = product.image;
+  const weight = product.weight;
+  const dimensions = product.dimensions;
+  const brand = product.brand;
 
-  const hasLowConfidence =
-    fields.name.confidence === "low" || fields.price.confidence === "low";
-  const isMissingCritical = !name || priceNum === null;
-  const showWarning =
-    !extractionSuccess || hasLowConfidence || isMissingCritical;
+  const isMissingCritical = !name || price === null;
+  const showWarning = !extractionSuccess || isMissingCritical;
 
   return (
     <div className="space-y-3 fade-in">
@@ -101,7 +53,7 @@ export function ProductPreview({
           <div>
             <p className="font-semibold">Please verify product details</p>
             <p className="text-amber-700/80 text-xs mt-0.5">
-              Some fields have lower confidence. Review and correct the details
+              Some fields could not be extracted. Review and correct the details
               on the next step before placing your order.
             </p>
           </div>
@@ -128,12 +80,6 @@ export function ProductPreview({
                   width={120}
                   height={120}
                   className="w-full h-full object-contain p-2"
-                  // onError={(e) => {
-                  //   e.currentTarget.style.display = "none";
-                  //   e.currentTarget.nextElementSibling?.classList.remove(
-                  //     "hidden"
-                  //   );
-                  // }}
                 />
                 <PackageSearchIcon className="hidden size-10 text-stone-300" />
               </div>
@@ -152,7 +98,6 @@ export function ProductPreview({
                 <p className="text-xs font-semibold uppercase tracking-wider text-stone-400">
                   Product
                 </p>
-                <ConfidenceBadge confidence={fields.name.confidence} />
               </div>
               <p className="font-semibold text-stone-800 leading-snug line-clamp-3 text-sm">
                 {name ?? (
@@ -170,13 +115,13 @@ export function ProductPreview({
                 <span className="text-sm font-semibold text-stone-700 block">
                   Price:
                 </span>
-                {priceNum ? (
+                {price !== null ? (
                   <div className="text-stone-800 self-end">
                     <span className="text-xs font-medium text-stone-500 mr-0.5">
                       {currency ?? "USD"}
                     </span>
                     <p className="text-bold text-base inline-block">
-                      {priceNum.toFixed(2)}
+                      {price.toFixed(2)}
                     </p>
                   </div>
                 ) : (
@@ -186,10 +131,10 @@ export function ProductPreview({
                 )}
               </div>
 
-              {currency && !priceNum && (
+              {brand && (
                 <div className="flex items-center gap-5 justify-between">
-                  <p className="text-sm font-semibold text-stone-700">Currency</p>
-                  <p className="font-semibold text-stone-800 text-sm self-end">{currency}</p>
+                  <p className="text-sm font-semibold text-stone-700">Brand</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end">{brand}</p>
                 </div>
               )}
 
@@ -207,17 +152,10 @@ export function ProductPreview({
                 </div>
               )}
 
-              {volume && (
-                <div className="flex items-center gap-5 justify-between">
-                  <p className="text-sm font-semibold text-stone-700">Volume</p>
-                  <p className="font-semibold text-stone-800 text-sm self-end">{volume}</p>
-                </div>
-              )}
-
               {platform && (
                 <div className="flex items-center gap-5 justify-between">
                   <p className="text-sm font-semibold text-stone-700">Platform</p>
-                  <p className="font-semibold text-stone-800 text-sm self-end">{platform}</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end capitalize">{platform}</p>
                 </div>
               )}
 
@@ -240,7 +178,6 @@ export function ProductPreview({
               View original listing
             </a>
           </div>
-          {/* </div> */}
         </CardContent>
         <CardFooter className="justify-between border-t">
           <Button
