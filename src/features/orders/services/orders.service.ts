@@ -13,52 +13,11 @@ import {
 import { logger } from "@/lib/logger";
 import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
 import type { PaginatedDataResponse } from "@/types/api";
-import type { DbOrder, DbAuditLog, OrderPricingBreakdown } from "@/types/db";
+import type { DbOrder, DbAuditLog } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList, type OrderExtractionMetadata } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { APIError } from "@/lib/auth/api-helpers";
-
-// ── DB queries ────────────────────────────────────────────────────────────────
-
-interface OrderInsert {
-  user_id: string;
-  product_url: string;
-  product_name: string;
-  product_image_url?: string | null;
-  estimated_price_usd: number;
-  quantity: number;
-  origin_country: "USA" | "UK" | "CHINA";
-  special_instructions?: string | null;
-  pricing: OrderPricingBreakdown;
-  status: string;
-  needs_review?: boolean;
-  review_reasons?: string[];
-  extraction_metadata?: Record<string, unknown> | null;
-  extraction_data?: Record<string, unknown> | null;
-}
-
-async function insertOrder(
-  client: SupabaseClient,
-  order: OrderInsert
-): Promise<DbOrder | null> {
-  const { data, error } = await client
-    .from("orders")
-    .insert(order)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error("insertOrder failed", {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-    });
-    return null;
-  }
-  return data as DbOrder;
-}
 
 export async function getOrderById(
   client: SupabaseClient,
