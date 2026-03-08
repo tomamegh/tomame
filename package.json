@@ -27,12 +27,7 @@
     "clsx": "^2.1.1",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.6",
-<<<<<<< HEAD
     "lucide-react": "^0.575.0",
-=======
-    "lightningcss-linux-x64-gnu": "^1.31.1",
-    "lucide-react": "^0.577.0",
->>>>>>> c3062c266523294ebe1dbdcdf54d54d66136bf5c
     "motion": "^12.34.2",
     "next": "^16.1.6",
     "next-swagger-doc": "^0.4.1",
