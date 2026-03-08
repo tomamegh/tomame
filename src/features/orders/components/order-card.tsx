@@ -22,7 +22,7 @@ export function OrderCard({ order }: OrderCardProps) {
                 {order.originCountry}
               </span>
             </div>
-            <a
+            <Link
               href={order.productUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -30,7 +30,7 @@ export function OrderCard({ order }: OrderCardProps) {
             >
               <ExternalLinkIcon className="w-3 h-3 shrink-0" />
               <span className="truncate">{order.productUrl}</span>
-            </a>
+            </Link>
             <p className="text-xs text-stone-400 mt-1">
               Qty: {order.quantity} · Est. ${order.estimatedPriceUsd}
             </p>
