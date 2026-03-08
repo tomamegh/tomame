@@ -46,4 +46,10 @@ describe("resolvePlatform", () => {
   it("should return null for empty string", () => {
     expect(resolvePlatform("")).toBeNull();
   });
+
+  it("should resolve a.co short URLs (Amazon mobile sharing)", () => {
+    expect(resolvePlatform("https://a.co/d/0cdrsoXt")).toBe(
+      SupportedPlatform.AMAZON,
+    );
+  });
 });

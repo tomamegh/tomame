@@ -6,7 +6,6 @@ import {
   ExtractionSchemaType,
   extractProductSchema,
 } from "@/features/extraction/schema";
-import { useEnabledStores } from "@/features/stores/hooks/useStores";
 import {
   InputGroup,
   InputGroupAddon,
@@ -25,7 +24,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { LinkIcon, ScanSearchIcon } from "lucide-react";
 import { Field } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+
+// Hardcoded supported stores (matches scraper domains)
+const SUPPORTED_STORES = [
+  { id: "amazon", name: "Amazon" },
+  // Add more as scrapers are implemented:
+  // { id: "ebay", name: "eBay" },
+  // { id: "aliexpress", name: "AliExpress" },
+];
 
 interface ExtractionFormProps {
   onSubmit: (url: string) => void;
@@ -91,9 +97,6 @@ const ExtractionInput: React.FC<ExtractionFormProps> = ({
 };
 
 export function ExtractionForm({ onSubmit, isLoading }: ExtractionFormProps) {
-  const { data: storesData, isLoading: storesLoading } = useEnabledStores();
-  const stores = storesData?.stores ?? [];
-
   return (
     <Card className="rounded-2xl bg-white/80 backdrop-blur-sm">
       {/* Header */}
@@ -111,36 +114,22 @@ export function ExtractionForm({ onSubmit, isLoading }: ExtractionFormProps) {
         <ExtractionInput onSubmit={onSubmit} isLoading={isLoading} />
       </CardContent>
 
-      {/* Supported stores — live from DB */}
+      {/* Supported stores */}
       <CardFooter className="flex-col items-start mt-2">
         <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-2.5">
           Supported stores
         </p>
-
-        {storesLoading ? (
-          // Skeleton chips while loading
-          <div className="flex flex-wrap gap-1.5" aria-busy="true">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton
-                key={i}
-                className="h-7 w-10 rounded-full"
-                style={{ width: `${60 + (i % 3) * 20}px` }}
-              />
-            ))}
-          </div>
-        ) : stores.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {stores.map((store) => (
-              <Badge
-                key={store.id}
-                variant="outline"
-                className="text-xs text-stone-600 h-7"
-              >
-                {store.displayName}
-              </Badge>
-            ))}
-          </div>
-        ) : null}
+        <div className="flex flex-wrap gap-1.5">
+          {SUPPORTED_STORES.map((store) => (
+            <Badge
+              key={store.id}
+              variant="outline"
+              className="text-xs text-stone-600 h-7"
+            >
+              {store.name}
+            </Badge>
+          ))}
+        </div>
       </CardFooter>
     </Card>
   );

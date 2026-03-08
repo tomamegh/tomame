@@ -174,6 +174,7 @@ export class AmazonScraper extends PlatformScraper {
     "amazon.com.au",
     "amazon.in",
     "amazon.co.jp",
+    "a.co", // Amazon short URL (mobile app sharing)
   ];
 
   public async scrape(url: string): Promise<ScrapedProduct> {
