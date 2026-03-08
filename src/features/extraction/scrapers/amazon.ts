@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import { PlatformScraper, type ScrapedProduct } from "./types";
+import { browserlessClient } from "@/lib/browserless/client";
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
@@ -216,3 +217,6 @@ export class AmazonScraper extends PlatformScraper {
     };
   }
 }
+
+/** Singleton instance for direct use / tests */
+export const amazonScraper = new AmazonScraper(browserlessClient);
