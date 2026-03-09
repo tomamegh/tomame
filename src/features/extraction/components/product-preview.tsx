@@ -28,6 +28,7 @@ export function ProductPreview({
   const weight = product.weight;
   const dimensions = product.dimensions;
   const brand = product.brand;
+  const category = product.category;
 
   const isMissingCritical = !name || price === null;
   const showWarning = !extractionSuccess || isMissingCritical;
@@ -135,6 +136,13 @@ export function ProductPreview({
                 <div className="flex items-center gap-5 justify-between">
                   <p className="text-sm font-semibold text-stone-700">Brand</p>
                   <p className="font-semibold text-stone-800 text-sm self-end">{brand}</p>
+                </div>
+              )}
+
+              {category && (
+                <div className="flex items-center gap-5 justify-between">
+                  <p className="text-sm font-semibold text-stone-700">Category</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end">{category}</p>
                 </div>
               )}
 
