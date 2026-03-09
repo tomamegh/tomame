@@ -17,6 +17,8 @@ export interface ScrapedProduct {
   brand: string | null;
   /** Product category (mapped to Tomame category) */
   category: TomameCategory | null;
+  /** Selected color (the one shown / default on the page) */
+  color: string | null;
   /** Selected size (the one shown / default on the page) */
   size: string | null;
   /** Weight as listed on the page */

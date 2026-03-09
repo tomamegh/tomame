@@ -73,6 +73,19 @@ function extractAllImages($: CheerioAPI): string[] {
   return images;
 }
 
+function extractColor($: CheerioAPI, specs: Record<string, string>): string | null {
+  // Try the selected color variant swatch first
+  const selected = $("#variation_color_name .selection").first().text().trim();
+  if (selected) return selected;
+
+  // Fall back to specs table
+  for (const key of Object.keys(specs)) {
+    if (/^colou?r$/i.test(key)) return specs[key] ?? null;
+  }
+
+  return null;
+}
+
 function extractSelectedSize($: CheerioAPI): string | null {
   const selected = text($, "#native_dropdown_selected_size_name option[selected]");
   if (selected && selected !== "Select") return selected;
@@ -219,6 +232,7 @@ export class AmazonScraper extends PlatformScraper {
       description: extractDescription($),
       brand: extractBrand($),
       category: extractCategory($),
+      color: extractColor($, specifications),
       size: extractSelectedSize($),
       weight: extractWeight(specifications),
       dimensions: extractDimensions(specifications),

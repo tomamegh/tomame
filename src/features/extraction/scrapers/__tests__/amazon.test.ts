@@ -60,6 +60,12 @@ describe("amazonScraper", () => {
     });
   });
 
+  describe("color", () => {
+    it("should extract the product color", () => {
+      expect(result.color).toBeTruthy();
+    });
+  });
+
   describe("description", () => {
     it("should extract the about this item bullets", () => {
       expect(result.description).toBeTruthy();
