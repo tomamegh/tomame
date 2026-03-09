@@ -1,4 +1,4 @@
-// Tomame canonical categories
+// Tomame canonical categories (shippable items only)
 export enum TomameCategory {
   // Electronics & Computers
   ELECTRONICS = "Electronics",
@@ -55,7 +55,6 @@ export enum TomameCategory {
   EXERCISE_FITNESS = "Exercise & Fitness",
   OUTDOOR_RECREATION = "Outdoor Recreation",
   SPORTS_FAN = "Sports Fan Shop",
-  HUNTING_FISHING = "Hunting & Fishing",
   CYCLING = "Cycling",
 
   // Baby & Kids
@@ -67,13 +66,9 @@ export enum TomameCategory {
   AUTOMOTIVE = "Automotive",
   CAR_CARE = "Car Care",
   CAR_ELECTRONICS = "Car Electronics & Accessories",
-  MOTORCYCLE = "Motorcycle & Powersports",
-  TIRES_WHEELS = "Tires & Wheels",
 
   // Books & Media
   BOOKS = "Books",
-  KINDLE_EBOOKS = "Kindle eBooks",
-  AUDIBLE = "Audible Audiobooks",
   MUSIC = "Music",
   MOVIES_TV = "Movies & TV",
   MUSICAL_INSTRUMENTS = "Musical Instruments",
@@ -86,41 +81,16 @@ export enum TomameCategory {
 
   // Pet Supplies
   PET_SUPPLIES = "Pet Supplies",
-  DOG_SUPPLIES = "Dog Supplies",
-  CAT_SUPPLIES = "Cat Supplies",
-  FISH_AQUATIC = "Fish & Aquatic Pets",
-  BIRD_SUPPLIES = "Bird Supplies",
-
-  // Food & Grocery
-  GROCERY = "Grocery & Gourmet Food",
-  SNACKS = "Snacks & Sweets",
-  BEVERAGES = "Beverages",
-
-  // Industrial & Scientific
-  INDUSTRIAL_SCIENTIFIC = "Industrial & Scientific",
-  LAB_SCIENTIFIC = "Lab & Scientific Products",
-  JANITORIAL = "Janitorial & Sanitation",
 
   // Arts & Crafts
   ARTS_CRAFTS = "Arts, Crafts & Sewing",
   CRAFT_SUPPLIES = "Craft Supplies",
   FABRIC = "Fabric",
-  SCRAPBOOKING = "Scrapbooking & Stamping",
-  KNITTING_CROCHET = "Knitting & Crochet",
-  BEADING_JEWELRY_MAKING = "Beading & Jewelry Making",
-  PAINTING_DRAWING = "Painting, Drawing & Art Supplies",
 
   // Collectibles & Memorabilia
   COLLECTIBLES = "Collectibles & Fine Art",
   ANTIQUES = "Antiques",
-  COINS_CURRENCY = "Coins & Currency",
   SPORTS_COLLECTIBLES = "Sports Collectibles",
-
-  // Software
-  SOFTWARE = "Software",
-
-  // Gift Cards
-  GIFT_CARDS = "Gift Cards",
 
   // Other
   OTHER = "Other",
