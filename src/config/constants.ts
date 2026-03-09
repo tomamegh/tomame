@@ -54,4 +54,3 @@ export const ORIGIN_COUNTRIES = {
 
 export type OriginCountry =
   (typeof ORIGIN_COUNTRIES)[keyof typeof ORIGIN_COUNTRIES];
-
