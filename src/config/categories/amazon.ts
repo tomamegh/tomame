@@ -1,6 +1,6 @@
 import { TomameCategory } from "./tomame_category";
 
-// Amazon category strings mapped to Tomame categories
+// Amazon category strings mapped to Tomame categories (shippable items only)
 export const AMAZON_CATEGORY_MAP = new Map<string, TomameCategory>([
   // Electronics & Computers
   ["Electronics", TomameCategory.ELECTRONICS],
@@ -70,7 +70,6 @@ export const AMAZON_CATEGORY_MAP = new Map<string, TomameCategory>([
   ["Exercise & Fitness", TomameCategory.EXERCISE_FITNESS],
   ["Outdoor Recreation", TomameCategory.OUTDOOR_RECREATION],
   ["Sports Fan Shop", TomameCategory.SPORTS_FAN],
-  ["Hunting & Fishing", TomameCategory.HUNTING_FISHING],
   ["Cycling", TomameCategory.CYCLING],
 
   // Baby & Kids
@@ -83,20 +82,12 @@ export const AMAZON_CATEGORY_MAP = new Map<string, TomameCategory>([
   ["Automotive Parts & Accessories", TomameCategory.AUTOMOTIVE],
   ["Car Care", TomameCategory.CAR_CARE],
   ["Car Electronics & Accessories", TomameCategory.CAR_ELECTRONICS],
-  ["Motorcycle & Powersports", TomameCategory.MOTORCYCLE],
-  ["Tires & Wheels", TomameCategory.TIRES_WHEELS],
 
-  // Books & Media
+  // Books & Media (physical only)
   ["Books", TomameCategory.BOOKS],
-  ["Kindle Store", TomameCategory.KINDLE_EBOOKS],
-  ["Kindle eBooks", TomameCategory.KINDLE_EBOOKS],
-  ["Audible Books & Originals", TomameCategory.AUDIBLE],
-  ["Audible Audiobooks", TomameCategory.AUDIBLE],
   ["Music", TomameCategory.MUSIC],
   ["CDs & Vinyl", TomameCategory.MUSIC],
-  ["Digital Music", TomameCategory.MUSIC],
   ["Movies & TV", TomameCategory.MOVIES_TV],
-  ["Prime Video", TomameCategory.MOVIES_TV],
   ["Musical Instruments", TomameCategory.MUSICAL_INSTRUMENTS],
 
   // Office & School
@@ -108,56 +99,31 @@ export const AMAZON_CATEGORY_MAP = new Map<string, TomameCategory>([
 
   // Pet Supplies
   ["Pet Supplies", TomameCategory.PET_SUPPLIES],
-  ["Dogs", TomameCategory.DOG_SUPPLIES],
-  ["Cats", TomameCategory.CAT_SUPPLIES],
-  ["Fish & Aquatic Pets", TomameCategory.FISH_AQUATIC],
-  ["Birds", TomameCategory.BIRD_SUPPLIES],
-
-  // Food & Grocery
-  ["Grocery & Gourmet Food", TomameCategory.GROCERY],
-  ["Grocery", TomameCategory.GROCERY],
-  ["Snacks & Sweets", TomameCategory.SNACKS],
-  ["Beverages", TomameCategory.BEVERAGES],
-  ["Prime Pantry", TomameCategory.GROCERY],
-  ["Amazon Fresh", TomameCategory.GROCERY],
-  ["Whole Foods Market", TomameCategory.GROCERY],
-
-  // Industrial & Scientific
-  ["Industrial & Scientific", TomameCategory.INDUSTRIAL_SCIENTIFIC],
-  ["Lab & Scientific Products", TomameCategory.LAB_SCIENTIFIC],
-  ["Janitorial & Sanitation Supplies", TomameCategory.JANITORIAL],
+  ["Dogs", TomameCategory.PET_SUPPLIES],
+  ["Cats", TomameCategory.PET_SUPPLIES],
+  ["Fish & Aquatic Pets", TomameCategory.PET_SUPPLIES],
+  ["Birds", TomameCategory.PET_SUPPLIES],
 
   // Arts & Crafts
   ["Arts, Crafts & Sewing", TomameCategory.ARTS_CRAFTS],
   ["Craft Supplies", TomameCategory.CRAFT_SUPPLIES],
   ["Fabric", TomameCategory.FABRIC],
-  ["Scrapbooking & Stamping", TomameCategory.SCRAPBOOKING],
-  ["Knitting & Crochet", TomameCategory.KNITTING_CROCHET],
-  ["Beading & Jewelry Making", TomameCategory.BEADING_JEWELRY_MAKING],
-  ["Painting, Drawing & Art Supplies", TomameCategory.PAINTING_DRAWING],
+  ["Scrapbooking & Stamping", TomameCategory.ARTS_CRAFTS],
+  ["Knitting & Crochet", TomameCategory.ARTS_CRAFTS],
+  ["Beading & Jewelry Making", TomameCategory.ARTS_CRAFTS],
+  ["Painting, Drawing & Art Supplies", TomameCategory.ARTS_CRAFTS],
 
   // Collectibles & Memorabilia
   ["Collectibles & Fine Art", TomameCategory.COLLECTIBLES],
   ["Antiques", TomameCategory.ANTIQUES],
-  ["Coins & Currency", TomameCategory.COINS_CURRENCY],
   ["Sports Collectibles", TomameCategory.SPORTS_COLLECTIBLES],
   ["Entertainment Collectibles", TomameCategory.COLLECTIBLES],
 
-  // Software
-  ["Software", TomameCategory.SOFTWARE],
-  ["Apps & Games", TomameCategory.SOFTWARE],
-
-  // Gift Cards
-  ["Gift Cards", TomameCategory.GIFT_CARDS],
-  ["Amazon Gift Cards", TomameCategory.GIFT_CARDS],
-
-  // Amazon-specific categories
+  // Amazon-specific categories -> map to OTHER
   ["Amazon Basics", TomameCategory.OTHER],
   ["Amazon Renewed", TomameCategory.OTHER],
   ["Amazon Warehouse", TomameCategory.OTHER],
   ["Best Sellers", TomameCategory.OTHER],
   ["New Releases", TomameCategory.OTHER],
   ["Today's Deals", TomameCategory.OTHER],
-  ["Customer Service", TomameCategory.OTHER],
-  ["Sell", TomameCategory.OTHER],
 ]);
