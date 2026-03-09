@@ -1,14 +1,17 @@
 import { PlatformScraper } from "./types";
 import { AmazonScraper } from "./amazon";
+import { WalmartScraper } from "./walmart";
 import { browserlessClient, type BrowserlessClient } from "@/lib/browserless/client";
 
 export enum SupportedPlatform {
   AMAZON = "amazon",
+  WALMART = "walmart",
 }
 
 /** Platform → scraper class mapping. Add new platforms here. */
 const scraperClasses: Record<SupportedPlatform, new (b: BrowserlessClient) => PlatformScraper> = {
   [SupportedPlatform.AMAZON]: AmazonScraper,
+  [SupportedPlatform.WALMART]: WalmartScraper,
 };
 
 /** Instantiated scrapers keyed by platform (lazy singleton per platform). */

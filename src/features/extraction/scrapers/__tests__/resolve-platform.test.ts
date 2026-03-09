@@ -52,4 +52,22 @@ describe("resolvePlatform", () => {
       SupportedPlatform.AMAZON,
     );
   });
+
+  it("should resolve walmart.com URLs", () => {
+    expect(resolvePlatform("https://www.walmart.com/ip/some-product/12345")).toBe(
+      SupportedPlatform.WALMART,
+    );
+  });
+
+  it("should resolve bare walmart.com without www", () => {
+    expect(resolvePlatform("https://walmart.com/ip/some-product/12345")).toBe(
+      SupportedPlatform.WALMART,
+    );
+  });
+
+  it("should resolve walmart.ca URLs", () => {
+    expect(resolvePlatform("https://www.walmart.ca/ip/some-product/12345")).toBe(
+      SupportedPlatform.WALMART,
+    );
+  });
 });
