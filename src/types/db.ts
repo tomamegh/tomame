@@ -72,6 +72,10 @@ export interface OrderPricingBreakdown {
   total_pesewas: number;
   region: "USA" | "UK" | "CHINA";
   service_fee_percentage: number;
+  /** When true, total_ghs comes from the static price list (all-inclusive, no formula) */
+  is_static_price: boolean;
+  /** ID of the matched static_price_list row, if any */
+  static_price_id: string | null;
 }
 
 export interface DbNotification {
@@ -102,6 +106,20 @@ export interface DbPricingConfig {
   exchange_rate: number;
   service_fee_percentage: number;
   last_updated: string;
+  updated_by: string | null;
+}
+
+export interface DbStaticPriceItem {
+  id: string;
+  category: string;
+  product_name: string;
+  price_ghs: number;
+  price_min_ghs: number | null;
+  price_max_ghs: number | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
   updated_by: string | null;
 }
 

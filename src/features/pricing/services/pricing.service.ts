@@ -183,14 +183,74 @@ const FALLBACK_PRICING: Record<
  * Falls back to hardcoded defaults if the DB row is missing.
  * This is the SINGLE SOURCE OF TRUTH for all money math.
  *
- * Formula: total_ghs = (item_price * qty + shipping + service_fee) * exchange_rate
+ * If a static_price_id is provided and valid, the total is the fixed GHS amount
+ * from the static price list — no shipping, service fee, or exchange rate applied.
+ *
+ * Otherwise, uses the dynamic formula:
+ * total_ghs = (item_price * qty + shipping + service_fee) * exchange_rate
  * Where: service_fee = item_price * qty * service_fee_percentage
  */
 export async function calculatePricing(
   itemPriceUsd: number,
   quantity: number,
   region: "USA" | "UK" | "CHINA",
+  options?: {
+    /** If provided, use the fixed GHS price from the static price list */
+    staticPriceId?: string;
+    /** Override for the static GHS price (for range items where admin picks the exact price) */
+    staticPriceOverrideGhs?: number;
+  },
 ): Promise<ServiceResult<OrderPricingBreakdown>> {
+  // ── Static pricing path ──────────────────────────────────────────────────
+  if (options?.staticPriceId) {
+    const { getById } = await import("./static-pricing.service");
+    const result = await getById(options.staticPriceId);
+
+    if (!result.success) {
+      return { success: false, error: result.error, status: result.status };
+    }
+
+    const staticItem = result.data;
+    let priceGhs = staticItem.priceGhs;
+
+    // Allow admin override for range-priced items
+    if (options.staticPriceOverrideGhs != null) {
+      const min = staticItem.priceMinGhs ?? priceGhs;
+      const max = staticItem.priceMaxGhs ?? priceGhs;
+      if (options.staticPriceOverrideGhs < min || options.staticPriceOverrideGhs > max) {
+        return {
+          success: false,
+          error: `Price override GH₵ ${options.staticPriceOverrideGhs} is outside allowed range GH₵ ${min} – GH₵ ${max}`,
+          status: 400,
+        };
+      }
+      priceGhs = options.staticPriceOverrideGhs;
+    }
+
+    const totalGhs = roundTo2(priceGhs * quantity);
+    const totalPesewas = Math.round(totalGhs * 100);
+
+    return {
+      success: true,
+      data: {
+        item_price_usd: itemPriceUsd,
+        quantity,
+        subtotal_usd: 0,
+        shipping_fee_usd: 0,
+        service_fee_usd: 0,
+        total_usd: 0,
+        exchange_rate: 0,
+        total_ghs: totalGhs,
+        total_pesewas: totalPesewas,
+        region,
+        service_fee_percentage: 0,
+        is_static_price: true,
+        static_price_id: options.staticPriceId,
+      },
+    };
+  }
+
+  // ── Dynamic pricing path (existing formula) ──────────────────────────────
   const config =
     (await getPricingConfigByRegion(createAdminClient(), region)) ??
     FALLBACK_PRICING[region];
@@ -216,6 +276,8 @@ export async function calculatePricing(
       total_pesewas: totalPesewas,
       region,
       service_fee_percentage: config.service_fee_percentage,
+      is_static_price: false,
+      static_price_id: null,
     },
   };
 }

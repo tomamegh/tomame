@@ -238,6 +238,7 @@ export class WalmartScraper extends PlatformScraper {
     const result = await this.browserless.scrapeContent({
       url,
       waitForSelector: "h1",
+      stealth: true,
     });
 
     if (!result.success || !result.html) {

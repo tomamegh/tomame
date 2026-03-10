@@ -17,6 +17,8 @@ interface ScrapeContentOptions {
   timeout?: number;
   /** Wait for a specific selector before returning (e.g. "#productTitle") */
   waitForSelector?: string;
+  /** Enable stealth mode to bypass bot detection (e.g. Walmart PerimeterX) */
+  stealth?: boolean;
 }
 
 interface ScrapeContentResult {
@@ -42,7 +44,7 @@ export class BrowserlessClient {
    * Fetch the fully-rendered HTML content of a page.
    */
   public async scrapeContent(options: ScrapeContentOptions): Promise<ScrapeContentResult> {
-    const { url, timeout = 15000, waitForSelector } = options;
+    const { url, timeout = 15000, waitForSelector, stealth = false } = options;
     const apiKey = getApiKey();
 
     try {
@@ -61,7 +63,8 @@ export class BrowserlessClient {
         };
       }
 
-      const response = await fetch(`${this.apiUrl}/content?token=${apiKey}`, {
+      const stealthParam = stealth ? "&stealth" : "";
+      const response = await fetch(`${this.apiUrl}/content?token=${apiKey}${stealthParam}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

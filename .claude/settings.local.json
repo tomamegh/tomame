@@ -7,7 +7,16 @@
       "Bash(bun run:*)",
       "Bash(ls:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(xargs sed:*)"
+      "Bash(xargs sed:*)",
+      "Bash(npm run:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:www.walmart.com)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(BROWSERLESS_API_KEY=2U6rlNviRAIsTg3597f0a01c65b1663981657d2d85058011e node:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:m.shein.com)"
     ]
   },
   "enableAllProjectMcpServers": true,
