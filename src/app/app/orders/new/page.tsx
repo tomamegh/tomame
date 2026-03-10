@@ -10,7 +10,7 @@ import {
   AlertCircleIcon,
   ScanSearchIcon,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -33,7 +33,7 @@ type Step = "extracting" | "error" | "preview" | "ordering" | "success";
 
 interface CreatedOrder {
   id: string;
-  productName: string;
+  product_name: string;
 }
 
 function ExtractionSkeleton() {
@@ -138,23 +138,24 @@ function OrderSuccess({
   onReset: () => void;
 }) {
   return (
-    <Card className="border-emerald-200 bg-emerald-50/50 fade-in">
-      <CardContent className="flex flex-col items-center justify-center text-center space-y-4 py-10">
-        <div className="size-16 rounded-full bg-emerald-100 flex items-center justify-center">
+    <Card className="fade-in">
+      <CardHeader>
+        <CardTitle>
           <CheckCircle2Icon className="size-8 text-emerald-600" />
-        </div>
+        <h3 className="text-xl font-bold">Order Successfully Placed!</h3>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col items-center justify-center text-center space-y-4 py-10">
         <div className="space-y-1">
-          <h3 className="text-xl font-bold text-emerald-900">
-            Order Successfully Placed!
-          </h3>
-          <p className="text-emerald-700/80 max-w-sm mx-auto text-sm">
+          <p className="max-w-sm mx-auto text-sm">
             We&apos;ve received your request for{" "}
-            <span className="font-semibold">{order.productName}</span>. Our team
+            <span className="font-semibold">{order.product_name}</span>. Our team
             will review it shortly.
           </p>
         </div>
-        <div className="flex items-center gap-3 pt-4">
-          <Button variant="outline" onClick={onReset} className="gap-1.5">
+      </CardContent>
+      <CardFooter className="items-center">
+        <Button variant="outline" onClick={onReset} className="gap-1.5">
             <ScanSearchIcon className="size-3.5" />
             Extract Another
           </Button>
@@ -164,8 +165,7 @@ function OrderSuccess({
               <ArrowRightIcon className="size-4 ml-1" />
             </Link>
           </Button>
-        </div>
-      </CardContent>
+      </CardFooter>
     </Card>
   );
 }
@@ -215,12 +215,12 @@ function NewOrderContent() {
   const { mutateAsync: extractProduct } = useExtractProduct();
   const { mutateAsync: createOrder, isPending: isOrdering } = useCreateOrder();
 
-  useEffect(()=>{
-    if(orderError) {
-      toast.error({title: 'Failed to create order',description: orderError})
+  useEffect(() => {
+    if (orderError) {
+      toast.error({ title: "Failed to create order", description: orderError });
       // toast.error('Failed',{description: orderError})
     }
-  }, [orderError])
+  }, [orderError]);
 
   useEffect(() => {
     if (!url) {
@@ -244,11 +244,11 @@ function NewOrderContent() {
   }, []);
 
   const handleOrderSubmit = async (data: CreateOrderSchemaType) => {
-    console.log('first')
+    console.log("first");
     setOrderError(null);
     createOrder(data, {
       onSuccess: (result) => {
-        setCreatedOrder({ id: result.id, productName: result.productName });
+        setCreatedOrder({ id: result.id, product_name: result.product_name });
         setStep("success");
       },
       onError: (err) => setOrderError(err.message),

@@ -2,10 +2,6 @@ import type { OrderPricingBreakdown } from "@/types/db";
 
 // ── Extraction metadata ───────────────────────────────────────────────────────
 
-/**
- * Full extraction result stored on every order.
- * Matches the ExtractionResult shape from the extraction feature.
- */
 export interface OrderExtractionMetadata {
   extractionAttempted: boolean;
   extractionSuccess: boolean;
@@ -41,44 +37,32 @@ export type OrderStatus =
 
 export type OriginCountry = "USA" | "UK" | "CHINA";
 
-export interface OrderPricing {
-  item_price_usd: number;
-  quantity: number;
-  subtotal_usd: number;
-  shipping_fee_usd: number;
-  service_fee_usd: number;
-  total_usd: number;
-  exchange_rate: number;
-  total_ghs: number;
-  total_pesewas: number;
-  region: OriginCountry;
-  service_fee_percentage: number;
-}
-
+/** Matches the database row shape directly — no camelCase mapping. */
 export interface Order {
   id: string;
-  userId: string;
-  productUrl: string;
-  productName: string;
-  productImageUrl: string | null;
-  estimatedPriceUsd: number;
-  quantity: number;
-  originCountry: OriginCountry;
-  specialInstructions: string | null;
+  user_id: string;
+  payment_id: string | null;
   status: OrderStatus;
-  pricing: OrderPricing;
-  needsReview: boolean;
-  reviewReasons: string[];
-  reviewedBy: string | null;
-  reviewedAt: string | null;
-  extractionMetadata: OrderExtractionMetadata | null;
-  extractionData: Record<string, unknown> | null;
-  trackingNumber: string | null;
+  product_url: string;
+  product_name: string;
+  product_image_url: string | null;
+  estimated_price_usd: number;
+  quantity: number;
+  origin_country: OriginCountry;
+  special_instructions: string | null;
+  pricing: OrderPricingBreakdown;
+  tracking_number: string | null;
   carrier: string | null;
-  estimatedDeliveryDate: string | null;
-  deliveredAt: string | null;
-  createdAt: string;
-  updatedAt: string;
+  estimated_delivery_date: string | null;
+  delivered_at: string | null;
+  extraction_data: Record<string, unknown> | null;
+  needs_review: boolean;
+  review_reasons: string[];
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  extraction_metadata: OrderExtractionMetadata | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface OrderList {
@@ -109,29 +93,4 @@ export interface CreateOrderRequest {
   needsReview?: boolean;
   reviewReasons?: string[];
   extractionMetadata?: OrderExtractionMetadata;
-}
-
-export interface OrderResponse {
-  id: string;
-  productUrl: string;
-  productName: string;
-  productImageUrl: string | null;
-  estimatedPriceUsd: number;
-  quantity: number;
-  originCountry: string;
-  specialInstructions: string | null;
-  status: string;
-  pricing: OrderPricingBreakdown;
-  needsReview: boolean;
-  reviewReasons: string[];
-  reviewedBy: string | null;
-  reviewedAt: string | null;
-  extractionMetadata: OrderExtractionMetadata | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface OrderListResponse {
-  orders: OrderResponse[];
-  count: number;
 }

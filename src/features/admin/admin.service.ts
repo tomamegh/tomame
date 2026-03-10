@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ServiceResult } from "@/types/domain";
+import { APIError } from "@/lib/auth/api-helpers";
 import type { DashboardData } from "./types";
 import { logger } from "@/lib/logger";
 
 export async function getDashboardData(
   client: SupabaseClient,
-): Promise<ServiceResult<DashboardData>> {
+): Promise<DashboardData> {
   try {
     const thirtyDaysAgo = new Date(
       Date.now() - 30 * 24 * 60 * 60 * 1000,
@@ -65,7 +65,6 @@ export async function getDashboardData(
         .limit(6),
     ]);
 
-    // ── Stats ───────────────────────────────────────────────
     const totalOrders = totalOrdersRes.count ?? 0;
     const ordersNeedingReview = reviewOrdersRes.count ?? 0;
     const totalRevenueGhs = (revenueOrdersRes.data ?? []).reduce(
@@ -76,7 +75,6 @@ export async function getDashboardData(
       (activeUsersRes.data ?? []).map((o) => o.user_id as string),
     ).size;
 
-    // ── Chart data (last 30 days grouped by day) ────────────
     const chartMap = new Map<
       string,
       { orders: number; revenueGhs: number; userIds: Set<string> }
@@ -106,20 +104,17 @@ export async function getDashboardData(
       users: e.userIds.size,
     }));
 
-    // ── Latest orders ────────────────────────────────────────
     const latestOrders = (latestOrdersRes.data ?? []).map((o) => ({
       id: o.id as string,
       productName: o.product_name as string,
       status: o.status as string,
       originCountry: o.origin_country as string,
-      totalGhs:
-        (o.pricing as { total_ghs?: number })?.total_ghs ?? null,
+      totalGhs: (o.pricing as { total_ghs?: number })?.total_ghs ?? null,
       quantity: o.quantity as number,
       needsReview: o.needs_review as boolean,
       createdAt: o.created_at as string,
     }));
 
-    // ── Latest deliveries ────────────────────────────────────
     const latestDeliveries = (latestDeliveriesRes.data ?? []).map((o) => ({
       id: o.id as string,
       productName: o.product_name as string,
@@ -130,7 +125,6 @@ export async function getDashboardData(
       createdAt: o.created_at as string,
     }));
 
-    // ── Latest transactions ──────────────────────────────────
     const latestTransactions = (latestTransactionsRes.data ?? []).map((p) => ({
       id: p.id as string,
       reference: p.reference as string,
@@ -140,17 +134,15 @@ export async function getDashboardData(
     }));
 
     return {
-      success: true,
-      data: {
-        stats: { totalOrders, ordersNeedingReview, totalRevenueGhs, activeUsers },
-        chartData,
-        latestOrders,
-        latestDeliveries,
-        latestTransactions,
-      },
+      stats: { totalOrders, ordersNeedingReview, totalRevenueGhs, activeUsers },
+      chartData,
+      latestOrders,
+      latestDeliveries,
+      latestTransactions,
     };
   } catch (err) {
+    if (err instanceof APIError) throw err;
     logger.error("getDashboardData failed", { error: err });
-    return { success: false, error: "Failed to load dashboard data", status: 500 };
+    throw new APIError(500, "Failed to load dashboard data");
   }
 }

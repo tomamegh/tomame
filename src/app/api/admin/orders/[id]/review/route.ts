@@ -33,10 +33,8 @@ export async function POST(
     if (!admin.ok) throw new APIError(admin.status, admin.error);
 
     const { id } = await params;
-    const result = await reviewOrder(createAdminClient(), admin.user, id, parsed.data);
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await reviewOrder(createAdminClient(), admin.user, id, parsed.data);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }

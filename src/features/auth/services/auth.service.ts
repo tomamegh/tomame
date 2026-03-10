@@ -2,20 +2,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { logger } from "@/lib/logger";
-import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
+import { APIError } from "@/lib/auth/api-helpers";
+import type { AuthenticatedUser } from "@/types/domain";
 import type { MessageResponse } from "@/types/api";
 import { LoginSchemaType } from "../schema";
 import { AuthUserResponse } from "../types";
 
-/**
- * Register a new user.
- * Supabase sends the confirmation email automatically.
- * The DB trigger (on_auth_user_created) creates the public.users profile row.
- */
 export async function signup(
   email: string,
   password: string,
-): Promise<ServiceResult<AuthUserResponse>> {
+): Promise<AuthUserResponse> {
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signUp({ email, password });
@@ -25,14 +21,14 @@ export async function signup(
       error.status === 422 ||
       error.message.toLowerCase().includes("already registered")
     ) {
-      return { success: false, error: "Email already registered", status: 409 };
+      throw new APIError(409, "Email already registered");
     }
     logger.error("Supabase signUp failed", { error: error.message });
-    return { success: false, error: "Registration failed", status: 500 };
+    throw new APIError(500, "Registration failed");
   }
 
   if (!data.user) {
-    return { success: false, error: "Registration failed", status: 500 };
+    throw new APIError(500, "Registration failed");
   }
 
   await logAuditEvent({
@@ -43,25 +39,18 @@ export async function signup(
     entityId: data.user.id,
   });
 
-  return {
-    success: true,
-    data: { id: data.user.id, email: data.user.email!, role: "user" },
-  };
+  return { id: data.user.id, email: data.user.email!, role: "user" };
 }
 
-/**
- * Log in a user. Sets session cookies via @supabase/ssr server client.
- * Returns the authoritative user role from the users table.
- */
 export async function login(
   details: LoginSchemaType,
-): Promise<ServiceResult<AuthUserResponse>> {
+): Promise<AuthUserResponse> {
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signInWithPassword(details);
 
   if (error) {
-    return { success: false, error: "Invalid email or password", status: 401 };
+    throw new APIError(401, "Invalid email or password");
   }
 
   const { data: dbUser } = await supabase
@@ -71,7 +60,7 @@ export async function login(
     .single();
 
   if (!dbUser) {
-    return { success: false, error: "User record not found", status: 500 };
+    throw new APIError(500, "User record not found");
   }
 
   await logAuditEvent({
@@ -82,10 +71,7 @@ export async function login(
     entityId: dbUser.id,
   });
 
-  return {
-    success: true,
-    data: { email: data.user.email!, id: data.user.id, role: dbUser.role },
-  };
+  return { email: data.user.email!, id: data.user.id, role: dbUser.role };
 }
 
 /**
@@ -94,7 +80,7 @@ export async function login(
  */
 export async function forgotPassword(
   email: string,
-): Promise<ServiceResult<MessageResponse>> {
+): Promise<MessageResponse> {
   const supabase = await createClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
@@ -106,7 +92,6 @@ export async function forgotPassword(
     logger.error("resetPasswordForEmail failed", { error: error.message });
   }
 
-  // Look up user to audit log — non-fatal, enumeration-safe
   const { data: userData } = await createAdminClient()
     .from("users")
     .select("id")
@@ -123,50 +108,39 @@ export async function forgotPassword(
     });
   }
 
-  return {
-    success: true,
-    data: { message: "If an account exists, a reset link has been sent" },
-  };
+  return { message: "If an account exists, a reset link has been sent" };
 }
 
-/**
- * Set a new password using an active session (from the reset link callback).
- * The caller (route handler) already verified the session via getAuthenticatedUser().
- */
 export async function resetPassword(
   _userId: string,
   password: string,
-): Promise<ServiceResult<MessageResponse>> {
+): Promise<MessageResponse> {
   const supabase = await createClient();
 
   const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
     logger.error("Reset password failed", { error: error.message });
-    return { success: false, error: "Password reset failed", status: 400 };
+    throw new APIError(400, "Password reset failed");
   }
 
-  return { success: true, data: { message: "Password has been reset" } };
+  return { message: "Password has been reset" };
 }
 
-/**
- * Change password for an authenticated user.
- * The caller (route handler) already verified the session via getAuthenticatedUser().
- */
 export async function changePassword(
   _userId: string,
   newPassword: string,
-): Promise<ServiceResult<MessageResponse>> {
+): Promise<MessageResponse> {
   const supabase = await createClient();
 
   const { error } = await supabase.auth.updateUser({ password: newPassword });
 
   if (error) {
     logger.error("Change password failed", { error: error.message });
-    return { success: false, error: "Password change failed", status: 400 };
+    throw new APIError(400, "Password change failed");
   }
 
-  return { success: true, data: { message: "Password changed successfully" } };
+  return { message: "Password changed successfully" };
 }
 
 /**
@@ -182,7 +156,6 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
 
   if (!authUser) return null;
 
-  // Load user profile — server client has the session so RLS allows the read
   const { data: user, error } = await supabase
     .from("users")
     .select("*")

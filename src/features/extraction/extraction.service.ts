@@ -1,4 +1,4 @@
-import type { ServiceResult } from "@/types/domain";
+import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { resolvePlatform, getScraperByPlatform } from "./scrapers";
 import type { ExtractionResult } from "./types";
@@ -14,7 +14,7 @@ const DOMAIN_COUNTRY_MAP: Record<string, "USA" | "UK" | "CHINA"> = {
   "amazon.com.au": "USA",
   "amazon.in": "CHINA",
   "amazon.co.jp": "CHINA",
-  "a.co": "USA", // Amazon short URL defaults to USA
+  "a.co": "USA",
   "ebay.com": "USA",
   "ebay.co.uk": "UK",
   "walmart.com": "USA",
@@ -41,25 +41,16 @@ function getCountryFromDomain(url: string): "USA" | "UK" | "CHINA" | null {
   }
 }
 
-export async function extractProductData(
-  url: string,
-): Promise<ServiceResult<ExtractionResult>> {
+export async function extractProductData(url: string): Promise<ExtractionResult> {
   const errors: string[] = [];
 
-  // 1. Resolve platform
   const platform = resolvePlatform(url);
   if (!platform) {
-    return {
-      success: false,
-      error: "Unsupported platform",
-      status: 400,
-    };
+    throw new APIError(400, "Unsupported platform");
   }
 
-  // 2. Get the platform-specific scraper (includes browserless client)
   const scraper = getScraperByPlatform(platform);
 
-  // 3. Scrape
   try {
     const product = await scraper.scrape(url);
 
@@ -69,25 +60,17 @@ export async function extractProductData(
     }
 
     return {
-      success: true,
-      data: {
-        extractionAttempted: true,
-        extractionSuccess,
-        platform,
-        country: getCountryFromDomain(url),
-        product,
-        errors,
-        fetchedAt: new Date().toISOString(),
-      },
+      extractionAttempted: true,
+      extractionSuccess,
+      platform,
+      country: getCountryFromDomain(url),
+      product,
+      errors,
+      fetchedAt: new Date().toISOString(),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Scrape failed";
     logger.error("extractProductData failed", { url, platform, error: message });
-
-    return {
-      success: false,
-      error: message,
-      status: 502,
-    };
+    throw new APIError(502, message);
   }
 }

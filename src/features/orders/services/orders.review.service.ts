@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { getOrderById } from "@/features/orders/services/orders.service";
-import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
+import { APIError } from "@/lib/auth/api-helpers";
+import type { AuthenticatedUser } from "@/types/domain";
 import type { Order } from "../types";
 import type { DbOrder } from "@/types/db";
 
@@ -41,43 +42,8 @@ async function updateOrderReview(
   return data as DbOrder;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Map a DB order row to the API response shape */
-function toResponse(order: DbOrder): Order {
-  return {
-    id: order.id,
-    userId: order.user_id,
-    productUrl: order.product_url,
-    productName: order.product_name,
-    productImageUrl: order.product_image_url,
-    estimatedPriceUsd: order.estimated_price_usd,
-    quantity: order.quantity,
-    originCountry: order.origin_country,
-    specialInstructions: order.special_instructions,
-    status: order.status,
-    pricing: order.pricing,
-    needsReview: order.needs_review,
-    reviewReasons: order.review_reasons,
-    reviewedBy: order.reviewed_by,
-    reviewedAt: order.reviewed_at,
-    extractionMetadata: order.extraction_metadata,
-    extractionData: order.extraction_data,
-    trackingNumber: order.tracking_number,
-    carrier: order.carrier,
-    estimatedDeliveryDate: order.estimated_delivery_date,
-    deliveredAt: order.delivered_at,
-    createdAt: order.created_at,
-    updatedAt: order.updated_at,
-  };
-}
-
 // ── Service functions ─────────────────────────────────────────────────────────
 
-/**
- * Admin: review a flagged order (approve or reject).
- * Expects an admin-scoped client (createAdminClient()).
- */
 export async function reviewOrder(
   client: SupabaseClient,
   admin: AuthenticatedUser,
@@ -92,18 +58,18 @@ export async function reviewOrder(
     };
     reason?: string;
   },
-): Promise<ServiceResult<Order>> {
+): Promise<Order> {
   if (admin.role !== "admin") {
-    return { success: false, error: "Admin access required", status: 403 };
+    throw new APIError(403, "Admin access required");
   }
 
   const order = await getOrderById(client, orderId);
   if (!order) {
-    return { success: false, error: "Order not found", status: 404 };
+    throw new APIError(404, "Order not found");
   }
 
   if (!order.needs_review) {
-    return { success: false, error: "Order is not flagged for review", status: 400 };
+    throw new APIError(400, "Order is not flagged for review");
   }
 
   if (input.action === "approve") {
@@ -128,7 +94,7 @@ export async function reviewOrder(
 
     const updated = await updateOrderReview(client, orderId, updates);
     if (!updated) {
-      return { success: false, error: "Failed to approve order", status: 500 };
+      throw new APIError(500, "Failed to approve order");
     }
 
     await logAuditEvent({
@@ -143,7 +109,7 @@ export async function reviewOrder(
       },
     });
 
-    return { success: true, data: toResponse(updated) };
+    return updated as Order;
   }
 
   // Reject: cancel the order
@@ -155,7 +121,7 @@ export async function reviewOrder(
   });
 
   if (!updated) {
-    return { success: false, error: "Failed to reject order", status: 500 };
+    throw new APIError(500, "Failed to reject order");
   }
 
   await logAuditEvent({
@@ -170,5 +136,5 @@ export async function reviewOrder(
     },
   });
 
-  return { success: true, data: toResponse(updated) };
+  return updated as Order;
 }
