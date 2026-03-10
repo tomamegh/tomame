@@ -58,6 +58,8 @@ export const SHEIN_CATEGORY_MAP = new Map<string, TomameCategory>([
   ["Men Underwear", TomameCategory.CLOTHING_MEN],
   ["Men Sleepwear", TomameCategory.CLOTHING_MEN],
   ["Men Activewear", TomameCategory.CLOTHING_MEN],
+  ["Men Co-ords", TomameCategory.CLOTHING_MEN],
+  ["Men Shirt Co-ords", TomameCategory.CLOTHING_MEN],
 
   // Kids' Clothing
   ["Kids", TomameCategory.CLOTHING_KIDS],
