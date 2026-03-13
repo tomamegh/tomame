@@ -3,6 +3,7 @@ import { AmazonScraper } from "./amazon";
 import { WalmartScraper } from "./walmart";
 import { SheinScraper } from "./shein";
 import { TargetScraper } from "./target";
+import { CostcoScraper } from "./costco";
 import { browserlessClient, type BrowserlessClient } from "@/lib/browserless/client";
 
 export enum SupportedPlatform {
@@ -10,6 +11,7 @@ export enum SupportedPlatform {
   WALMART = "walmart",
   SHEIN = "shein",
   TARGET = "target",
+  COSTCO = "costco",
 }
 
 /** Platform → scraper class mapping. Add new platforms here. */
@@ -18,6 +20,7 @@ const scraperClasses: Record<SupportedPlatform, new (b: BrowserlessClient) => Pl
   [SupportedPlatform.WALMART]: WalmartScraper,
   [SupportedPlatform.SHEIN]: SheinScraper,
   [SupportedPlatform.TARGET]: TargetScraper,
+  [SupportedPlatform.COSTCO]: CostcoScraper,
 };
 
 /** Instantiated scrapers keyed by platform (lazy singleton per platform). */

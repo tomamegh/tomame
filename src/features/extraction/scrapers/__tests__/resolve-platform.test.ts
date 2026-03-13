@@ -70,4 +70,16 @@ describe("resolvePlatform", () => {
       SupportedPlatform.WALMART,
     );
   });
+
+  it("should resolve costco.com URLs", () => {
+    expect(resolvePlatform("https://www.costco.com/p/-/4000398506")).toBe(
+      SupportedPlatform.COSTCO,
+    );
+  });
+
+  it("should resolve bare costco.com without www", () => {
+    expect(resolvePlatform("https://costco.com/some-product.product.12345.html")).toBe(
+      SupportedPlatform.COSTCO,
+    );
+  });
 });

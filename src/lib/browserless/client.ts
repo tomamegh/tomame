@@ -21,6 +21,15 @@ interface ScrapeContentOptions {
   stealth?: boolean;
 }
 
+interface UnblockOptions {
+  /** URL to unblock and fetch */
+  url: string;
+  /** Timeout in milliseconds (default: 30000) */
+  timeout?: number;
+  /** Use residential proxy for stronger anti-bot bypass (default: true) */
+  residentialProxy?: boolean;
+}
+
 interface ScrapeContentResult {
   success: boolean;
   html: string | null;
@@ -90,6 +99,62 @@ export class BrowserlessClient {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       logger.error("browserless scrapeContent exception", { url, error: message });
+      return { success: false, html: null, error: message };
+    }
+  }
+
+  /**
+   * Fetch HTML via the /unblock endpoint which bypasses advanced bot
+   * protection (Akamai, DataDome, etc.) using residential proxies.
+   */
+  public async unblock(options: UnblockOptions): Promise<ScrapeContentResult> {
+    const { url, timeout = 30000, residentialProxy = true } = options;
+    const apiKey = getApiKey();
+
+    try {
+      const proxyParam = residentialProxy ? "&proxy=residential" : "";
+      const response = await fetch(
+        `${this.apiUrl}/unblock?token=${apiKey}${proxyParam}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url,
+            content: true,
+            cookies: false,
+            screenshot: false,
+            browserWSEndpoint: false,
+            ttl: timeout,
+          }),
+          signal: AbortSignal.timeout(timeout + 10000),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "Unknown error");
+        logger.error("browserless unblock failed", {
+          url,
+          status: response.status,
+          error: errorText,
+        });
+        return {
+          success: false,
+          html: null,
+          error: `Browserless unblock error ${response.status}: ${errorText}`,
+        };
+      }
+
+      const data = (await response.json()) as { content?: string };
+      const html = data.content ?? null;
+
+      if (!html) {
+        return { success: false, html: null, error: "Unblock returned empty content" };
+      }
+
+      return { success: true, html, error: null };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      logger.error("browserless unblock exception", { url, error: message });
       return { success: false, html: null, error: message };
     }
   }
