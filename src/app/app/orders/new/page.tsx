@@ -139,22 +139,22 @@ function OrderSuccess({
 }) {
   return (
     <Card className="fade-in">
-      <CardHeader>
-        <CardTitle>
-          <CheckCircle2Icon className="size-8 text-emerald-600" />
+      <CardHeader className="">
+          <div className="rounded-full p-5 bg-green-500/10 w-fit mx-auto">
+            <CheckCircle2Icon className="size-8 text-emerald-600" />
+          </div>
+        <CardTitle className="mx-auto">
         <h3 className="text-xl font-bold">Order Successfully Placed!</h3>
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col items-center justify-center text-center space-y-4 py-10">
-        <div className="space-y-1">
-          <p className="max-w-sm mx-auto text-sm">
+      <CardContent className="">
+        <p className="text-center text-sm text-slate-800">
             We&apos;ve received your request for{" "}
             <span className="font-semibold">{order.product_name}</span>. Our team
             will review it shortly.
           </p>
-        </div>
       </CardContent>
-      <CardFooter className="items-center">
+      <CardFooter className="items-center gap-3 justify-center">
         <Button variant="outline" onClick={onReset} className="gap-1.5">
             <ScanSearchIcon className="size-3.5" />
             Extract Another
