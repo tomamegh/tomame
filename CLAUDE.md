@@ -96,6 +96,15 @@ NOTIFICATIONS: pending → sent | failed (after 3 retries)
 
 All state transitions must be server-side, explicit, validated against current state, and idempotent. Illegal transitions must be rejected.
 
+## Code Conventions
+
+### Error Handling
+- **Service functions throw `APIError`** on errors — never return `{ success: false, ... }` objects. Route handlers catch these via `errorResponse()`.
+- **No `success` field in API responses** — use standard HTTP status codes. `successResponse()` returns `{ data: T }`, `errorResponse()` returns `{ error: string }`.
+
+### Return Values
+- **Service functions return raw data** — no `toResponse()` or `toSomethingResponse()` transforms. Return DB types (`DbStaticPriceItem`, `DbPayment`, etc.) directly and let consumers pick the fields they need. Mapping introduces unnecessary types and causes type mismatches.
+
 ## Security Rules (Non-Negotiable)
 
 - **RLS on every table** — never disable to "make things work"
