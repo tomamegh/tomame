@@ -16,10 +16,8 @@ export async function GET(
 
     const supabase = await createClient();
     const { id } = await params;
-    const result = await getOrder(supabase, auth.user, id);
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await getOrder(supabase, auth.user, id);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }

@@ -20,10 +20,8 @@ export async function GET(request: NextRequest) {
     const admin = requireAdmin(auth.user);
     if (!admin.ok) throw new APIError(admin.status, admin.error);
 
-    const result = await getDashboardData(createAdminClient());
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await getDashboardData(createAdminClient());
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }

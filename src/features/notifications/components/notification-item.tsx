@@ -32,9 +32,9 @@ export function NotificationItem({ notification }: NotificationItemProps) {
         </div>
         <p className="text-xs text-stone-400 mt-0.5 capitalize">
           {notification.channel} ·{" "}
-          {new Date(notification.createdAt).toLocaleDateString()}
-          {notification.sentAt &&
-            ` · Sent ${new Date(notification.sentAt).toLocaleDateString()}`}
+          {new Date(notification.created_at).toLocaleDateString()}
+          {notification.sent_at &&
+            ` · Sent ${new Date(notification.sent_at).toLocaleDateString()}`}
         </p>
       </div>
     </div>

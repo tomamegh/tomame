@@ -1,13 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
-import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
-import type { DbNotification } from "@/types/db";
+import { APIError } from "@/lib/auth/api-helpers";
+import type { AuthenticatedUser } from "@/types/domain";
+import { Notification, NotificationListResponse } from "../types";
 
 async function getNotificationsByUserId(
   client: SupabaseClient,
-  userId: string
-): Promise<DbNotification[]> {
+  userId: string,
+): Promise<Notification[]> {
   const { data, error } = await client
     .from("notifications")
     .select("*")
@@ -15,16 +16,19 @@ async function getNotificationsByUserId(
     .order("created_at", { ascending: false });
 
   if (error) {
-    logger.error("getNotificationsByUserId failed", { userId, error: error.message });
+    logger.error("getNotificationsByUserId failed", {
+      userId,
+      error: error.message,
+    });
     return [];
   }
-  return (data ?? []) as DbNotification[];
+  return (data ?? []) as Notification[];
 }
 
 async function getAllNotifications(
   client: SupabaseClient,
-  filters?: { status?: string; userId?: string; channel?: string }
-): Promise<DbNotification[]> {
+  filters?: { status?: string; userId?: string; channel?: string },
+): Promise<Notification[]> {
   let query = client
     .from("notifications")
     .select("*")
@@ -40,75 +44,29 @@ async function getAllNotifications(
     logger.error("getAllNotifications failed", { error: error.message });
     return [];
   }
-  return (data ?? []) as DbNotification[];
-}
-
-export interface NotificationResponse {
-  id: string;
-  userId: string;
-  channel: "email" | "whatsapp";
-  event: string;
-  payload: Record<string, unknown>;
-  status: "pending" | "sent" | "failed";
-  createdAt: string;
-  sentAt: string | null;
-}
-
-export interface NotificationListResponse {
-  notifications: NotificationResponse[];
-  count: number;
-}
-
-function toResponse(n: DbNotification): NotificationResponse {
-  return {
-    id: n.id,
-    userId: n.user_id,
-    channel: n.channel as "email" | "whatsapp",
-    event: n.event,
-    payload: n.payload,
-    status: n.status as "pending" | "sent" | "failed",
-    createdAt: n.created_at,
-    sentAt: n.sent_at,
-  };
+  return (data ?? []) as Notification[];
 }
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
-/**
- * List notifications for the authenticated user.
- */
 export async function listUserNotifications(
-  user: AuthenticatedUser
-): Promise<ServiceResult<NotificationListResponse>> {
-  const notifications = await getNotificationsByUserId(createAdminClient(), user.id);
-
-  return {
-    success: true,
-    data: {
-      notifications: notifications.map(toResponse),
-      count: notifications.length,
-    },
-  };
+  user: AuthenticatedUser,
+): Promise<NotificationListResponse> {
+  const notifications = await getNotificationsByUserId(
+    createAdminClient(),
+    user.id,
+  );
+  return { notifications, count: notifications.length };
 }
 
-/**
- * Admin: list all notifications with optional filters.
- */
 export async function listAllNotifications(
   user: AuthenticatedUser,
-  filters?: { status?: string; userId?: string; channel?: string }
-): Promise<ServiceResult<NotificationListResponse>> {
+  filters?: { status?: string; userId?: string; channel?: string },
+): Promise<NotificationListResponse> {
   if (user.role !== "admin") {
-    return { success: false, error: "Admin access required", status: 403 };
+    throw new APIError(403, "Admin access required");
   }
 
   const notifications = await getAllNotifications(createAdminClient(), filters);
-
-  return {
-    success: true,
-    data: {
-      notifications: notifications.map(toResponse),
-      count: notifications.length,
-    },
-  };
+  return { notifications, count: notifications.length };
 }

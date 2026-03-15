@@ -7,7 +7,6 @@ import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
-import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,17 +27,13 @@ export async function POST(request: NextRequest) {
     const auth = requireAuth(user);
     if (!auth.ok) throw new APIError(auth.status, auth.error);
 
-    // Validate URL domain against supported platforms (hardcoded in scrapers)
     const platform = resolvePlatform(parsed.data.productUrl);
     if (!platform) {
       throw new APIError(400, "Product URL must be from a supported store");
     }
 
-    const supabase = await createClient();
-    const result = await extractProductData(parsed.data.productUrl, auth.user.id, supabase);
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await extractProductData(parsed.data.productUrl);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }

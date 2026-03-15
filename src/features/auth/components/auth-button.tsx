@@ -8,10 +8,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  BadgeCheckIcon,
-  BellIcon,
-  CreditCardIcon,
   LayoutGridIcon,
+  PackageSearchIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -49,16 +47,16 @@ async function NavbarAuthButton({user}:{user?:JwtPayload | undefined}) {
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem>
-            <BadgeCheckIcon />
-            Account
+            <Link href={"/app/orders"} className="flex items-center gap-2">
+              <PackageSearchIcon />
+              Orders
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem>
-            <CreditCardIcon />
-            Billing
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <BellIcon />
-            Notifications
+            <Link href={"/app/notifications"} className="flex items-center gap-2">
+              <LayoutGridIcon />
+              Notifications
+            </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

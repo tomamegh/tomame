@@ -122,8 +122,8 @@ export const columns: ColumnDef<Transaction>[] = [
 
   // ── Amount ───────────────────────────────────────────────────────────────────
   {
-    id: "amountGhs",
-    accessorFn: (row: Transaction) => row.amountGhs,
+    id: "amount_ghs",
+    accessorFn: (row: Transaction) => row.amount_ghs,
     header: ({ column }) => (
       <SortableHeader column={column}>Amount</SortableHeader>
     ),
@@ -160,13 +160,13 @@ export const columns: ColumnDef<Transaction>[] = [
 
   // ── Date ─────────────────────────────────────────────────────────────────────
   {
-    accessorKey: "createdAt",
+    accessorKey: "created_at",
     header: ({ column }) => (
       <SortableHeader column={column}>Date</SortableHeader>
     ),
     cell: ({ row }: { row: Row<Transaction> }) => (
       <span className="text-sm text-stone-500 whitespace-nowrap">
-        {new Date(row.original.createdAt).toLocaleDateString("en-GB", {
+        {new Date(row.original.created_at).toLocaleDateString("en-GB", {
           day: "2-digit",
           month: "short",
           year: "numeric",

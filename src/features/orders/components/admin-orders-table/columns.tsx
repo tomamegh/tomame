@@ -120,7 +120,7 @@ export const columns: ColumnDef<Order>[] = [
   },
 
   {
-    accessorKey: "productName",
+    accessorKey: "product_name",
     header: ({ column }) => (
       <SortableHeader column={column}>Product</SortableHeader>
     ),
@@ -130,10 +130,10 @@ export const columns: ColumnDef<Order>[] = [
           href={`/admin/orders/${row.original.id}`}
           className="font-medium text-stone-800 hover:text-rose-600 hover:underline line-clamp-2 text-sm leading-snug block"
         >
-          {row.original.productName}
+          {row.original.product_name}
         </Link>
         <a
-          href={row.original.productUrl}
+          href={row.original.product_url}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-xs text-stone-400 hover:text-rose-500 transition-colors"
@@ -162,13 +162,13 @@ export const columns: ColumnDef<Order>[] = [
 
   // ── Origin Country ───────────────────────────────────────────────────────────
   {
-    accessorKey: "originCountry",
+    accessorKey: "origin_country",
     header: "Ships From",
     cell: ({ row }: { row: Row<Order> }) => {
       const flags: Record<string, string> = { USA: "🇺🇸", UK: "🇬🇧", CHINA: "🇨🇳" };
       return (
         <span className="text-sm text-stone-600">
-          {flags[row.original.originCountry] ?? ""} {row.original.originCountry}
+          {flags[row.original.origin_country] ?? ""} {row.original.origin_country}
         </span>
       );
     },
@@ -179,10 +179,10 @@ export const columns: ColumnDef<Order>[] = [
 
   // ── Needs Review ─────────────────────────────────────────────────────────────
   {
-    accessorKey: "needsReview",
+    accessorKey: "needs_review",
     header: "Review",
     cell: ({ row }: { row: Row<Order> }) =>
-      row.original.needsReview ? (
+      row.original.needs_review ? (
         <div className="inline-flex items-center gap-1 text-amber-600 text-xs font-medium bg-amber-50 px-2 py-0.5 rounded-full">
           <AlertTriangleIcon className="size-3" />
           Review
@@ -235,13 +235,13 @@ export const columns: ColumnDef<Order>[] = [
 
   // ── Date ─────────────────────────────────────────────────────────────────────
   {
-    accessorKey: "createdAt",
+    accessorKey: "created_at",
     header: ({ column }) => (
       <SortableHeader column={column}>Date</SortableHeader>
     ),
     cell: ({ row }: { row: Row<Order> }) => (
       <span className="text-sm text-stone-500 whitespace-nowrap">
-        {new Date(row.original.createdAt).toLocaleDateString("en-GB", {
+        {new Date(row.original.created_at).toLocaleDateString("en-GB", {
           day: "2-digit",
           month: "short",
           year: "numeric",
@@ -270,7 +270,7 @@ export const columns: ColumnDef<Order>[] = [
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
-            {order.needsReview && !order.reviewedBy && (
+            {order.needs_review && !order.reviewed_by && (
               <>
                 <DropdownMenuItem asChild className="text-amber-600 focus:text-amber-700 focus:bg-amber-50 font-medium gap-1.5">
                   <Link href={`/admin/orders/${order.id}`}>

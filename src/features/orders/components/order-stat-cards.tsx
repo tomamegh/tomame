@@ -29,7 +29,7 @@ function computeStats(orders: Order[]): OrderStats {
     totalRevenueGhs: orders
       .filter((o) => o.status !== "cancelled" && o.status !== "pending")
       .reduce((acc, o) => acc + (o.pricing?.total_ghs ?? 0), 0),
-    needsReview: orders.filter((o) => o.needsReview).length,
+    needsReview: orders.filter((o) => o.needs_review).length,
     cancelled: orders.filter((o) => o.status === "cancelled").length,
   };
 }

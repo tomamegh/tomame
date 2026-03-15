@@ -27,10 +27,8 @@ export async function GET(request: NextRequest) {
     const needsReview =
       needsReviewParam === "true" ? true : needsReviewParam === "false" ? false : undefined;
 
-    const result = await listAllOrders(createAdminClient(), admin.user, { status, userId, needsReview });
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await listAllOrders(createAdminClient(), admin.user, { status, userId, needsReview });
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }

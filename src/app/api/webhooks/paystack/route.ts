@@ -59,16 +59,16 @@ export async function POST(request: NextRequest) {
     // Process the event
     const result = await handleWebhookEvent(parsed.data);
 
-    if (!result.success) {
-      logger.error("Webhook processing failed", {
-        event: parsed.data.event,
-        error: result.error,
-      });
-      // Still return 200 to prevent Paystack from retrying
-      return successResponse({ message: "Processing error" });
-    }
+    // if (!result.success) {
+    //   logger.error("Webhook processing failed", {
+    //     event: parsed.data.event,
+    //     error: result.error,
+    //   });
+    //   // Still return 200 to prevent Paystack from retrying
+    //   return successResponse({ message: "Processing error" });
+    // }
 
-    return successResponse(result.data);
+    return successResponse(result);
   } catch (error) {
     return errorResponse(error);
   }

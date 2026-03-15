@@ -95,7 +95,13 @@ function OrderTimeline({
   }
 
   const isCancelled = currentStatus === "cancelled";
-  const currentIndex = STATUS_SEQUENCE.findIndex((s) => s.status === currentStatus);
+  // For cancelled orders, find the last reached status from audit logs
+  const lastReachedIndex = isCancelled
+    ? STATUS_SEQUENCE.reduce((last, step, i) => {
+        const ts = logs ? getTimestamp(logs, step.status) : null;
+        return ts !== null ? i : last;
+      }, -1)
+    : STATUS_SEQUENCE.findIndex((s) => s.status === currentStatus);
 
   const cancellationLog = logs?.find(
     (l) =>
@@ -108,17 +114,21 @@ function OrderTimeline({
       {STATUS_SEQUENCE.map((step, index) => {
         const ts = logs ? getTimestamp(logs, step.status) : null;
         const isCompleted = ts !== null;
-        const isCurrent = step.status === currentStatus;
-        const isReachable = !isCancelled || index <= currentIndex;
+        const isCurrent = !isCancelled && step.status === currentStatus;
+        // Steps after the last reached status on a cancelled order are "skipped"
+        const isSkipped = isCancelled && index > lastReachedIndex;
+        const isLast = index === STATUS_SEQUENCE.length - 1;
 
-        if (!isReachable) return null;
-
-        const state: "completed" | "current" | "upcoming" =
-          isCompleted ? "completed" : isCurrent ? "current" : "upcoming";
-        const isLast = index === STATUS_SEQUENCE.length - 1 && !isCancelled;
+        const state: "completed" | "current" | "skipped" | "upcoming" = isSkipped
+          ? "skipped"
+          : isCompleted
+          ? "completed"
+          : isCurrent
+          ? "current"
+          : "upcoming";
 
         return (
-          <div key={step.status} className="flex gap-4">
+          <div key={step.status} className={`flex gap-4 ${isSkipped ? "opacity-35" : ""}`}>
             <div className="flex flex-col items-center">
               {state === "completed" ? (
                 <CheckCircle2Icon className="size-5 text-emerald-500 shrink-0" />
@@ -129,7 +139,8 @@ function OrderTimeline({
               ) : (
                 <CircleIcon className="size-5 text-stone-300 shrink-0" />
               )}
-              {!isLast && (
+              {/* Always draw connector; last normal step connects to cancelled node */}
+              {(!isLast || isCancelled) && (
                 <div
                   className={`w-px flex-1 min-h-8 mt-1 ${
                     state === "completed" ? "bg-emerald-300" : "bg-stone-200"
@@ -140,7 +151,7 @@ function OrderTimeline({
             <div className="pb-6 min-w-0">
               <p
                 className={`text-sm font-medium leading-5 ${
-                  state === "upcoming" ? "text-stone-400" : "text-stone-800"
+                  state === "upcoming" || state === "skipped" ? "text-stone-400" : "text-stone-800"
                 }`}
               >
                 {step.label}
@@ -160,8 +171,8 @@ function OrderTimeline({
             <XCircleIcon className="size-5 text-red-500 shrink-0" />
           </div>
           <div className="pb-6">
-            <p className="text-sm font-medium text-red-600">Cancelled</p>
-            <p className="text-xs text-stone-400 mt-0.5">Order was cancelled</p>
+            <p className="text-sm font-semibold text-red-600">Order Cancelled</p>
+            <p className="text-xs text-stone-400 mt-0.5">This order was cancelled</p>
             {cancellationLog && (
               <p className="text-xs text-stone-400 mt-0.5">
                 {fmtDateTime(cancellationLog.created_at)}
@@ -182,15 +193,13 @@ function PricingBreakdown({ order }: { order: Order }) {
   const rows = [
     { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
     { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
-    { label: "Seller shipping", value: p.seller_shipping_usd ? `$${fmt(p.seller_shipping_usd)}` : "FREE" },
-    { label: "International freight (incl. customs)", value: `$${fmt(p.freight_usd)}` },
+    { label: "Shipping fee", value: `$${fmt(p.shipping_fee_usd)}` },
     {
       label: `Service fee (${(p.service_fee_percentage * 100).toFixed(0)}%)`,
       value: `$${fmt(p.service_fee_usd)}`,
     },
-    { label: "Handling", value: `$${fmt(p.handling_fee_usd)}` },
     { label: "Total (USD)", value: `$${fmt(p.total_usd)}`, bold: true },
-    { label: "Exchange rate", value: `1 USD = GH₵ ${p.exchange_rate}` },
+    { label: "Exchange rate", value: `1 USD = ${p.exchange_rate} GHS` },
   ];
 
   return (
@@ -275,9 +284,78 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
   if (isPending) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-48 w-full rounded-2xl" />
-        <Skeleton className="h-32 w-full rounded-2xl" />
-        <Skeleton className="h-48 w-full rounded-2xl" />
+        {/* Product info card skeleton */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex gap-4 items-start">
+              <Skeleton className="shrink-0 size-20 sm:size-28 rounded-xl" />
+              <div className="flex-1 min-w-0 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 mt-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="space-y-1">
+                      <Skeleton className="h-3 w-12" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Timeline + Pricing skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <Skeleton className="size-4 rounded" />
+                <Skeleton className="h-4 w-28" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex gap-4">
+                    <Skeleton className="size-5 rounded-full shrink-0" />
+                    <div className="space-y-1.5 flex-1 pb-4">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <Skeleton className="size-4 rounded" />
+                <Skeleton className="h-4 w-36" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="flex justify-between">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                ))}
+                <div className="flex justify-between pt-2 border-t border-stone-100">
+                  <Skeleton className="h-5 w-24" />
+                  <Skeleton className="h-5 w-28" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -290,9 +368,9 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
     );
   }
 
-  const hasImage = !!order.productImageUrl;
+  const hasImage = !!order.product_image_url;
   const hasTracking =
-    order.trackingNumber || order.carrier || order.estimatedDeliveryDate;
+    order.tracking_number || order.carrier || order.estimated_delivery_date;
 
   return (
     <div className="space-y-4">
@@ -304,8 +382,8 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
             <div className="shrink-0 size-20 sm:size-28 rounded-xl border border-stone-200/60 bg-stone-50 flex items-center justify-center overflow-hidden">
               {hasImage ? (
                 <Image
-                  src={order.productImageUrl!}
-                  alt={order.productName}
+                  src={order.product_image_url!}
+                  alt={order.product_name}
                   width={112}
                   height={112}
                   className="w-full h-full object-contain p-1"
@@ -320,10 +398,10 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div className="min-w-0">
                   <p className="font-semibold text-stone-900 leading-snug line-clamp-2">
-                    {order.productName}
+                    {order.product_name}
                   </p>
                   <a
-                    href={order.productUrl}
+                    href={order.product_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-rose-500 hover:underline mt-0.5"
@@ -337,10 +415,10 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-4 text-sm">
                 {[
-                  ["Origin", order.originCountry],
+                  ["Origin", order.origin_country],
                   ["Qty", String(order.quantity)],
-                  ["Est. price", `$${fmt(order.estimatedPriceUsd)}`],
-                  ["Placed", fmtDate(order.createdAt)],
+                  ["Est. price", `$${fmt(order.estimated_price_usd)}`],
+                  ["Placed", fmtDate(order.created_at)],
                 ].map(([label, value]) => (
                   <div key={label}>
                     <p className="text-xs text-stone-400">{label}</p>
@@ -349,10 +427,10 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
                 ))}
               </div>
 
-              {order.specialInstructions && (
+              {order.special_instructions && (
                 <div className="mt-3 rounded-lg bg-stone-50 border border-stone-100 px-3 py-2 text-xs text-stone-600">
                   <span className="font-medium text-stone-700">Notes: </span>
-                  {order.specialInstructions}
+                  {order.special_instructions}
                 </div>
               )}
             </div>
@@ -412,27 +490,27 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
                   <p className="font-medium text-stone-800">{order.carrier}</p>
                 </div>
               )}
-              {order.trackingNumber && (
+              {order.tracking_number && (
                 <div>
                   <p className="text-xs text-stone-400 mb-0.5">Tracking number</p>
                   <p className="font-medium text-stone-800 font-mono text-xs">
-                    {order.trackingNumber}
+                    {order.tracking_number}
                   </p>
                 </div>
               )}
-              {order.estimatedDeliveryDate && (
+              {order.estimated_delivery_date && (
                 <div>
                   <p className="text-xs text-stone-400 mb-0.5">Estimated delivery</p>
                   <p className="font-medium text-stone-800">
-                    {fmtDate(order.estimatedDeliveryDate)}
+                    {fmtDate(order.estimated_delivery_date)}
                   </p>
                 </div>
               )}
-              {order.deliveredAt && (
+              {order.delivered_at && (
                 <div>
                   <p className="text-xs text-stone-400 mb-0.5">Delivered at</p>
                   <p className="font-medium text-stone-800">
-                    {fmtDateTime(order.deliveredAt)}
+                    {fmtDateTime(order.delivered_at)}
                   </p>
                 </div>
               )}

@@ -206,16 +206,13 @@ function PricingBreakdown({ order }: { order: Order }) {
   const rows = [
     { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
     { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
-    { label: "Seller shipping", value: p.seller_shipping_usd ? `$${fmt(p.seller_shipping_usd)}` : "FREE" },
-    { label: "International freight (incl. customs)", value: `$${fmt(p.freight_usd)}` },
+    { label: "Shipping fee", value: `$${fmt(p.shipping_fee_usd)}` },
     {
       label: `Service fee (${(p.service_fee_percentage * 100).toFixed(0)}%)`,
       value: `$${fmt(p.service_fee_usd)}`,
     },
-    { label: "Handling", value: `$${fmt(p.handling_fee_usd)}` },
     { label: "Total (USD)", value: `$${fmt(p.total_usd)}`, bold: true },
-    { label: "Exchange rate", value: `1 USD = GH₵ ${p.exchange_rate}` },
-    ...(p.weight ? [{ label: `Weight (${p.weight.source})`, value: `${p.weight.chargeable_lbs} lbs` }] : []),
+    { label: "Exchange rate", value: `1 USD = ${p.exchange_rate} GHS` },
   ];
 
   return (
@@ -253,22 +250,22 @@ function ReviewPanel({ order }: { order: Order }) {
   const [mode, setMode] = useState<null | "approve" | "reject">(null);
 
   // Approve fields
-  const [productName, setProductName] = useState(order.productName);
+  const [productName, setProductName] = useState(order.product_name);
   const [estimatedPriceUsd, setEstimatedPriceUsd] = useState(
-    String(order.estimatedPriceUsd)
+    String(order.estimated_price_usd)
   );
-  const [originCountry, setOriginCountry] = useState<OriginCountry>(order.originCountry);
+  const [originCountry, setOriginCountry] = useState<OriginCountry>(order.origin_country);
 
   // Reject field
   const [rejectReason, setRejectReason] = useState("");
 
   const reviewMutation = useReviewOrder();
 
-  if (order.reviewedBy) {
+  if (order.reviewed_by) {
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-2 text-sm text-emerald-700">
         <CheckCircle2Icon className="size-4 shrink-0" />
-        Reviewed on {order.reviewedAt ? fmtDate(order.reviewedAt) : "—"}
+        Reviewed on {order.reviewed_at ? fmtDate(order.reviewed_at) : "—"}
       </div>
     );
   }
@@ -284,10 +281,10 @@ function ReviewPanel({ order }: { order: Order }) {
         id: order.id,
         action: "approve",
         updates: {
-          productName: productName !== order.productName ? productName : undefined,
-          estimatedPriceUsd: price !== order.estimatedPriceUsd ? price : undefined,
+          productName: productName !== order.product_name ? productName : undefined,
+          estimatedPriceUsd: price !== order.estimated_price_usd ? price : undefined,
           originCountry:
-            originCountry !== order.originCountry ? originCountry : undefined,
+            originCountry !== order.origin_country ? originCountry : undefined,
         },
       },
       {
@@ -332,7 +329,7 @@ function ReviewPanel({ order }: { order: Order }) {
             Flagged reasons
           </p>
           <ul className="space-y-1">
-            {order.reviewReasons.map((r, i) => (
+            {order.review_reasons.map((r, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-amber-800">
                 <AlertTriangleIcon className="size-3.5 mt-0.5 shrink-0 text-amber-500" />
                 {r}
@@ -538,9 +535,9 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
     );
   }
 
-  const hasImage = !!order?.productImageUrl;
+  const hasImage = !!order?.product_image_url;
   const hasTracking =
-    order?.trackingNumber || order?.carrier || order?.estimatedDeliveryDate;
+    order?.tracking_number || order?.carrier || order?.estimated_delivery_date;
 
   return (
     <div className="space-y-5">
@@ -571,8 +568,8 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
                 <div className="shrink-0 size-20 sm:size-28 rounded-xl border border-stone-200/60 bg-stone-50 flex items-center justify-center overflow-hidden">
                   {hasImage ? (
                     <Image
-                      src={order!.productImageUrl!}
-                      alt={order!.productName}
+                      src={order!.product_image_url!}
+                      alt={order!.product_name}
                       width={112}
                       height={112}
                       className="w-full h-full object-contain p-1"
@@ -587,10 +584,10 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
                   <div className="flex items-start justify-between gap-2 flex-wrap">
                     <div className="min-w-0">
                       <p className="font-semibold text-stone-900 leading-snug text-lg">
-                        {order!.productName}
+                        {order!.product_name}
                       </p>
                       <a
-                        href={order!.productUrl}
+                        href={order!.product_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs text-rose-500 hover:underline mt-0.5"
@@ -600,7 +597,7 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
                       </a>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {order!.needsReview && !order!.reviewedBy && (
+                      {order!.needs_review && !order!.reviewed_by && (
                         <span className="inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-700 border border-amber-300 px-2 py-0.5 rounded-full">
                           <AlertTriangleIcon className="size-3" />
                           Needs Review
@@ -612,10 +609,10 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-4 text-sm">
                     {[
-                      ["Origin", order!.originCountry],
+                      ["Origin", order!.origin_country],
                       ["Qty", String(order!.quantity)],
-                      ["Est. price", `$${fmt(order!.estimatedPriceUsd)}`],
-                      ["Placed", fmtDate(order!.createdAt)],
+                      ["Est. price", `$${fmt(order!.estimated_price_usd)}`],
+                      ["Placed", fmtDate(order!.created_at)],
                     ].map(([label, value]) => (
                       <div key={label}>
                         <p className="text-xs text-stone-400">{label}</p>
@@ -624,10 +621,10 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
                     ))}
                   </div>
 
-                  {order!.specialInstructions && (
+                  {order!.special_instructions && (
                     <div className="mt-3 rounded-lg bg-stone-50 border border-stone-100 px-3 py-2 text-xs text-stone-600">
                       <span className="font-medium text-stone-700">Notes: </span>
-                      {order!.specialInstructions}
+                      {order!.special_instructions}
                     </div>
                   )}
                 </div>
@@ -645,7 +642,7 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
       </Card>
 
       {/* ── Review panel (only when flagged) ───────────────────── */}
-      {!isPending && order?.needsReview && <ReviewPanel order={order} />}
+      {!isPending && order?.needs_review && <ReviewPanel order={order} />}
 
       {/* ── Main grid ──────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -722,7 +719,7 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
               </CardContent>
             </Card>
           ) : (
-            <UserCard userId={order!.userId} />
+            <UserCard userId={order!.user_id} />
           )}
 
           <Card>
@@ -745,10 +742,10 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
                 <>
                   {[
                     ["Status", <OrderStatusBadge key="s" status={order!.status} />],
-                    ["Created", fmtDateTime(order!.createdAt)],
-                    ["Updated", fmtDateTime(order!.updatedAt)],
-                    ...(order!.reviewedAt
-                      ? [["Reviewed", fmtDateTime(order!.reviewedAt)] as [string, React.ReactNode]]
+                    ["Created", fmtDateTime(order!.created_at)],
+                    ["Updated", fmtDateTime(order!.updated_at)],
+                    ...(order!.reviewed_at
+                      ? [["Reviewed", fmtDateTime(order!.reviewed_at)] as [string, React.ReactNode]]
                       : []),
                   ].map(([label, value]) => (
                     <div key={String(label)} className="flex justify-between gap-3">
@@ -780,27 +777,27 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
                   <p className="font-medium text-stone-800">{order!.carrier}</p>
                 </div>
               )}
-              {order!.trackingNumber && (
+              {order!.tracking_number && (
                 <div>
                   <p className="text-xs text-stone-400 mb-0.5">Tracking #</p>
                   <p className="font-medium text-stone-800 font-mono text-xs">
-                    {order!.trackingNumber}
+                    {order!.tracking_number}
                   </p>
                 </div>
               )}
-              {order!.estimatedDeliveryDate && (
+              {order!.estimated_delivery_date && (
                 <div>
                   <p className="text-xs text-stone-400 mb-0.5">Est. Delivery</p>
                   <p className="font-medium text-stone-800">
-                    {fmtDate(order!.estimatedDeliveryDate)}
+                    {fmtDate(order!.estimated_delivery_date)}
                   </p>
                 </div>
               )}
-              {order!.deliveredAt && (
+              {order!.delivered_at && (
                 <div>
                   <p className="text-xs text-stone-400 mb-0.5">Delivered At</p>
                   <p className="font-medium text-stone-800">
-                    {fmtDateTime(order!.deliveredAt)}
+                    {fmtDateTime(order!.delivered_at)}
                   </p>
                 </div>
               )}

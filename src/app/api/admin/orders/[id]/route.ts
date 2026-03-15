@@ -25,10 +25,8 @@ export async function GET(
     if (!admin.ok) throw new APIError(admin.status, admin.error);
 
     const { id } = await params;
-    const result = await getOrder(createAdminClient(), admin.user, id);
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await getOrder(createAdminClient(), admin.user, id);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }
@@ -63,10 +61,9 @@ export async function PATCH(
     const trackingData = trackingNumber || carrier || estimatedDeliveryDate
       ? { trackingNumber, carrier, estimatedDeliveryDate }
       : undefined;
-    const result = await updateOrderStatusAdmin(createAdminClient() ,admin.user, id, status, trackingData);
-    if (!result.success) throw new APIError(result.status, result.error);
 
-    return successResponse(result.data);
+    const data = await updateOrderStatusAdmin(createAdminClient(), admin.user, id, status, trackingData);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }

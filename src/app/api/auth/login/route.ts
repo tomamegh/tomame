@@ -20,10 +20,8 @@ export async function POST(request: NextRequest) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const result = await login(parsed.data);
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await login(parsed.data);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }

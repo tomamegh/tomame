@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
+import { APIError } from "@/lib/auth/api-helpers";
 import type { DbPayment } from "@/types/db";
 import {
   getOrderById,
@@ -14,7 +15,7 @@ import {
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { env } from "@/lib/env";
 import { PAYMENT_STATUSES } from "@/config/constants";
-import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
+import type { AuthenticatedUser } from "@/types/domain";
 import type {
   InitializePaymentResponse,
   PaymentResponse,
@@ -148,27 +149,16 @@ function toPaymentResponse(payment: DbPayment): PaymentResponse {
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
-/**
- * Initialize a payment for an order.
- * Uses admin client internally — reads order, creates payment record, and
- * may roll back on failure. No RLS-friendly single-user operation here.
- */
 export async function initializePayment(
   user: AuthenticatedUser,
   orderId: string,
-): Promise<ServiceResult<InitializePaymentResponse>> {
+): Promise<InitializePaymentResponse> {
   const admin = createAdminClient();
 
   const order = await getOrderById(admin, orderId);
-  if (!order) {
-    return { success: false, error: "Order not found", status: 404 };
-  }
-  if (order.user_id !== user.id) {
-    return { success: false, error: "Order not found", status: 404 };
-  }
-  if (order.status !== "pending") {
-    return { success: false, error: "Order is not awaiting payment", status: 400 };
-  }
+  if (!order) throw new APIError(404, "Order not found");
+  if (order.user_id !== user.id) throw new APIError(404, "Order not found");
+  if (order.status !== "pending") throw new APIError(400, "Order is not awaiting payment");
 
   const totalPesewas = order.pricing.total_pesewas;
   const reference = generatePaymentReference();
@@ -183,7 +173,7 @@ export async function initializePayment(
   });
 
   if (!payment) {
-    return { success: false, error: "Failed to create payment", status: 500 };
+    throw new APIError(500, "Failed to create payment");
   }
 
   let authorizationUrl: string;
@@ -206,11 +196,7 @@ export async function initializePayment(
       orderId,
       error: error instanceof Error ? error.message : String(error),
     });
-    return {
-      success: false,
-      error: "Payment provider error. Please try again.",
-      status: 502,
-    };
+    throw new APIError(502, "Payment provider error. Please try again.");
   }
 
   await logAuditEvent({
@@ -222,32 +208,25 @@ export async function initializePayment(
     metadata: { orderId, reference, amount: totalPesewas },
   });
 
-  return {
-    success: true,
-    data: { payment: toPaymentResponse(payment), authorizationUrl },
-  };
+  return { payment: toPaymentResponse(payment), authorizationUrl };
 }
 
-/**
- * Handle the Paystack callback redirect.
- * No user session — uses admin client internally.
- */
 export async function handlePaymentCallback(
   reference: string,
-): Promise<ServiceResult<{ redirectUrl: string }>> {
+): Promise<{ redirectUrl: string }> {
   const admin = createAdminClient();
 
   const payment = await getPaymentByReference(admin, reference);
   if (!payment) {
     logger.warn("Payment callback for unknown reference", { reference });
-    return { success: false, error: "Payment not found", status: 404 };
+    throw new APIError(404, "Payment not found");
   }
 
   if (payment.status === PAYMENT_STATUSES.SUCCESS) {
-    return { success: true, data: { redirectUrl: `${env.app.url}/orders?payment=success` } };
+    return { redirectUrl: `${env.app.url}/orders?payment=success` };
   }
   if (payment.status === PAYMENT_STATUSES.FAILED) {
-    return { success: true, data: { redirectUrl: `${env.app.url}/orders?payment=failed` } };
+    return { redirectUrl: `${env.app.url}/orders?payment=failed` };
   }
 
   let paystackStatus: string;
@@ -261,7 +240,7 @@ export async function handlePaymentCallback(
       reference,
       error: error instanceof Error ? error.message : String(error),
     });
-    return { success: false, error: "Payment verification failed", status: 502 };
+    throw new APIError(502, "Payment verification failed");
   }
 
   const orderId = (payment.metadata as Record<string, unknown>)?.order_id as string;
@@ -293,7 +272,7 @@ export async function handlePaymentCallback(
       metadata: { reference, orderId },
     });
 
-    return { success: true, data: { redirectUrl: `${env.app.url}/orders?payment=success` } };
+    return { redirectUrl: `${env.app.url}/orders?payment=success` };
   }
 
   await updatePaymentStatus(admin, payment.id, PAYMENT_STATUSES.FAILED, {
@@ -309,19 +288,15 @@ export async function handlePaymentCallback(
     metadata: { reference, orderId, paystackStatus },
   });
 
-  return { success: true, data: { redirectUrl: `${env.app.url}/orders?payment=failed` } };
+  return { redirectUrl: `${env.app.url}/orders?payment=failed` };
 }
 
-/**
- * Handle Paystack webhook event. Idempotent.
- * No user session — uses admin client internally.
- */
 export async function handleWebhookEvent(event: {
   event: string;
   data: { reference: string; status: string; amount: number; currency: string };
-}): Promise<ServiceResult<{ message: string }>> {
+}): Promise<{ message: string }> {
   if (event.event !== "charge.success") {
-    return { success: true, data: { message: "Event ignored" } };
+    return { message: "Event ignored" };
   }
 
   const { reference } = event.data;
@@ -330,19 +305,24 @@ export async function handleWebhookEvent(event: {
   const payment = await getPaymentByReference(admin, reference);
   if (!payment) {
     logger.warn("Webhook for unknown payment reference", { reference });
-    return { success: true, data: { message: "Payment not found, ignored" } };
+    return { message: "Payment not found, ignored" };
   }
 
   if (payment.status === PAYMENT_STATUSES.SUCCESS) {
-    return { success: true, data: { message: "Already processed" } };
+    return { message: "Already processed" };
   }
 
-  const result = await handlePaymentCallback(reference);
-  if (!result.success) {
-    return { success: false, error: result.error, status: result.status };
+  try {
+    await handlePaymentCallback(reference);
+  } catch (err) {
+    logger.error("Webhook handlePaymentCallback failed", {
+      reference,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   }
 
-  return { success: true, data: { message: "Webhook processed" } };
+  return { message: "Webhook processed" };
 }
 
 export interface TransactionListResponse {
@@ -350,39 +330,29 @@ export interface TransactionListResponse {
   count: number;
 }
 
-/**
- * List payment transactions for the authenticated user.
- * Pass createClient() — RLS ensures users only see their own payments.
- */
 export async function listUserTransactions(
   client: SupabaseClient,
   user: AuthenticatedUser,
-): Promise<ServiceResult<TransactionListResponse>> {
+): Promise<TransactionListResponse> {
   const payments = await getPaymentsByUserId(client, user.id);
-
   return {
-    success: true,
-    data: { transactions: payments.map(toPaymentResponse), count: payments.length },
+    transactions: payments.map(toPaymentResponse),
+    count: payments.length,
   };
 }
 
-/**
- * Admin: list all transactions with optional filters.
- * Expects an admin-scoped client (createAdminClient()).
- */
 export async function listAllTransactions(
   client: SupabaseClient,
   user: AuthenticatedUser,
   filters?: { status?: string; userId?: string },
-): Promise<ServiceResult<TransactionListResponse>> {
+): Promise<TransactionListResponse> {
   if (user.role !== "admin") {
-    return { success: false, error: "Admin access required", status: 403 };
+    throw new APIError(403, "Admin access required");
   }
 
   const payments = await getAllPayments(client, filters);
-
   return {
-    success: true,
-    data: { transactions: payments.map(toPaymentResponse), count: payments.length },
+    transactions: payments.map(toPaymentResponse),
+    count: payments.length,
   };
 }

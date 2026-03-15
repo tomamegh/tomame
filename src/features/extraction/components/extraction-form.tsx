@@ -24,13 +24,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { LinkIcon, ScanSearchIcon } from "lucide-react";
 import { Field } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Hardcoded supported stores (matches scraper domains)
 const SUPPORTED_STORES = [
   { id: "amazon", name: "Amazon" },
-  // Add more as scrapers are implemented:
-  // { id: "ebay", name: "eBay" },
-  // { id: "aliexpress", name: "AliExpress" },
 ];
 
 interface ExtractionFormProps {
@@ -50,9 +48,11 @@ const ExtractionInput: React.FC<ExtractionFormProps> = ({
     resolver: zodResolver(extractProductSchema),
   });
 
+  const isMobile = useIsMobile()
+
   return (
     <div>
-      <Field orientation={"horizontal"}>
+      <Field orientation={isMobile ?'responsive': 'horizontal'}>
         <InputGroup className="h-11">
           <InputGroupInput
             {...register("productUrl")}

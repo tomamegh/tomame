@@ -11,10 +11,8 @@ export async function GET() {
     if (!auth.ok) throw new APIError(auth.status, auth.error);
 
     const supabase = await createClient();
-    const result = await listUserTransactions(supabase, auth.user);
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await listUserTransactions(supabase, auth.user);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }
