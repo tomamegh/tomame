@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
+import { getCachedPricingQuote } from "@/features/extraction/extraction.service";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
 import { sendEmail } from "@/lib/email/transport";
@@ -284,19 +285,35 @@ export async function createOrder(
     };
   }
 
-  // Calculate pricing server-side (never trust client-provided totals)
-  const pricingResult = await calculatePricing(
-    input.estimatedPriceUsd,
-    input.quantity,
-    input.originCountry,
-  );
+  // Try to use a cached pricing quote (locked FX rate, valid 24h)
+  const cachedQuote = await getCachedPricingQuote(client, user.id, input.productUrl);
 
-  if (!pricingResult.success) {
-    return {
-      success: false,
-      error: pricingResult.error,
-      status: pricingResult.status,
-    };
+  let pricingData = cachedQuote;
+
+  // Use the cached quote if it matches the current order params
+  if (
+    pricingData &&
+    pricingData.item_price_usd === input.estimatedPriceUsd &&
+    pricingData.quantity === input.quantity &&
+    pricingData.region === input.originCountry
+  ) {
+    logger.info("Using cached pricing quote", { userId: user.id, url: input.productUrl });
+  } else {
+    // No valid cached quote — calculate fresh pricing
+    const pricingResult = await calculatePricing(
+      input.estimatedPriceUsd,
+      input.quantity,
+      input.originCountry,
+    );
+
+    if (!pricingResult.success) {
+      return {
+        success: false,
+        error: pricingResult.error,
+        status: pricingResult.status,
+      };
+    }
+    pricingData = pricingResult.data;
   }
 
   const orderToCreate = {
@@ -308,7 +325,7 @@ export async function createOrder(
     quantity: input.quantity,
     origin_country: input.originCountry,
     special_instructions: input.specialInstructions ?? null,
-    pricing: pricingResult.data,
+    pricing: pricingData,
     status: "pending",
     needs_review: input.needsReview ?? false,
     review_reasons: input.reviewReasons ?? [],
@@ -351,7 +368,7 @@ export async function createOrder(
     metadata: {
       productUrl: input.productUrl,
       originCountry: input.originCountry,
-      totalGhs: pricingResult.data.total_ghs,
+      totalGhs: pricingData.total_ghs,
     },
   });
 
