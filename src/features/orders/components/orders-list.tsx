@@ -76,12 +76,10 @@ export function OrdersList({ variant = "all" }: { variant?: "all" | "recent" }) 
   }
 
   return (
-    <Card className="space-y-4 bg-white">
-      <CardContent>
-        {data.map((order) => (
+    <div className="divide-y divide-stone-100 space-y-3">
+      {(variant === "all" ? data : data.slice(0, 3)).map((order) => (
         <OrderCard key={order.id} order={order} />
       ))}
-      </CardContent>
-    </Card>
+    </div>
   );
 }
