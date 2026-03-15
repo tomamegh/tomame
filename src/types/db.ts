@@ -118,6 +118,8 @@ export interface DbStaticPriceItem {
   price_max_ghs: number | null;
   is_active: boolean;
   sort_order: number;
+  keywords: string[];
+  skus: string[];
   created_at: string;
   updated_at: string;
   updated_by: string | null;

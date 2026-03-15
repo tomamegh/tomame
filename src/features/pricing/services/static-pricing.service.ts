@@ -65,6 +65,108 @@ async function getStaticPricesByCategory(
   return (data ?? []) as DbStaticPriceItem[];
 }
 
+// ── Matching helpers ─────────────────────────────────────────────────────────
+
+/** Map TomameCategory values to static_price_list categories */
+const CATEGORY_TO_STATIC: Record<string, string[]> = {
+  "Cell Phones & Accessories": ["iPhone", "Android"],
+  "Electronics": ["iPad", "Mac & Laptops", "Audio", "Gaming", "Accessories"],
+  "Computers": ["Mac & Laptops"],
+  "TV & Video": ["Gaming"],
+  "Headphones": ["Audio"],
+  "Video Games": ["Gaming"],
+  "Wearable Technology": ["Apple Watch"],
+  "Watches": ["Apple Watch", "Watches"],
+  "Fragrance": ["Fragrance"],
+  "Automotive": ["Automotive"],
+  "Smart Home": ["Accessories"],
+};
+
+/**
+ * Tokenise a product title into lowercase words for keyword matching.
+ * Strips common noise like punctuation and size suffixes.
+ */
+function tokenise(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+}
+
+/**
+ * Check if ALL keywords for a static price entry appear in the title tokens.
+ * More keywords = more specific match = higher priority.
+ */
+function keywordsMatch(titleTokens: string[], keywords: string[]): boolean {
+  if (keywords.length === 0) return false;
+  return keywords.every((kw) =>
+    titleTokens.some((t) => t.includes(kw.toLowerCase())),
+  );
+}
+
+/**
+ * Try to match a scraped product against the static price list.
+ * Priority order:
+ * 1. SKU/ASIN exact match (highest confidence)
+ * 2. Keyword match on title (most specific match wins — most keywords matched)
+ * 3. No match → returns null (use dynamic pricing)
+ */
+async function findMatchingStaticPrice(
+  client: SupabaseClient,
+  product: {
+    title: string | null;
+    category: string | null;
+    sku?: string | null;
+    asin?: string | null;
+  },
+): Promise<DbStaticPriceItem | null> {
+  // Fetch all active static prices (small table, ~80 rows)
+  const allItems = await getAllStaticPrices(client, true);
+  if (allItems.length === 0) return null;
+
+  // 1. SKU/ASIN exact match
+  const identifiers = [product.sku, product.asin].filter(Boolean).map((s) => s!.toLowerCase());
+  if (identifiers.length > 0) {
+    for (const item of allItems) {
+      if (item.skus.some((s) => identifiers.includes(s.toLowerCase()))) {
+        return item;
+      }
+    }
+  }
+
+  // 2. Keyword match on title
+  if (!product.title) return null;
+  const titleTokens = tokenise(product.title);
+  if (titleTokens.length === 0) return null;
+
+  // Narrow candidates by category if we can
+  let candidates = allItems;
+  if (product.category) {
+    const staticCategories = CATEGORY_TO_STATIC[product.category];
+    if (staticCategories) {
+      const filtered = allItems.filter((item) =>
+        staticCategories.includes(item.category),
+      );
+      if (filtered.length > 0) candidates = filtered;
+    }
+  }
+
+  // Find the best match: entry with most keywords that ALL match
+  let bestMatch: DbStaticPriceItem | null = null;
+  let bestKeywordCount = 0;
+
+  for (const item of candidates) {
+    if (item.keywords.length === 0) continue;
+    if (keywordsMatch(titleTokens, item.keywords) && item.keywords.length > bestKeywordCount) {
+      bestMatch = item;
+      bestKeywordCount = item.keywords.length;
+    }
+  }
+
+  return bestMatch;
+}
+
 // ── Response types ────────────────────────────────────────────────────────────
 
 export interface StaticPriceItemResponse {
@@ -304,4 +406,26 @@ export async function remove(
   });
 
   return { success: true, data: { deleted: true } };
+}
+
+/**
+ * Attempt to match a scraped product to a static price entry.
+ * Uses SKU/ASIN exact match, then keyword matching on title, narrowed by category.
+ * Returns the matched item or null if no match.
+ */
+export async function matchProduct(
+  product: {
+    title: string | null;
+    category: string | null;
+    sku?: string | null;
+    asin?: string | null;
+  },
+): Promise<ServiceResult<StaticPriceItemResponse | null>> {
+  const client = createAdminClient();
+  const match = await findMatchingStaticPrice(client, product);
+
+  return {
+    success: true,
+    data: match ? toResponse(match) : null,
+  };
 }

@@ -4,8 +4,9 @@ import type { ServiceResult } from "@/types/domain";
 import type { OrderPricingBreakdown } from "@/types/db";
 import { logger } from "@/lib/logger";
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
+import { matchProduct } from "@/features/pricing/services/static-pricing.service";
 import { resolvePlatform, getScraperByPlatform } from "./scrapers";
-import type { ExtractionResult } from "./types";
+import type { ExtractionResult, StaticPriceMatch } from "./types";
 
 /** Cache TTL: 5 hours in milliseconds */
 const CACHE_TTL_MS = 5 * 60 * 60 * 1000;
@@ -205,6 +206,30 @@ export async function extractProductData(
       }
     }
 
+    // 5. Try to match against static price list (fixed freight)
+    let staticPriceMatch: StaticPriceMatch | null = null;
+    const matchResult = await matchProduct({
+      title: product.title,
+      category: product.category,
+      sku: (product.metadata?.["sku"] as string) ?? null,
+      asin: (product.metadata?.["asin"] as string) ?? null,
+    });
+    if (matchResult.success && matchResult.data) {
+      staticPriceMatch = {
+        id: matchResult.data.id,
+        category: matchResult.data.category,
+        productName: matchResult.data.productName,
+        priceGhs: matchResult.data.priceGhs,
+        priceMinGhs: matchResult.data.priceMinGhs,
+        priceMaxGhs: matchResult.data.priceMaxGhs,
+      };
+      logger.info("Static price match found", {
+        title: product.title,
+        matchedTo: matchResult.data.productName,
+        priceGhs: matchResult.data.priceGhs,
+      });
+    }
+
     const result: ExtractionResult = {
       extractionAttempted: true,
       extractionSuccess,
@@ -214,6 +239,7 @@ export async function extractProductData(
       errors,
       fetchedAt: new Date().toISOString(),
       pricingQuote,
+      staticPriceMatch,
     };
 
     // 5. Cache extraction + pricing quote (fire-and-forget, non-blocking)

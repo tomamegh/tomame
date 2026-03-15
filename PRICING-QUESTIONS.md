@@ -35,16 +35,5 @@ Freight calculation depends on actual weight and volumetric weight (L x W x H / 
 - Use a default weight estimate per category?
 - Hold the quote until weight is confirmed?
 
----
-
-## 4. Fixed Freight Database Matching (Method 1)
-
-Method 1 says the system queries "Tomame's product database" to check if an item is recognised. The existing `static_price_list` table has `category` + `product_name` but no URL or SKU-based matching.
-
-**How should matching work?**
-- Match by product name / keyword?
-- Match by category (e.g. all iPhones get a fixed rate)?
-- Match by SKU / ASIN?
-- Combination of the above?
 
 
