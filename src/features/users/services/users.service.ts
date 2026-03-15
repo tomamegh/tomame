@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
-import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
+import { APIError } from "@/lib/auth/api-helpers";
+import type { AuthenticatedUser } from "@/types/domain";
 import type { AuthUserResponse } from "@/features/auth/types";
 import type { MessageResponse } from "@/types/api";
 import type { DbUser, DbOrder } from "@/types/db";
@@ -85,7 +86,6 @@ async function getAllUsers(
   client: SupabaseClient,
   filters?: { role?: string }
 ): Promise<{ users: AdminUser[]; count: number }> {
-  // Fetch all auth users (up to 1000) and our roles table in parallel
   const [authResult, rolesResult] = await Promise.all([
     client.auth.admin.listUsers({ perPage: 1000 }),
     client.from("users").select("id, role"),
@@ -113,7 +113,6 @@ async function getAllUsers(
     emailConfirmed: !!authUser.email_confirmed_at,
   }));
 
-  // Sort newest first
   users.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
@@ -147,27 +146,24 @@ async function getUserWithOrders(
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
-/**
- * Promote an existing user to admin.
- */
 export async function promoteUserToAdmin(
   admin: AuthenticatedUser,
   targetUserId: string,
-): Promise<ServiceResult<AuthUserResponse>> {
+): Promise<AuthUserResponse> {
   const client = createAdminClient();
 
   const targetUser = await getUserById(client, targetUserId);
   if (!targetUser) {
-    return { success: false, error: "User not found", status: 404 };
+    throw new APIError(404, "User not found");
   }
 
   if (targetUser.role === "admin") {
-    return { success: false, error: "User is already an admin", status: 409 };
+    throw new APIError(409, "User is already an admin");
   }
 
   const updated = await updateUserRole(client, targetUserId, "admin");
   if (!updated) {
-    return { success: false, error: "Failed to update role", status: 500 };
+    throw new APIError(500, "Failed to update role");
   }
 
   await logAuditEvent({
@@ -179,25 +175,19 @@ export async function promoteUserToAdmin(
     metadata: { previousRole: "user", newRole: "admin" },
   });
 
-  return {
-    success: true,
-    data: { id: updated.id, email: updated.email, role: updated.role },
-  };
+  return { id: updated.id, email: updated.email, role: updated.role };
 }
 
-/**
- * Create a brand-new admin user (auth + users table).
- */
 export async function createAdminUser(
   admin: AuthenticatedUser,
   email: string,
   password: string,
-): Promise<ServiceResult<AuthUserResponse>> {
+): Promise<AuthUserResponse> {
   const client = createAdminClient();
 
   const existing = await getUserByEmail(client, email);
   if (existing) {
-    return { success: false, error: "Email already in use", status: 409 };
+    throw new APIError(409, "Email already in use");
   }
 
   const { data: authData, error: authError } = await client.auth.admin.createUser({
@@ -208,7 +198,7 @@ export async function createAdminUser(
 
   if (authError) {
     logger.error("Admin createUser failed", { error: authError.message });
-    return { success: false, error: "Failed to create user", status: 500 };
+    throw new APIError(500, "Failed to create user");
   }
 
   const newUserId = authData.user.id;
@@ -216,7 +206,7 @@ export async function createAdminUser(
   const dbUser = await insertUser(client, { id: newUserId, email, role: "admin" });
   if (!dbUser) {
     await client.auth.admin.deleteUser(newUserId);
-    return { success: false, error: "Failed to create user record", status: 500 };
+    throw new APIError(500, "Failed to create user record");
   }
 
   await logAuditEvent({
@@ -228,55 +218,43 @@ export async function createAdminUser(
     metadata: { createdBy: admin.email, newAdminEmail: email },
   });
 
-  return {
-    success: true,
-    data: { id: dbUser.id, email: dbUser.email, role: dbUser.role },
-  };
+  return { id: dbUser.id, email: dbUser.email, role: dbUser.role };
 }
 
-/**
- * List all users with stats.
- */
 export async function listUsers(
   client: SupabaseClient,
   _admin: AuthenticatedUser,
   filters?: { role?: string }
-): Promise<ServiceResult<UserListResponse>> {
+): Promise<UserListResponse> {
   const { users, count } = await getAllUsers(client, filters);
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
   return {
-    success: true,
-    data: {
-      users,
-      count,
-      stats: {
-        total: count,
-        admins: users.filter((u) => u.role === "admin").length,
-        regularUsers: users.filter((u) => u.role === "user").length,
-        newThisMonth: users.filter((u) => u.createdAt >= startOfMonth).length,
-      },
+    users,
+    count,
+    stats: {
+      total: count,
+      admins: users.filter((u) => u.role === "admin").length,
+      regularUsers: users.filter((u) => u.role === "user").length,
+      newThisMonth: users.filter((u) => u.createdAt >= startOfMonth).length,
     },
   };
 }
 
-/**
- * Get a single user with their recent orders.
- */
 export async function getUserDetail(
   client: SupabaseClient,
   _admin: AuthenticatedUser,
   userId: string
-): Promise<ServiceResult<UserDetailResponse>> {
+): Promise<UserDetailResponse> {
   const [authResult, { user: dbUser, orders }] = await Promise.all([
     client.auth.admin.getUserById(userId),
     getUserWithOrders(client, userId),
   ]);
 
   if (authResult.error || !authResult.data.user) {
-    return { success: false, error: "User not found", status: 404 };
+    throw new APIError(404, "User not found");
   }
 
   const authUser = authResult.data.user;
@@ -291,34 +269,28 @@ export async function getUserDetail(
   }));
 
   return {
-    success: true,
-    data: {
-      user: {
-        id: authUser.id,
-        email: authUser.email ?? "",
-        role,
-        createdAt: authUser.created_at,
-        lastSignInAt: authUser.last_sign_in_at ?? null,
-        emailConfirmed: !!authUser.email_confirmed_at,
-      },
-      recentOrders,
+    user: {
+      id: authUser.id,
+      email: authUser.email ?? "",
+      role,
+      createdAt: authUser.created_at,
+      lastSignInAt: authUser.last_sign_in_at ?? null,
+      emailConfirmed: !!authUser.email_confirmed_at,
     },
+    recentOrders,
   };
 }
 
-/**
- * Create a new user (any role) — auth + users table.
- */
 export async function createUser(
   admin: AuthenticatedUser,
   email: string,
   password: string,
   role: "user" | "admin"
-): Promise<ServiceResult<AdminUser>> {
+): Promise<AdminUser> {
   const client = createAdminClient();
 
   const existing = await getUserByEmail(client, email);
-  if (existing) return { success: false, error: "Email already in use", status: 409 };
+  if (existing) throw new APIError(409, "Email already in use");
 
   const { data: authData, error: authError } = await client.auth.admin.createUser({
     email,
@@ -328,7 +300,7 @@ export async function createUser(
 
   if (authError) {
     logger.error("createUser (admin) failed", { error: authError.message });
-    return { success: false, error: "Failed to create user", status: 500 };
+    throw new APIError(500, "Failed to create user");
   }
 
   const newUserId = authData.user.id;
@@ -336,7 +308,7 @@ export async function createUser(
 
   if (!dbUser) {
     await client.auth.admin.deleteUser(newUserId);
-    return { success: false, error: "Failed to create user record", status: 500 };
+    throw new APIError(500, "Failed to create user record");
   }
 
   await logAuditEvent({
@@ -349,29 +321,23 @@ export async function createUser(
   });
 
   return {
-    success: true,
-    data: {
-      id: authData.user.id,
-      email: authData.user.email ?? email,
-      role,
-      createdAt: authData.user.created_at,
-      lastSignInAt: null,
-      emailConfirmed: true,
-    },
+    id: authData.user.id,
+    email: authData.user.email ?? email,
+    role,
+    createdAt: authData.user.created_at,
+    lastSignInAt: null,
+    emailConfirmed: true,
   };
 }
 
-/**
- * Update a user's role.
- */
 export async function updateUser(
   client: SupabaseClient,
   admin: AuthenticatedUser,
   userId: string,
   role: "user" | "admin"
-): Promise<ServiceResult<AdminUser>> {
+): Promise<AdminUser> {
   const target = await getUserById(client, userId);
-  if (!target) return { success: false, error: "User not found", status: 404 };
+  if (!target) throw new APIError(404, "User not found");
 
   const makeUser = (u: typeof target, r: "user" | "admin"): AdminUser => ({
     id: u.id,
@@ -383,11 +349,11 @@ export async function updateUser(
   });
 
   if (target.role === role) {
-    return { success: true, data: makeUser(target, role) };
+    return makeUser(target, role);
   }
 
   const updated = await updateUserRole(client, userId, role);
-  if (!updated) return { success: false, error: "Failed to update user", status: 500 };
+  if (!updated) throw new APIError(500, "Failed to update user");
 
   await logAuditEvent({
     actorId: admin.id,
@@ -398,22 +364,19 @@ export async function updateUser(
     metadata: { previousRole: target.role, newRole: role },
   });
 
-  return { success: true, data: makeUser(updated, updated.role) };
+  return makeUser(updated, updated.role);
 }
 
-/**
- * Send a password reset email to any user (admin action).
- */
 export async function adminResetUserPassword(
   admin: AuthenticatedUser,
   targetEmail: string,
-): Promise<ServiceResult<MessageResponse>> {
+): Promise<MessageResponse> {
   const client = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
   const targetUser = await getUserByEmail(client, targetEmail);
   if (!targetUser) {
-    return { success: false, error: "User not found", status: 404 };
+    throw new APIError(404, "User not found");
   }
 
   const { error } = await client.auth.resetPasswordForEmail(targetEmail, {
@@ -422,7 +385,7 @@ export async function adminResetUserPassword(
 
   if (error) {
     logger.error("Admin reset password failed", { error: error.message });
-    return { success: false, error: "Failed to send reset email", status: 500 };
+    throw new APIError(500, "Failed to send reset email");
   }
 
   await logAuditEvent({
@@ -434,5 +397,5 @@ export async function adminResetUserPassword(
     metadata: { targetEmail },
   });
 
-  return { success: true, data: { message: "Password reset email sent" } };
+  return { message: "Password reset email sent" };
 }

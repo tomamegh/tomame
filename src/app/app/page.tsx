@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
-import { recentOrdersColumn } from "@/features/orders/components/recent-orders/column";
 import { ExtractionForm } from "@/features/extraction/components/extraction-form";
+import { OrdersList } from "@/features/orders/components";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -41,9 +39,10 @@ export default function DashboardPage() {
             <Link href="/app/orders">View All</Link>
           </Button>
         </div>
-        <Card className="p-0 overflow-hidden">
-          <DataTable data={[]} columns={recentOrdersColumn} />
-        </Card>
+
+        <div className="space-y-3">
+          <OrdersList variant="recent" />
+        </div>
       </div>
     </div>
   );

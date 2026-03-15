@@ -15,8 +15,8 @@ import { useOrders } from "../hooks";
 import { HandbagIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function OrdersList() {
-  const { data, isPending, isFetching, error, refetch, } = useOrders();
+export function OrdersList({ variant = "all" }: { variant?: "all" | "recent" }) {
+  const { data, isPending, isFetching, error, refetch } = useOrders();
 
   if (isPending) {
     return (
@@ -61,7 +61,12 @@ export function OrdersList() {
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <Button variant="primary" size="sm" className="px-5" onClick={()=>refetch()}>
+          <Button
+            variant="primary"
+            size="sm"
+            className="px-5"
+            onClick={() => refetch()}
+          >
             {isFetching && <Spinner />}
             {isFetching ? "Refreshing..." : "Refresh"}
           </Button>

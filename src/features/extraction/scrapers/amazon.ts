@@ -2,6 +2,7 @@ import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import { PlatformScraper, type ScrapedProduct } from "./types";
 import { browserlessClient } from "@/lib/browserless/client";
+import { TomameCategory, AMAZON_CATEGORY_MAP } from "@/config/categories";
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
@@ -148,6 +149,19 @@ function extractBrand($: CheerioAPI): string | null {
   return text($, "#bylineInfo") ?? text($, "a#brand") ?? null;
 }
 
+function extractCategory($: CheerioAPI): TomameCategory | null {
+  // Get the first breadcrumb link (top-level category)
+  const firstBreadcrumb = $(
+    "#wayfinding-breadcrumbs_feature_div ul li:first-child a"
+  )
+    .text()
+    .trim();
+
+  if (!firstBreadcrumb) return null;
+
+  return AMAZON_CATEGORY_MAP.get(firstBreadcrumb) ?? TomameCategory.OTHER;
+}
+
 function extractWeight(specs: Record<string, string>): string | null {
   for (const key of Object.keys(specs)) {
     if (/weight/i.test(key)) return specs[key] ?? null;
@@ -204,6 +218,7 @@ export class AmazonScraper extends PlatformScraper {
       currency,
       description: extractDescription($),
       brand: extractBrand($),
+      category: extractCategory($),
       size: extractSelectedSize($),
       weight: extractWeight(specifications),
       dimensions: extractDimensions(specifications),

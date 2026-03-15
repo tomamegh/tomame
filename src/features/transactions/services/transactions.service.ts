@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
-import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
+import { APIError } from "@/lib/auth/api-helpers";
+import type { AuthenticatedUser } from "@/types/domain";
 import type { DbPayment } from "@/types/db";
 import type { Transaction, TransactionStats } from "../types";
 
@@ -27,22 +28,6 @@ async function getAllTransactions(
   return (data ?? []) as DbPayment[];
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function toResponse(p: DbPayment): Transaction {
-  return {
-    id: p.id,
-    userId: p.user_id,
-    reference: p.reference,
-    amount: p.amount,
-    amountGhs: p.amount / 100,
-    currency: p.currency,
-    status: p.status as Transaction["status"],
-    metadata: p.metadata,
-    createdAt: p.created_at,
-  };
-}
-
 // ── Service functions ─────────────────────────────────────────────────────────
 
 export interface TransactionResponse {
@@ -54,24 +39,24 @@ export interface TransactionResponse {
 export async function listTransactions(
   client: SupabaseClient,
   user: AuthenticatedUser,
-): Promise<ServiceResult<TransactionResponse>> {
+): Promise<TransactionResponse> {
   if (user.role !== "admin") {
-    return { success: false, error: "Admin access required", status: 403 };
+    throw new APIError(403, "Admin access required");
   }
 
   const payments = await getAllTransactions(client);
-  const mapped = payments.map(toResponse);
+  const transactions: Transaction[] = payments.map((p) => ({
+    ...p,
+    amount_ghs: p.amount / 100,
+  }));
 
-  const successful = mapped.filter((t) => t.status === "success");
+  const successful = transactions.filter((t) => t.status === "success");
   const stats: TransactionStats = {
-    total: mapped.length,
-    totalRevenueGhs: successful.reduce((acc, t) => acc + t.amountGhs, 0),
+    total: transactions.length,
+    totalRevenueGhs: successful.reduce((acc, t) => acc + t.amount_ghs, 0),
     successful: successful.length,
-    failed: mapped.filter((t) => t.status === "failed").length,
+    failed: transactions.filter((t) => t.status === "failed").length,
   };
 
-  return {
-    success: true,
-    data: { transactions: mapped, count: mapped.length, stats },
-  };
+  return { transactions, count: transactions.length, stats };
 }

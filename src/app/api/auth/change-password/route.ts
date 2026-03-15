@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { changePasswordSchema } from "@/features/auth/auth.validators";
-import { changePassword } from "@/features/auth/services/auth.service";
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { changePassword, getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -26,10 +25,8 @@ export async function POST(request: NextRequest) {
     const auth = requireAuth(user);
     if (!auth.ok) throw new APIError(auth.status, auth.error);
 
-    const result = await changePassword(auth.user.id, parsed.data.newPassword);
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await changePassword(auth.user.id, parsed.data.newPassword);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }
