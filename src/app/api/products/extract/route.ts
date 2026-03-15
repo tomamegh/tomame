@@ -7,6 +7,7 @@ import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +34,8 @@ export async function POST(request: NextRequest) {
       throw new APIError(400, "Product URL must be from a supported store");
     }
 
-    const result = await extractProductData(parsed.data.productUrl);
+    const supabase = await createClient();
+    const result = await extractProductData(parsed.data.productUrl, auth.user.id, supabase);
     if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result.data);
