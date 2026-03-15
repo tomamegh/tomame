@@ -102,6 +102,36 @@ function roundTo2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// ── Tiered service fee (from Pricing Model PDF) ──────────────────────────────
+
+interface ServiceFeeTier {
+  /** Upper bound (inclusive). Use Infinity for the last tier. */
+  maxUsd: number;
+  /** Fee as a decimal (e.g. 0.18 = 18%) */
+  rate: number;
+  /** Minimum fee in USD (only applies to the lowest tier) */
+  minFeeUsd: number;
+}
+
+const SERVICE_FEE_TIERS: ServiceFeeTier[] = [
+  { maxUsd: 99.99,   rate: 0.18, minFeeUsd: 12 },
+  { maxUsd: 300,     rate: 0.15, minFeeUsd: 0 },
+  { maxUsd: 700,     rate: 0.12, minFeeUsd: 0 },
+  { maxUsd: 1500,    rate: 0.10, minFeeUsd: 0 },
+  { maxUsd: Infinity, rate: 0.08, minFeeUsd: 0 },
+];
+
+/**
+ * Calculate the service fee using the tiered model.
+ * Returns { feeUsd, rate } where rate is the tier percentage applied.
+ */
+function calculateServiceFee(subtotalUsd: number): { feeUsd: number; rate: number } {
+  const tier = SERVICE_FEE_TIERS.find((t) => subtotalUsd <= t.maxUsd) ?? SERVICE_FEE_TIERS[SERVICE_FEE_TIERS.length - 1]!;
+  const calculated = roundTo2(subtotalUsd * tier.rate);
+  const feeUsd = Math.max(calculated, tier.minFeeUsd);
+  return { feeUsd: roundTo2(feeUsd), rate: tier.rate };
+}
+
 // ── Service functions ─────────────────────────────────────────────────────────
 
 /**
@@ -257,7 +287,7 @@ export async function calculatePricing(
 
   const subtotalUsd = roundTo2(itemPriceUsd * quantity);
   const shippingFeeUsd = roundTo2(config.base_shipping_fee_usd);
-  const serviceFeeUsd = roundTo2(subtotalUsd * config.service_fee_percentage);
+  const { feeUsd: serviceFeeUsd, rate: serviceFeeRate } = calculateServiceFee(subtotalUsd);
   const totalUsd = roundTo2(subtotalUsd + shippingFeeUsd + serviceFeeUsd);
   const totalGhs = roundTo2(totalUsd * config.exchange_rate);
   const totalPesewas = Math.round(totalGhs * 100);
@@ -275,7 +305,7 @@ export async function calculatePricing(
       total_ghs: totalGhs,
       total_pesewas: totalPesewas,
       region,
-      service_fee_percentage: config.service_fee_percentage,
+      service_fee_percentage: serviceFeeRate,
       is_static_price: false,
       static_price_id: null,
     },
