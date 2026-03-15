@@ -82,4 +82,16 @@ describe("resolvePlatform", () => {
       SupportedPlatform.COSTCO,
     );
   });
+
+  it("should resolve fashionnova.com URLs", () => {
+    expect(resolvePlatform("https://www.fashionnova.com/products/gracie-satin-maxi-dress-rust")).toBe(
+      SupportedPlatform.FASHIONNOVA,
+    );
+  });
+
+  it("should resolve bare fashionnova.com without www", () => {
+    expect(resolvePlatform("https://fashionnova.com/products/some-dress")).toBe(
+      SupportedPlatform.FASHIONNOVA,
+    );
+  });
 });
