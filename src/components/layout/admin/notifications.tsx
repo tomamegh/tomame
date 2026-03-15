@@ -39,9 +39,7 @@ import {
 } from "@/components/ui/item";
 import { cn } from "@/lib/utils";
 import { useAdminNotifications } from "@/features/notifications/hooks/useNotifications";
-import type { NotificationResponse } from "@/features/notifications/services/notifications.service";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
+import { Notification  } from "@/features/notifications/types"
 
 function formatEvent(event: string) {
   return event
@@ -60,7 +58,7 @@ function relativeTime(iso: string) {
 }
 
 // "unread" for admin = pending or failed (needs attention)
-function isUnread(n: NotificationResponse) {
+function isUnread(n: Notification) {
   return n.status !== "sent";
 }
 
@@ -80,7 +78,7 @@ function NotificationDetail({
   notification,
   onBack,
 }: {
-  notification: NotificationResponse;
+  notification: Notification;
   onBack: () => void;
 }) {
   const payload = notification.payload;
@@ -193,7 +191,7 @@ function NotifItem({
   notification,
   onClick,
 }: {
-  notification: NotificationResponse;
+  notification: Notification;
   onClick: () => void;
 }) {
   const Icon =
@@ -263,7 +261,7 @@ function AdminNotifications() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "read">("all");
-  const [selected, setSelected] = useState<NotificationResponse | null>(null);
+  const [selected, setSelected] = useState<Notification | null>(null);
 
   // Fetch all; filter client-side
   const { data, isPending, error } = useAdminNotifications();

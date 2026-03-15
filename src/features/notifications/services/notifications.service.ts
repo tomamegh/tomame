@@ -3,12 +3,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
 import type { AuthenticatedUser } from "@/types/domain";
-import type { DbNotification } from "@/types/db";
+import { Notification, NotificationListResponse } from "../types";
 
 async function getNotificationsByUserId(
   client: SupabaseClient,
-  userId: string
-): Promise<DbNotification[]> {
+  userId: string,
+): Promise<Notification[]> {
   const { data, error } = await client
     .from("notifications")
     .select("*")
@@ -16,16 +16,19 @@ async function getNotificationsByUserId(
     .order("created_at", { ascending: false });
 
   if (error) {
-    logger.error("getNotificationsByUserId failed", { userId, error: error.message });
+    logger.error("getNotificationsByUserId failed", {
+      userId,
+      error: error.message,
+    });
     return [];
   }
-  return (data ?? []) as DbNotification[];
+  return (data ?? []) as Notification[];
 }
 
 async function getAllNotifications(
   client: SupabaseClient,
-  filters?: { status?: string; userId?: string; channel?: string }
-): Promise<DbNotification[]> {
+  filters?: { status?: string; userId?: string; channel?: string },
+): Promise<Notification[]> {
   let query = client
     .from("notifications")
     .select("*")
@@ -41,28 +44,24 @@ async function getAllNotifications(
     logger.error("getAllNotifications failed", { error: error.message });
     return [];
   }
-  return (data ?? []) as DbNotification[];
-}
-
-export type NotificationResponse = DbNotification;
-
-export interface NotificationListResponse {
-  notifications: NotificationResponse[];
-  count: number;
+  return (data ?? []) as Notification[];
 }
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
 export async function listUserNotifications(
-  user: AuthenticatedUser
+  user: AuthenticatedUser,
 ): Promise<NotificationListResponse> {
-  const notifications = await getNotificationsByUserId(createAdminClient(), user.id);
+  const notifications = await getNotificationsByUserId(
+    createAdminClient(),
+    user.id,
+  );
   return { notifications, count: notifications.length };
 }
 
 export async function listAllNotifications(
   user: AuthenticatedUser,
-  filters?: { status?: string; userId?: string; channel?: string }
+  filters?: { status?: string; userId?: string; channel?: string },
 ): Promise<NotificationListResponse> {
   if (user.role !== "admin") {
     throw new APIError(403, "Admin access required");
