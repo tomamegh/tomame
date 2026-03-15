@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
-import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
+import { APIError } from "@/lib/auth/api-helpers";
+import type { AuthenticatedUser } from "@/types/domain";
 import type {
   PricingConfigResponse,
   PricingConfigListResponse,
@@ -76,53 +77,19 @@ async function updatePricingConfig(
   return data as DbPricingConfig;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Map a DB row to the API response shape */
-function toResponse(config: {
-  id: string;
-  region: string;
-  base_shipping_fee_usd: number;
-  exchange_rate: number;
-  service_fee_percentage: number;
-  last_updated: string;
-}): PricingConfigResponse {
-  return {
-    id: config.id,
-    region: config.region,
-    baseShippingFeeUsd: config.base_shipping_fee_usd,
-    exchangeRate: config.exchange_rate,
-    serviceFeePercentage: config.service_fee_percentage,
-    lastUpdated: config.last_updated,
-  };
-}
-
-/** Round to 2 decimal places (avoids floating-point drift) */
 function roundTo2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
-/**
- * Get all pricing configs (all regions).
- * Pass createAdminClient() — pricing_config is admin-managed data.
- */
 export async function getAll(
   client: SupabaseClient,
-): Promise<ServiceResult<PricingConfigListResponse>> {
+): Promise<PricingConfigListResponse> {
   const configs = await getAllPricingConfigs(client);
-
-  return {
-    success: true,
-    data: { configs: configs.map(toResponse) },
-  };
+  return { configs: configs as PricingConfigResponse[] };
 }
 
-/**
- * Update pricing config for a specific region (admin only).
- * Expects an admin-scoped client (createAdminClient()).
- */
 export async function updateRegionPricing(
   client: SupabaseClient,
   admin: AuthenticatedUser,
@@ -130,10 +97,10 @@ export async function updateRegionPricing(
   baseShippingFeeUsd: number,
   exchangeRate: number,
   serviceFeePercentage: number,
-): Promise<ServiceResult<PricingConfigResponse>> {
+): Promise<PricingConfigResponse> {
   const current = await getPricingConfigByRegion(client, region);
   if (!current) {
-    return { success: false, error: "Pricing config not found for region", status: 404 };
+    throw new APIError(404, "Pricing config not found for region");
   }
 
   const updated = await updatePricingConfig(client, region, {
@@ -144,7 +111,7 @@ export async function updateRegionPricing(
   });
 
   if (!updated) {
-    return { success: false, error: "Failed to update pricing config", status: 500 };
+    throw new APIError(500, "Failed to update pricing config");
   }
 
   await logAuditEvent({
@@ -164,10 +131,9 @@ export async function updateRegionPricing(
     },
   });
 
-  return { success: true, data: toResponse(updated) };
+  return updated as PricingConfigResponse;
 }
 
-/** Fallback pricing used when the DB has no row for a region yet. */
 const FALLBACK_PRICING: Record<
   "USA" | "UK" | "CHINA",
   { base_shipping_fee_usd: number; exchange_rate: number; service_fee_percentage: number }
@@ -179,18 +145,14 @@ const FALLBACK_PRICING: Record<
 
 /**
  * Calculate the full pricing breakdown for an order.
- * System-level operation — uses admin client internally to read pricing_config.
  * Falls back to hardcoded defaults if the DB row is missing.
- * This is the SINGLE SOURCE OF TRUTH for all money math.
- *
- * Formula: total_ghs = (item_price * qty + shipping + service_fee) * exchange_rate
- * Where: service_fee = item_price * qty * service_fee_percentage
+ * Single source of truth for all money math.
  */
 export async function calculatePricing(
   itemPriceUsd: number,
   quantity: number,
   region: "USA" | "UK" | "CHINA",
-): Promise<ServiceResult<OrderPricingBreakdown>> {
+): Promise<OrderPricingBreakdown> {
   const config =
     (await getPricingConfigByRegion(createAdminClient(), region)) ??
     FALLBACK_PRICING[region];
@@ -203,19 +165,16 @@ export async function calculatePricing(
   const totalPesewas = Math.round(totalGhs * 100);
 
   return {
-    success: true,
-    data: {
-      item_price_usd: itemPriceUsd,
-      quantity,
-      subtotal_usd: subtotalUsd,
-      shipping_fee_usd: shippingFeeUsd,
-      service_fee_usd: serviceFeeUsd,
-      total_usd: totalUsd,
-      exchange_rate: config.exchange_rate,
-      total_ghs: totalGhs,
-      total_pesewas: totalPesewas,
-      region,
-      service_fee_percentage: config.service_fee_percentage,
-    },
+    item_price_usd: itemPriceUsd,
+    quantity,
+    subtotal_usd: subtotalUsd,
+    shipping_fee_usd: shippingFeeUsd,
+    service_fee_usd: serviceFeeUsd,
+    total_usd: totalUsd,
+    exchange_rate: config.exchange_rate,
+    total_ghs: totalGhs,
+    total_pesewas: totalPesewas,
+    region,
+    service_fee_percentage: config.service_fee_percentage,
   };
 }

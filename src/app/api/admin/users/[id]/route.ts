@@ -29,10 +29,8 @@ export async function GET(
     if (!admin.ok) throw new APIError(admin.status, admin.error);
 
     const { id } = await params;
-    const result = await getUserDetail(createAdminClient(), admin.user, id);
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await getUserDetail(createAdminClient(), admin.user, id);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }
@@ -61,10 +59,8 @@ export async function PATCH(
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const result = await updateUser(createAdminClient(), admin.user, id, parsed.data.role);
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await updateUser(createAdminClient(), admin.user, id, parsed.data.role);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }

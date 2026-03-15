@@ -11,13 +11,13 @@ import {
   orderCancelledTemplate,
 } from "@/lib/email/templates/order-status";
 import { logger } from "@/lib/logger";
-import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
+import { APIError } from "@/lib/auth/api-helpers";
+import type { AuthenticatedUser } from "@/types/domain";
 import type { PaginatedDataResponse } from "@/types/api";
 import type { DbOrder, DbAuditLog } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList, type OrderExtractionMetadata } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { APIError } from "@/lib/auth/api-helpers";
 
 export async function getOrderById(
   client: SupabaseClient,
@@ -98,10 +98,7 @@ async function getOrdersByUserId(
     .order("created_at", { ascending: false });
 
   if (error) {
-    logger.error("getOrdersByUserId failed", {
-      userId,
-      error: error.message,
-    });
+    logger.error("getOrdersByUserId failed", { userId, error: error.message });
     return [];
   }
   return (data ?? []) as DbOrder[];
@@ -116,12 +113,8 @@ async function getAllOrders(
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (filters?.status) {
-    query = query.eq("status", filters.status);
-  }
-  if (filters?.userId) {
-    query = query.eq("user_id", filters.userId);
-  }
+  if (filters?.status) query = query.eq("status", filters.status);
+  if (filters?.userId) query = query.eq("user_id", filters.userId);
   if (filters?.needsReview !== undefined) {
     query = query.eq("needs_review", filters.needsReview);
   }
@@ -147,50 +140,12 @@ async function getOrderAuditLogs(
     .order("created_at", { ascending: true });
 
   if (error) {
-    logger.error("getOrderAuditLogs failed", {
-      orderId,
-      error: error.message,
-    });
+    logger.error("getOrderAuditLogs failed", { orderId, error: error.message });
     return [];
   }
   return (data ?? []) as DbAuditLog[];
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Map a DB order row to the API response shape */
-function toResponse(order: DbOrder): Order {
-  return {
-    id: order.id,
-    userId: order.user_id,
-    productUrl: order.product_url,
-    productName: order.product_name,
-    productImageUrl: order.product_image_url,
-    estimatedPriceUsd: order.estimated_price_usd,
-    quantity: order.quantity,
-    originCountry: order.origin_country,
-    specialInstructions: order.special_instructions,
-    status: order.status,
-    pricing: order.pricing,
-    needsReview: order.needs_review,
-    reviewReasons: order.review_reasons,
-    reviewedBy: order.reviewed_by,
-    reviewedAt: order.reviewed_at,
-    extractionMetadata: order.extraction_metadata,
-    extractionData: order.extraction_data,
-    trackingNumber: order.tracking_number,
-    carrier: order.carrier,
-    estimatedDeliveryDate: order.estimated_delivery_date,
-    deliveredAt: order.delivered_at,
-    createdAt: order.created_at,
-    updatedAt: order.updated_at,
-  };
-}
-
-/**
- * Send an order status notification email. Fire-and-forget — errors are
- * logged but never thrown so they never block status transitions.
- */
 async function sendOrderStatusEmail(
   userId: string,
   order: DbOrder,
@@ -254,9 +209,6 @@ async function sendOrderStatusEmail(
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
-/**
- * Create a new order with server-calculated pricing.
- */
 export async function createOrder(
   client: SupabaseClient,
   user: AuthenticatedUser,
@@ -273,31 +225,17 @@ export async function createOrder(
     extractionMetadata?: OrderExtractionMetadata | null;
     extractionData?: Record<string, unknown> | null;
   },
-): Promise<ServiceResult<Order>> {
-  // Validate product URL domain against supported platforms
+): Promise<Order> {
   const platform = resolvePlatform(input.productUrl);
   if (!platform) {
-    return {
-      success: false,
-      error: "We currently do not support this store. Please try again",
-      status: 400,
-    };
+    throw new APIError(400, "We currently do not support this store. Please try again");
   }
 
-  // Calculate pricing server-side (never trust client-provided totals)
-  const pricingResult = await calculatePricing(
+  const pricing = await calculatePricing(
     input.estimatedPriceUsd,
     input.quantity,
     input.originCountry,
   );
-
-  if (!pricingResult.success) {
-    return {
-      success: false,
-      error: pricingResult.error,
-      status: pricingResult.status,
-    };
-  }
 
   const orderToCreate = {
     user_id: user.id,
@@ -308,7 +246,7 @@ export async function createOrder(
     quantity: input.quantity,
     origin_country: input.originCountry,
     special_instructions: input.specialInstructions ?? null,
-    pricing: pricingResult.data,
+    pricing,
     status: "pending",
     needs_review: input.needsReview ?? false,
     review_reasons: input.reviewReasons ?? [],
@@ -316,7 +254,6 @@ export async function createOrder(
       string,
       unknown
     > | null,
-    // Only included once migration 010 (ADD COLUMN extraction_data JSONB) has been run
     ...(input.extractionData != null
       ? { extraction_data: input.extractionData }
       : {}),
@@ -351,17 +288,13 @@ export async function createOrder(
     metadata: {
       productUrl: input.productUrl,
       originCountry: input.originCountry,
-      totalGhs: pricingResult.data.total_ghs,
+      totalGhs: pricing.total_ghs,
     },
   });
 
-  return { success: true, data: toResponse(order) };
+  return order as Order;
 }
 
-/**
- * List orders for the authenticated user (paginated).
- * Uses the user-scoped client so RLS enforces ownership automatically.
- */
 export const getUserOrders = async (
   userId: string,
   page: number = 1,
@@ -379,12 +312,10 @@ export const getUserOrders = async (
     .order("created_at", { ascending: false })
     .range(from, to);
 
-  if (error) {
-    throw error;
-  }
+  if (error) throw error;
 
   return {
-    data,
+    data: (data ?? []) as Order[],
     total: count || 0,
     page,
     limit,
@@ -392,73 +323,45 @@ export const getUserOrders = async (
   };
 };
 
-/**
- * Get a single order by ID.
- * Pass createClient() for user routes (RLS enforces ownership).
- * Pass createAdminClient() for admin routes (bypasses RLS).
- */
 export async function getOrder(
   client: SupabaseClient,
   user: AuthenticatedUser,
   orderId: string,
-): Promise<ServiceResult<Order>> {
+): Promise<Order> {
   const order = await getOrderById(client, orderId);
 
   if (!order) {
-    return { success: false, error: "Order not found", status: 404 };
+    throw new APIError(404, "Order not found");
   }
 
-  // Extra code-level ownership check for user-scoped calls
   if (user.role !== "admin" && order.user_id !== user.id) {
-    return { success: false, error: "Order not found", status: 404 };
+    throw new APIError(404, "Order not found");
   }
 
-  return { success: true, data: toResponse(order) };
+  return order as Order;
 }
 
-/**
- * List all orders for the authenticated user.
- */
 export async function listUserOrders(
   client: SupabaseClient,
   user: AuthenticatedUser,
-): Promise<ServiceResult<OrderList>> {
+): Promise<OrderList> {
   const orders = await getOrdersByUserId(client, user.id);
-
-  return {
-    success: true,
-    data: {
-      orders: orders.map(toResponse),
-      count: orders.length,
-    },
-  };
+  return { orders: orders as Order[], count: orders.length };
 }
 
-/**
- * Admin: list all orders with optional filters.
- * Expects an admin-scoped client (createAdminClient()).
- */
 export async function listAllOrders(
   client: SupabaseClient,
   user: AuthenticatedUser,
   filters?: { status?: string; userId?: string; needsReview?: boolean },
-): Promise<ServiceResult<OrderList>> {
+): Promise<OrderList> {
   if (user.role !== "admin") {
-    return { success: false, error: "Admin access required", status: 403 };
+    throw new APIError(403, "Admin access required");
   }
 
   const orders = await getAllOrders(client, filters);
-
-  return {
-    success: true,
-    data: {
-      orders: orders.map(toResponse),
-      count: orders.length,
-    },
-  };
+  return { orders: orders as Order[], count: orders.length };
 }
 
-// Valid admin-driven transitions
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   pending: ["cancelled"],
   paid: ["processing"],
@@ -467,10 +370,6 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   delivered: ["completed"],
 };
 
-/**
- * Admin: update an order's status following the state machine.
- * Expects an admin-scoped client (createAdminClient()).
- */
 export async function updateOrderStatusAdmin(
   client: SupabaseClient,
   user: AuthenticatedUser,
@@ -481,26 +380,24 @@ export async function updateOrderStatusAdmin(
     carrier?: string;
     estimatedDeliveryDate?: string;
   },
-): Promise<ServiceResult<Order>> {
+): Promise<Order> {
   if (user.role !== "admin") {
-    return { success: false, error: "Admin access required", status: 403 };
+    throw new APIError(403, "Admin access required");
   }
 
   const order = await getOrderById(client, orderId);
   if (!order) {
-    return { success: false, error: "Order not found", status: 404 };
+    throw new APIError(404, "Order not found");
   }
 
   const allowed = ALLOWED_TRANSITIONS[order.status] ?? [];
   if (!allowed.includes(newStatus)) {
-    return {
-      success: false,
-      error: `Cannot transition order from '${order.status}' to '${newStatus}'`,
-      status: 400,
-    };
+    throw new APIError(
+      400,
+      `Cannot transition order from '${order.status}' to '${newStatus}'`,
+    );
   }
 
-  // Build update payload
   const updatePayload: {
     status: string;
     tracking_number?: string;
@@ -509,26 +406,20 @@ export async function updateOrderStatusAdmin(
     delivered_at?: string;
   } = { status: newStatus };
 
-  // When transitioning to in_transit, save tracking fields
   if (newStatus === "in_transit" && trackingData) {
     if (trackingData.trackingNumber) updatePayload.tracking_number = trackingData.trackingNumber;
     if (trackingData.carrier) updatePayload.carrier = trackingData.carrier;
     if (trackingData.estimatedDeliveryDate) updatePayload.estimated_delivery_date = trackingData.estimatedDeliveryDate;
   }
 
-  // When transitioning to delivered, auto-set delivered_at
   if (newStatus === "delivered") {
     updatePayload.delivered_at = new Date().toISOString();
   }
 
-  const supabase = createAdminClient()
+  const supabase = createAdminClient();
   const updated = await updateOrderStatus(supabase, orderId, updatePayload);
   if (!updated) {
-    return {
-      success: false,
-      error: "Failed to update order status",
-      status: 500,
-    };
+    throw new APIError(500, "Failed to update order status");
   }
 
   await logAuditEvent({
@@ -540,46 +431,25 @@ export async function updateOrderStatusAdmin(
     metadata: { from: order.status, to: newStatus },
   });
 
-  // Fire-and-forget email notification
   sendOrderStatusEmail(order.user_id, updated, newStatus, trackingData);
 
-  return { success: true, data: toResponse(updated) };
+  return updated as Order;
 }
 
-/**
- * User: cancel a pending order.
- * Only the order owner can cancel, and only when status is "pending".
- */
 export async function cancelOrderByUser(
   user: AuthenticatedUser,
   orderId: string,
-): Promise<ServiceResult<Order>> {
-  const supabase = createAdminClient()
+): Promise<Order> {
+  const supabase = createAdminClient();
   const order = await getOrderById(supabase, orderId);
-  if (!order) {
-    return { success: false, error: "Order not found", status: 404 };
-  }
-
-  if (order.user_id !== user.id) {
-    return { success: false, error: "Order not found", status: 404 };
-  }
-
+  if (!order) throw new APIError(404, "Order not found");
+  if (order.user_id !== user.id) throw new APIError(404, "Order not found");
   if (order.status !== "pending") {
-    return {
-      success: false,
-      error: "Only pending orders can be cancelled",
-      status: 400,
-    };
+    throw new APIError(400, "Only pending orders can be cancelled");
   }
 
   const updated = await updateOrderStatus(supabase, orderId, { status: "cancelled" });
-  if (!updated) {
-    return {
-      success: false,
-      error: "Failed to cancel order",
-      status: 500,
-    };
-  }
+  if (!updated) throw new APIError(500, "Failed to cancel order");
 
   await logAuditEvent({
     actorId: user.id,
@@ -590,30 +460,21 @@ export async function cancelOrderByUser(
     metadata: { from: "pending", to: "cancelled" },
   });
 
-  // Fire-and-forget email notification
   sendOrderStatusEmail(user.id, updated, "cancelled");
 
-  return { success: true, data: toResponse(updated) };
+  return updated as Order;
 }
 
-/**
- * Get audit history for an order. Enforces ownership for non-admin users.
- */
 export async function getOrderAuditHistory(
   user: AuthenticatedUser,
   orderId: string,
-): Promise<ServiceResult<DbAuditLog[]>> {
-  const supabase = createAdminClient()
+): Promise<DbAuditLog[]> {
+  const supabase = createAdminClient();
   const order = await getOrderById(supabase, orderId);
-  if (!order) {
-    return { success: false, error: "Order not found", status: 404 };
-  }
-
+  if (!order) throw new APIError(404, "Order not found");
   if (user.role !== "admin" && order.user_id !== user.id) {
-    return { success: false, error: "Order not found", status: 404 };
+    throw new APIError(404, "Order not found");
   }
 
-  const logs = await getOrderAuditLogs(supabase, orderId);
-
-  return { success: true, data: logs };
+  return getOrderAuditLogs(supabase, orderId);
 }

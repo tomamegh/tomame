@@ -30,10 +30,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get("role") ?? undefined;
 
-    const result = await listUsers(createAdminClient(), admin.user, { role });
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await listUsers(createAdminClient(), admin.user, { role });
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }
@@ -58,15 +56,13 @@ export async function POST(request: NextRequest) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const result = await createUser(
+    const data = await createUser(
       admin.user,
       parsed.data.email,
       parsed.data.password,
-      parsed.data.role
+      parsed.data.role,
     );
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data, 201);
+    return successResponse(data, 201);
   } catch (error) {
     return errorResponse(error);
   }

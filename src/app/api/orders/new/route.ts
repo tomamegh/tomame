@@ -52,9 +52,9 @@ export async function POST(request: NextRequest) {
       extractionMetadata: data.extractionMetadata,
       extractionData: data.extractionData,
     });
-    if (!result.success) throw new APIError(result.status, result.error);
+    // if (!result.success) throw new APIError(result.status, result.error);
 
-    return successResponse(result.data, 201);
+    return successResponse(result, 201);
   } catch (error) {
     return errorResponse(error);
   }

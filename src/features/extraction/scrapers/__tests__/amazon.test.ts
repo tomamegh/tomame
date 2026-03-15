@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as cheerio from "cheerio";
 import { amazonScraper } from "../amazon";
+import { TomameCategory } from "@/config/categories";
 
 const fixtureHtml = readFileSync(
-  resolve(__dirname, "fixtures", "amazon-desk.html"),
+  resolve(__dirname, "fixtures", "amazon-desk-full.html"),
   "utf-8",
 );
 const $ = cheerio.load(fixtureHtml);
@@ -50,6 +51,12 @@ describe("amazonScraper", () => {
     it("should extract the brand", () => {
       expect(result.brand).toBeTruthy();
       expect(result.brand).toContain("SEDETA");
+    });
+  });
+
+  describe("category", () => {
+    it("should extract and map the category to TomameCategory", () => {
+      expect(result.category).toBe(TomameCategory.HOME_KITCHEN);
     });
   });
 

@@ -7,6 +7,7 @@ import {
   RefreshCwIcon,
   CheckCircle2Icon,
   PackageSearchIcon,
+  ClockIcon,
 } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,8 @@ export function ProductPreview({
   onOrder,
   onReset,
 }: ProductPreviewProps) {
-  const { product, extractionSuccess, platform, country } = data;
+  const { product, extractionSuccess, platform, country, errors, fetchedAt } =
+    data;
 
   const name = product.title;
   const price = product.price;
@@ -28,6 +30,10 @@ export function ProductPreview({
   const weight = product.weight;
   const dimensions = product.dimensions;
   const brand = product.brand;
+  const size = product.size;
+  const description = product.description;
+  const specs = Object.entries(product.specifications ?? {});
+  const category = product.category;
 
   const isMissingCritical = !name || price === null;
   const showWarning = !extractionSuccess || isMissingCritical;
@@ -131,10 +137,17 @@ export function ProductPreview({
                 )}
               </div>
 
-              {brand && (
+              {(brand || product?.specifications?.Brand) && (
                 <div className="flex items-center gap-5 justify-between">
                   <p className="text-sm font-semibold text-stone-700">Brand</p>
-                  <p className="font-semibold text-stone-800 text-sm self-end">{brand}</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end">{product?.specifications?.Brand||brand}</p>
+                </div>
+              )}
+
+              {category && (
+                <div className="flex items-center gap-5 justify-between">
+                  <p className="text-sm font-semibold text-stone-700">Category</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end">{category}</p>
                 </div>
               )}
 
@@ -149,6 +162,13 @@ export function ProductPreview({
                 <div className="flex items-center gap-5 justify-between">
                   <p className="text-sm font-semibold text-stone-700">Dimensions</p>
                   <p className="font-semibold text-stone-800 text-sm self-end">{dimensions}</p>
+                </div>
+              )}
+
+              {size && (
+                <div className="flex items-center gap-5 justify-between">
+                  <p className="text-sm font-semibold text-stone-700">Size</p>
+                  <p className="font-semibold text-stone-800 text-sm self-end">{size}</p>
                 </div>
               )}
 
@@ -179,6 +199,56 @@ export function ProductPreview({
             </a>
           </div>
         </CardContent>
+
+        {/* Description */}
+        {description && (
+          <div className="px-6 pb-4 border-t pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-stone-400 mb-2">
+              Description
+            </p>
+            <p className="text-sm text-stone-600 leading-relaxed line-clamp-4">
+              {description}
+            </p>
+          </div>
+        )}
+
+        {/* Specifications */}
+        {specs.length > 0 && (
+          <div className="px-6 pb-4 border-t pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-stone-400 mb-2">
+              Specifications
+            </p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+              {specs.map(([key, value]) => (
+                <div key={key} className="contents">
+                  <dt className="text-xs text-stone-500 truncate">{key}</dt>
+                  <dd className="text-xs font-medium text-stone-700 truncate">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+        {/* Extraction metadata */}
+        <div className="px-6 pb-3 border-t pt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span className="flex items-center gap-1 text-xs text-stone-400">
+            <ClockIcon className="size-3" />
+            Fetched{" "}
+            {new Date(fetchedAt).toLocaleString(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </span>
+          {errors.length > 0 && (
+            <span className="text-xs text-amber-600">
+              {errors.length} extraction warning
+              {errors.length > 1 ? "s" : ""}:{" "}
+              {errors.join(" · ")}
+            </span>
+          )}
+        </div>
+
         <CardFooter className="justify-between border-t">
           <Button
             variant="outline"

@@ -82,23 +82,23 @@ export function AdminOrdersList() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-stone-800 truncate">
-                    {order.productName}
+                    {order.product_name}
                   </p>
                   <a
-                    href={order.productUrl}
+                    href={order.product_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-rose-500 hover:underline flex items-center gap-1"
                   >
                     <ExternalLinkIcon className="w-3 h-3" />
-                    <span className="truncate max-w-xs">{order.productUrl}</span>
+                    <span className="truncate max-w-xs">{order.product_url}</span>
                   </a>
                   <p className="text-xs text-stone-400 mt-1">
-                    {order.originCountry} · Qty {order.quantity} · GHS{" "}
+                    {order.origin_country} · Qty {order.quantity} · GHS{" "}
                     {order.pricing.total_ghs.toFixed(2)}
                   </p>
                   <p className="text-xs text-stone-400">
-                    {new Date(order.createdAt).toLocaleDateString()}
+                    {new Date(order.created_at).toLocaleDateString()}
                   </p>
                 </div>
 
