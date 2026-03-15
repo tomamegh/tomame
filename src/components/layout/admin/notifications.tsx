@@ -116,21 +116,21 @@ function NotificationDetail({
           </span>
           <span className="text-stone-300">·</span>
           <span className="text-xs text-stone-400">
-            {relativeTime(notification.createdAt)}
+            {relativeTime(notification.created_at)}
           </span>
         </div>
 
         {/* Timestamps */}
         <div className="rounded-lg bg-stone-50 border border-stone-100 divide-y divide-stone-100 text-xs overflow-hidden">
-          <Row label="Created" value={new Date(notification.createdAt).toLocaleString()} />
-          {notification.sentAt && (
-            <Row label="Sent at" value={new Date(notification.sentAt).toLocaleString()} />
+          <Row label="Created" value={new Date(notification.created_at).toLocaleString()} />
+          {notification.sent_at && (
+            <Row label="Sent at" value={new Date(notification.sent_at).toLocaleString()} />
           )}
           <Row
             label="User ID"
             value={
               <span className="font-mono text-stone-600">
-                {notification.userId.slice(0, 16)}…
+                {notification.user_id.slice(0, 16)}…
               </span>
             }
           />
@@ -223,13 +223,13 @@ function NotifItem({
             </ItemTitle>
             <div className="flex items-center gap-1 shrink-0 text-xs text-stone-400">
               <StatusDot status={notification.status} />
-              {relativeTime(notification.createdAt)}
+              {relativeTime(notification.created_at)}
             </div>
           </ItemHeader>
           <ItemDescription className="text-xs capitalize">
             {notification.channel}
             {" · "}
-            <span className="font-mono">#{notification.userId.slice(0, 8)}</span>
+            <span className="font-mono">#{notification.user_id.slice(0, 8)}</span>
           </ItemDescription>
         </ItemContent>
       </Item>
@@ -284,7 +284,7 @@ function AdminNotifications() {
           n.event.toLowerCase().includes(q) ||
           n.channel.toLowerCase().includes(q) ||
           n.status.toLowerCase().includes(q) ||
-          n.userId.toLowerCase().includes(q)
+          n.user_id.toLowerCase().includes(q)
       );
     }
 
