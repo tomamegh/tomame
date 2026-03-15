@@ -64,18 +64,38 @@ export interface OrderPricingBreakdown {
   item_price_usd: number;
   quantity: number;
   subtotal_usd: number;
-  shipping_fee_usd: number;
+  /** Seller shipping to Tomame's US warehouse (default $0 if not detected) */
+  seller_shipping_usd: number;
+  /** International freight based on chargeable weight × $6.50/lb */
+  freight_usd: number;
   service_fee_usd: number;
+  /** Flat $15 handling fee per order (warehouse handling, repackaging, docs) */
+  handling_fee_usd: number;
   total_usd: number;
+  /** Mid-market USD/GHS rate (before buffer) */
+  mid_market_rate: number;
+  /** Applied FX rate = mid_market_rate × 1.04 (4% currency buffer) */
   exchange_rate: number;
   total_ghs: number;
   total_pesewas: number;
   region: "USA" | "UK" | "CHINA";
   service_fee_percentage: number;
-  /** When true, total_ghs comes from the static price list (all-inclusive, no formula) */
+  /** Weight info for freight calculation */
+  weight?: {
+    actual_lbs: number | null;
+    volumetric_lbs: number | null;
+    chargeable_lbs: number;
+    /** How weight was determined: "scraped" | "internet_search" | "category_default" */
+    source: "scraped" | "internet_search" | "category_default";
+  };
+  /** When true, uses Method 1 (fixed freight from static price list) */
   is_static_price: boolean;
   /** ID of the matched static_price_list row, if any */
   static_price_id: string | null;
+
+  // ── Deprecated (kept for backward compat with existing orders) ──
+  /** @deprecated Use seller_shipping_usd + freight_usd instead */
+  shipping_fee_usd?: number;
 }
 
 export interface DbNotification {

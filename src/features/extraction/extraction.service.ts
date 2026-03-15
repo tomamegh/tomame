@@ -3,16 +3,93 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "@/types/domain";
 import type { OrderPricingBreakdown } from "@/types/db";
 import { logger } from "@/lib/logger";
-import { calculatePricing } from "@/features/pricing/services/pricing.service";
+import { calculatePricing, getCategoryDefaultWeight } from "@/features/pricing/services/pricing.service";
+import type { FreightInput } from "@/features/pricing/services/pricing.service";
 import { matchProduct } from "@/features/pricing/services/static-pricing.service";
+import { searchProductWeight } from "@/features/pricing/services/weight-search.service";
 import { resolvePlatform, getScraperByPlatform } from "./scrapers";
-import type { ExtractionResult, StaticPriceMatch } from "./types";
+import type { ExtractionResult, StaticPriceMatch, WeightInfo } from "./types";
 
 /** Cache TTL: 5 hours in milliseconds */
 const CACHE_TTL_MS = 5 * 60 * 60 * 1000;
 
 /** Pricing quote TTL: 24 hours in milliseconds */
 const QUOTE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// ── Weight parsing helpers ──────────────────────────────────────────────
+
+/** Try to parse a weight string (from scraper) into lbs. Handles "X lbs", "X kg", "X oz", "X g". */
+function parseWeightToLbs(raw: string | null): number | null {
+  if (!raw) return null;
+  const match = raw.match(/(\d+\.?\d*)\s*(lbs?|pounds?|oz|ounces?|kg|kilograms?|grams?|g)\b/i);
+  if (!match) return null;
+  const value = parseFloat(match[1]!);
+  const unit = match[2]!.toLowerCase().replace(/\.$/, "");
+  if (value <= 0 || value >= 500) return null;
+  switch (unit) {
+    case "lb": case "lbs": case "pound": case "pounds": return Math.round(value * 100) / 100;
+    case "oz": case "ounce": case "ounces": return Math.round((value / 16) * 100) / 100;
+    case "kg": case "kilogram": case "kilograms": return Math.round((value * 2.20462) * 100) / 100;
+    case "g": case "gram": case "grams": return Math.round(((value / 1000) * 2.20462) * 100) / 100;
+    default: return null;
+  }
+}
+
+/** Try to parse dimensions string into inches. Handles "12 x 10 x 8 inches", "L x W x H". */
+function parseDimensionsToInches(raw: string | null): { lengthIn: number; widthIn: number; heightIn: number } | null {
+  if (!raw) return null;
+  const match = raw.match(/(\d+\.?\d*)\s*[x×]\s*(\d+\.?\d*)\s*[x×]\s*(\d+\.?\d*)/i);
+  if (!match) return null;
+  const l = parseFloat(match[1]!);
+  const w = parseFloat(match[2]!);
+  const h = parseFloat(match[3]!);
+  if (l <= 0 || w <= 0 || h <= 0) return null;
+  // If values seem like cm (all > 25), convert to inches
+  if (l > 25 && w > 25 && h > 25) {
+    return { lengthIn: Math.round((l / 2.54) * 100) / 100, widthIn: Math.round((w / 2.54) * 100) / 100, heightIn: Math.round((h / 2.54) * 100) / 100 };
+  }
+  return { lengthIn: l, widthIn: w, heightIn: h };
+}
+
+/**
+ * Resolve product weight using the 3-step fallback chain from the pricing model PDF:
+ * Step 1: Scrape weight from product page
+ * Step 2: Search internet via SerpAPI
+ * Step 3: Apply category default weight
+ */
+async function resolveWeight(
+  scrapedWeight: string | null,
+  productTitle: string | null,
+  category: string | null,
+): Promise<WeightInfo> {
+  // Step 1: Scraped weight
+  const parsedWeight = parseWeightToLbs(scrapedWeight);
+  if (parsedWeight != null) {
+    return { weightLbs: parsedWeight, source: "scraped" };
+  }
+
+  // Step 2: Internet search via SerpAPI
+  if (productTitle) {
+    try {
+      const searchResult = await searchProductWeight(productTitle);
+      if (searchResult.found && searchResult.weightLbs != null) {
+        return {
+          weightLbs: searchResult.weightLbs,
+          source: "internet_search",
+          sourceUrl: searchResult.sourceUrl,
+        };
+      }
+    } catch (err) {
+      logger.error("Weight search failed, falling back to category default", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  // Step 3: Category default
+  const defaultWeight = getCategoryDefaultWeight(category);
+  return { weightLbs: defaultWeight, source: "category_default" };
+}
 
 const DOMAIN_COUNTRY_MAP: Record<string, "USA" | "UK" | "CHINA"> = {
   "amazon.com": "USA",
@@ -197,16 +274,28 @@ export async function extractProductData(
 
     const country = getCountryFromDomain(url);
 
-    // 4. Calculate pricing quote to lock in the current FX rate (valid 24h)
+    // 4. Resolve weight via 3-step fallback (scrape → internet search → category default)
+    const weightInfo = await resolveWeight(product.weight, product.title, product.category);
+    const dimensions = parseDimensionsToInches(product.dimensions);
+
+    // 5. Calculate pricing quote to lock in the current FX rate (valid 24h)
     let pricingQuote: OrderPricingBreakdown | null = null;
     if (product.price != null && country) {
-      const pricingResult = await calculatePricing(product.price, 1, country);
+      const freightInput: FreightInput = {
+        actualWeightLbs: weightInfo.weightLbs,
+        dimensions,
+        category: product.category,
+        weightSource: weightInfo.source,
+      };
+      const pricingResult = await calculatePricing(product.price, 1, country, {
+        freight: freightInput,
+      });
       if (pricingResult.success) {
         pricingQuote = pricingResult.data;
       }
     }
 
-    // 5. Try to match against static price list (fixed freight)
+    // 6. Try to match against static price list (fixed freight)
     let staticPriceMatch: StaticPriceMatch | null = null;
     const matchResult = await matchProduct({
       title: product.title,
@@ -240,6 +329,7 @@ export async function extractProductData(
       fetchedAt: new Date().toISOString(),
       pricingQuote,
       staticPriceMatch,
+      weightInfo,
     };
 
     // 5. Cache extraction + pricing quote (fire-and-forget, non-blocking)

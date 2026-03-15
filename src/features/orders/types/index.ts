@@ -45,14 +45,25 @@ export interface OrderPricing {
   item_price_usd: number;
   quantity: number;
   subtotal_usd: number;
-  shipping_fee_usd: number;
+  seller_shipping_usd: number;
+  freight_usd: number;
   service_fee_usd: number;
+  handling_fee_usd: number;
   total_usd: number;
+  mid_market_rate: number;
   exchange_rate: number;
   total_ghs: number;
   total_pesewas: number;
   region: OriginCountry;
   service_fee_percentage: number;
+  weight?: {
+    actual_lbs: number | null;
+    volumetric_lbs: number | null;
+    chargeable_lbs: number;
+    source: "scraped" | "internet_search" | "category_default";
+  };
+  /** @deprecated Use seller_shipping_usd + freight_usd */
+  shipping_fee_usd?: number;
 }
 
 export interface Order {

@@ -206,13 +206,16 @@ function PricingBreakdown({ order }: { order: Order }) {
   const rows = [
     { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
     { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
-    { label: "Shipping fee", value: `$${fmt(p.shipping_fee_usd)}` },
+    { label: "Seller shipping", value: p.seller_shipping_usd ? `$${fmt(p.seller_shipping_usd)}` : "FREE" },
+    { label: "International freight (incl. customs)", value: `$${fmt(p.freight_usd)}` },
     {
       label: `Service fee (${(p.service_fee_percentage * 100).toFixed(0)}%)`,
       value: `$${fmt(p.service_fee_usd)}`,
     },
+    { label: "Handling", value: `$${fmt(p.handling_fee_usd)}` },
     { label: "Total (USD)", value: `$${fmt(p.total_usd)}`, bold: true },
-    { label: "Exchange rate", value: `1 USD = ${p.exchange_rate} GHS` },
+    { label: "Exchange rate", value: `1 USD = GH₵ ${p.exchange_rate}` },
+    ...(p.weight ? [{ label: `Weight (${p.weight.source})`, value: `${p.weight.chargeable_lbs} lbs` }] : []),
   ];
 
   return (

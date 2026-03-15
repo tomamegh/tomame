@@ -12,6 +12,15 @@ export interface StaticPriceMatch {
   priceMaxGhs: number | null;
 }
 
+export interface WeightInfo {
+  /** Weight in lbs */
+  weightLbs: number;
+  /** How the weight was determined */
+  source: "scraped" | "internet_search" | "category_default";
+  /** Source URL (for internet_search) */
+  sourceUrl?: string | null;
+}
+
 export interface ExtractionResult {
   extractionAttempted: boolean;
   extractionSuccess: boolean;
@@ -24,6 +33,8 @@ export interface ExtractionResult {
   pricingQuote: OrderPricingBreakdown | null;
   /** Matched fixed-freight entry from the static price list, if any. */
   staticPriceMatch: StaticPriceMatch | null;
+  /** Resolved weight info for freight calculation */
+  weightInfo: WeightInfo | null;
 }
 
 export interface ProductPreviewProps {

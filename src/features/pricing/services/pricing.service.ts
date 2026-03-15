@@ -102,7 +102,21 @@ function roundTo2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-// ── Tiered service fee (from Pricing Model PDF) ──────────────────────────────
+// ── Pricing constants (from Pricing Model PDF) ──────────────────────────────
+
+/** FX buffer: 4% on top of mid-market rate to protect against daily movements */
+const FX_BUFFER = 0.04;
+
+/** Freight rate per pound */
+const FREIGHT_RATE_PER_LB = 6.50;
+
+/** Volumetric weight divisor (inches) */
+const VOLUMETRIC_DIVISOR = 139;
+
+/** Flat handling fee per order (warehouse handling, repackaging, documentation) */
+const HANDLING_FEE_USD = 15.00;
+
+// ── Tiered service fee ──────────────────────────────────────────────────────
 
 interface ServiceFeeTier {
   /** Upper bound (inclusive). Use Infinity for the last tier. */
@@ -130,6 +144,94 @@ function calculateServiceFee(subtotalUsd: number): { feeUsd: number; rate: numbe
   const calculated = roundTo2(subtotalUsd * tier.rate);
   const feeUsd = Math.max(calculated, tier.minFeeUsd);
   return { feeUsd: roundTo2(feeUsd), rate: tier.rate };
+}
+
+// ── Category default weights (last-resort fallback) ─────────────────────────
+
+const CATEGORY_DEFAULT_WEIGHTS: Record<string, number> = {
+  // From Pricing Model PDF — all in lbs
+  "Cell Phones & Accessories": 0.5,
+  "Tablets / iPads": 1.5,
+  "Computers": 4.5,
+  "Wearable Technology": 0.4,
+  "Headphones": 0.5,
+  "Audio": 0.5, // Earbuds default; speakers handled by size heuristic
+  "Video Games": 8.0,  // Console default
+  "Gaming": 8.0,
+  "Other": 0.5, // General accessories
+};
+
+/** Get default weight for a product category (lbs) */
+export function getCategoryDefaultWeight(category: string | null): number {
+  if (!category) return 0.5;
+  return CATEGORY_DEFAULT_WEIGHTS[category] ?? 0.5;
+}
+
+// ── Freight calculation ─────────────────────────────────────────────────────
+
+export interface FreightInput {
+  /** Actual weight in lbs (from scraping or internet search) */
+  actualWeightLbs: number | null;
+  /** Product dimensions in inches (for volumetric weight) */
+  dimensions?: { lengthIn: number; widthIn: number; heightIn: number } | null;
+  /** Product category for fallback default weight */
+  category: string | null;
+  /** How the weight was determined */
+  weightSource: "scraped" | "internet_search" | "category_default";
+}
+
+export interface FreightResult {
+  actualWeightLbs: number | null;
+  volumetricWeightLbs: number | null;
+  chargeableWeightLbs: number;
+  freightUsd: number;
+  weightSource: "scraped" | "internet_search" | "category_default";
+}
+
+/**
+ * Calculate international freight cost based on chargeable weight.
+ * Chargeable weight = MAX(actual weight, volumetric weight).
+ * Freight = chargeable weight × $6.50/lb.
+ */
+export function calculateFreight(input: FreightInput): FreightResult {
+  // Volumetric weight
+  let volumetricWeightLbs: number | null = null;
+  if (input.dimensions) {
+    const { lengthIn, widthIn, heightIn } = input.dimensions;
+    volumetricWeightLbs = roundTo2((lengthIn * widthIn * heightIn) / VOLUMETRIC_DIVISOR);
+  }
+
+  // Actual weight — use provided or fall back to category default
+  let actualWeightLbs = input.actualWeightLbs;
+  let weightSource = input.weightSource;
+  if (actualWeightLbs == null || actualWeightLbs <= 0) {
+    actualWeightLbs = getCategoryDefaultWeight(input.category);
+    weightSource = "category_default";
+  }
+
+  // Chargeable weight = max of actual and volumetric
+  const chargeableWeightLbs = Math.max(
+    actualWeightLbs,
+    volumetricWeightLbs ?? 0,
+  );
+
+  const freightUsd = roundTo2(chargeableWeightLbs * FREIGHT_RATE_PER_LB);
+
+  return {
+    actualWeightLbs,
+    volumetricWeightLbs,
+    chargeableWeightLbs,
+    freightUsd,
+    weightSource,
+  };
+}
+
+/**
+ * Apply the 4% currency buffer to a mid-market exchange rate.
+ * Applied FX Rate = Mid-Market Rate × (1 + 4% Buffer)
+ */
+export function applyFxBuffer(midMarketRate: number): number {
+  return roundTo2(midMarketRate * (1 + FX_BUFFER));
 }
 
 // ── Service functions ─────────────────────────────────────────────────────────
@@ -213,25 +315,37 @@ const FALLBACK_PRICING: Record<
  * Falls back to hardcoded defaults if the DB row is missing.
  * This is the SINGLE SOURCE OF TRUTH for all money math.
  *
- * If a static_price_id is provided and valid, the total is the fixed GHS amount
- * from the static price list — no shipping, service fee, or exchange rate applied.
+ * **Method 1 (Fixed Freight):** When staticPriceId is provided:
+ *   Customer Price (GHS) = (Item Price USD × Applied FX Rate) + Fixed Freight Rate (GHS)
  *
- * Otherwise, uses the dynamic formula:
- * total_ghs = (item_price * qty + shipping + service_fee) * exchange_rate
- * Where: service_fee = item_price * qty * service_fee_percentage
+ * **Method 2 (Formula):** For unrecognised products:
+ *   Customer Price (GHS) = (Item Price + Seller Shipping + Freight + Service Fee + Handling) × Applied FX Rate
  */
 export async function calculatePricing(
   itemPriceUsd: number,
   quantity: number,
   region: "USA" | "UK" | "CHINA",
   options?: {
-    /** If provided, use the fixed GHS price from the static price list */
+    /** If provided, use Method 1 (fixed freight from static price list) */
     staticPriceId?: string;
-    /** Override for the static GHS price (for range items where admin picks the exact price) */
+    /** Override for the static GHS freight rate (for range items) */
     staticPriceOverrideGhs?: number;
+    /** Seller shipping cost in USD (default $0 if not detected) */
+    sellerShippingUsd?: number;
+    /** Freight input for weight-based calculation (Method 2 only) */
+    freight?: FreightInput;
   },
 ): Promise<ServiceResult<OrderPricingBreakdown>> {
-  // ── Static pricing path ──────────────────────────────────────────────────
+  // Read exchange rate config
+  const config =
+    (await getPricingConfigByRegion(createAdminClient(), region)) ??
+    FALLBACK_PRICING[region];
+
+  // Apply 4% FX buffer: Applied FX Rate = Mid-Market Rate × 1.04
+  const midMarketRate = config.exchange_rate;
+  const appliedFxRate = applyFxBuffer(midMarketRate);
+
+  // ── Method 1: Fixed Freight Items ─────────────────────────────────────────
   if (options?.staticPriceId) {
     const { getById } = await import("./static-pricing.service");
     const result = await getById(options.staticPriceId);
@@ -241,12 +355,12 @@ export async function calculatePricing(
     }
 
     const staticItem = result.data;
-    let priceGhs = staticItem.priceGhs;
+    let fixedFreightGhs = staticItem.priceGhs;
 
     // Allow admin override for range-priced items
     if (options.staticPriceOverrideGhs != null) {
-      const min = staticItem.priceMinGhs ?? priceGhs;
-      const max = staticItem.priceMaxGhs ?? priceGhs;
+      const min = staticItem.priceMinGhs ?? fixedFreightGhs;
+      const max = staticItem.priceMaxGhs ?? fixedFreightGhs;
       if (options.staticPriceOverrideGhs < min || options.staticPriceOverrideGhs > max) {
         return {
           success: false,
@@ -254,10 +368,14 @@ export async function calculatePricing(
           status: 400,
         };
       }
-      priceGhs = options.staticPriceOverrideGhs;
+      fixedFreightGhs = options.staticPriceOverrideGhs;
     }
 
-    const totalGhs = roundTo2(priceGhs * quantity);
+    // Method 1 formula: (Item Price USD × Applied FX Rate) + Fixed Freight Rate (GHS)
+    const subtotalUsd = roundTo2(itemPriceUsd * quantity);
+    const itemPriceGhs = roundTo2(subtotalUsd * appliedFxRate);
+    const freightGhs = roundTo2(fixedFreightGhs * quantity);
+    const totalGhs = roundTo2(itemPriceGhs + freightGhs);
     const totalPesewas = Math.round(totalGhs * 100);
 
     return {
@@ -265,11 +383,14 @@ export async function calculatePricing(
       data: {
         item_price_usd: itemPriceUsd,
         quantity,
-        subtotal_usd: 0,
-        shipping_fee_usd: 0,
+        subtotal_usd: subtotalUsd,
+        seller_shipping_usd: 0,
+        freight_usd: 0,
         service_fee_usd: 0,
-        total_usd: 0,
-        exchange_rate: 0,
+        handling_fee_usd: 0,
+        total_usd: subtotalUsd,
+        mid_market_rate: midMarketRate,
+        exchange_rate: appliedFxRate,
         total_ghs: totalGhs,
         total_pesewas: totalPesewas,
         region,
@@ -280,16 +401,28 @@ export async function calculatePricing(
     };
   }
 
-  // ── Dynamic pricing path (existing formula) ──────────────────────────────
-  const config =
-    (await getPricingConfigByRegion(createAdminClient(), region)) ??
-    FALLBACK_PRICING[region];
+  // ── Method 2: Formula-Based Pricing ───────────────────────────────────────
+  // Customer Price (GHS) = (Item Price + Seller Shipping + Freight + Service Fee + Handling) × Applied FX Rate
 
   const subtotalUsd = roundTo2(itemPriceUsd * quantity);
-  const shippingFeeUsd = roundTo2(config.base_shipping_fee_usd);
+  const sellerShippingUsd = roundTo2(options?.sellerShippingUsd ?? 0);
+
+  // Freight: weight-based calculation or fallback to category default
+  const freightResult = options?.freight
+    ? calculateFreight(options.freight)
+    : calculateFreight({
+        actualWeightLbs: null,
+        dimensions: null,
+        category: null,
+        weightSource: "category_default",
+      });
+  const freightUsd = roundTo2(freightResult.freightUsd);
+
   const { feeUsd: serviceFeeUsd, rate: serviceFeeRate } = calculateServiceFee(subtotalUsd);
-  const totalUsd = roundTo2(subtotalUsd + shippingFeeUsd + serviceFeeUsd);
-  const totalGhs = roundTo2(totalUsd * config.exchange_rate);
+  const handlingFeeUsd = HANDLING_FEE_USD;
+
+  const totalUsd = roundTo2(subtotalUsd + sellerShippingUsd + freightUsd + serviceFeeUsd + handlingFeeUsd);
+  const totalGhs = roundTo2(totalUsd * appliedFxRate);
   const totalPesewas = Math.round(totalGhs * 100);
 
   return {
@@ -298,14 +431,23 @@ export async function calculatePricing(
       item_price_usd: itemPriceUsd,
       quantity,
       subtotal_usd: subtotalUsd,
-      shipping_fee_usd: shippingFeeUsd,
+      seller_shipping_usd: sellerShippingUsd,
+      freight_usd: freightUsd,
       service_fee_usd: serviceFeeUsd,
+      handling_fee_usd: handlingFeeUsd,
       total_usd: totalUsd,
-      exchange_rate: config.exchange_rate,
+      mid_market_rate: midMarketRate,
+      exchange_rate: appliedFxRate,
       total_ghs: totalGhs,
       total_pesewas: totalPesewas,
       region,
       service_fee_percentage: serviceFeeRate,
+      weight: {
+        actual_lbs: freightResult.actualWeightLbs,
+        volumetric_lbs: freightResult.volumetricWeightLbs,
+        chargeable_lbs: freightResult.chargeableWeightLbs,
+        source: freightResult.weightSource,
+      },
       is_static_price: false,
       static_price_id: null,
     },
