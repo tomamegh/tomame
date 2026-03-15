@@ -1,5 +1,5 @@
 import { CreditCardIcon } from "lucide-react";
-import type { PaymentResponse as Transaction } from "../types";
+import type { DbPayment } from "@/types/db";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   pending: { label: "Pending", className: "bg-amber-50 text-amber-700" },
@@ -8,7 +8,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 };
 
 interface TransactionItemProps {
-  transaction: Transaction;
+  transaction: DbPayment;
 }
 
 export function TransactionItem({ transaction }: TransactionItemProps) {
@@ -25,7 +25,7 @@ export function TransactionItem({ transaction }: TransactionItemProps) {
           {transaction.reference}
         </p>
         <p className="text-xs text-stone-400">
-          {new Date(transaction.createdAt).toLocaleDateString()}
+          {new Date(transaction.created_at).toLocaleDateString()}
         </p>
       </div>
       <div className="flex flex-col items-end gap-1 shrink-0">

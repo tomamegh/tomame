@@ -16,10 +16,7 @@ import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { env } from "@/lib/env";
 import { PAYMENT_STATUSES } from "@/config/constants";
 import type { AuthenticatedUser } from "@/types/domain";
-import type {
-  InitializePaymentResponse,
-  PaymentResponse,
-} from "@/features/payments/types";
+import type { InitializePaymentResponse } from "@/features/payments/types";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
@@ -134,19 +131,6 @@ async function updatePaymentStatus(
   return data as DbPayment;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function toPaymentResponse(payment: DbPayment): PaymentResponse {
-  return {
-    id: payment.id,
-    reference: payment.reference,
-    amount: payment.amount,
-    currency: payment.currency,
-    status: payment.status,
-    createdAt: payment.created_at,
-  };
-}
-
 // ── Service functions ─────────────────────────────────────────────────────────
 
 export async function initializePayment(
@@ -208,7 +192,7 @@ export async function initializePayment(
     metadata: { orderId, reference, amount: totalPesewas },
   });
 
-  return { payment: toPaymentResponse(payment), authorizationUrl };
+  return { payment, authorizationUrl };
 }
 
 export async function handlePaymentCallback(
@@ -326,7 +310,7 @@ export async function handleWebhookEvent(event: {
 }
 
 export interface TransactionListResponse {
-  transactions: PaymentResponse[];
+  transactions: DbPayment[];
   count: number;
 }
 
@@ -336,7 +320,7 @@ export async function listUserTransactions(
 ): Promise<TransactionListResponse> {
   const payments = await getPaymentsByUserId(client, user.id);
   return {
-    transactions: payments.map(toPaymentResponse),
+    transactions: payments,
     count: payments.length,
   };
 }
@@ -352,7 +336,7 @@ export async function listAllTransactions(
 
   const payments = await getAllPayments(client, filters);
   return {
-    transactions: payments.map(toPaymentResponse),
+    transactions: payments,
     count: payments.length,
   };
 }

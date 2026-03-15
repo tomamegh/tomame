@@ -1,3 +1,5 @@
+import type { DbPayment } from "@/types/db";
+
 // ── Request types ────────────────────────────────────────────────────────────
 
 export interface InitializePaymentRequest {
@@ -6,16 +8,7 @@ export interface InitializePaymentRequest {
 
 // ── Response types ───────────────────────────────────────────────────────────
 
-export interface PaymentResponse {
-  id: string;
-  reference: string;
-  amount: number;
-  currency: string;
-  status: string;
-  createdAt: string;
-}
-
 export interface InitializePaymentResponse {
-  payment: PaymentResponse;
+  payment: DbPayment;
   authorizationUrl: string;
 }

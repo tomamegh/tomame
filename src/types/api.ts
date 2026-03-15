@@ -1,12 +1,10 @@
 /** Standard API success response wrapper */
 export interface ApiSuccessResponse<T> {
-  success: true;
   data: T;
 }
 
 /** Standard API error response */
 export interface ApiErrorResponse {
-  success: false;
   error: string;
 }
 

@@ -12,21 +12,21 @@ export class APIError extends Error {
 }
 
 export function successResponse<T>(data: T, status = 200) {
-  const body: ApiSuccessResponse<T> = { success: true, data };
+  const body: ApiSuccessResponse<T> = { data };
   return NextResponse.json(body, { status });
 }
 
 export function errorResponse(error: unknown, statusCode: number = 500) {
   if (error instanceof APIError) {
     return NextResponse.json(
-      { error: error.message, success: false },
+      { error: error.message },
       { status: error.statusCode },
     );
   }
 
   const message = error instanceof Error ? error.message : "An error occurred";
   return NextResponse.json(
-    { error: message, success: false },
+    { error: message },
     { status: statusCode },
   );
 }

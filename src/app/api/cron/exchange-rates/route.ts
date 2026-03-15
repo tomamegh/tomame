@@ -26,7 +26,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (result.success) {
       logger.info("Exchange rates cron job completed", { updated: result.updated });
       return NextResponse.json({
-        success: true,
         message: "Exchange rates updated",
         updated: result.updated,
       });
@@ -34,7 +33,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       logger.error("Exchange rates cron job had errors", { errors: result.errors });
       return NextResponse.json(
         {
-          success: false,
           message: "Some rates failed to update",
           updated: result.updated,
           errors: result.errors,

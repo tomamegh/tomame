@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
-import type { AuthenticatedUser, ServiceResult } from "@/types/domain";
+import { APIError } from "@/lib/auth/api-helpers";
+import type { AuthenticatedUser } from "@/types/domain";
 import type { DbStaticPriceItem } from "@/types/db";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
@@ -167,38 +168,6 @@ async function findMatchingStaticPrice(
   return bestMatch;
 }
 
-// ── Response types ────────────────────────────────────────────────────────────
-
-export interface StaticPriceItemResponse {
-  id: string;
-  category: string;
-  productName: string;
-  priceGhs: number;
-  priceMinGhs: number | null;
-  priceMaxGhs: number | null;
-  isActive: boolean;
-  sortOrder: number;
-}
-
-export interface StaticPriceListResponse {
-  items: StaticPriceItemResponse[];
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function toResponse(item: DbStaticPriceItem): StaticPriceItemResponse {
-  return {
-    id: item.id,
-    category: item.category,
-    productName: item.product_name,
-    priceGhs: item.price_ghs,
-    priceMinGhs: item.price_min_ghs,
-    priceMaxGhs: item.price_max_ghs,
-    isActive: item.is_active,
-    sortOrder: item.sort_order,
-  };
-}
-
 // ── Service functions ─────────────────────────────────────────────────────────
 
 /**
@@ -207,13 +176,8 @@ function toResponse(item: DbStaticPriceItem): StaticPriceItemResponse {
 export async function getAll(
   client: SupabaseClient,
   includeInactive = false,
-): Promise<ServiceResult<StaticPriceListResponse>> {
-  const items = await getAllStaticPrices(client, !includeInactive);
-
-  return {
-    success: true,
-    data: { items: items.map(toResponse) },
-  };
+): Promise<DbStaticPriceItem[]> {
+  return getAllStaticPrices(client, !includeInactive);
 }
 
 /**
@@ -222,13 +186,8 @@ export async function getAll(
 export async function getByCategory(
   client: SupabaseClient,
   category: string,
-): Promise<ServiceResult<StaticPriceListResponse>> {
-  const items = await getStaticPricesByCategory(client, category);
-
-  return {
-    success: true,
-    data: { items: items.map(toResponse) },
-  };
+): Promise<DbStaticPriceItem[]> {
+  return getStaticPricesByCategory(client, category);
 }
 
 /**
@@ -237,19 +196,19 @@ export async function getByCategory(
  */
 export async function getById(
   id: string,
-): Promise<ServiceResult<StaticPriceItemResponse>> {
+): Promise<DbStaticPriceItem> {
   const client = createAdminClient();
   const item = await getStaticPriceById(client, id);
 
   if (!item) {
-    return { success: false, error: "Static price not found", status: 404 };
+    throw new APIError(404, "Static price not found");
   }
 
   if (!item.is_active) {
-    return { success: false, error: "Static price is no longer active", status: 410 };
+    throw new APIError(410, "Static price is no longer active");
   }
 
-  return { success: true, data: toResponse(item) };
+  return item;
 }
 
 /**
@@ -266,7 +225,7 @@ export async function create(
     priceMaxGhs?: number | null;
     sortOrder?: number;
   },
-): Promise<ServiceResult<StaticPriceItemResponse>> {
+): Promise<DbStaticPriceItem> {
   const { data, error } = await client
     .from("static_price_list")
     .insert({
@@ -283,7 +242,7 @@ export async function create(
 
   if (error) {
     logger.error("static price create failed", { error: error.message });
-    return { success: false, error: "Failed to create static price", status: 500 };
+    throw new APIError(500, "Failed to create static price");
   }
 
   await logAuditEvent({
@@ -299,7 +258,7 @@ export async function create(
     },
   });
 
-  return { success: true, data: toResponse(data as DbStaticPriceItem) };
+  return data as DbStaticPriceItem;
 }
 
 /**
@@ -318,10 +277,10 @@ export async function update(
     isActive?: boolean;
     sortOrder?: number;
   },
-): Promise<ServiceResult<StaticPriceItemResponse>> {
+): Promise<DbStaticPriceItem> {
   const current = await getStaticPriceById(client, id);
   if (!current) {
-    return { success: false, error: "Static price not found", status: 404 };
+    throw new APIError(404, "Static price not found");
   }
 
   const updates: Record<string, unknown> = {
@@ -346,7 +305,7 @@ export async function update(
 
   if (error) {
     logger.error("static price update failed", { id, error: error.message });
-    return { success: false, error: "Failed to update static price", status: 500 };
+    throw new APIError(500, "Failed to update static price");
   }
 
   await logAuditEvent({
@@ -366,7 +325,7 @@ export async function update(
     },
   });
 
-  return { success: true, data: toResponse(data as DbStaticPriceItem) };
+  return data as DbStaticPriceItem;
 }
 
 /**
@@ -376,10 +335,10 @@ export async function remove(
   client: SupabaseClient,
   admin: AuthenticatedUser,
   id: string,
-): Promise<ServiceResult<{ deleted: true }>> {
+): Promise<void> {
   const current = await getStaticPriceById(client, id);
   if (!current) {
-    return { success: false, error: "Static price not found", status: 404 };
+    throw new APIError(404, "Static price not found");
   }
 
   const { error } = await client
@@ -389,7 +348,7 @@ export async function remove(
 
   if (error) {
     logger.error("static price delete failed", { id, error: error.message });
-    return { success: false, error: "Failed to delete static price", status: 500 };
+    throw new APIError(500, "Failed to delete static price");
   }
 
   await logAuditEvent({
@@ -404,8 +363,6 @@ export async function remove(
       priceGhs: current.price_ghs,
     },
   });
-
-  return { success: true, data: { deleted: true } };
 }
 
 /**
@@ -420,12 +377,7 @@ export async function matchProduct(
     sku?: string | null;
     asin?: string | null;
   },
-): Promise<ServiceResult<StaticPriceItemResponse | null>> {
+): Promise<DbStaticPriceItem | null> {
   const client = createAdminClient();
-  const match = await findMatchingStaticPrice(client, product);
-
-  return {
-    success: true,
-    data: match ? toResponse(match) : null,
-  };
+  return findMatchingStaticPrice(client, product);
 }
