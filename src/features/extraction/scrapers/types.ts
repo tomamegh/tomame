@@ -1,5 +1,6 @@
 import type { CheerioAPI } from "cheerio";
 import type { BrowserlessClient } from "@/lib/browserless/client";
+import type { TomameCategory } from "@/config/categories";
 
 export interface ScrapedProduct {
   /** Product title */
@@ -14,6 +15,8 @@ export interface ScrapedProduct {
   description: string | null;
   /** Brand name */
   brand: string | null;
+  /** Product category (mapped to Tomame category) */
+  category: TomameCategory | null;
   /** Selected size (the one shown / default on the page) */
   size: string | null;
   /** Weight as listed on the page */
