@@ -168,13 +168,20 @@ export async function calculatePricing(
     item_price_usd: itemPriceUsd,
     quantity,
     subtotal_usd: subtotalUsd,
-    shipping_fee_usd: shippingFeeUsd,
+    seller_shipping_usd: 0,
+    freight_usd: shippingFeeUsd,
     service_fee_usd: serviceFeeUsd,
+    handling_fee_usd: 0,
     total_usd: totalUsd,
+    mid_market_rate: config.exchange_rate,
     exchange_rate: config.exchange_rate,
     total_ghs: totalGhs,
     total_pesewas: totalPesewas,
     region,
     service_fee_percentage: config.service_fee_percentage,
+    is_static_price: false,
+    static_price_id: null,
+    // Deprecated field kept for backward compat
+    shipping_fee_usd: shippingFeeUsd,
   };
 }

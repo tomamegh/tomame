@@ -193,7 +193,7 @@ function PricingBreakdown({ order }: { order: Order }) {
   const rows = [
     { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
     { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
-    { label: "Shipping fee", value: `$${fmt(p.shipping_fee_usd)}` },
+    { label: "Shipping fee", value: `$${fmt(p.shipping_fee_usd ?? (p.seller_shipping_usd + p.freight_usd))}` },
     {
       label: `Service fee (${(p.service_fee_percentage * 100).toFixed(0)}%)`,
       value: `$${fmt(p.service_fee_usd)}`,

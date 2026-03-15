@@ -25,6 +25,7 @@ import { useExtractProduct } from "@/features/extraction/hooks/useExtraction";
 import { useCreateOrder } from "@/features/orders/hooks/useCreateOrder";
 import type { ExtractionResult } from "@/features/extraction/types";
 import type { CreateOrderSchemaType } from "@/features/orders/schema";
+import type { OrderPricingBreakdown } from "@/types/db";
 import {
   Empty,
   EmptyDescription,
@@ -43,15 +44,7 @@ interface CreatedOrder {
   origin_country: "USA" | "UK" | "CHINA";
   quantity: number;
   needs_review: boolean;
-  pricing: {
-    subtotal_usd: number;
-    shipping_fee_usd: number;
-    service_fee_usd: number;
-    total_usd: number;
-    exchange_rate: number;
-    total_ghs: number;
-    service_fee_percentage: number;
-  };
+  pricing: OrderPricingBreakdown;
 }
 
 function ExtractionSkeleton() {
@@ -244,7 +237,7 @@ function OrderSuccess({
             <div className="px-4 py-3 space-y-2">
               {[
                 { label: "Subtotal", value: fmtUsd(p.subtotal_usd) },
-                { label: "Shipping fee", value: fmtUsd(p.shipping_fee_usd) },
+                { label: "Shipping fee", value: fmtUsd(p.shipping_fee_usd ?? (p.seller_shipping_usd + p.freight_usd)) },
                 {
                   label: `Service fee (${(p.service_fee_percentage * 100).toFixed(0)}%)`,
                   value: fmtUsd(p.service_fee_usd),

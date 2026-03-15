@@ -67,6 +67,9 @@ export async function extractProductData(url: string): Promise<ExtractionResult>
       product,
       errors,
       fetchedAt: new Date().toISOString(),
+      pricingQuote: null,
+      staticPriceMatch: null,
+      weightInfo: null,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Scrape failed";

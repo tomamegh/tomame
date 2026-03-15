@@ -370,7 +370,7 @@ export function OrderForm({
                 {[
                   { label: "Item price", value: `$${pricing.item_price_usd.toFixed(2)}` },
                   { label: `Subtotal (×${pricing.quantity})`, value: `$${pricing.subtotal_usd.toFixed(2)}` },
-                  { label: "Shipping fee", value: `$${pricing.shipping_fee_usd.toFixed(2)}` },
+                  { label: "Shipping fee", value: `$${(pricing.shipping_fee_usd ?? (pricing.seller_shipping_usd + pricing.freight_usd)).toFixed(2)}` },
                   {
                     label: `Service fee (${(pricing.service_fee_percentage * 100).toFixed(0)}%)`,
                     value: `$${pricing.service_fee_usd.toFixed(2)}`,
