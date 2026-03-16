@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/types/domain";
+import type { AuthenticatedUser } from "@/features/auth/types";
 import { Notification, NotificationListResponse } from "../types";
 
 async function getNotificationsByUserId(

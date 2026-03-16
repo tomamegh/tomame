@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { createOrderSchema } from "@/features/orders/schema";
-import { createOrder, getUserOrders } from "@/features/orders/services/orders.service";
+import {
+  createOrder,
+  getUserOrders,
+} from "@/features/orders/services/orders.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import {
@@ -36,10 +39,9 @@ export async function POST(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
 
     const supabase = await createClient();
-    const result = await createOrder(supabase, auth.user, {
+    const result = await createOrder(supabase, auth, {
       productUrl: data.productUrl,
       productName: data.productName,
       productImageUrl: data.productImageUrl,
@@ -64,9 +66,8 @@ export async function GET() {
   try {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
 
-    const result = await getUserOrders(auth.user.id);
+    const result = await getUserOrders(auth.id);
 
     return successResponse(result.data);
   } catch (error) {

@@ -23,9 +23,8 @@ export async function POST(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
 
-    const data = await changePassword(auth.user.id, parsed.data.newPassword);
+    const data = await changePassword(auth.id, parsed.data.newPassword);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

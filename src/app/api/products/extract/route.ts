@@ -24,8 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     const user = await getAuthenticatedUser();
-    const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
+    const _authUser = requireAuth(user);
 
     const platform = resolvePlatform(parsed.data.productUrl);
     if (!platform) {

@@ -1,13 +1,5 @@
-import type { Role, AuditActorRole, AuditEntityType } from "@/config/constants";
+import type { AuditActorRole, AuditEntityType } from "@/config/constants";
 
-/** User loaded from DB after session validation */
-export interface AuthenticatedUser {
-  id: string;
-  email: string;
-  role: Role;
-  first_name: string | null;
-  last_name: string | null;
-}
 
 /** Input shape for writing an audit log */
 export interface AuditLogEntry {

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { initializePaymentSchema } from "@/features/payments/payments.validators";
+import { initializePaymentSchema } from "@/features/payments/schema";
 import { initializePayment } from "@/features/payments/services/payments.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
@@ -22,9 +22,8 @@ export async function POST(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
 
-    const data = await initializePayment(auth.user, parsed.data.orderId);
+    const data = await initializePayment(auth, parsed.data.orderId);
     return successResponse(data, 201);
   } catch (error) {
     return errorResponse(error);

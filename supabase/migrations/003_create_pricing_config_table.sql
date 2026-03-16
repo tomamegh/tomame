@@ -8,7 +8,7 @@ CREATE TABLE pricing_config (
   exchange_rate NUMERIC NOT NULL,
   service_fee_percentage NUMERIC NOT NULL DEFAULT 0,
   last_updated TIMESTAMPTZ DEFAULT now(),
-  updated_by UUID REFERENCES users(id)
+  updated_by UUID REFERENCES profiles(id)
 );
 
 ALTER TABLE pricing_config ENABLE ROW LEVEL SECURITY;
@@ -23,8 +23,8 @@ CREATE POLICY "admins can insert pricing config"
   ON pricing_config FOR INSERT
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
     )
   );
 
@@ -33,8 +33,8 @@ CREATE POLICY "admins can update pricing config"
   ON pricing_config FOR UPDATE
   USING (
     EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
     )
   );
 

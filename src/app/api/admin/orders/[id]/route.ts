@@ -20,12 +20,10 @@ export async function GET(
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
     const { id } = await params;
-    const data = await getOrder(createAdminClient(), admin.user, id);
+    const data = await getOrder(createAdminClient(), admin, id);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);
@@ -52,9 +50,7 @@ export async function PATCH(
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
     const { id } = await params;
     const { status, trackingNumber, carrier, estimatedDeliveryDate } = parsed.data;
@@ -62,7 +58,7 @@ export async function PATCH(
       ? { trackingNumber, carrier, estimatedDeliveryDate }
       : undefined;
 
-    const data = await updateOrderStatusAdmin(createAdminClient(), admin.user, id, status, trackingData);
+    const data = await updateOrderStatusAdmin(createAdminClient(), admin, id, status, trackingData);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

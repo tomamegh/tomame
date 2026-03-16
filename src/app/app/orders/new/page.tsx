@@ -311,7 +311,8 @@ function OrderSuccess({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-5 border-t border-stone-100 flex items-center gap-3 justify-center">
+      </Card>
+        <div className="py-5 border-t border-stone-100 flex items-center justify-end gap-3">
           <Button variant="outline" onClick={onReset} className="gap-1.5">
             <ScanSearchIcon className="size-3.5" />
             Order Another
@@ -323,7 +324,6 @@ function OrderSuccess({
             </Link>
           </Button>
         </div>
-      </Card>
     </div>
   );
 }

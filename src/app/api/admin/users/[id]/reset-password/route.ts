@@ -19,15 +19,13 @@ export async function POST(
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
     const { id } = await params;
     const targetUser = await getUserById(createAdminClient(), id);
     if (!targetUser) throw new APIError(404, "User not found");
 
-    const result = await adminResetUserPassword(admin.user, targetUser.email);
+    const result = await adminResetUserPassword(admin, targetUser.email);
     // if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result);

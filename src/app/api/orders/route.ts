@@ -25,10 +25,9 @@ export async function POST(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
 
     const supabase = await createClient();
-    const data = await createOrder(supabase, auth.user, {
+    const data = await createOrder(supabase, auth, {
       productUrl: parsed.data.productUrl,
       productName: parsed.data.productName,
       productImageUrl: parsed.data.productImageUrl,
@@ -52,10 +51,9 @@ export async function GET() {
   try {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
 
     const supabase = await createClient();
-    const { orders } = await listUserOrders(supabase, auth.user);
+    const { orders } = await listUserOrders(supabase, auth);
 
     return successResponse(orders);
   } catch (error) {

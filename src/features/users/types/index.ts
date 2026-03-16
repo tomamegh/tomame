@@ -1,6 +1,8 @@
 import type { OrderStatus } from "@/features/orders/types";
 
-// ── Domain types ──────────────────────────────────────────────────────────────
+// interface User {
+  
+// }
 
 export interface AdminUser {
   id: string;

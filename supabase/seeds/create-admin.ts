@@ -55,7 +55,7 @@ async function main() {
   console.log("Auth user created:", userId);
 
   // 2. Insert users row with admin role
-  const { error: userError } = await supabase.from("users").insert({
+  const { error: userError } = await supabase.from("profiles").insert({
     id: userId,
     email,
     role: "admin",

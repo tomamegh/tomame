@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/types/domain";
+import type { AuthenticatedUser } from "@/features/auth/types";
 import type {
   PricingConfigResponse,
   PricingConfigListResponse,

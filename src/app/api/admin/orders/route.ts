@@ -16,9 +16,7 @@ export async function GET(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") ?? undefined;
@@ -27,7 +25,7 @@ export async function GET(request: NextRequest) {
     const needsReview =
       needsReviewParam === "true" ? true : needsReviewParam === "false" ? false : undefined;
 
-    const data = await listAllOrders(createAdminClient(), admin.user, { status, userId, needsReview });
+    const data = await listAllOrders(createAdminClient(), admin, { status, userId, needsReview });
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

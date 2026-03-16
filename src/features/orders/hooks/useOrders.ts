@@ -36,6 +36,7 @@ export function useOrder(id: string) {
     queryFn: () => apiFetch<ApiSuccessResponse<Order>>(`/api/orders/${id}`),
     select: (res) => res.data,
     enabled: !!id,
+    retry: 1
   });
 }
 

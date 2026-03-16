@@ -12,7 +12,7 @@ import {
 } from "@/lib/email/templates/order-status";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/types/domain";
+import type { AuthenticatedUser } from "@/features/auth/types";
 import type { PaginatedDataResponse } from "@/types/api";
 import type { DbOrder, DbAuditLog } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
@@ -96,6 +96,8 @@ async function getOrdersByUserId(
     .select("*")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
+
+    console.log(data)
 
   if (error) {
     logger.error("getOrdersByUserId failed", { userId, error: error.message });

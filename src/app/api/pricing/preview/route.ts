@@ -14,8 +14,7 @@ const previewSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
-    const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
+    const _authUser = requireAuth(user);
 
     const { searchParams } = new URL(request.url);
     const parsed = previewSchema.safeParse({
