@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
+import { parseWeight, parseDimensions } from "@/features/pricing/services/weight-parser";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
 import { sendEmail } from "@/lib/email/transport";
@@ -233,11 +234,17 @@ export async function createOrder(
     throw new APIError(400, "We currently do not support this store. Please try again");
   }
 
-  const pricing = await calculatePricing(
-    input.estimatedPriceUsd,
-    input.quantity,
-    input.originCountry,
-  );
+  const pricing = await calculatePricing({
+    itemPriceUsd: input.estimatedPriceUsd,
+    quantity: input.quantity,
+    region: input.originCountry,
+    productName: input.productName,
+    category: input.extractionMetadata?.product?.category ?? null,
+    sellerShippingUsd: 0,
+    weightLbs: parseWeight(input.extractionMetadata?.product?.weight) ?? undefined,
+    weightSource: input.extractionMetadata?.product?.weight ? "scraped" : undefined,
+    dimensionsInches: parseDimensions(input.extractionMetadata?.product?.dimensions) ?? undefined,
+  });
 
   const orderToCreate = {
     user_id: user.id,

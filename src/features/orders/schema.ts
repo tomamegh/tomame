@@ -9,6 +9,7 @@ const scrapedProductSchema = z.object({
   currency: z.string().nullable(),
   description: z.string().nullable(),
   brand: z.string().nullable(),
+  category: z.string().nullable().optional(),
   size: z.string().nullable(),
   weight: z.string().nullable(),
   dimensions: z.string().nullable(),

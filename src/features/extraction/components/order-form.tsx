@@ -367,17 +367,24 @@ export function OrderForm({
                 <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
                   Estimated Pricing Breakdown
                 </p>
-                {[
-                  { label: "Item price", value: `$${pricing.item_price_usd.toFixed(2)}` },
-                  { label: `Subtotal (×${pricing.quantity})`, value: `$${pricing.subtotal_usd.toFixed(2)}` },
-                  { label: "Shipping fee", value: `$${pricing.shipping_fee_usd.toFixed(2)}` },
-                  {
-                    label: `Service fee (${(pricing.service_fee_percentage * 100).toFixed(0)}%)`,
-                    value: `$${pricing.service_fee_usd.toFixed(2)}`,
-                  },
-                  { label: "Total (USD)", value: `$${pricing.total_usd.toFixed(2)}`, bold: true },
-                  { label: "Exchange rate", value: `1 USD = ${pricing.exchange_rate} GHS` },
-                ].map(({ label, value, bold }) => (
+                {(pricing.pricing_method === "fixed_freight"
+                  ? [
+                      { label: "Item price", value: `$${pricing.item_price_usd.toFixed(2)}` },
+                      { label: `Subtotal (×${pricing.quantity})`, value: `$${pricing.subtotal_usd.toFixed(2)}` },
+                      { label: "Int'l freight (incl. customs)", value: `GH₵ ${(pricing.fixed_freight_ghs ?? 0).toFixed(2)}` },
+                      { label: "Exchange rate", value: `1 USD = ${pricing.exchange_rate} GHS` },
+                    ]
+                  : [
+                      { label: "Item price", value: `$${pricing.item_price_usd.toFixed(2)}` },
+                      { label: `Subtotal (×${pricing.quantity})`, value: `$${pricing.subtotal_usd.toFixed(2)}` },
+                      { label: "Seller shipping", value: pricing.seller_shipping_usd ? `$${pricing.seller_shipping_usd.toFixed(2)}` : "FREE" },
+                      { label: "Int'l freight (incl. customs)", value: `$${(pricing.freight_usd ?? 0).toFixed(2)}` },
+                      { label: `Service fee (${((pricing.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`, value: `$${(pricing.service_fee_usd ?? 0).toFixed(2)}` },
+                      { label: "Handling", value: `$${(pricing.handling_fee_usd ?? 0).toFixed(2)}` },
+                      { label: "Total (USD)", value: `$${(pricing.total_usd ?? 0).toFixed(2)}`, bold: true },
+                      { label: "Exchange rate", value: `1 USD = ${pricing.exchange_rate} GHS` },
+                    ]
+                ).map(({ label, value, bold }) => (
                   <div
                     key={label}
                     className={`flex justify-between text-sm gap-4 ${
