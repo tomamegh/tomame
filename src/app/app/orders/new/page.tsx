@@ -15,6 +15,7 @@ import {
   TruckIcon,
 } from "lucide-react";
 import Image from "next/image";
+import type { OrderPricingBreakdown } from "@/types/db";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,15 +44,7 @@ interface CreatedOrder {
   origin_country: "USA" | "UK" | "CHINA";
   quantity: number;
   needs_review: boolean;
-  pricing: {
-    subtotal_usd: number;
-    shipping_fee_usd: number;
-    service_fee_usd: number;
-    total_usd: number;
-    exchange_rate: number;
-    total_ghs: number;
-    service_fee_percentage: number;
-  };
+  pricing: OrderPricingBreakdown;
 }
 
 function ExtractionSkeleton() {
@@ -242,24 +235,22 @@ function OrderSuccess({
               </p>
             </div>
             <div className="px-4 py-3 space-y-2">
-              {[
-                { label: "Subtotal", value: fmtUsd(p.subtotal_usd) },
-                { label: "Shipping fee", value: fmtUsd(p.shipping_fee_usd) },
-                {
-                  label: `Service fee (${(p.service_fee_percentage * 100).toFixed(0)}%)`,
-                  value: fmtUsd(p.service_fee_usd),
-                },
-                {
-                  label: "Total (USD)",
-                  value: fmtUsd(p.total_usd),
-                  muted: true,
-                },
-                {
-                  label: "Rate",
-                  value: `1 USD = ${p.exchange_rate} GHS`,
-                  muted: true,
-                },
-              ].map(({ label, value, muted }) => (
+              {(p.pricing_method === "fixed_freight"
+                ? [
+                    { label: "Item price (USD)", value: fmtUsd(p.subtotal_usd) },
+                    { label: "Int'l freight (incl. customs)", value: `GH₵ ${(p.fixed_freight_ghs ?? 0).toFixed(2)}` },
+                    { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
+                  ]
+                : [
+                    { label: "Subtotal", value: fmtUsd(p.subtotal_usd) },
+                    { label: "Seller shipping", value: p.seller_shipping_usd ? fmtUsd(p.seller_shipping_usd) : "FREE" },
+                    { label: "Int'l freight (incl. customs)", value: fmtUsd(p.freight_usd ?? 0) },
+                    { label: `Service fee (${((p.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`, value: fmtUsd(p.service_fee_usd ?? 0) },
+                    { label: "Handling", value: fmtUsd(p.handling_fee_usd ?? 0) },
+                    { label: "Total (USD)", value: fmtUsd(p.total_usd ?? 0), muted: true },
+                    { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
+                  ]
+              ).map(({ label, value, muted }) => (
                 <div
                   key={label}
                   className={`flex justify-between text-sm gap-4 ${muted ? "text-stone-400" : "text-stone-600"}`}

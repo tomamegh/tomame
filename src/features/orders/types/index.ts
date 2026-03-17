@@ -14,6 +14,7 @@ export interface OrderExtractionMetadata {
     currency: string | null;
     description: string | null;
     brand: string | null;
+    category?: string | null;
     size: string | null;
     weight: string | null;
     dimensions: string | null;

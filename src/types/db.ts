@@ -61,17 +61,54 @@ export interface DbOrder {
 
 /** Shape of the JSONB pricing column stored on each order */
 export interface OrderPricingBreakdown {
+  // Common fields
+  pricing_method: "fixed_freight" | "formula";
   item_price_usd: number;
   quantity: number;
   subtotal_usd: number;
-  shipping_fee_usd: number;
-  service_fee_usd: number;
-  total_usd: number;
   exchange_rate: number;
+  mid_market_rate: number;
   total_ghs: number;
   total_pesewas: number;
   region: "USA" | "UK" | "CHINA";
-  service_fee_percentage: number;
+
+  // Fixed freight fields (Method 1)
+  fixed_freight_ghs?: number;
+  fixed_freight_item_id?: string;
+
+  // Formula fields (Method 2)
+  seller_shipping_usd?: number;
+  freight_usd?: number;
+  service_fee_usd?: number;
+  service_fee_percentage?: number;
+  handling_fee_usd?: number;
+  total_usd?: number;
+  weight_lbs?: number;
+  weight_source?: "scraped" | "internet_search" | "category_default";
+  dimensions_inches?: { length: number; width: number; height: number } | null;
+  volumetric_weight_lbs?: number;
+  chargeable_weight_lbs?: number;
+}
+
+export interface DbFixedFreightItem {
+  id: string;
+  category: string;
+  product_name: string;
+  freight_rate_ghs: number;
+  keywords: string[];
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbPricingConstant {
+  id: string;
+  key: string;
+  value: number;
+  description: string | null;
+  updated_at: string;
+  updated_by: string | null;
 }
 
 export interface DbNotification {
