@@ -48,17 +48,30 @@ export function TransactionStatCards({
             {isLoading ? <Skeleton className="h-8 w-16" /> : fmt(stats?.total)}
           </CardTitle>
           <CardAction>
-            <Badge variant="outline">
-              <CreditCardIcon />
-              All time
-            </Badge>
+            {isLoading ? (
+              <Skeleton className="h-6 w-20 rounded-full" />
+            ) : (
+              <Badge variant="outline">
+                <CreditCardIcon />
+                All time
+              </Badge>
+            )}
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            All payment attempts <CreditCardIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Across all customers</div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className="line-clamp-1 flex gap-2 font-medium">
+                All payment attempts <CreditCardIcon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">Across all customers</div>
+            </>
+          )}
         </CardFooter>
       </Card>
 
@@ -74,20 +87,33 @@ export function TransactionStatCards({
             )}
           </CardTitle>
           <CardAction>
-            <Badge
-              variant="outline"
-              className="bg-green-500/10 text-green-600 border-green-500/30"
-            >
-              <TrendingUpIcon />
-              Successful
-            </Badge>
+            {isLoading ? (
+              <Skeleton className="h-6 w-24 rounded-full" />
+            ) : (
+              <Badge
+                variant="outline"
+                className="bg-green-500/10 text-green-600 border-green-500/30"
+              >
+                <TrendingUpIcon />
+                Successful
+              </Badge>
+            )}
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium text-green-600">
-            Revenue from successful payments <TrendingUpIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Paid in GHS</div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className="line-clamp-1 flex gap-2 font-medium text-green-600">
+                Revenue from successful payments <TrendingUpIcon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">Paid in GHS</div>
+            </>
+          )}
         </CardFooter>
       </Card>
 
@@ -103,26 +129,39 @@ export function TransactionStatCards({
             )}
           </CardTitle>
           <CardAction>
-            <Badge
-              variant="outline"
-              className={
-                successRate >= 80
-                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                  : "bg-amber-500/10 text-amber-600 border-amber-500/30"
-              }
-            >
-              <CheckCircle2Icon />
-              {successRate >= 80 ? "Good" : "Low"}
-            </Badge>
+            {isLoading ? (
+              <Skeleton className="h-6 w-16 rounded-full" />
+            ) : (
+              <Badge
+                variant="outline"
+                className={
+                  successRate >= 80
+                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                    : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                }
+              >
+                <CheckCircle2Icon />
+                {successRate >= 80 ? "Good" : "Low"}
+              </Badge>
+            )}
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Payment success rate <CheckCircle2Icon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">
-            {isLoading ? "—" : `${fmt(stats?.successful)} of ${fmt(stats?.total)} successful`}
-          </div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className="line-clamp-1 flex gap-2 font-medium">
+                Payment success rate <CheckCircle2Icon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">
+                {`${fmt(stats?.successful)} of ${fmt(stats?.total)} successful`}
+              </div>
+            </>
+          )}
         </CardFooter>
       </Card>
 
@@ -138,7 +177,9 @@ export function TransactionStatCards({
             )}
           </CardTitle>
           <CardAction>
-            {(stats?.failed ?? 0) > 0 ? (
+            {isLoading ? (
+              <Skeleton className="h-6 w-20 rounded-full" />
+            ) : (stats?.failed ?? 0) > 0 ? (
               <Badge
                 variant="outline"
                 className="bg-red-500/10 text-red-600 border-red-500/30"
@@ -155,12 +196,21 @@ export function TransactionStatCards({
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div
-            className={`line-clamp-1 flex gap-2 font-medium ${(stats?.failed ?? 0) > 0 ? "text-red-600" : ""}`}
-          >
-            Failed payments <XCircleIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Requires investigation</div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div
+                className={`line-clamp-1 flex gap-2 font-medium ${(stats?.failed ?? 0) > 0 ? "text-red-600" : ""}`}
+              >
+                Failed payments <XCircleIcon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">Requires investigation</div>
+            </>
+          )}
         </CardFooter>
       </Card>
     </div>

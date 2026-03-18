@@ -36,17 +36,30 @@ export function StatCards({ stats, isLoading }: StatCardsProps) {
             {isLoading ? <Skeleton className="h-8 w-16" /> : fmt(stats?.totalOrders)}
           </CardTitle>
           <CardAction>
-            <Badge variant="outline">
-              <ShoppingCartIcon />
-              All time
-            </Badge>
+            {isLoading ? (
+              <Skeleton className="h-6 w-20 rounded-full" />
+            ) : (
+              <Badge variant="outline">
+                <ShoppingCartIcon />
+                All time
+              </Badge>
+            )}
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Orders placed on platform <ShoppingCartIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Across all customers</div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className="line-clamp-1 flex gap-2 font-medium">
+                Orders placed on platform <ShoppingCartIcon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">Across all customers</div>
+            </>
+          )}
         </CardFooter>
       </Card>
 
@@ -55,24 +68,33 @@ export function StatCards({ stats, isLoading }: StatCardsProps) {
         <CardHeader>
           <CardDescription>Total Revenue</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : (
-              `GHS ${fmt(stats?.totalRevenueGhs, 2)}`
-            )}
+            {isLoading ? <Skeleton className="h-8 w-24" /> : `GHS ${fmt(stats?.totalRevenueGhs, 2)}`}
           </CardTitle>
           <CardAction>
-            <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
-              <TrendingUpIcon />
-              Paid orders
-            </Badge>
+            {isLoading ? (
+              <Skeleton className="h-6 w-24 rounded-full" />
+            ) : (
+              <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
+                <TrendingUpIcon />
+                Paid orders
+              </Badge>
+            )}
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium text-green-600">
-            Revenue from paid orders <TrendingUpIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Last 30 days</div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className="line-clamp-1 flex gap-2 font-medium text-green-600">
+                Revenue from paid orders <TrendingUpIcon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">Last 30 days</div>
+            </>
+          )}
         </CardFooter>
       </Card>
 
@@ -84,17 +106,30 @@ export function StatCards({ stats, isLoading }: StatCardsProps) {
             {isLoading ? <Skeleton className="h-8 w-14" /> : fmt(stats?.activeUsers)}
           </CardTitle>
           <CardAction>
-            <Badge variant="outline">
-              <UsersIcon />
-              30 days
-            </Badge>
+            {isLoading ? (
+              <Skeleton className="h-6 w-20 rounded-full" />
+            ) : (
+              <Badge variant="outline">
+                <UsersIcon />
+                30 days
+              </Badge>
+            )}
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Users with orders <UsersIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Unique customers this month</div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className="line-clamp-1 flex gap-2 font-medium">
+                Users with orders <UsersIcon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">Unique customers this month</div>
+            </>
+          )}
         </CardFooter>
       </Card>
 
@@ -106,7 +141,9 @@ export function StatCards({ stats, isLoading }: StatCardsProps) {
             {isLoading ? <Skeleton className="h-8 w-10" /> : fmt(stats?.ordersNeedingReview)}
           </CardTitle>
           <CardAction>
-            {(stats?.ordersNeedingReview ?? 0) > 0 ? (
+            {isLoading ? (
+              <Skeleton className="h-6 w-24 rounded-full" />
+            ) : (stats?.ordersNeedingReview ?? 0) > 0 ? (
               <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
                 <AlertTriangleIcon />
                 Action needed
@@ -120,10 +157,19 @@ export function StatCards({ stats, isLoading }: StatCardsProps) {
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className={`line-clamp-1 flex gap-2 font-medium ${(stats?.ordersNeedingReview ?? 0) > 0 ? "text-amber-600" : ""}`}>
-            Orders flagged for review <AlertTriangleIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Requires admin attention</div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className={`line-clamp-1 flex gap-2 font-medium ${(stats?.ordersNeedingReview ?? 0) > 0 ? "text-amber-600" : ""}`}>
+                Orders flagged for review <AlertTriangleIcon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">Requires admin attention</div>
+            </>
+          )}
         </CardFooter>
       </Card>
     </div>

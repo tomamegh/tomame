@@ -34,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { UserRoleBadge } from "@/features/users/components/user-role-badge";
 import { OrderStatusBadge } from "@/features/orders/components/order-status-badge";
@@ -246,15 +247,14 @@ export function UserDetailClient({ userId }: Props) {
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={i}>
-                        {Array.from({ length: 4 }).map((_, j) => (
-                          <TableCell key={j}>
-                            <Skeleton className="h-4 w-full" />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
+                    <TableRow>
+                      <TableCell colSpan={4} className="h-32">
+                        <div className="flex items-center justify-center gap-2 text-stone-400 text-sm">
+                          <Spinner className="size-4" />
+                          <span>Loading…</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   ) : !data?.recentOrders.length ? (
                     <TableRow>
                       <TableCell

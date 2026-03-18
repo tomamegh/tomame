@@ -60,17 +60,30 @@ export function OrderStatCards({ orders, isLoading }: OrderStatCardsProps) {
             {isLoading ? <Skeleton className="h-8 w-16" /> : fmt(stats?.total)}
           </CardTitle>
           <CardAction>
-            <Badge variant="outline">
-              <ShoppingCartIcon />
-              All time
-            </Badge>
+            {isLoading ? (
+              <Skeleton className="h-6 w-20 rounded-full" />
+            ) : (
+              <Badge variant="outline">
+                <ShoppingCartIcon />
+                All time
+              </Badge>
+            )}
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Orders placed on platform <ShoppingCartIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Across all customers</div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className="line-clamp-1 flex gap-2 font-medium">
+                Orders placed on platform <ShoppingCartIcon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">Across all customers</div>
+            </>
+          )}
         </CardFooter>
       </Card>
 
@@ -86,20 +99,33 @@ export function OrderStatCards({ orders, isLoading }: OrderStatCardsProps) {
             )}
           </CardTitle>
           <CardAction>
-            <Badge
-              variant="outline"
-              className="bg-green-500/10 text-green-600 border-green-500/30"
-            >
-              <TrendingUpIcon />
-              Paid orders
-            </Badge>
+            {isLoading ? (
+              <Skeleton className="h-6 w-24 rounded-full" />
+            ) : (
+              <Badge
+                variant="outline"
+                className="bg-green-500/10 text-green-600 border-green-500/30"
+              >
+                <TrendingUpIcon />
+                Paid orders
+              </Badge>
+            )}
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium text-green-600">
-            Revenue from active orders <TrendingUpIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Excludes pending & cancelled</div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className="line-clamp-1 flex gap-2 font-medium text-green-600">
+                Revenue from active orders <TrendingUpIcon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">Excludes pending & cancelled</div>
+            </>
+          )}
         </CardFooter>
       </Card>
 
@@ -115,7 +141,9 @@ export function OrderStatCards({ orders, isLoading }: OrderStatCardsProps) {
             )}
           </CardTitle>
           <CardAction>
-            {(stats?.needsReview ?? 0) > 0 ? (
+            {isLoading ? (
+              <Skeleton className="h-6 w-28 rounded-full" />
+            ) : (stats?.needsReview ?? 0) > 0 ? (
               <Badge
                 variant="outline"
                 className="bg-amber-500/10 text-amber-600 border-amber-500/30"
@@ -132,12 +160,21 @@ export function OrderStatCards({ orders, isLoading }: OrderStatCardsProps) {
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div
-            className={`line-clamp-1 flex gap-2 font-medium ${(stats?.needsReview ?? 0) > 0 ? "text-amber-600" : ""}`}
-          >
-            Flagged for review <AlertTriangleIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Requires admin attention</div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div
+                className={`line-clamp-1 flex gap-2 font-medium ${(stats?.needsReview ?? 0) > 0 ? "text-amber-600" : ""}`}
+              >
+                Flagged for review <AlertTriangleIcon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">Requires admin attention</div>
+            </>
+          )}
         </CardFooter>
       </Card>
 
@@ -153,7 +190,9 @@ export function OrderStatCards({ orders, isLoading }: OrderStatCardsProps) {
             )}
           </CardTitle>
           <CardAction>
-            {(stats?.cancelled ?? 0) > 0 ? (
+            {isLoading ? (
+              <Skeleton className="h-6 w-20 rounded-full" />
+            ) : (stats?.cancelled ?? 0) > 0 ? (
               <Badge
                 variant="outline"
                 className="bg-red-500/10 text-red-600 border-red-500/30"
@@ -170,12 +209,21 @@ export function OrderStatCards({ orders, isLoading }: OrderStatCardsProps) {
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div
-            className={`line-clamp-1 flex gap-2 font-medium ${(stats?.cancelled ?? 0) > 0 ? "text-red-600" : ""}`}
-          >
-            Cancelled orders <XCircleIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">By customer or admin</div>
+          {isLoading ? (
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div
+                className={`line-clamp-1 flex gap-2 font-medium ${(stats?.cancelled ?? 0) > 0 ? "text-red-600" : ""}`}
+              >
+                Cancelled orders <XCircleIcon className="size-4" />
+              </div>
+              <div className="text-muted-foreground">By customer or admin</div>
+            </>
+          )}
         </CardFooter>
       </Card>
     </div>

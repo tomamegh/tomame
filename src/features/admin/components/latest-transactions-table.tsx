@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { TransactionStatusBadge } from "@/features/transactions/components/transaction-status-badge";
 import type { TransactionStatus } from "@/features/transactions/types";
 import type { DashboardLatestTransaction } from "../types";
@@ -67,15 +67,14 @@ export function LatestTransactionsTable({
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 4 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              <TableRow>
+                <TableCell colSpan={4} className="h-32">
+                  <div className="flex items-center justify-center gap-2 text-stone-400 text-sm">
+                    <Spinner className="size-4" />
+                    <span>Loading…</span>
+                  </div>
+                </TableCell>
+              </TableRow>
             ) : !transactions?.length ? (
               <TableRow>
                 <TableCell

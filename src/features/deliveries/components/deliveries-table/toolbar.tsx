@@ -83,14 +83,14 @@ export function Toolbar({
       <Select
         value={statusFilter}
         onValueChange={(v) =>
-          table.getColumn("status")?.setFilterValue(v || undefined)
+          table.getColumn("status")?.setFilterValue(v === "all" ? undefined : v)
         }
       >
         <SelectTrigger className="w-40 h-9">
           <SelectValue placeholder="All Statuses" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="All">All Statuses</SelectItem>
+          <SelectItem value="all">All Statuses</SelectItem>
           {STATUS_OPTIONS.map((opt) => (
             <SelectItem key={opt.value} value={opt.value}>
               {opt.label}
@@ -103,7 +103,7 @@ export function Toolbar({
       <Select
         value={countryFilter}
         onValueChange={(v) =>
-          table.getColumn("originCountry")?.setFilterValue(v || undefined)
+          table.getColumn("originCountry")?.setFilterValue(v === "all" ? undefined : v)
         }
       >
         <SelectTrigger className="w-36 h-9">

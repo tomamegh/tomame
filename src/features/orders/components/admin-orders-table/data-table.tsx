@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { Order } from "../../types";
@@ -159,15 +159,14 @@ export function AdminOrdersTable() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              Array.from({ length: 8 }).map((_, i) => (
-                <TableRow key={i}>
-                  {columns.map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-32">
+                  <div className="flex items-center justify-center gap-2 text-stone-400 text-sm">
+                    <Spinner className="size-4" />
+                    <span>Loading…</span>
+                  </div>
+                </TableCell>
+              </TableRow>
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
