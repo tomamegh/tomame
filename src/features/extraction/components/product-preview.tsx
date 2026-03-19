@@ -20,7 +20,7 @@ export function ProductPreview({
   onOrder,
   onReset,
 }: ProductPreviewProps) {
-  const { product, extractionSuccess, platform, country, errors, fetchedAt } =
+  const { product, extraction_success, platform, country, errors, fetched_at } =
     data;
 
   const name = product.title;
@@ -36,12 +36,12 @@ export function ProductPreview({
   const category = product.category;
 
   const isMissingCritical = !name || price === null;
-  const showWarning = !extractionSuccess || isMissingCritical;
+  const showWarning = !extraction_success || isMissingCritical;
 
   return (
     <div className="space-y-3 fade-in">
       {/* Status banner */}
-      {!extractionSuccess ? (
+      {!extraction_success ? (
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-amber-500" />
           <div>
@@ -235,7 +235,7 @@ export function ProductPreview({
           <span className="flex items-center gap-1 text-xs text-stone-400">
             <ClockIcon className="size-3" />
             Fetched{" "}
-            {new Date(fetchedAt).toLocaleString(undefined, {
+            {new Date(fetched_at).toLocaleString(undefined, {
               dateStyle: "medium",
               timeStyle: "short",
             })}
