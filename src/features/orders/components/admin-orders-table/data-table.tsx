@@ -61,7 +61,7 @@ export function AdminOrdersTable() {
 
   // ── Table state ────────────────────────────────────────────────────────────
   const [sorting, setSorting] = useState<SortingState>([
-    { id: "createdAt", desc: true },
+    { id: "created_at", desc: true },
   ]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");

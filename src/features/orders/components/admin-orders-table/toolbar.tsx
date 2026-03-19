@@ -5,14 +5,12 @@ import {
   SearchIcon,
   SlidersHorizontalIcon,
   XIcon,
-  AlertTriangleIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -35,13 +33,13 @@ import {
 
 const COLUMN_LABELS: Record<string, string> = {
   id: "Order ID",
-  productName: "Product",
+  product_name: "Product",
   status: "Status",
-  originCountry: "Country",
-  needsReview: "Review",
+  origin_country: "Country",
+  needs_review: "Review",
   totalGhs: "Amount",
   quantity: "Qty",
-  createdAt: "Date",
+  created_at: "Date",
 };
 
 const STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
@@ -74,16 +72,15 @@ const TableFilter = <T, TValue>({
   items,
   ...props
 }: TableFilterProps<T, TValue>) => {
-  const filterValue = (column.getFilterValue() as string[]) ?? [];
   const counts = column.getFacetedUniqueValues();
-  const handleValueChange = (s:string) => {
-    if(!filterValue.includes(s)) {
-      filterValue.push(s)
-    }
-  }
+  const value = (column.getFilterValue() as string) || undefined;
+  
+  const handleValueChange = (v: string) => {
+    column.setFilterValue(v === "" ? undefined : v);
+  };
   return (
-    <Select onValueChange={handleValueChange}>
-      <SelectTrigger className="w-45">
+    <Select key={value ?? "__placeholder__"} onValueChange={handleValueChange} value={value}>
+      <SelectTrigger className="w-fit">
         <SelectValue placeholder={props?.placeholder || "Select"} />
       </SelectTrigger>
       <SelectContent position="popper">
@@ -101,67 +98,6 @@ const TableFilter = <T, TValue>({
     </Select>
   );
 };
-
-function FacetedFilter<T>({
-  column,
-  title,
-  options,
-}: {
-  column: Column<T, unknown>;
-  title: string;
-  options: { value: string; label: string }[];
-}) {
-  const filterValue = (column.getFilterValue() as string[]) ?? [];
-  const counts = column.getFacetedUniqueValues();
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5">
-          {title}
-          {filterValue.length > 0 && (
-            <span className="ml-0.5 bg-stone-800 text-white rounded-full px-1.5 py-0.5 text-[10px] leading-none">
-              {filterValue.length}
-            </span>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-44">
-        <DropdownMenuLabel>{title}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {options.map((option) => (
-          <DropdownMenuCheckboxItem
-            key={option.value}
-            checked={filterValue.includes(option.value)}
-            onCheckedChange={(checked) =>
-              column.setFilterValue(
-                checked
-                  ? [...filterValue, option.value]
-                  : filterValue.filter((v) => v !== option.value),
-              )
-            }
-          >
-            {option.label}
-            <span className="ml-auto text-stone-400 text-xs tabular-nums">
-              {counts.get(option.value) ?? 0}
-            </span>
-          </DropdownMenuCheckboxItem>
-        ))}
-        {filterValue.length > 0 && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="justify-center text-muted-foreground text-xs"
-              onClick={() => column.setFilterValue(undefined)}
-            >
-              Clear filter
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 // ── Toolbar ───────────────────────────────────────────────────────────────────
 
@@ -182,10 +118,6 @@ export function Toolbar({
 
   const statusColumn = table.getColumn("status");
   const countryColumn = table.getColumn("origin_country");
-  const reviewColumn = table.getColumn("needs_review");
-  const reviewActive = (
-    reviewColumn?.getFilterValue() as boolean[] | undefined
-  )?.includes(true);
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -202,17 +134,8 @@ export function Toolbar({
             placeholder="Search orders..."
             value={globalFilter}
             onChange={(e) => onGlobalFilterChange(e.target.value)}
-            className=""
           />
         </InputGroup>
-        {/* Status faceted filter */}
-        {/* {statusColumn && (
-          <FacetedFilter
-            column={statusColumn}
-            title="Status"
-            options={STATUS_OPTIONS}
-          />
-        )} */}
         {statusColumn && (
           <TableFilter
             column={statusColumn}
@@ -222,43 +145,18 @@ export function Toolbar({
         )}
       </Field>
 
-      {/* Status faceted filter */}
-      {/* {statusColumn && (
-        <FacetedFilter
-          column={statusColumn}
-          title="Status"
-          options={STATUS_OPTIONS}
-        />
-      )} */}
-
-      {/* Country faceted filter */}
       {countryColumn && (
-        <FacetedFilter
+        <TableFilter
+          placeholder="Country"
           column={countryColumn}
-          title="Country"
-          options={COUNTRY_OPTIONS}
+          items={COUNTRY_OPTIONS}
         />
-      )}
-
-      {/* Needs review toggle */}
-      {reviewColumn && (
-        <Button
-          variant={reviewActive ? "default" : "outline"}
-          size="sm"
-          className="h-9 gap-1.5"
-          onClick={() =>
-            reviewColumn.setFilterValue(reviewActive ? undefined : [true])
-          }
-        >
-          <AlertTriangleIcon className="size-3.5" />
-          Needs Review
-        </Button>
       )}
 
       {/* Reset */}
       {isFiltered && (
         <Button
-          variant="ghost"
+          variant="secondary"
           size="sm"
           className="h-9 px-2.5 text-stone-500 gap-1"
           onClick={() => {
