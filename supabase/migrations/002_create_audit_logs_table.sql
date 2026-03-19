@@ -3,7 +3,7 @@
 
 CREATE TABLE audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  actor_id UUID REFERENCES users(id),
+  actor_id UUID REFERENCES profiles(id),
   actor_role TEXT NOT NULL CHECK (actor_role IN ('user', 'admin', 'system')),
   action TEXT NOT NULL,
   entity_type TEXT NOT NULL,
@@ -19,7 +19,7 @@ CREATE POLICY "admins can read audit logs"
 ON audit_logs FOR SELECT
 USING (
   EXISTS (
-    SELECT 1 FROM users
-    WHERE users.id = auth.uid() AND users.role = 'admin'
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
   )
 );

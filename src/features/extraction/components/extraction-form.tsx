@@ -55,12 +55,12 @@ const ExtractionInput: React.FC<ExtractionFormProps> = ({
       <Field orientation={isMobile ?'responsive': 'horizontal'}>
         <InputGroup className="h-11">
           <InputGroupInput
-            {...register("productUrl")}
+            {...register("product_url")}
             type="url"
             placeholder="https://amazon.com/dp/B09XYZ..."
             className={`soft-input`}
             disabled={isLoading}
-            aria-invalid={!!errors.productUrl}
+            aria-invalid={!!errors.product_url}
           />
           <InputGroupAddon>
             <LinkIcon className="size-4 text-stone-400" />
@@ -70,7 +70,7 @@ const ExtractionInput: React.FC<ExtractionFormProps> = ({
           type="submit"
           variant="primary"
           size="lg"
-          onClick={handleSubmit((data) => onSubmit(data.productUrl))}
+          onClick={handleSubmit((data) => onSubmit(data.product_url))}
           disabled={isLoading}
           className="shrink-0 gap-2"
         >
@@ -87,9 +87,9 @@ const ExtractionInput: React.FC<ExtractionFormProps> = ({
           )}
         </Button>
       </Field>
-      {errors.productUrl && (
+      {errors.product_url && (
         <p className="text-sm text-destructive" role="alert">
-          {errors.productUrl.message}
+          {errors.product_url.message}
         </p>
       )}
     </div>

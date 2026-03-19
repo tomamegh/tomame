@@ -16,11 +16,9 @@ export async function GET(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
-    const data = await listDeliveries(createAdminClient(), admin.user);
+    const data = await listDeliveries(createAdminClient(), admin);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

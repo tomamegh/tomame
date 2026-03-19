@@ -3,13 +3,13 @@ import type { ScrapedProduct } from "../scrapers/types";
 export type { ScrapedProduct };
 
 export interface ExtractionResult {
-  extractionAttempted: boolean;
-  extractionSuccess: boolean;
+  extraction_attempted: boolean;
+  extraction_success: boolean;
   platform: string | null;
   country: "USA" | "UK" | "CHINA" | null;
   product: ScrapedProduct;
   errors: string[];
-  fetchedAt: string;
+  fetched_at: string;
 }
 
 export interface ProductPreviewProps {

@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { createOrderSchema } from "@/features/orders/schema";
-import { createOrder, getUserOrders } from "@/features/orders/services/orders.service";
+import {
+  createOrder,
+  getUserOrders,
+} from "@/features/orders/services/orders.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import {
@@ -36,22 +39,9 @@ export async function POST(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
 
     const supabase = await createClient();
-    const result = await createOrder(supabase, auth.user, {
-      productUrl: data.productUrl,
-      productName: data.productName,
-      productImageUrl: data.productImageUrl,
-      estimatedPriceUsd: data.estimatedPriceUsd,
-      quantity: data.quantity,
-      originCountry: data.originCountry,
-      specialInstructions: data.specialInstructions,
-      needsReview: data.needsReview,
-      reviewReasons: data.reviewReasons,
-      extractionMetadata: data.extractionMetadata,
-      extractionData: data.extractionData,
-    });
+    const result = await createOrder(supabase, auth, data);
     // if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result, 201);
@@ -64,9 +54,8 @@ export async function GET() {
   try {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
 
-    const result = await getUserOrders(auth.user.id);
+    const result = await getUserOrders(auth.id);
 
     return successResponse(result.data);
   } catch (error) {

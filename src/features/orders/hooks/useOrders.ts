@@ -2,9 +2,10 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
-import { CreateOrderInput, Order, OrderList } from "../types";
+import { Order, OrderList } from "../types";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { DbAuditLog } from "@/types/db";
+import { CreateOrderSchemaType } from "../schema";
 
 // ── Query keys ───────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ export function useOrder(id: string) {
     queryFn: () => apiFetch<ApiSuccessResponse<Order>>(`/api/orders/${id}`),
     select: (res) => res.data,
     enabled: !!id,
+    retry: 1
   });
 }
 
@@ -43,7 +45,7 @@ export function useOrder(id: string) {
 export function useCreateOrder() {
   const queryClient = useQueryClient();
 
-  return useMutation<Order, Error, CreateOrderInput>({
+  return useMutation<Order, Error, CreateOrderSchemaType>({
     mutationFn: async (data) => {
       const res = await apiFetch<ApiSuccessResponse<Order>>("/api/orders/new", {
         method: "POST",

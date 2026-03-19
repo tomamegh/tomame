@@ -1,13 +1,5 @@
-import type { Role, AuditActorRole, AuditEntityType } from "@/config/constants";
+import type { AuditActorRole, AuditEntityType } from "@/config/constants";
 
-/** User loaded from DB after session validation */
-export interface AuthenticatedUser {
-  id: string;
-  email: string;
-  role: Role;
-  first_name: string | null;
-  last_name: string | null;
-}
 
 /** Input shape for writing an audit log */
 export interface AuditLogEntry {
@@ -19,10 +11,3 @@ export interface AuditLogEntry {
   metadata?: Record<string, unknown>;
 }
 
-/**
- * Generic service result — all service functions return this.
- * Eliminates thrown-exception coupling between service and route handler.
- */
-export type ServiceResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: string; status: number };

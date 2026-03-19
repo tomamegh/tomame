@@ -24,12 +24,10 @@ export async function GET(
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
     const { id } = await params;
-    const data = await getUserDetail(createAdminClient(), admin.user, id);
+    const data = await getUserDetail(createAdminClient(), admin, id);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);
@@ -48,9 +46,7 @@ export async function PATCH(
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
     const { id } = await params;
     const body = await request.json();
@@ -59,7 +55,7 @@ export async function PATCH(
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const data = await updateUser(createAdminClient(), admin.user, id, parsed.data.role);
+    const data = await updateUser(createAdminClient(), admin, id, parsed.data.role);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

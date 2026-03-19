@@ -46,8 +46,8 @@ export function NavMain({ label, links }: Props) {
           {links.map((link) => (
             <Collapsible key={link.title} asChild defaultOpen={link.isActive}>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip={link.title} className={`transition-all hover:bg-neutral-100 ${isActive(link.url) ? 'bg-primary text-white hover:bg-primary hover:text-white': 'text-stone-900'}`}>
-                  <Link href={link.url}>
+                <SidebarMenuButton asChild tooltip={link.title} className={`rounded-lg transition-all hover:bg-neutral-100 ${isActive(link.url) ? 'bg-primary text-white hover:bg-primary hover:text-white': 'text-stone-900'}`}>
+                  <Link href={link.url} className="py-5">
                     <link.icon />
                     <span>{link.title}</span>
                   </Link>

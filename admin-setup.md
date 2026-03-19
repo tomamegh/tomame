@@ -85,7 +85,7 @@ async function createFirstAdmin() {
 
     // 2. Insert user record with admin role
     const { error: userError } = await supabase
-      .from('users')
+      .from('profiles')
       .insert({
         id: userId,
         email: 'admin@tomame.com',
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
   )
 
   const { data: existingAdmin } = await supabase
-    .from('users')
+    .from('profiles')
     .select('id')
     .eq('role', 'admin')
     .single()
@@ -177,7 +177,7 @@ export async function POST(request: Request) {
   const userId = authData.user.id
 
   // Insert user record
-  await supabase.from('users').insert({
+  await supabase.from('profiles').insert({
     id: userId,
     email,
     role: 'admin'
@@ -297,7 +297,7 @@ export async function POST(request: Request) {
 
   // 2. Verify current user is admin
   const { data: currentUser } = await supabase
-    .from('users')
+    .from('profiles')
     .select('role')
     .eq('id', session.user.id)
     .single()
@@ -310,7 +310,7 @@ export async function POST(request: Request) {
   const { userId } = await request.json()
 
   const { error } = await supabase
-    .from('users')
+    .from('profiles')
     .update({ role: 'admin' })
     .eq('id', userId)
 
@@ -355,7 +355,7 @@ export async function POST(request: Request) {
 
   // 2. Verify current user is admin
   const { data: currentUser } = await supabase
-    .from('users')
+    .from('profiles')
     .select('role')
     .eq('id', session.user.id)
     .single()
@@ -386,7 +386,7 @@ export async function POST(request: Request) {
 
   // 4. Insert user record with admin role
   const { error: userError } = await supabase
-    .from('users')
+    .from('profiles')
     .insert({
       id: newUserId,
       email,

@@ -14,6 +14,7 @@ export interface OrderExtractionMetadata {
     currency: string | null;
     description: string | null;
     brand: string | null;
+    category?: string | null;
     size: string | null;
     weight: string | null;
     dimensions: string | null;
@@ -63,34 +64,12 @@ export interface Order {
   extraction_metadata: OrderExtractionMetadata | null;
   created_at: string;
   updated_at: string;
+  // Joined from order_deliveries (present on admin fetch)
+  tracking_url?: string | null;
+  delivery_notes?: string | null;
 }
 
 export interface OrderList {
   orders: Order[];
   count: number;
-}
-
-export interface CreateOrderInput {
-  productUrl: string;
-  productName: string;
-  productImageUrl?: string;
-  estimatedPriceUsd: number;
-  quantity?: number;
-  originCountry: OriginCountry;
-  specialInstructions?: string;
-}
-
-// ── API request / response types ─────────────────────────────────────────────
-
-export interface CreateOrderRequest {
-  productUrl: string;
-  productName: string;
-  productImageUrl?: string;
-  estimatedPriceUsd: number;
-  quantity?: number;
-  originCountry: OriginCountry;
-  specialInstructions?: string;
-  needsReview?: boolean;
-  reviewReasons?: string[];
-  extractionMetadata?: OrderExtractionMetadata;
 }

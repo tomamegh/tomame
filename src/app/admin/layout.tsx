@@ -24,7 +24,7 @@ function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-5 bg-slate-100">
+        <main className="flex flex-1 flex-col gap-4 p-5 bg-slate-50">
           {children}
         </main>
       </SidebarInset>

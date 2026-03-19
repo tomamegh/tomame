@@ -15,22 +15,15 @@ import {
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { env } from "@/lib/env";
 import { PAYMENT_STATUSES } from "@/config/constants";
-import type { AuthenticatedUser } from "@/types/domain";
+import type { AuthenticatedUser } from "@/features/auth/types";
 import type {
   InitializePaymentResponse,
+  PaymentInsert,
   PaymentResponse,
 } from "@/features/payments/types";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
-interface PaymentInsert {
-  user_id: string;
-  reference: string;
-  amount: number;
-  currency: string;
-  status: string;
-  metadata?: Record<string, unknown> | null;
-}
 
 async function insertPayment(
   client: SupabaseClient,
@@ -180,7 +173,8 @@ export async function initializePayment(
   try {
     const callbackUrl = `${env.app.url}/api/payments/callback`;
     const paystackResponse = await initializeTransaction({
-      email: user.email,
+      //TODO: Fix user email in transaction initialization
+      email: user.email!,
       amount: totalPesewas,
       reference,
       callbackUrl,
@@ -346,7 +340,7 @@ export async function listAllTransactions(
   user: AuthenticatedUser,
   filters?: { status?: string; userId?: string },
 ): Promise<TransactionListResponse> {
-  if (user.role !== "admin") {
+  if (user.profile.role !== "admin") {
     throw new APIError(403, "Admin access required");
   }
 

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { paystackWebhookSchema } from "@/features/payments/payments.validators";
+import { paystackWebhookSchema } from "@/features/payments/schema";
 import { handleWebhookEvent } from "@/features/payments/services/payments.service";
 import { verifyWebhookSignature } from "@/lib/paystack/client";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";

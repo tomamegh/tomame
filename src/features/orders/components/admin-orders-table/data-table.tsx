@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { Order } from "../../types";
@@ -48,7 +48,12 @@ import { useAdminOrdersData } from "../../hooks/useAdminOrdersData";
 import { columns } from "./columns";
 import type { OrdersTableMeta } from "./columns";
 import { Toolbar } from "./toolbar";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from "@/components/ui/card";
 
 export function AdminOrdersTable() {
   const { data, isLoading } = useAdminOrdersData();
@@ -125,10 +130,10 @@ export function AdminOrdersTable() {
     <Card>
       <CardHeader>
         <Toolbar
-        table={table}
-        globalFilter={globalFilter}
-        onGlobalFilterChange={setGlobalFilter}
-      />
+          table={table}
+          globalFilter={globalFilter}
+          onGlobalFilterChange={setGlobalFilter}
+        />
       </CardHeader>
 
       {/* Table */}
@@ -136,14 +141,18 @@ export function AdminOrdersTable() {
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="bg-stone-50/80 hover:bg-stone-50/80">
+              <TableRow
+                key={headerGroup.id}
+                className="bg-stone-50/80 hover:bg-stone-50/80"
+              >
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
                     style={{
-                      width: header.column.columnDef.size !== 150
-                        ? header.column.columnDef.size
-                        : undefined,
+                      width:
+                        header.column.columnDef.size !== 150
+                          ? header.column.columnDef.size
+                          : undefined,
                     }}
                   >
                     {header.isPlaceholder
@@ -159,15 +168,14 @@ export function AdminOrdersTable() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              Array.from({ length: 8 }).map((_, i) => (
-                <TableRow key={i}>
-                  {columns.map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-32">
+                  <div className="flex items-center justify-center gap-2 text-stone-400 text-sm">
+                    <Spinner className="size-4" />
+                    <span>Loading…</span>
+                  </div>
+                </TableCell>
+              </TableRow>
             ) : table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
@@ -207,7 +215,8 @@ export function AdminOrdersTable() {
               {table.getFilteredSelectedRowModel().rows.length} selected ·
             </span>
           )}
-          {filteredCount} of {orders.length} order{orders.length !== 1 ? "s" : ""}
+          {filteredCount} of {orders.length} order
+          {orders.length !== 1 ? "s" : ""}
         </p>
 
         {/* Middle: rows per page */}

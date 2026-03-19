@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { DeliveryStatusBadge } from "@/features/deliveries/components/status-badge";
 import type { DeliveryStatus } from "@/features/deliveries/types";
 import type { DashboardLatestDelivery } from "../types";
@@ -60,15 +60,14 @@ export function LatestDeliveriesTable({
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              <TableRow>
+                <TableCell colSpan={5} className="h-32">
+                  <div className="flex items-center justify-center gap-2 text-stone-400 text-sm">
+                    <Spinner className="size-4" />
+                    <span>Loading…</span>
+                  </div>
+                </TableCell>
+              </TableRow>
             ) : !deliveries?.length ? (
               <TableRow>
                 <TableCell

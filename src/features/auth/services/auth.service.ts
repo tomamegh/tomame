@@ -3,10 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/types/domain";
 import type { MessageResponse } from "@/types/api";
 import { LoginSchemaType } from "../schema";
-import { AuthUserResponse } from "../types";
+import { type AuthenticatedUser, AuthUserResponse } from "../types";
 
 export async function signup(
   email: string,
@@ -54,7 +53,7 @@ export async function login(
   }
 
   const { data: dbUser } = await supabase
-    .from("users")
+    .from("profiles")
     .select("id, role")
     .eq("id", data.user.id)
     .single();
@@ -78,9 +77,7 @@ export async function login(
  * Send a password reset email.
  * Always returns success to prevent email enumeration.
  */
-export async function forgotPassword(
-  email: string,
-): Promise<MessageResponse> {
+export async function forgotPassword(email: string): Promise<MessageResponse> {
   const supabase = await createClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
@@ -93,7 +90,7 @@ export async function forgotPassword(
   }
 
   const { data: userData } = await createAdminClient()
-    .from("users")
+    .from("profiles")
     .select("id")
     .eq("email", email)
     .maybeSingle();
@@ -150,25 +147,20 @@ export async function changePassword(
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
   const supabase = await createClient();
 
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser();
+  const { data, error: userError } = await supabase.auth.getUser();
 
-  if (!authUser) return null;
+  if (!data.user || userError) return null;
 
-  const { data: user, error } = await supabase
-    .from("users")
+  const { data: profile, error } = await supabase
+    .from("profiles")
     .select("*")
-    .eq("id", authUser.id)
+    .eq("id", data.user.id)
     .single();
 
-  if (!user || error) return null;
+  if (!profile || error) return null;
 
   return {
-    id: user.id,
-    email: authUser.email!,
-    role: user.role,
-    first_name: user?.first_name,
-    last_name: user?.last_name,
+    ...(data.user),
+    profile,
   };
 }

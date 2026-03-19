@@ -7,6 +7,7 @@ import {
   LayoutGridIcon,
   LifeBuoy,
   Send,
+  Settings2Icon,
   ShoppingCartIcon,
   TruckIcon,
   UsersRoundIcon,
@@ -60,6 +61,11 @@ const NAV_LIST: Array<{ label?: string; links: LinkItem[] }> = [
         url: "/admin/users",
         icon: UsersRoundIcon,
       },
+      {
+        title: "Settings",
+        url: "/admin/settings",
+        icon: Settings2Icon,
+      },
     ],
   },
 ];
@@ -95,12 +101,12 @@ export default function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <div>
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                <div className="gradient-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
                   <Command className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">Tomame</span>
-                  <span className="truncate text-xs">Enterprise</span>
+                  <span className="truncate text-xs text-neutral-400">Admin Dashboard</span>
                 </div>
               </div>
             </SidebarMenuButton>

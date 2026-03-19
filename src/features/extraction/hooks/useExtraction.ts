@@ -7,7 +7,7 @@ import type { ApiSuccessResponse } from "@/types/api";
 
 /** Extract product data from a URL */
 export function useExtractProduct() {
-  return useMutation<ExtractionResult, Error, { productUrl: string }>({
+  return useMutation<ExtractionResult, Error, { product_url: string }>({
     mutationFn: async (data) => {
       const response = await apiFetch<ApiSuccessResponse<ExtractionResult>>(
         "/api/products/extract",

@@ -18,21 +18,21 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json().catch(() => {
       throw new APIError(400, "Invalid JSON");
     });
+    console.log(body)
     const parsed = extractProductSchema.safeParse(body);
     if (!parsed.success) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
     const user = await getAuthenticatedUser();
-    const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
+    const _authUser = requireAuth(user);
 
-    const platform = resolvePlatform(parsed.data.productUrl);
+    const platform = resolvePlatform(parsed.data.product_url);
     if (!platform) {
       throw new APIError(400, "Product URL must be from a supported store");
     }
 
-    const data = await extractProductData(parsed.data.productUrl);
+    const data = await extractProductData(parsed.data.product_url);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

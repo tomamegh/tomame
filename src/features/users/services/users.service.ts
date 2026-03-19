@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/types/domain";
+import type { AuthenticatedUser } from "@/features/auth/types";
 import type { AuthUserResponse } from "@/features/auth/types";
 import type { MessageResponse } from "@/types/api";
 import type { DbUser, DbOrder } from "@/types/db";
@@ -21,7 +21,7 @@ export async function getUserById(
   id: string
 ): Promise<DbUser | null> {
   const { data, error } = await client
-    .from("users")
+    .from("profiles")
     .select("*")
     .eq("id", id)
     .single();
@@ -35,7 +35,7 @@ async function getUserByEmail(
   email: string
 ): Promise<DbUser | null> {
   const { data, error } = await client
-    .from("users")
+    .from("profiles")
     .select("*")
     .eq("email", email)
     .single();
@@ -49,7 +49,7 @@ async function insertUser(
   user: { id: string; email: string; role: "user" | "admin" }
 ): Promise<DbUser | null> {
   const { data, error } = await client
-    .from("users")
+    .from("profiles")
     .insert(user)
     .select()
     .single();
@@ -72,7 +72,7 @@ async function updateUserRole(
   role: "user" | "admin"
 ): Promise<DbUser | null> {
   const { data, error } = await client
-    .from("users")
+    .from("profiles")
     .update({ role })
     .eq("id", userId)
     .select()
@@ -88,7 +88,7 @@ async function getAllUsers(
 ): Promise<{ users: AdminUser[]; count: number }> {
   const [authResult, rolesResult] = await Promise.all([
     client.auth.admin.listUsers({ perPage: 1000 }),
-    client.from("users").select("id, role"),
+    client.from("profiles").select("id, role"),
   ]);
 
   if (authResult.error) {
@@ -129,7 +129,7 @@ async function getUserWithOrders(
   userId: string
 ): Promise<{ user: DbUser | null; orders: DbOrder[] }> {
   const [userResult, ordersResult] = await Promise.all([
-    client.from("users").select("*").eq("id", userId).single(),
+    client.from("profiles").select("*").eq("id", userId).single(),
     client
       .from("orders")
       .select("*")

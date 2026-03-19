@@ -23,14 +23,12 @@ export async function GET(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
     const { searchParams } = new URL(request.url);
     const role = searchParams.get("role") ?? undefined;
 
-    const data = await listUsers(createAdminClient(), admin.user, { role });
+    const data = await listUsers(createAdminClient(), admin, { role });
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);
@@ -46,9 +44,7 @@ export async function POST(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
     const body = await request.json();
     const parsed = createUserSchema.safeParse(body);
@@ -57,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await createUser(
-      admin.user,
+      admin,
       parsed.data.email,
       parsed.data.password,
       parsed.data.role,

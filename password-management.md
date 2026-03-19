@@ -361,7 +361,7 @@ export async function POST(request: Request) {
 
   // 2. Verify current user is admin
   const { data: currentUser } = await supabase
-    .from('users')
+    .from('profiles')
     .select('role')
     .eq('id', session.user.id)
     .single()

@@ -11,6 +11,7 @@ import {
   CircleIcon,
   ClipboardListIcon,
   ImageIcon,
+  ShoppingCartIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { OrderStatusBadge } from "./order-status-badge";
 import { useOrder, useCancelOrder, useOrderHistory } from "../hooks/useOrders";
 import type { Order, OrderStatus } from "../types";
 import type { DbAuditLog } from "@/types/db";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 function fmt(n: number, decimals = 2) {
   return n.toFixed(decimals);
@@ -190,17 +192,27 @@ function OrderTimeline({
 function PricingBreakdown({ order }: { order: Order }) {
   const p = order.pricing;
 
-  const rows = [
-    { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
-    { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
-    { label: "Shipping fee", value: `$${fmt(p.shipping_fee_usd)}` },
-    {
-      label: `Service fee (${(p.service_fee_percentage * 100).toFixed(0)}%)`,
-      value: `$${fmt(p.service_fee_usd)}`,
-    },
-    { label: "Total (USD)", value: `$${fmt(p.total_usd)}`, bold: true },
-    { label: "Exchange rate", value: `1 USD = ${p.exchange_rate} GHS` },
-  ];
+  const rows =
+    p.pricing_method === "fixed_freight"
+      ? [
+          { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
+          { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
+          { label: "Int'l freight (incl. customs)", value: `GH₵ ${fmt(p.fixed_freight_ghs ?? 0)}` },
+          { label: "Exchange rate", value: `1 USD = ${p.exchange_rate} GHS` },
+        ]
+      : [
+          { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
+          { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
+          { label: "Seller shipping", value: p.seller_shipping_usd ? `$${fmt(p.seller_shipping_usd)}` : "FREE" },
+          { label: "Int'l freight (incl. customs)", value: `$${fmt(p.freight_usd ?? 0)}` },
+          {
+            label: `Service fee (${((p.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`,
+            value: `$${fmt(p.service_fee_usd ?? 0)}`,
+          },
+          { label: "Handling", value: `$${fmt(p.handling_fee_usd ?? 0)}` },
+          { label: "Total (USD)", value: `$${fmt(p.total_usd ?? 0)}`, bold: true },
+          { label: "Exchange rate", value: `1 USD = ${p.exchange_rate} GHS` },
+        ];
 
   return (
     <div className="space-y-2">
@@ -279,7 +291,7 @@ interface OrderDetailProps {
 }
 
 export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
-  const { data: order, isPending, error } = useOrder(orderId);
+  const { data: order, isPending, error, refetch } = useOrder(orderId);
 
   if (isPending) {
     return (
@@ -362,9 +374,22 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
 
   if (error || !order) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-        {error?.message ?? "Order not found"}
-      </div>
+      <Empty className="bg-white">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <ShoppingCartIcon />
+        </EmptyMedia>
+        <EmptyTitle>{error.message || 'Something might have happened'}</EmptyTitle>
+        <EmptyDescription>
+          We could not find any order with this associated Id.
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button onClick={()=>refetch()} variant="primary" size="sm" className="px-5">
+          Retry
+        </Button>
+      </EmptyContent>
+    </Empty>
     );
   }
 

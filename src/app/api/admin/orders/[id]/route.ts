@@ -1,9 +1,16 @@
 import { NextRequest } from "next/server";
 import { updateOrderStatusSchema } from "@/features/orders/schema";
-import { getOrder, updateOrderStatusAdmin } from "@/features/orders/services/orders.service";
+import {
+  getOrder,
+  updateOrderStatusAdmin,
+} from "@/features/orders/services/orders.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
-import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import {
+  APIError,
+  successResponse,
+  errorResponse,
+} from "@/lib/auth/api-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
@@ -20,12 +27,10 @@ export async function GET(
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
     const { id } = await params;
-    const data = await getOrder(createAdminClient(), admin.user, id);
+    const data = await getOrder(createAdminClient(), admin, id);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);
@@ -47,22 +52,47 @@ export async function PATCH(
     });
     const parsed = updateOrderStatusSchema.safeParse(body);
     if (!parsed.success) {
-      throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
+      throw new APIError(
+        400,
+        parsed.error.issues[0]?.message ?? "Invalid input",
+      );
     }
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
     const { id } = await params;
-    const { status, trackingNumber, carrier, estimatedDeliveryDate } = parsed.data;
-    const trackingData = trackingNumber || carrier || estimatedDeliveryDate
-      ? { trackingNumber, carrier, estimatedDeliveryDate }
-      : undefined;
+    const {
+      status,
+      tracking_number,
+      carrier,
+      estimated_delivery_date,
+      tracking_url,
+      notes,
+    } = parsed.data;
+    const trackingData =
+      tracking_number ||
+      carrier ||
+      estimated_delivery_date ||
+      tracking_url ||
+      notes
+        ? {
+            tracking_number,
+            carrier,
+            estimated_delivery_date,
+            tracking_url,
+            notes,
+          }
+        : undefined;
 
-    const data = await updateOrderStatusAdmin(createAdminClient(), admin.user, id, status, trackingData);
+    const data = await updateOrderStatusAdmin(
+      createAdminClient(),
+      admin,
+      id,
+      status,
+      trackingData,
+    );
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { cancelOrderByUser } from "@/features/orders/services/orders.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
-import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import { successResponse, errorResponse } from "@/lib/auth/api-helpers";
 
 export async function POST(
   _request: NextRequest,
@@ -11,10 +11,9 @@ export async function POST(
   try {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
 
     const { id } = await params;
-    const data = await cancelOrderByUser(auth.user, id);
+    const data = await cancelOrderByUser(auth, id);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

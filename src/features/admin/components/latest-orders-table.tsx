@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { OrderStatusBadge } from "@/features/orders/components/order-status-badge";
 import type { DashboardLatestOrder } from "../types";
 import type { OrderStatus } from "@/features/orders/types";
@@ -72,15 +72,14 @@ export function LatestOrdersTable({ orders, isLoading }: LatestOrdersTableProps)
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              <TableRow>
+                <TableCell colSpan={6} className="h-32">
+                  <div className="flex items-center justify-center gap-2 text-stone-400 text-sm">
+                    <Spinner className="size-4" />
+                    <span>Loading…</span>
+                  </div>
+                </TableCell>
+              </TableRow>
             ) : !orders?.length ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-stone-400 py-10 text-sm">

@@ -19,3 +19,12 @@ export interface InitializePaymentResponse {
   payment: PaymentResponse;
   authorizationUrl: string;
 }
+
+export interface PaymentInsert {
+  user_id: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  status: string;
+  metadata?: Record<string, unknown> | null;
+}

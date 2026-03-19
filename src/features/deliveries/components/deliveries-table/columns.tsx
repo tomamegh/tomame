@@ -7,6 +7,7 @@ import {
   ArrowDownIcon,
   ChevronsUpDownIcon,
   MoreHorizontalIcon,
+  ExternalLinkIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,7 +97,8 @@ export const columns: ColumnDef<Delivery>[] = [
 
   // ── Product ──────────────────────────────────────────────────────────────────
   {
-    accessorKey: "productName",
+    accessorKey: 'product_name',
+    accessorFn: (row: Delivery) => row.product_name,
     header: ({ column }) => (
       <SortableHeader column={column}>Product</SortableHeader>
     ),
@@ -130,7 +132,8 @@ export const columns: ColumnDef<Delivery>[] = [
 
   // ── Ships From ───────────────────────────────────────────────────────────────
   {
-    accessorKey: "originCountry",
+    accessorKey: "origin_country",
+    accessorFn: (row: Delivery) => row.origin_country,
     header: "Ships From",
     cell: ({ row }: { row: Row<Delivery> }) => {
       const flags: Record<string, string> = {
@@ -168,7 +171,8 @@ export const columns: ColumnDef<Delivery>[] = [
 
   // ── Tracking Number ──────────────────────────────────────────────────────────
   {
-    accessorKey: "trackingNumber",
+    accessorKey: "tracking_number",
+    accessorFn: (row: Delivery) => row.tracking_number ?? "",
     header: "Tracking #",
     cell: ({ row }: { row: Row<Delivery> }) =>
       row.original.tracking_number ? (
@@ -183,9 +187,35 @@ export const columns: ColumnDef<Delivery>[] = [
     enableSorting: false,
   },
 
+  // ── Tracking URL ─────────────────────────────────────────────────────────────
+  {
+    accessorKey: "tracking_url",
+    accessorFn: (row: Delivery) => row.tracking_url ?? "",
+    header: "Track",
+    cell: ({ row }: { row: Row<Delivery> }) =>
+      row.original.tracking_url ? (
+        <a
+          href={row.original.tracking_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-rose-500 hover:text-rose-600 hover:underline"
+        >
+          <ExternalLinkIcon className="size-3" />
+          Track
+        </a>
+      ) : (
+        <span className="text-stone-300 text-sm">—</span>
+      ),
+    enableGlobalFilter: false,
+    enableHiding: true,
+    enableSorting: false,
+  },
+
   // ── Est. Delivery ─────────────────────────────────────────────────────────────
   {
-    accessorKey: "estimatedDeliveryDate",
+    id: "estimatedDeliveryDate",
+    accessorKey: 'estimated_delivery_date',
+    accessorFn: (row: Delivery) => row.estimated_delivery_date ?? "",
     header: "Est. Delivery",
     cell: ({ row }: { row: Row<Delivery> }) =>
       row.original.estimated_delivery_date ? (
@@ -206,6 +236,7 @@ export const columns: ColumnDef<Delivery>[] = [
   // ── Amount ───────────────────────────────────────────────────────────────────
   {
     id: "totalGhs",
+    accessorKey: '',
     accessorFn: (row: Delivery) => row.pricing?.total_ghs ?? 0,
     header: ({ column }) => (
       <SortableHeader column={column}>Amount</SortableHeader>
@@ -229,7 +260,8 @@ export const columns: ColumnDef<Delivery>[] = [
 
   // ── Date ─────────────────────────────────────────────────────────────────────
   {
-    accessorKey: "createdAt",
+    id: "createdAt",
+    accessorFn: (row: Delivery) => row.created_at,
     header: ({ column }) => (
       <SortableHeader column={column}>Date</SortableHeader>
     ),

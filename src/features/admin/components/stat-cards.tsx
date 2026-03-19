@@ -1,14 +1,13 @@
 import React from "react";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardAction,
+  CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { AlertTriangleIcon, ShoppingCartIcon, TrendingUpIcon, UsersIcon } from "lucide-react";
+import { HandCoinsIcon, ScanSearchIcon, ShoppingCartIcon, UsersRoundIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardStats } from "../types";
 
@@ -29,102 +28,66 @@ export function StatCards({ stats, isLoading }: StatCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
       {/* Total Orders */}
-      <Card className="@container/card soft-shadow border-none">
-        <CardHeader>
-          <CardDescription>Total Orders</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? <Skeleton className="h-8 w-16" /> : fmt(stats?.totalOrders)}
-          </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <ShoppingCartIcon />
-              All time
-            </Badge>
+      <Card className="@container/card soft-shadow border-none space-y-0">
+        <CardHeader >
+          <CardTitle>Total Orders</CardTitle>
+          <CardDescription className="-mt-1.5">Orders submitted and completed</CardDescription>
+          <CardAction className="bg-rose-200/20 border-rose-200 border rounded-md p-2 -mt-1.5">
+            <ShoppingCartIcon className="stroke-rose-500" />
           </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Orders placed on platform <ShoppingCartIcon className="size-4" />
+        <CardContent>
+          <div className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            {isLoading ? <Skeleton className="h-8 w-16" /> : fmt(stats?.totalOrders)}
           </div>
-          <div className="text-muted-foreground">Across all customers</div>
-        </CardFooter>
+        </CardContent>
       </Card>
 
       {/* Total Revenue */}
       <Card className="@container/card soft-shadow border-none">
-        <CardHeader>
-          <CardDescription>Total Revenue</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : (
-              `GHS ${fmt(stats?.totalRevenueGhs, 2)}`
-            )}
-          </CardTitle>
-          <CardAction>
-            <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
-              <TrendingUpIcon />
-              Paid orders
-            </Badge>
+        <CardHeader >
+          <CardTitle>Total Revenue</CardTitle>
+          <CardDescription className="-mt-2">Revenue from paid orders</CardDescription>
+          <CardAction className="bg-purple-200/20 border-purple-200 border rounded-md p-2 -mt-1.5">
+            <HandCoinsIcon className="stroke-purple-500" />
           </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium text-green-600">
-            Revenue from paid orders <TrendingUpIcon className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Last 30 days</div>
-        </CardFooter>
+        <CardContent>
+          <div className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            {isLoading ? <Skeleton className="h-8 w-24" /> : `GHS ${fmt(stats?.totalRevenueGhs, 2)}`}          </div>
+        </CardContent>
       </Card>
 
       {/* Active Users */}
       <Card className="@container/card soft-shadow border-none">
-        <CardHeader>
-          <CardDescription>Active Users</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? <Skeleton className="h-8 w-14" /> : fmt(stats?.activeUsers)}
-          </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <UsersIcon />
-              30 days
-            </Badge>
+        <CardHeader >
+          <CardTitle>Active Users</CardTitle>
+          <CardDescription className="-mt-1.5">Users using the platform</CardDescription>
+          <CardAction className="bg-sky-200/20 border-sky-200 border rounded-md p-2 -mt-1.5">
+            <UsersRoundIcon className="stroke-sky-500" />
           </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Users with orders <UsersIcon className="size-4" />
+        <CardContent>
+          <div className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            {isLoading ? <Skeleton className="h-8 w-14" /> : fmt(stats?.activeUsers)}
           </div>
-          <div className="text-muted-foreground">Unique customers this month</div>
-        </CardFooter>
+        </CardContent>
       </Card>
 
       {/* Needs Review */}
       <Card className="@container/card soft-shadow border-none">
-        <CardHeader>
-          <CardDescription>Needs Review</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? <Skeleton className="h-8 w-10" /> : fmt(stats?.ordersNeedingReview)}
-          </CardTitle>
-          <CardAction>
-            {(stats?.ordersNeedingReview ?? 0) > 0 ? (
-              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
-                <AlertTriangleIcon />
-                Action needed
-              </Badge>
-            ) : (
-              <Badge variant="outline">
-                <AlertTriangleIcon />
-                All clear
-              </Badge>
-            )}
+        <CardHeader >
+          <CardTitle>Needs Review</CardTitle>
+          <CardDescription className="-mt-1.5">Orders that needs admin review</CardDescription>
+          <CardAction className="bg-amber-200/20 border-amber-200 border rounded-md p-2 -mt-1.5">
+            <ScanSearchIcon className="stroke-amber-500" />
           </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className={`line-clamp-1 flex gap-2 font-medium ${(stats?.ordersNeedingReview ?? 0) > 0 ? "text-amber-600" : ""}`}>
-            Orders flagged for review <AlertTriangleIcon className="size-4" />
+        <CardContent>
+          <div className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            {isLoading ? <Skeleton className="h-8 w-10" /> : fmt(stats?.ordersNeedingReview)}          
           </div>
-          <div className="text-muted-foreground">Requires admin attention</div>
-        </CardFooter>
+        </CardContent>
       </Card>
     </div>
   );

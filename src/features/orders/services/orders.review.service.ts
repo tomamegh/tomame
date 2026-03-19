@@ -3,7 +3,7 @@ import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { getOrderById } from "@/features/orders/services/orders.service";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/types/domain";
+import type { AuthenticatedUser } from "@/features/auth/types";
 import type { Order } from "../types";
 import type { DbOrder } from "@/types/db";
 
@@ -51,10 +51,10 @@ export async function reviewOrder(
   input: {
     action: "approve" | "reject";
     updates?: {
-      productName?: string;
-      estimatedPriceUsd?: number;
-      productImageUrl?: string | null;
-      originCountry?: "USA" | "UK" | "CHINA";
+      product_name?: string;
+      estimated_price_usd?: number;
+      product_image_url?: string | null;
+      origin_country?: "USA" | "UK" | "CHINA";
     };
     reason?: string;
   },
@@ -79,17 +79,17 @@ export async function reviewOrder(
       reviewed_at: new Date().toISOString(),
     };
 
-    if (input.updates?.productName) {
-      updates.product_name = input.updates.productName;
+    if (input.updates?.product_name) {
+      updates.product_name = input.updates.product_name;
     }
-    if (input.updates?.estimatedPriceUsd !== undefined) {
-      updates.estimated_price_usd = input.updates.estimatedPriceUsd;
+    if (input.updates?.estimated_price_usd !== undefined) {
+      updates.estimated_price_usd = input.updates.estimated_price_usd;
     }
-    if (input.updates?.productImageUrl !== undefined) {
-      updates.product_image_url = input.updates.productImageUrl;
+    if (input.updates?.product_image_url !== undefined) {
+      updates.product_image_url = input.updates.product_image_url;
     }
-    if (input.updates?.originCountry) {
-      updates.origin_country = input.updates.originCountry;
+    if (input.updates?.origin_country) {
+      updates.origin_country = input.updates.origin_country;
     }
 
     const updated = await updateOrderReview(client, orderId, updates);

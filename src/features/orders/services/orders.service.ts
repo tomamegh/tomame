@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
+import {
+  parseWeight,
+  parseDimensions,
+} from "@/features/pricing/services/weight-parser";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
 import { sendEmail } from "@/lib/email/transport";
@@ -12,16 +16,17 @@ import {
 } from "@/lib/email/templates/order-status";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/types/domain";
+import type { AuthenticatedUser } from "@/features/auth/types";
 import type { PaginatedDataResponse } from "@/types/api";
 import type { DbOrder, DbAuditLog } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
-import { Order, OrderList, type OrderExtractionMetadata } from "../types";
+import { Order, OrderList } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { CreateOrderSchemaType } from "../schema";
 
 export async function getOrderById(
   client: SupabaseClient,
-  orderId: string
+  orderId: string,
 ): Promise<DbOrder | null> {
   const { data, error } = await client
     .from("orders")
@@ -31,6 +36,34 @@ export async function getOrderById(
 
   if (error) return null;
   return data as DbOrder;
+}
+
+async function upsertOrderDelivery(
+  client: SupabaseClient,
+  orderId: string,
+  userId: string,
+  fields: {
+    carrier?: string;
+    tracking_number?: string;
+    tracking_url?: string;
+    estimated_delivery_date?: string;
+    delivered_at?: string;
+    notes?: string;
+    status: string;
+  },
+): Promise<void> {
+  const { error } = await client
+    .from("order_deliveries")
+    .upsert(
+      { order_id: orderId, user_id: userId, ...fields },
+      { onConflict: "order_id" },
+    );
+  if (error) {
+    logger.error("upsertOrderDelivery failed", {
+      orderId,
+      error: error.message,
+    });
+  }
 }
 
 async function updateOrderStatus(
@@ -66,7 +99,7 @@ async function updateOrderStatus(
 export async function linkOrderToPayment(
   client: SupabaseClient,
   orderId: string,
-  paymentId: string
+  paymentId: string,
 ): Promise<DbOrder | null> {
   const { data, error } = await client
     .from("orders")
@@ -89,13 +122,15 @@ export async function linkOrderToPayment(
 
 async function getOrdersByUserId(
   client: SupabaseClient,
-  userId: string
+  userId: string,
 ): Promise<DbOrder[]> {
   const { data, error } = await client
     .from("orders")
     .select("*")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
+
+  console.log(data);
 
   if (error) {
     logger.error("getOrdersByUserId failed", { userId, error: error.message });
@@ -106,7 +141,7 @@ async function getOrdersByUserId(
 
 async function getAllOrders(
   client: SupabaseClient,
-  filters?: { status?: string; userId?: string; needsReview?: boolean }
+  filters?: { status?: string; userId?: string; needsReview?: boolean },
 ): Promise<DbOrder[]> {
   let query = client
     .from("orders")
@@ -130,7 +165,7 @@ async function getAllOrders(
 
 async function getOrderAuditLogs(
   client: SupabaseClient,
-  orderId: string
+  orderId: string,
 ): Promise<DbAuditLog[]> {
   const { data, error } = await client
     .from("audit_logs")
@@ -212,50 +247,46 @@ async function sendOrderStatusEmail(
 export async function createOrder(
   client: SupabaseClient,
   user: AuthenticatedUser,
-  input: {
-    productUrl: string;
-    productName: string;
-    productImageUrl?: string;
-    estimatedPriceUsd: number;
-    quantity: number;
-    originCountry: "USA" | "UK" | "CHINA";
-    specialInstructions?: string;
-    needsReview?: boolean;
-    reviewReasons?: string[];
-    extractionMetadata?: OrderExtractionMetadata | null;
-    extractionData?: Record<string, unknown> | null;
-  },
+  input: CreateOrderSchemaType,
 ): Promise<Order> {
-  const platform = resolvePlatform(input.productUrl);
+  const platform = resolvePlatform(input.product_url);
   if (!platform) {
-    throw new APIError(400, "We currently do not support this store. Please try again");
+    throw new APIError(
+      400,
+      "We currently do not support this store. Please try again",
+    );
   }
 
-  const pricing = await calculatePricing(
-    input.estimatedPriceUsd,
-    input.quantity,
-    input.originCountry,
-  );
+  const pricing = await calculatePricing({
+    itemPriceUsd: input.estimated_price_usd,
+    quantity: input.quantity,
+    region: input.origin_country,
+    productName: input.product_name,
+    category: input.extraction_metadata?.product?.category ?? null,
+    sellerShippingUsd: 0,
+    weightLbs:
+      parseWeight(input.extraction_metadata?.product?.weight) ?? undefined,
+    weightSource: input.extraction_metadata?.product?.weight
+      ? "scraped"
+      : undefined,
+    dimensionsInches:
+      parseDimensions(input.extraction_metadata?.product?.dimensions) ??
+      undefined,
+  });
 
   const orderToCreate = {
     user_id: user.id,
-    product_url: input.productUrl,
-    product_name: input.productName,
-    product_image_url: input.productImageUrl ?? null,
-    estimated_price_usd: input.estimatedPriceUsd,
-    quantity: input.quantity,
-    origin_country: input.originCountry,
-    special_instructions: input.specialInstructions ?? null,
+    ...input,
     pricing,
     status: "pending",
-    needs_review: input.needsReview ?? false,
-    review_reasons: input.reviewReasons ?? [],
-    extraction_metadata: (input.extractionMetadata ?? null) as Record<
+    needs_review: input.needs_review ?? false,
+    review_reasons: input.review_reasons ?? [],
+    extraction_metadata: (input.extraction_metadata ?? null) as Record<
       string,
       unknown
     > | null,
-    ...(input.extractionData != null
-      ? { extraction_data: input.extractionData }
+    ...(input.extraction_data != null
+      ? { extraction_data: input.extraction_data }
       : {}),
   };
 
@@ -286,9 +317,9 @@ export async function createOrder(
     entityType: "order",
     entityId: order.id,
     metadata: {
-      productUrl: input.productUrl,
-      originCountry: input.originCountry,
-      totalGhs: pricing.total_ghs,
+      product_url: input.product_url,
+      origin_country: input.origin_country,
+      total_ghs: pricing.total_ghs,
     },
   });
 
@@ -334,7 +365,7 @@ export async function getOrder(
     throw new APIError(404, "Order not found");
   }
 
-  if (user.role !== "admin" && order.user_id !== user.id) {
+  if (user.profile.role !== "admin" && order.user_id !== user.id) {
     throw new APIError(404, "Order not found");
   }
 
@@ -354,7 +385,7 @@ export async function listAllOrders(
   user: AuthenticatedUser,
   filters?: { status?: string; userId?: string; needsReview?: boolean },
 ): Promise<OrderList> {
-  if (user.role !== "admin") {
+  if (user.profile.role !== "admin") {
     throw new APIError(403, "Admin access required");
   }
 
@@ -379,9 +410,11 @@ export async function updateOrderStatusAdmin(
     trackingNumber?: string;
     carrier?: string;
     estimatedDeliveryDate?: string;
+    trackingUrl?: string;
+    notes?: string;
   },
 ): Promise<Order> {
-  if (user.role !== "admin") {
+  if (user.profile.role !== "admin") {
     throw new APIError(403, "Admin access required");
   }
 
@@ -407,9 +440,12 @@ export async function updateOrderStatusAdmin(
   } = { status: newStatus };
 
   if (newStatus === "in_transit" && trackingData) {
-    if (trackingData.trackingNumber) updatePayload.tracking_number = trackingData.trackingNumber;
+    if (trackingData.trackingNumber)
+      updatePayload.tracking_number = trackingData.trackingNumber;
     if (trackingData.carrier) updatePayload.carrier = trackingData.carrier;
-    if (trackingData.estimatedDeliveryDate) updatePayload.estimated_delivery_date = trackingData.estimatedDeliveryDate;
+    if (trackingData.estimatedDeliveryDate)
+      updatePayload.estimated_delivery_date =
+        trackingData.estimatedDeliveryDate;
   }
 
   if (newStatus === "delivered") {
@@ -420,6 +456,28 @@ export async function updateOrderStatusAdmin(
   const updated = await updateOrderStatus(supabase, orderId, updatePayload);
   if (!updated) {
     throw new APIError(500, "Failed to update order status");
+  }
+
+  // Sync order_deliveries record when entering or completing the shipping pipeline
+  if (newStatus === "in_transit" || newStatus === "delivered") {
+    const deliveryFields: Parameters<typeof upsertOrderDelivery>[3] = {
+      status: newStatus === "in_transit" ? "in_transit" : "delivered",
+      ...(trackingData?.carrier && { carrier: trackingData.carrier }),
+      ...(trackingData?.trackingNumber && {
+        tracking_number: trackingData.trackingNumber,
+      }),
+      ...(trackingData?.estimatedDeliveryDate && {
+        estimated_delivery_date: trackingData.estimatedDeliveryDate,
+      }),
+      ...(trackingData?.trackingUrl && {
+        tracking_url: trackingData.trackingUrl,
+      }),
+      ...(trackingData?.notes && { notes: trackingData.notes }),
+      ...(newStatus === "delivered" && {
+        delivered_at: updatePayload.delivered_at,
+      }),
+    };
+    await upsertOrderDelivery(supabase, orderId, order.user_id, deliveryFields);
   }
 
   await logAuditEvent({
@@ -448,7 +506,9 @@ export async function cancelOrderByUser(
     throw new APIError(400, "Only pending orders can be cancelled");
   }
 
-  const updated = await updateOrderStatus(supabase, orderId, { status: "cancelled" });
+  const updated = await updateOrderStatus(supabase, orderId, {
+    status: "cancelled",
+  });
   if (!updated) throw new APIError(500, "Failed to cancel order");
 
   await logAuditEvent({
@@ -472,7 +532,7 @@ export async function getOrderAuditHistory(
   const supabase = createAdminClient();
   const order = await getOrderById(supabase, orderId);
   if (!order) throw new APIError(404, "Order not found");
-  if (user.role !== "admin" && order.user_id !== user.id) {
+  if (user.profile.role !== "admin" && order.user_id !== user.id) {
     throw new APIError(404, "Order not found");
   }
 

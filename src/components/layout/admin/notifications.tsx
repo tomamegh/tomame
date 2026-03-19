@@ -18,7 +18,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -40,6 +39,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useAdminNotifications } from "@/features/notifications/hooks/useNotifications";
 import { Notification  } from "@/features/notifications/types"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Field } from "@/components/ui/field";
 
 function formatEvent(event: string) {
   return event
@@ -343,16 +344,18 @@ function AdminNotifications() {
               </div>
 
               {/* Search */}
-              <div className="relative">
-                <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-stone-400 pointer-events-none" />
-                <Input
+              <Field orientation={'horizontal'}>
+                <InputGroup>
+                <InputGroupAddon>
+                <SearchIcon />
+                </InputGroupAddon>
+                <InputGroupInput
                   placeholder="Search notifications..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-8 h-8 text-sm"
                 />
-              </div>
-
+                </InputGroup>
               {/* Filter */}
               <Select
                 value={filter}
@@ -375,6 +378,8 @@ function AdminNotifications() {
                   </SelectItem>
                 </SelectContent>
               </Select>
+              </Field>
+
             </div>
 
             {/* Scrollable list */}

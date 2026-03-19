@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { paymentCallbackSchema } from "@/features/payments/payments.validators";
+import { paymentCallbackSchema } from "@/features/payments/schema";
 import { handlePaymentCallback } from "@/features/payments/services/payments.service";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";

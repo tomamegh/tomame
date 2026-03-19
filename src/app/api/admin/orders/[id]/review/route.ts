@@ -28,12 +28,10 @@ export async function POST(
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    if (!auth.ok) throw new APIError(auth.status, auth.error);
-    const admin = requireAdmin(auth.user);
-    if (!admin.ok) throw new APIError(admin.status, admin.error);
+    const admin = requireAdmin(auth);
 
     const { id } = await params;
-    const data = await reviewOrder(createAdminClient(), admin.user, id, parsed.data);
+    const data = await reviewOrder(createAdminClient(), admin, id, parsed.data);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

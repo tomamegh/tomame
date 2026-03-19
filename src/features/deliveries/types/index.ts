@@ -5,8 +5,11 @@ export type DeliveryStatus = Extract<
   "processing" | "in_transit" | "delivered" | "completed"
 >;
 
-/** Deliveries are orders in the post-payment shipping pipeline */
-export type Delivery = Order;
+/** Deliveries are orders in the post-payment shipping pipeline, enriched with order_deliveries data */
+export interface Delivery extends Order {
+  tracking_url?: string | null;
+  delivery_notes?: string | null;
+}
 
 export interface DeliveryList {
   deliveries: Delivery[];
