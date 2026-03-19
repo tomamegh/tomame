@@ -1,9 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { NotificationListResponse } from "@/features/notifications/services/notifications.service";
-
-// ── Query keys ───────────────────────────────────────────────
+import { NotificationListResponse } from "../types";
 
 export const notificationKeys = {
   all: ["notifications"] as const,
@@ -12,16 +10,12 @@ export const notificationKeys = {
     [...notificationKeys.all, "admin", filters ?? {}] as const,
 };
 
-// ── Helper ───────────────────────────────────────────────────
-
 async function apiFetch<T>(url: string): Promise<T> {
   const res = await fetch(url);
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? "Request failed");
   return json.data as T;
 }
-
-// ── User hooks ───────────────────────────────────────────────
 
 /** List notifications for the current user */
 export function useNotifications() {

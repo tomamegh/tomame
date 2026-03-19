@@ -7,7 +7,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { CreateOrderRequest, OrderResponse, OrderListResponse } from "@/features/orders/types";
+import type {CreateOrderRequest,Order, OrderList} from "../types"
 
 // ── Query keys ───────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 
 /** List products (order requests) submitted by the current user */
 export function useMyProducts() {
-  return useQuery<OrderListResponse>({
+  return useQuery<OrderList>({
     queryKey: productKeys.user(),
     queryFn: () => apiFetch("/api/orders"),
   });
@@ -40,7 +40,7 @@ export function useMyProducts() {
 
 /** Get a single product request by order ID */
 export function useProduct(id: string) {
-  return useQuery<OrderResponse>({
+  return useQuery<OrderList>({
     queryKey: productKeys.detail(id),
     queryFn: () => apiFetch(`/api/orders/${id}`),
     enabled: !!id,
@@ -51,7 +51,7 @@ export function useProduct(id: string) {
 export function useRequestProduct() {
   const queryClient = useQueryClient();
 
-  return useMutation<OrderResponse, Error, CreateOrderRequest>({
+  return useMutation<Order, Error, CreateOrderRequest>({
     mutationFn: (data) =>
       apiFetch("/api/orders", {
         method: "POST",
@@ -72,7 +72,7 @@ export function useAdminProducts(filters?: {
   userId?: string;
   needsReview?: boolean;
 }) {
-  return useQuery<OrderListResponse>({
+  return useQuery<OrderList>({
     queryKey: productKeys.admin(filters),
     queryFn: () => {
       const params = new URLSearchParams();
@@ -88,7 +88,7 @@ export function useAdminProducts(filters?: {
 
 /** Admin: get any product request by order ID */
 export function useAdminProduct(id: string) {
-  return useQuery<OrderResponse>({
+  return useQuery<Order>({
     queryKey: productKeys.detail(id),
     queryFn: () => apiFetch(`/api/admin/orders/${id}`),
     enabled: !!id,
@@ -99,7 +99,7 @@ export function useAdminProduct(id: string) {
 export function useUpdateProductStatus() {
   const queryClient = useQueryClient();
 
-  return useMutation<OrderResponse, Error, { id: string; status: string }>({
+  return useMutation<Order, Error, { id: string; status: string }>({
     mutationFn: ({ id, status }) =>
       apiFetch(`/api/admin/orders/${id}`, {
         method: "PATCH",

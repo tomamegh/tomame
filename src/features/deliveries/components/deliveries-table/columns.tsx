@@ -106,7 +106,7 @@ export const columns: ColumnDef<Delivery>[] = [
           href={`/admin/orders/${row.original.id}`}
           className="font-medium text-stone-800 hover:text-rose-600 hover:underline line-clamp-2 text-sm leading-snug block"
         >
-          {row.original.productName}
+          {row.original.product_name}
         </Link>
       </div>
     ),
@@ -140,7 +140,7 @@ export const columns: ColumnDef<Delivery>[] = [
       };
       return (
         <span className="text-sm text-stone-600">
-          {flags[row.original.originCountry] ?? ""} {row.original.originCountry}
+          {flags[row.original.origin_country] ?? ""} {row.original.origin_country}
         </span>
       );
     },
@@ -171,9 +171,9 @@ export const columns: ColumnDef<Delivery>[] = [
     accessorKey: "trackingNumber",
     header: "Tracking #",
     cell: ({ row }: { row: Row<Delivery> }) =>
-      row.original.trackingNumber ? (
+      row.original.tracking_number ? (
         <span className="font-mono text-xs text-stone-600 bg-stone-100 px-1.5 py-0.5 rounded">
-          {row.original.trackingNumber}
+          {row.original.tracking_number}
         </span>
       ) : (
         <span className="text-stone-300 text-sm">—</span>
@@ -188,9 +188,9 @@ export const columns: ColumnDef<Delivery>[] = [
     accessorKey: "estimatedDeliveryDate",
     header: "Est. Delivery",
     cell: ({ row }: { row: Row<Delivery> }) =>
-      row.original.estimatedDeliveryDate ? (
+      row.original.estimated_delivery_date ? (
         <span className="text-sm text-stone-600 whitespace-nowrap">
-          {new Date(row.original.estimatedDeliveryDate).toLocaleDateString(
+          {new Date(row.original.estimated_delivery_date).toLocaleDateString(
             "en-GB",
             { day: "2-digit", month: "short", year: "numeric" },
           )}
@@ -235,7 +235,7 @@ export const columns: ColumnDef<Delivery>[] = [
     ),
     cell: ({ row }: { row: Row<Delivery> }) => (
       <span className="text-sm text-stone-500 whitespace-nowrap">
-        {new Date(row.original.createdAt).toLocaleDateString("en-GB", {
+        {new Date(row.original.created_at).toLocaleDateString("en-GB", {
           day: "2-digit",
           month: "short",
           year: "numeric",
@@ -269,10 +269,10 @@ export const columns: ColumnDef<Delivery>[] = [
             >
               Copy order ID
             </DropdownMenuItem>
-            {delivery.trackingNumber && (
+            {delivery.tracking_number && (
               <DropdownMenuItem
                 onClick={() =>
-                  navigator.clipboard.writeText(delivery.trackingNumber!)
+                  navigator.clipboard.writeText(delivery.tracking_number!)
                 }
               >
                 Copy tracking #
