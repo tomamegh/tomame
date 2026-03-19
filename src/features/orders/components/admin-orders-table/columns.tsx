@@ -128,11 +128,11 @@ export const columns: ColumnDef<Order>[] = [
       <div className="space-y-0.5 max-w-65">
         <Link
           href={`/admin/orders/${row.original.id}`}
-          className="font-medium text-stone-800 hover:text-rose-600 hover:underline line-clamp-2 text-sm leading-snug block"
+          className="font-medium text-stone-800 hover:text-sky-600 hover:underline line-clamp-2 text-sm leading-snug block"
         >
           {row.original.product_name}
         </Link>
-        <a
+        <Link
           href={row.original.product_url}
           target="_blank"
           rel="noopener noreferrer"
@@ -140,7 +140,7 @@ export const columns: ColumnDef<Order>[] = [
         >
           <ExternalLinkIcon className="size-3" />
           Source
-        </a>
+        </Link>
       </div>
     ),
     enableGlobalFilter: true,
@@ -148,7 +148,6 @@ export const columns: ColumnDef<Order>[] = [
     enableSorting: true,
   },
 
-  // ── Status ───────────────────────────────────────────────────────────────────
   {
     accessorKey: "status",
     header: "Status",
@@ -160,7 +159,6 @@ export const columns: ColumnDef<Order>[] = [
     enableHiding: true,
   },
 
-  // ── Origin Country ───────────────────────────────────────────────────────────
   {
     accessorKey: "origin_country",
     header: "Ships From",
@@ -177,7 +175,6 @@ export const columns: ColumnDef<Order>[] = [
     enableHiding: true,
   },
 
-  // ── Needs Review ─────────────────────────────────────────────────────────────
   {
     accessorKey: "needs_review",
     header: "Review",
@@ -195,7 +192,6 @@ export const columns: ColumnDef<Order>[] = [
     enableHiding: true,
   },
 
-  // ── Amount ───────────────────────────────────────────────────────────────────
   {
     id: "totalGhs",
     accessorFn: (row: Order) => row.pricing?.total_ghs ?? 0,
@@ -219,7 +215,6 @@ export const columns: ColumnDef<Order>[] = [
     enableHiding: true,
   },
 
-  // ── Quantity ─────────────────────────────────────────────────────────────────
   {
     accessorKey: "quantity",
     header: ({ column }) => (
@@ -233,7 +228,6 @@ export const columns: ColumnDef<Order>[] = [
     enableHiding: true,
   },
 
-  // ── Date ─────────────────────────────────────────────────────────────────────
   {
     accessorKey: "created_at",
     header: ({ column }) => (
@@ -253,7 +247,6 @@ export const columns: ColumnDef<Order>[] = [
     enableHiding: true,
   },
 
-  // ── Actions ──────────────────────────────────────────────────────────────────
   {
     id: "actions",
     cell: ({ row, table }: { row: Row<Order>; table: TTable<Order> }) => {

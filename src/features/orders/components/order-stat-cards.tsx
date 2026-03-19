@@ -1,4 +1,4 @@
-import { ShoppingCartIcon, HandCoinsIcon } from "lucide-react";
+import { ShoppingCartIcon, HandCoinsIcon, CircleOffIcon } from "lucide-react";
 import type { Order } from "../types";
 import AdminStatCard from "@/features/admin/components/stat-card";
 
@@ -45,6 +45,8 @@ export function OrderStatCards({ orders, isLoading }: OrderStatCardsProps) {
         value={fmt(stats?.total)}
         icon={ShoppingCartIcon}
         isLoading={!!isLoading}
+        iconClassName="stroke-purple-500"
+        iconContainerClassName="bg-purple-200/20 border-purple-200"
       />
       <AdminStatCard
         title="Total Revenue"
@@ -52,6 +54,8 @@ export function OrderStatCards({ orders, isLoading }: OrderStatCardsProps) {
         value={`GHS ${fmt(stats?.totalRevenueGhs, 2)}`}
         icon={HandCoinsIcon}
         isLoading={!!isLoading}
+        iconClassName="stroke-sky-500"
+        iconContainerClassName="bg-sky-200/20 border-sky-200"
       />
       <AdminStatCard
         title="Needs Reviews"
@@ -59,13 +63,17 @@ export function OrderStatCards({ orders, isLoading }: OrderStatCardsProps) {
         value={stats?.needsReview ?? 0}
         icon={HandCoinsIcon}
         isLoading={!!isLoading}
+        iconClassName="stroke-amber-500"
+        iconContainerClassName="bg-amber-200/20 border-amber-200"
       />
       <AdminStatCard
         title="Cancelled Orders"
         description="Total orders cancelled or rejected"
         value={stats?.cancelled ?? 0}
-        icon={HandCoinsIcon}
+        icon={CircleOffIcon}
         isLoading={!!isLoading}
+        iconClassName="stroke-rose-500"
+        iconContainerClassName="bg-rose-200/20 border-rose-200"
       />
     </div>
   );
