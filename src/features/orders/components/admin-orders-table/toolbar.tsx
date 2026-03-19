@@ -1,11 +1,7 @@
 "use client";
 
-import type { Column, Table } from "@tanstack/react-table";
-import {
-  SearchIcon,
-  SlidersHorizontalIcon,
-  XIcon,
-} from "lucide-react";
+import type { Table } from "@tanstack/react-table";
+import { SearchIcon, SlidersHorizontalIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,14 +18,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import TableFilter from "@/components/ui/table-filter-select";
 
 const COLUMN_LABELS: Record<string, string> = {
   id: "Order ID",
@@ -58,49 +47,6 @@ const COUNTRY_OPTIONS = [
   { value: "CHINA", label: "🇨🇳 China" },
 ];
 
-interface TableFilterProps<T, TValue> {
-  placeholder?: string;
-  column: Column<T, TValue>;
-  items: {
-    value: React.ComponentProps<typeof SelectItem>["value"];
-    label: React.ReactNode;
-  }[];
-}
-
-const TableFilter = <T, TValue>({
-  column,
-  items,
-  ...props
-}: TableFilterProps<T, TValue>) => {
-  const counts = column.getFacetedUniqueValues();
-  const value = (column.getFilterValue() as string) || undefined;
-  
-  const handleValueChange = (v: string) => {
-    column.setFilterValue(v === "" ? undefined : v);
-  };
-  return (
-    <Select key={value ?? "__placeholder__"} onValueChange={handleValueChange} value={value}>
-      <SelectTrigger className="w-fit">
-        <SelectValue placeholder={props?.placeholder || "Select"} />
-      </SelectTrigger>
-      <SelectContent position="popper">
-        <SelectGroup>
-          {items.map((item, idx) => (
-            <SelectItem key={idx.toString()} value={item.value}>
-              {item.label}
-              <span className="ml-auto text-stone-400 text-xs tabular-nums">
-                {counts.get(item.value) ?? 0}
-              </span>
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
-  );
-};
-
-// ── Toolbar ───────────────────────────────────────────────────────────────────
-
 interface ToolbarProps {
   table: Table<Order>;
   globalFilter: string;
@@ -118,6 +64,8 @@ export function Toolbar({
 
   const statusColumn = table.getColumn("status");
   const countryColumn = table.getColumn("origin_country");
+
+  const statusColumnCount = statusColumn?.getFacetedUniqueValues() || new Map<string, number>()
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -141,6 +89,14 @@ export function Toolbar({
             column={statusColumn}
             placeholder="Status"
             items={STATUS_OPTIONS}
+            renderItem={(item) => {
+              return (
+                <div className="flex items-center gap-1 justify-between">
+                  <span className="text-sm">{item.label}</span>
+                  <span className="text-sm text-neutral-400">({statusColumnCount.get(item.value) ?? 0})</span>
+                </div>
+              );
+            }}
           />
         )}
       </Field>
