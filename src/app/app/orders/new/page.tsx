@@ -378,7 +378,7 @@ function NewOrderContent() {
     }
 
     extractProduct(
-      { productUrl: url },
+      { product_url: url },
       {
         onSuccess: (data) => {
           setExtractionResult(data);

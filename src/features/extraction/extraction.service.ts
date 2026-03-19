@@ -60,13 +60,13 @@ export async function extractProductData(url: string): Promise<ExtractionResult>
     }
 
     return {
-      extractionAttempted: true,
-      extractionSuccess,
+      extraction_attempted: true,
+      extraction_success: extractionSuccess,
       platform,
       country: getCountryFromDomain(url),
       product,
       errors,
-      fetchedAt: new Date().toISOString(),
+      fetched_at: new Date().toISOString(),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Scrape failed";

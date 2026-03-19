@@ -2,9 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
 import type { AuthenticatedUser } from "@/features/auth/types";
-import type { DbOrder } from "@/types/db";
+import type { DbOrder, DbOrderDelivery } from "@/types/db";
 import type { Order } from "@/features/orders/types";
-import type { DeliveryStats } from "../types";
+import type { Delivery, DeliveryStats } from "../types";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
@@ -45,8 +45,24 @@ async function getDeliveries(
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
+async function getOrderDeliveryRecords(
+  client: SupabaseClient,
+  orderIds: string[],
+): Promise<DbOrderDelivery[]> {
+  if (orderIds.length === 0) return [];
+  const { data, error } = await client
+    .from("order_deliveries")
+    .select("*")
+    .in("order_id", orderIds);
+  if (error) {
+    logger.error("getOrderDeliveryRecords failed", { error: error.message });
+    return [];
+  }
+  return (data ?? []) as DbOrderDelivery[];
+}
+
 export interface DeliveryResponse {
-  deliveries: Order[];
+  deliveries: Delivery[];
   count: number;
   stats: DeliveryStats;
 }
@@ -55,11 +71,24 @@ export async function listDeliveries(
   client: SupabaseClient,
   user: AuthenticatedUser,
 ): Promise<DeliveryResponse> {
-  if (user.role !== "admin") {
+  if (user.profile.role !== "admin") {
     throw new APIError(403, "Admin access required");
   }
 
   const orders = await getDeliveries(client);
+
+  // Enrich with tracking_url and notes from order_deliveries
+  const deliveryRecords = await getOrderDeliveryRecords(
+    client,
+    orders.map((o) => o.id),
+  );
+  const deliveryMap = new Map(deliveryRecords.map((d) => [d.order_id, d]));
+
+  const deliveries: Delivery[] = (orders as Order[]).map((o) => ({
+    ...o,
+    tracking_url: deliveryMap.get(o.id)?.tracking_url ?? null,
+    delivery_notes: deliveryMap.get(o.id)?.notes ?? null,
+  }));
 
   const stats: DeliveryStats = {
     total: orders.length,
@@ -70,5 +99,5 @@ export async function listDeliveries(
     ).length,
   };
 
-  return { deliveries: orders as Order[], count: orders.length, stats };
+  return { deliveries, count: deliveries.length, stats };
 }

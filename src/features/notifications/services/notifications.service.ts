@@ -63,7 +63,7 @@ export async function listAllNotifications(
   user: AuthenticatedUser,
   filters?: { status?: string; userId?: string; channel?: string },
 ): Promise<NotificationListResponse> {
-  if (user.role !== "admin") {
+  if (user.profile.role !== "admin") {
     throw new APIError(403, "Admin access required");
   }
 

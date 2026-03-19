@@ -40,7 +40,7 @@ export async function listTransactions(
   client: SupabaseClient,
   user: AuthenticatedUser,
 ): Promise<TransactionResponse> {
-  if (user.role !== "admin") {
+  if (user.profile.role !== "admin") {
     throw new APIError(403, "Admin access required");
   }
 

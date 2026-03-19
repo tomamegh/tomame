@@ -34,13 +34,8 @@ export function CreateOrderForm({ onSuccess }: CreateOrderFormProps) {
 
   const onSubmit = async (data: CreateOrderSchemaType) => {
     await mutateAsync({
-      productUrl: data.productUrl,
-      productName: data.productName,
-      productImageUrl: data.productImageUrl || undefined,
-      estimatedPriceUsd: data.estimatedPriceUsd,
-      quantity: data.quantity,
-      originCountry: data.originCountry,
-      specialInstructions: data.specialInstructions,
+      ...data,
+      product_image_url: data.product_image_url || undefined,
     });
     form.reset();
     onSuccess?.();
@@ -56,7 +51,7 @@ export function CreateOrderForm({ onSuccess }: CreateOrderFormProps) {
 
       <FieldGroup>
         <Controller
-          name="productUrl"
+          name="product_url"
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
@@ -68,7 +63,7 @@ export function CreateOrderForm({ onSuccess }: CreateOrderFormProps) {
         />
 
         <Controller
-          name="productName"
+          name="product_name"
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
@@ -82,7 +77,7 @@ export function CreateOrderForm({ onSuccess }: CreateOrderFormProps) {
         <div className="grid grid-cols-2 gap-4">
           <Controller
             control={form.control}
-            name="estimatedPriceUsd"
+            name="estimated_price_usd"
             render={({ field, fieldState }) => (
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel>Price (USD)</FieldLabel>
@@ -116,7 +111,7 @@ export function CreateOrderForm({ onSuccess }: CreateOrderFormProps) {
         </div>
 
         <Controller
-          name="originCountry"
+          name="origin_country"
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
@@ -137,7 +132,7 @@ export function CreateOrderForm({ onSuccess }: CreateOrderFormProps) {
         />
 
         <Controller
-          name="productImageUrl"
+          name="product_image_url"
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
@@ -149,7 +144,7 @@ export function CreateOrderForm({ onSuccess }: CreateOrderFormProps) {
         />
 
         <Controller
-          name="specialInstructions"
+          name="special_instructions"
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>

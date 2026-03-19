@@ -547,7 +547,7 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
 
   const hasImage = !!order?.product_image_url;
   const hasTracking =
-    order?.tracking_number || order?.carrier || order?.estimated_delivery_date;
+    order?.tracking_number || order?.carrier || order?.estimated_delivery_date || order?.tracking_url;
 
   return (
     <div className="space-y-5">
@@ -811,7 +811,27 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
                   </p>
                 </div>
               )}
+              {order!.tracking_url && (
+                <div>
+                  <p className="text-xs text-stone-400 mb-0.5">Track Shipment</p>
+                  <a
+                    href={order!.tracking_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm font-medium text-rose-500 hover:text-rose-600 hover:underline"
+                  >
+                    <ExternalLinkIcon className="size-3.5" />
+                    Track package
+                  </a>
+                </div>
+              )}
             </div>
+            {order!.delivery_notes && (
+              <div className="mt-4 pt-4 border-t border-stone-100">
+                <p className="text-xs text-stone-400 mb-1">Delivery Notes</p>
+                <p className="text-sm text-stone-700">{order!.delivery_notes}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

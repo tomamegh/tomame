@@ -7,7 +7,8 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type {CreateOrderRequest,Order, OrderList} from "../types"
+import type {Order, OrderList} from "../types"
+import { CreateOrderSchemaType } from "../schema";
 
 // ── Query keys ───────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ export function useProduct(id: string) {
 export function useRequestProduct() {
   const queryClient = useQueryClient();
 
-  return useMutation<Order, Error, CreateOrderRequest>({
+  return useMutation<Order, Error, CreateOrderSchemaType>({
     mutationFn: (data) =>
       apiFetch("/api/orders", {
         method: "POST",

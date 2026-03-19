@@ -7,6 +7,7 @@ import {
   ArrowDownIcon,
   ChevronsUpDownIcon,
   MoreHorizontalIcon,
+  ExternalLinkIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -182,6 +183,30 @@ export const columns: ColumnDef<Delivery>[] = [
         <span className="text-stone-300 text-sm">—</span>
       ),
     enableGlobalFilter: true,
+    enableHiding: true,
+    enableSorting: false,
+  },
+
+  // ── Tracking URL ─────────────────────────────────────────────────────────────
+  {
+    accessorKey: "tracking_url",
+    accessorFn: (row: Delivery) => row.tracking_url ?? "",
+    header: "Track",
+    cell: ({ row }: { row: Row<Delivery> }) =>
+      row.original.tracking_url ? (
+        <a
+          href={row.original.tracking_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-rose-500 hover:text-rose-600 hover:underline"
+        >
+          <ExternalLinkIcon className="size-3" />
+          Track
+        </a>
+      ) : (
+        <span className="text-stone-300 text-sm">—</span>
+      ),
+    enableGlobalFilter: false,
     enableHiding: true,
     enableSorting: false,
   },

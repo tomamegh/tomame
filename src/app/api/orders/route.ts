@@ -27,19 +27,7 @@ export async function POST(request: NextRequest) {
     const auth = requireAuth(user);
 
     const supabase = await createClient();
-    const data = await createOrder(supabase, auth, {
-      productUrl: parsed.data.productUrl,
-      productName: parsed.data.productName,
-      productImageUrl: parsed.data.productImageUrl,
-      estimatedPriceUsd: parsed.data.estimatedPriceUsd,
-      quantity: parsed.data.quantity,
-      originCountry: parsed.data.originCountry,
-      specialInstructions: parsed.data.specialInstructions,
-      needsReview: parsed.data.needsReview,
-      reviewReasons: parsed.data.reviewReasons,
-      extractionMetadata: parsed.data.extractionMetadata,
-      extractionData: parsed.data.extractionData,
-    });
+    const data = await createOrder(supabase, auth, parsed.data);
 
     return successResponse(data, 201);
   } catch (error) {

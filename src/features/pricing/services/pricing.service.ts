@@ -23,8 +23,6 @@ import {
   DEFAULT_VOLUMETRIC_DIVISOR,
 } from "@/config/pricing";
 import {
-  parseWeight,
-  parseDimensions,
   getCategoryDefaultWeight,
 } from "./weight-parser";
 import { lookupProductWeight } from "@/lib/serpapi/weight-lookup";

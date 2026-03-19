@@ -60,7 +60,7 @@ interface OrderFormProps {
 
 function buildReviewReasons(data: ExtractionResult): string[] {
   const reasons: string[] = [];
-  if (!data.extractionSuccess) reasons.push("Automatic extraction failed");
+  if (!data.extraction_success) reasons.push("Automatic extraction failed");
   if (!data.product.title) reasons.push("Product name could not be detected");
   if (data.product.price === null) reasons.push("Price could not be detected");
   if (!data.country) reasons.push("Origin country could not be determined");
@@ -93,23 +93,23 @@ export function OrderForm({
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(createOrderSchema),
     defaultValues: {
-      productUrl,
-      productName: product.title ?? "",
-      productImageUrl: product.image ?? undefined,
-      estimatedPriceUsd: parsePriceValue(product.price),
+      product_url: productUrl,
+      product_name: product.title ?? "",
+      product_image_url: product.image ?? undefined,
+      estimated_price_usd: parsePriceValue(product.price),
       quantity: 1,
-      originCountry: defaultOrigin,
-      specialInstructions: "",
-      needsReview,
-      reviewReasons,
+      origin_country: defaultOrigin,
+      special_instructions: undefined,
+      needs_review: needsReview,
+      review_reasons: reviewReasons,
       // Full extraction result — all fields whether null or not
-      extractionMetadata: extractionData,
+      extraction_metadata: extractionData,
     },
   });
 
   const quantity = form.watch("quantity") ?? 1;
-  const estimatedPriceUsd = form.watch("estimatedPriceUsd");
-  const originCountry = form.watch("originCountry");
+  const estimatedPriceUsd = form.watch("estimated_price_usd");
+  const originCountry = form.watch("origin_country");
 
   const [pricing, setPricing] = useState<OrderPricingBreakdown | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
@@ -170,7 +170,7 @@ export function OrderForm({
             <FieldGroup>
               <Controller
                 control={form.control}
-                name="productName"
+                name="product_name"
                 render={({ field, fieldState }) => {
                   return (
                     <Field data-invalid={fieldState.invalid}>
@@ -202,7 +202,7 @@ export function OrderForm({
                 {/* Estimated Price */}
                 <Controller
                   control={form.control}
-                  name="estimatedPriceUsd"
+                  name="estimated_price_usd"
                   render={({ field, fieldState }) => {
                     return (
                       <Field data-invalid={fieldState.invalid}>
@@ -239,7 +239,7 @@ export function OrderForm({
                 {/* Origin Country */}
                 <Controller
                   control={form.control}
-                  name="originCountry"
+                  name="origin_country"
                   render={({ field, fieldState }) => {
                     return (
                       <Field data-invalid={!!fieldState.error}>
@@ -270,8 +270,8 @@ export function OrderForm({
                           </SelectContent>
                         </Select>
                         {fieldState.error && (
-                        <FieldError errors={[fieldState.error]} />
-                      )}
+                          <FieldError errors={[fieldState.error]} />
+                        )}
                       </Field>
                     );
                   }}
@@ -312,7 +312,10 @@ export function OrderForm({
                           variant="outline"
                           size="icon-sm"
                           onClick={() =>
-                            form.setValue("quantity", Math.min(100, quantity + 1))
+                            form.setValue(
+                              "quantity",
+                              Math.min(100, quantity + 1),
+                            )
                           }
                           disabled={quantity >= 100 || isLoading}
                           aria-label="Increase quantity"
@@ -328,7 +331,7 @@ export function OrderForm({
               {/* Special Instructions */}
               <Controller
                 control={form.control}
-                name="specialInstructions"
+                name="special_instructions"
                 render={({ field, fieldState }) => {
                   return (
                     <Field aria-invalid={fieldState.invalid}>
@@ -369,20 +372,59 @@ export function OrderForm({
                 </p>
                 {(pricing.pricing_method === "fixed_freight"
                   ? [
-                      { label: "Item price", value: `$${pricing.item_price_usd.toFixed(2)}` },
-                      { label: `Subtotal (×${pricing.quantity})`, value: `$${pricing.subtotal_usd.toFixed(2)}` },
-                      { label: "Int'l freight (incl. customs)", value: `GH₵ ${(pricing.fixed_freight_ghs ?? 0).toFixed(2)}` },
-                      { label: "Exchange rate", value: `1 USD = ${pricing.exchange_rate} GHS` },
+                      {
+                        label: "Item price",
+                        value: `$${pricing.item_price_usd.toFixed(2)}`,
+                      },
+                      {
+                        label: `Subtotal (×${pricing.quantity})`,
+                        value: `$${pricing.subtotal_usd.toFixed(2)}`,
+                      },
+                      {
+                        label: "Int'l freight (incl. customs)",
+                        value: `GH₵ ${(pricing.fixed_freight_ghs ?? 0).toFixed(2)}`,
+                      },
+                      {
+                        label: "Exchange rate",
+                        value: `1 USD = ${pricing.exchange_rate} GHS`,
+                      },
                     ]
                   : [
-                      { label: "Item price", value: `$${pricing.item_price_usd.toFixed(2)}` },
-                      { label: `Subtotal (×${pricing.quantity})`, value: `$${pricing.subtotal_usd.toFixed(2)}` },
-                      { label: "Seller shipping", value: pricing.seller_shipping_usd ? `$${pricing.seller_shipping_usd.toFixed(2)}` : "FREE" },
-                      { label: "Int'l freight (incl. customs)", value: `$${(pricing.freight_usd ?? 0).toFixed(2)}` },
-                      { label: `Service fee (${((pricing.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`, value: `$${(pricing.service_fee_usd ?? 0).toFixed(2)}` },
-                      { label: "Handling", value: `$${(pricing.handling_fee_usd ?? 0).toFixed(2)}` },
-                      { label: "Total (USD)", value: `$${(pricing.total_usd ?? 0).toFixed(2)}`, bold: true },
-                      { label: "Exchange rate", value: `1 USD = ${pricing.exchange_rate} GHS` },
+                      {
+                        label: "Item price",
+                        value: `$${pricing.item_price_usd.toFixed(2)}`,
+                      },
+                      {
+                        label: `Subtotal (×${pricing.quantity})`,
+                        value: `$${pricing.subtotal_usd.toFixed(2)}`,
+                      },
+                      {
+                        label: "Seller shipping",
+                        value: pricing.seller_shipping_usd
+                          ? `$${pricing.seller_shipping_usd.toFixed(2)}`
+                          : "FREE",
+                      },
+                      {
+                        label: "Int'l freight (incl. customs)",
+                        value: `$${(pricing.freight_usd ?? 0).toFixed(2)}`,
+                      },
+                      {
+                        label: `Service fee (${((pricing.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`,
+                        value: `$${(pricing.service_fee_usd ?? 0).toFixed(2)}`,
+                      },
+                      {
+                        label: "Handling",
+                        value: `$${(pricing.handling_fee_usd ?? 0).toFixed(2)}`,
+                      },
+                      {
+                        label: "Total (USD)",
+                        value: `$${(pricing.total_usd ?? 0).toFixed(2)}`,
+                        bold: true,
+                      },
+                      {
+                        label: "Exchange rate",
+                        value: `1 USD = ${pricing.exchange_rate} GHS`,
+                      },
                     ]
                 ).map(({ label, value, bold }) => (
                   <div
@@ -408,7 +450,8 @@ export function OrderForm({
                   </span>
                 </div>
                 <p className="text-xs text-stone-400 pt-1">
-                  Estimate only — final total confirmed after admin review. Full payment required before processing.
+                  Estimate only — final total confirmed after admin review. Full
+                  payment required before processing.
                 </p>
               </div>
             )}
@@ -416,7 +459,8 @@ export function OrderForm({
               <div className="flex items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
                 <InfoIcon className="mt-0.5 size-4 shrink-0 text-stone-400" />
                 <p>
-                  Enter a price and country above to see an estimated breakdown before submitting.
+                  Enter a price and country above to see an estimated breakdown
+                  before submitting.
                 </p>
               </div>
             )}
@@ -435,7 +479,9 @@ export function OrderForm({
               </Button>
               <Button
                 type="button"
-                onClick={form.handleSubmit((data) => onSubmit(data as CreateOrderSchemaType))}
+                onClick={form.handleSubmit((data) =>
+                  onSubmit(data as CreateOrderSchemaType),
+                )}
                 variant="primary"
                 disabled={isLoading}
                 className="gap-1.5"

@@ -340,7 +340,7 @@ export async function listAllTransactions(
   user: AuthenticatedUser,
   filters?: { status?: string; userId?: string },
 ): Promise<TransactionListResponse> {
-  if (user.role !== "admin") {
+  if (user.profile.role !== "admin") {
     throw new APIError(403, "Admin access required");
   }
 

@@ -27,7 +27,8 @@ const COLUMN_LABELS: Record<string, string> = {
   status: "Status",
   originCountry: "Ships From",
   carrier: "Carrier",
-  trackingNumber: "Tracking #",
+  tracking_number: "Tracking #",
+  tracking_url: "Track Link",
   estimatedDeliveryDate: "Est. Delivery",
   totalGhs: "Amount",
   createdAt: "Date",
@@ -60,7 +61,7 @@ export function Toolbar({
   const statusFilter =
     (table.getColumn("status")?.getFilterValue() as string) ?? "";
   const countryFilter =
-    (table.getColumn("originCountry")?.getFilterValue() as string) ?? "";
+    (table.getColumn("origin_country")?.getFilterValue() as string) ?? "";
 
   const isFiltered =
     table.getState().columnFilters.length > 0 || globalFilter.length > 0;
@@ -103,7 +104,7 @@ export function Toolbar({
       <Select
         value={countryFilter}
         onValueChange={(v) =>
-          table.getColumn("originCountry")?.setFilterValue(v === "all" ? undefined : v)
+          table.getColumn("origin_country")?.setFilterValue(v === "all" ? undefined : v)
         }
       >
         <SelectTrigger className="w-36 h-9">

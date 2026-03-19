@@ -7,7 +7,6 @@ import {
   XIcon,
   AlertTriangleIcon,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,6 +18,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Order, OrderStatus } from "../../types";
+import { Field } from "@/components/ui/field";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const COLUMN_LABELS: Record<string, string> = {
   id: "Order ID",
@@ -46,6 +59,48 @@ const COUNTRY_OPTIONS = [
   { value: "UK", label: "🇬🇧 UK" },
   { value: "CHINA", label: "🇨🇳 China" },
 ];
+
+interface TableFilterProps<T, TValue> {
+  placeholder?: string;
+  column: Column<T, TValue>;
+  items: {
+    value: React.ComponentProps<typeof SelectItem>["value"];
+    label: React.ReactNode;
+  }[];
+}
+
+const TableFilter = <T, TValue>({
+  column,
+  items,
+  ...props
+}: TableFilterProps<T, TValue>) => {
+  const filterValue = (column.getFilterValue() as string[]) ?? [];
+  const counts = column.getFacetedUniqueValues();
+  const handleValueChange = (s:string) => {
+    if(!filterValue.includes(s)) {
+      filterValue.push(s)
+    }
+  }
+  return (
+    <Select onValueChange={handleValueChange}>
+      <SelectTrigger className="w-45">
+        <SelectValue placeholder={props?.placeholder || "Select"} />
+      </SelectTrigger>
+      <SelectContent position="popper">
+        <SelectGroup>
+          {items.map((item, idx) => (
+            <SelectItem key={idx.toString()} value={item.value}>
+              {item.label}
+              <span className="ml-auto text-stone-400 text-xs tabular-nums">
+                {counts.get(item.value) ?? 0}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  );
+};
 
 function FacetedFilter<T>({
   column,
@@ -116,37 +171,65 @@ interface ToolbarProps {
   onGlobalFilterChange: (value: string) => void;
 }
 
-export function Toolbar({ table, globalFilter, onGlobalFilterChange }: ToolbarProps) {
+export function Toolbar({
+  table,
+  globalFilter,
+  onGlobalFilterChange,
+}: ToolbarProps) {
   const isFiltered =
     table.getState().columnFilters.length > 0 || globalFilter.length > 0;
   const selectedCount = table.getFilteredSelectedRowModel().rows.length;
 
   const statusColumn = table.getColumn("status");
-  const countryColumn = table.getColumn("originCountry");
-  const reviewColumn = table.getColumn("needsReview");
-  const reviewActive = (reviewColumn?.getFilterValue() as boolean[] | undefined)?.includes(true);
+  const countryColumn = table.getColumn("origin_country");
+  const reviewColumn = table.getColumn("needs_review");
+  const reviewActive = (
+    reviewColumn?.getFilterValue() as boolean[] | undefined
+  )?.includes(true);
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
       {/* Search */}
-      <div className="relative flex-1 min-w-45 max-w-xs">
-        <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-stone-400 pointer-events-none" />
-        <Input
-          placeholder="Search orders..."
-          value={globalFilter}
-          onChange={(e) => onGlobalFilterChange(e.target.value)}
-          className="pl-9 h-9"
-        />
-      </div>
+      <Field
+        orientation={"horizontal"}
+        className="relative flex-1 min-w-45 max-w-sm"
+      >
+        <InputGroup className="rounded-lg shadow-none h-10 bg-neutral-100">
+          <InputGroupAddon>
+            <SearchIcon className="size-4 text-stone-400 pointer-events-none" />
+          </InputGroupAddon>
+          <InputGroupInput
+            placeholder="Search orders..."
+            value={globalFilter}
+            onChange={(e) => onGlobalFilterChange(e.target.value)}
+            className=""
+          />
+        </InputGroup>
+        {/* Status faceted filter */}
+        {/* {statusColumn && (
+          <FacetedFilter
+            column={statusColumn}
+            title="Status"
+            options={STATUS_OPTIONS}
+          />
+        )} */}
+        {statusColumn && (
+          <TableFilter
+            column={statusColumn}
+            placeholder="Status"
+            items={STATUS_OPTIONS}
+          />
+        )}
+      </Field>
 
       {/* Status faceted filter */}
-      {statusColumn && (
+      {/* {statusColumn && (
         <FacetedFilter
           column={statusColumn}
           title="Status"
           options={STATUS_OPTIONS}
         />
-      )}
+      )} */}
 
       {/* Country faceted filter */}
       {countryColumn && (

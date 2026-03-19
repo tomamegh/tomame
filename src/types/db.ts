@@ -142,6 +142,21 @@ export interface DbPricingConfig {
   updated_by: string | null;
 }
 
+export interface DbOrderDelivery {
+  id: string;
+  order_id: string;
+  user_id: string;
+  carrier: string | null;
+  tracking_number: string | null;
+  tracking_url: string | null;
+  status: "pending" | "in_transit" | "out_for_delivery" | "delivered" | "failed" | "returned";
+  estimated_delivery_date: string | null;
+  delivered_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DbExchangeRate {
   id: string;
   base_currency: string;
