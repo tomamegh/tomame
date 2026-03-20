@@ -19,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OrderStatusBadge } from "./order-status-badge";
 import { useOrder, useCancelOrder, useOrderHistory } from "../hooks/useOrders";
 import type { Order, OrderStatus } from "../types";
-import type { DbAuditLog } from "@/types/db";
+import type { DbAuditLog } from "@/features/audit/types";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 function fmt(n: number, decimals = 2) {

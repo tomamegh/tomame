@@ -6,13 +6,16 @@ import Image from "next/image";
 function SocialAuthButtons() {
   const handleGoogleSignin = async () => {
     const supabase = createClient()
-    await supabase.auth.signInWithOAuth({
+    const {error} = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${location.origin}/auth/callback`,
       },
     });
+
+    console.error('oauth error', error)
   };
+
   return (
     <Field className="grid grid-cols-1 gap-4">
       <Button variant="outline" className="py-2 gap-3" size={"lg"} type="button" onClick={handleGoogleSignin}>

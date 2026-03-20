@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { DbFixedFreightItem } from "@/types/db";
+import type { DbFixedFreightItem } from "@/features/pricing/types";
 
 // Mock server-only
 vi.mock("server-only", () => ({}));

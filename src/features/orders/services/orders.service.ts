@@ -16,9 +16,10 @@ import {
 } from "@/lib/email/templates/order-status";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/features/auth/types";
+import type { PlatformUser } from "@/features/users/types";
 import type { PaginatedDataResponse } from "@/types/api";
-import type { DbOrder, DbAuditLog } from "@/types/db";
+import type { DbOrder } from "../types";
+import type { DbAuditLog } from "@/features/audit/types";
 import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -246,7 +247,7 @@ async function sendOrderStatusEmail(
 
 export async function createOrder(
   client: SupabaseClient,
-  user: AuthenticatedUser,
+  user: PlatformUser,
   input: CreateOrderSchemaType,
 ): Promise<Order> {
   const platform = resolvePlatform(input.product_url);
@@ -356,7 +357,7 @@ export const getUserOrders = async (
 
 export async function getOrder(
   client: SupabaseClient,
-  user: AuthenticatedUser,
+  user: PlatformUser,
   orderId: string,
 ): Promise<Order> {
   const order = await getOrderById(client, orderId);
@@ -374,7 +375,7 @@ export async function getOrder(
 
 export async function listUserOrders(
   client: SupabaseClient,
-  user: AuthenticatedUser,
+  user: PlatformUser,
 ): Promise<OrderList> {
   const orders = await getOrdersByUserId(client, user.id);
   return { orders: orders as Order[], count: orders.length };
@@ -382,7 +383,7 @@ export async function listUserOrders(
 
 export async function listAllOrders(
   client: SupabaseClient,
-  user: AuthenticatedUser,
+  user: PlatformUser,
   filters?: { status?: string; userId?: string; needsReview?: boolean },
 ): Promise<OrderList> {
   if (user.profile.role !== "admin") {
@@ -403,7 +404,7 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 
 export async function updateOrderStatusAdmin(
   client: SupabaseClient,
-  user: AuthenticatedUser,
+  user: PlatformUser,
   orderId: string,
   newStatus: string,
   trackingData?: {
@@ -495,7 +496,7 @@ export async function updateOrderStatusAdmin(
 }
 
 export async function cancelOrderByUser(
-  user: AuthenticatedUser,
+  user: PlatformUser,
   orderId: string,
 ): Promise<Order> {
   const supabase = createAdminClient();
@@ -526,7 +527,7 @@ export async function cancelOrderByUser(
 }
 
 export async function getOrderAuditHistory(
-  user: AuthenticatedUser,
+  user: PlatformUser,
   orderId: string,
 ): Promise<DbAuditLog[]> {
   const supabase = createAdminClient();

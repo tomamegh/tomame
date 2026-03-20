@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UserRoleBadge } from "../user-role-badge";
-import type { AdminUser } from "../../types";
+import { PlatformUser } from "../../types";
 
 // ── Table meta ────────────────────────────────────────────────────────────────
 
@@ -55,11 +55,11 @@ function SortableHeader({
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
-export const columns: ColumnDef<AdminUser>[] = [
+export const columns: ColumnDef<PlatformUser>[] = [
   // ── Select ──────────────────────────────────────────────────────────────────
   {
     id: "select",
-    header: ({ table }: { table: TTable<AdminUser> }) => (
+    header: ({ table }: { table: TTable<PlatformUser> }) => (
       <input
         type="checkbox"
         checked={table.getIsAllPageRowsSelected()}
@@ -71,7 +71,7 @@ export const columns: ColumnDef<AdminUser>[] = [
         className="size-4 rounded border-stone-300 cursor-pointer accent-stone-700"
       />
     ),
-    cell: ({ row }: { row: Row<AdminUser> }) => (
+    cell: ({ row }: { row: Row<PlatformUser> }) => (
       <input
         type="checkbox"
         checked={row.getIsSelected()}
@@ -90,7 +90,7 @@ export const columns: ColumnDef<AdminUser>[] = [
   {
     accessorKey: "id",
     header: "User ID",
-    cell: ({ row }: { row: Row<AdminUser> }) => (
+    cell: ({ row }: { row: Row<PlatformUser> }) => (
       <span className="font-mono text-xs text-stone-500">
         #{row.original.id.slice(0, 8)}
       </span>
@@ -105,7 +105,7 @@ export const columns: ColumnDef<AdminUser>[] = [
     header: ({ column }) => (
       <SortableHeader column={column}>Email</SortableHeader>
     ),
-    cell: ({ row }: { row: Row<AdminUser> }) => (
+    cell: ({ row }: { row: Row<PlatformUser> }) => (
       <Link
         href={`/admin/users/${row.original.id}`}
         className="text-sm text-stone-800 hover:text-rose-600 hover:underline font-medium"
@@ -122,8 +122,8 @@ export const columns: ColumnDef<AdminUser>[] = [
   {
     accessorKey: "role",
     header: "Role",
-    cell: ({ row }: { row: Row<AdminUser> }) => (
-      <UserRoleBadge role={row.original.role} />
+    cell: ({ row }: { row: Row<PlatformUser> }) => (
+      <UserRoleBadge role={row.original.profile.role} />
     ),
     filterFn: (row, id, value: string) => !value || value === "all" || row.getValue(id) === value,
     enableGlobalFilter: false,
@@ -136,10 +136,10 @@ export const columns: ColumnDef<AdminUser>[] = [
     header: ({ column }) => (
       <SortableHeader column={column}>Last Sign In</SortableHeader>
     ),
-    cell: ({ row }: { row: Row<AdminUser> }) =>
-      row.original.lastSignInAt ? (
+    cell: ({ row }: { row: Row<PlatformUser> }) =>
+      row.original.last_sign_in_at ? (
         <span className="text-sm text-stone-500 whitespace-nowrap">
-          {new Date(row.original.lastSignInAt).toLocaleDateString("en-GB", {
+          {new Date(row.original.last_sign_in_at).toLocaleDateString("en-GB", {
             day: "2-digit",
             month: "short",
             year: "numeric",
@@ -159,9 +159,9 @@ export const columns: ColumnDef<AdminUser>[] = [
     header: ({ column }) => (
       <SortableHeader column={column}>Joined</SortableHeader>
     ),
-    cell: ({ row }: { row: Row<AdminUser> }) => (
+    cell: ({ row }: { row: Row<PlatformUser> }) => (
       <span className="text-sm text-stone-500 whitespace-nowrap">
-        {new Date(row.original.createdAt).toLocaleDateString("en-GB", {
+        {new Date(row.original.created_at).toLocaleDateString("en-GB", {
           day: "2-digit",
           month: "short",
           year: "numeric",
@@ -176,7 +176,7 @@ export const columns: ColumnDef<AdminUser>[] = [
   // ── Actions ──────────────────────────────────────────────────────────────────
   {
     id: "actions",
-    cell: ({ row, table }: { row: Row<AdminUser>; table: TTable<AdminUser> }) => {
+    cell: ({ row, table }: { row: Row<PlatformUser>; table: TTable<PlatformUser> }) => {
       const meta = table.options.meta as UsersTableMeta | undefined;
       const user = row.original;
       return (

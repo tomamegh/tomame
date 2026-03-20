@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { resetPasswordSchema } from "@/features/auth/auth.validators";
+import { resetPasswordSchema } from "@/features/auth/schema";
 import { resetPassword, getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";

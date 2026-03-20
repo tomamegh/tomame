@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { changePasswordSchema } from "@/features/auth/auth.validators";
+import { changePasswordSchema } from "@/features/auth/schema";
 import { changePassword, getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
 
-    const data = await changePassword(auth.id, parsed.data.newPassword);
+    const data = await changePassword(auth.id, parsed.data.password);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

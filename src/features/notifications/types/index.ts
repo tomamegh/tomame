@@ -1,3 +1,18 @@
+// ── Database row type ─────────────────────────────────────────────────────────
+
+export interface DbNotification {
+  id: string;
+  user_id: string;
+  channel: "email" | "whatsapp";
+  event: string;
+  payload: Record<string, unknown>;
+  status: "pending" | "sent" | "failed";
+  created_at: string;
+  sent_at: string | null;
+}
+
+// ── Domain types ──────────────────────────────────────────────────────────────
+
 export type NotificationStatus = "pending" | "sent" | "failed";
 export type NotificationChannel = "email" | "whatsapp";
 

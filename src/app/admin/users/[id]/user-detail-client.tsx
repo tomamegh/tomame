@@ -44,6 +44,7 @@ import {
   useResetUserPassword,
 } from "@/features/users/hooks/useUsers";
 import type { OrderStatus } from "@/features/orders/types";
+import { PlatformRoles } from "@/features/auth/types";
 
 interface Props {
   userId: string;
@@ -67,22 +68,13 @@ function formatGhs(v: number) {
 
 export function UserDetailClient({ userId }: Props) {
   const { data, isLoading } = useAdminUserDetail(userId);
-  const updateUser = useUpdateUser(userId);
+  const {mutateAsync: _updateUser, isPending} = useUpdateUser(userId);
   const resetPassword = useResetUserPassword();
 
-  const [role, setRole] = useState<"user" | "admin" | undefined>(undefined);
+
+  const [role, setRole] = useState<PlatformRoles | null>(null);
   const currentRole = role ?? data?.user.role;
 
-  function handleRoleSave() {
-    if (!currentRole || currentRole === data?.user.role) return;
-    updateUser.mutate(
-      { role: currentRole },
-      {
-        onSuccess: () => toast.success("Role updated successfully"),
-        onError: (err) => toast.error(err.message),
-      }
-    );
-  }
 
   function handleResetPassword() {
     resetPassword.mutate(userId, {
@@ -136,26 +128,26 @@ export function UserDetailClient({ userId }: Props) {
                   <div className="flex items-center gap-2 text-stone-600">
                     <ShieldIcon className="size-4 text-stone-400 shrink-0" />
                     {data?.user.role && (
-                      <UserRoleBadge role={data.user.role} />
+                      <UserRoleBadge role={data.user.profile.role} />
                     )}
                   </div>
                   <div className="flex items-center gap-2 text-stone-600">
                     <CalendarIcon className="size-4 text-stone-400 shrink-0" />
                     <span>
-                      Joined {data?.user.createdAt ? formatDate(data.user.createdAt) : "—"}
+                      Joined {data?.user.created_at ? formatDate(data.user.created_at) : "—"}
                     </span>
                   </div>
-                  {data?.user.lastSignInAt && (
+                  {data?.user.last_sign_in_at && (
                     <div className="flex items-center gap-2 text-stone-500 text-xs">
                       <CalendarIcon className="size-3.5 text-stone-400 shrink-0" />
-                      Last seen {formatDate(data.user.lastSignInAt)}
+                      Last seen {formatDate(data.user.last_sign_in_at)}
                     </div>
                   )}
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs bg-stone-100 px-1.5 py-0.5 rounded text-stone-500">
                       #{data?.user.id.slice(0, 8)}
                     </span>
-                    {data?.user.emailConfirmed ? (
+                    {data?.user.email_confirmed_at ? (
                       <span className="text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                         Verified
                       </span>
@@ -197,14 +189,13 @@ export function UserDetailClient({ userId }: Props) {
               </div>
               <Button
                 className="w-full"
-                onClick={handleRoleSave}
                 disabled={
                   isLoading ||
-                  updateUser.isPending ||
+                  isPending ||
                   currentRole === data?.user.role
                 }
               >
-                {updateUser.isPending ? "Saving..." : "Save Changes"}
+                {isPending ? "Saving..." : "Save Changes"}
               </Button>
             </CardContent>
           </Card>

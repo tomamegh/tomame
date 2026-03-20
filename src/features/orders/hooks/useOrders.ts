@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import { Order, OrderList } from "../types";
 import type { ApiSuccessResponse } from "@/types/api";
-import type { DbAuditLog } from "@/types/db";
+import type { DbAuditLog } from "@/features/audit/types";
 import { CreateOrderSchemaType } from "../schema";
 
 // ── Query keys ───────────────────────────────────────────────

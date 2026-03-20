@@ -25,7 +25,7 @@ export async function POST(
     const targetUser = await getUserById(createAdminClient(), id);
     if (!targetUser) throw new APIError(404, "User not found");
 
-    const result = await adminResetUserPassword(admin, targetUser.email);
+    const result = await adminResetUserPassword(admin, targetUser.email!);
     // if (!result.success) throw new APIError(result.status, result.error);
 
     return successResponse(result);

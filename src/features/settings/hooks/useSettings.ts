@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { PricingConfigListResponse, PricingConfigResponse } from "@/features/pricing/types";
-import type { DbExchangeRate } from "@/types/db";
+import type { DbExchangeRate } from "@/lib/exchange-rates/types";
 
 // ── Query keys ────────────────────────────────────────────────────────────────
 

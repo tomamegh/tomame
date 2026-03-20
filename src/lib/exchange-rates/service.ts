@@ -1,7 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
-import type { DbExchangeRate } from "@/types/db";
-import type { ExchangeRateProvider } from "./types";
+import type { DbExchangeRate, ExchangeRateProvider } from "./types";
 import { freeCurrencyProvider } from "./freecurrency";
 
 // ── DB queries ────────────────────────────────────────────────────────────────

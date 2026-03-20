@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/features/auth/types";
+import type { PlatformUser } from "@/features/users/types";
 import { Notification, NotificationListResponse } from "../types";
 
 async function getNotificationsByUserId(
@@ -50,7 +50,7 @@ async function getAllNotifications(
 // ── Service functions ─────────────────────────────────────────────────────────
 
 export async function listUserNotifications(
-  user: AuthenticatedUser,
+  user: PlatformUser,
 ): Promise<NotificationListResponse> {
   const notifications = await getNotificationsByUserId(
     createAdminClient(),
@@ -60,7 +60,7 @@ export async function listUserNotifications(
 }
 
 export async function listAllNotifications(
-  user: AuthenticatedUser,
+  user: PlatformUser,
   filters?: { status?: string; userId?: string; channel?: string },
 ): Promise<NotificationListResponse> {
   if (user.profile.role !== "admin") {

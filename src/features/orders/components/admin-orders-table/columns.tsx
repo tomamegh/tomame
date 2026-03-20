@@ -9,6 +9,9 @@ import {
   ExternalLinkIcon,
   AlertTriangleIcon,
   MoreHorizontalIcon,
+  CopyIcon,
+  EyeIcon,
+  PackageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { OrderStatusBadge } from "../order-status-badge";
 import type { Order, OrderStatus } from "../../types";
+import Image from "next/image";
 
 // ── Table meta type ───────────────────────────────────────────────────────────
 
@@ -52,7 +56,10 @@ function SortableHeader({
   column,
   children,
 }: {
-  column: { getIsSorted: () => false | "asc" | "desc"; toggleSorting: (asc: boolean) => void };
+  column: {
+    getIsSorted: () => false | "asc" | "desc";
+    toggleSorting: (asc: boolean) => void;
+  };
   children: React.ReactNode;
 }) {
   const sorted = column.getIsSorted();
@@ -125,21 +132,26 @@ export const columns: ColumnDef<Order>[] = [
       <SortableHeader column={column}>Product</SortableHeader>
     ),
     cell: ({ row }: { row: Row<Order> }) => (
-      <div className="space-y-0.5 max-w-65">
+      <div className="flex items-center max-w-86 overflow-hidden gap-3">
+        {row.original.product_image_url ? (
+          <div className="relative size-12 shrink-0">
+            <Image
+              src={row.original.product_image_url}
+              alt={row.original.product_name}
+              fill
+              className="object-contain"
+            />
+          </div>
+        ) : (
+          <div className="size-12 rounded-lg border border-stone-200 bg-stone-50 flex items-center justify-center p-1.5">
+            <PackageIcon className="size-7 text-stone-300" />
+          </div>
+        )}
         <Link
           href={`/admin/orders/${row.original.id}`}
-          className="font-medium text-stone-800 hover:text-sky-600 hover:underline line-clamp-2 text-sm leading-snug block"
+          className="font-medium text-stone-800 hover:text-sky-600 overflow-hidden text-ellipsis"
         >
           {row.original.product_name}
-        </Link>
-        <Link
-          href={row.original.product_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-stone-400 hover:text-rose-500 transition-colors"
-        >
-          <ExternalLinkIcon className="size-3" />
-          Source
         </Link>
       </div>
     ),
@@ -163,10 +175,15 @@ export const columns: ColumnDef<Order>[] = [
     accessorKey: "origin_country",
     header: "Ships From",
     cell: ({ row }: { row: Row<Order> }) => {
-      const flags: Record<string, string> = { USA: "🇺🇸", UK: "🇬🇧", CHINA: "🇨🇳" };
+      const flags: Record<string, string> = {
+        USA: "🇺🇸",
+        UK: "🇬🇧",
+        CHINA: "🇨🇳",
+      };
       return (
         <span className="text-sm text-stone-600">
-          {flags[row.original.origin_country] ?? ""} {row.original.origin_country}
+          {flags[row.original.origin_country] ?? ""}{" "}
+          {row.original.origin_country}
         </span>
       );
     },
@@ -257,15 +274,20 @@ export const columns: ColumnDef<Order>[] = [
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-8">
+            <Button variant="outline" size="icon" className="size-8">
               <MoreHorizontalIcon className="size-4" />
               <span className="sr-only">Open menu</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuSeparator />
             {order.needs_review && !order.reviewed_by && (
               <>
-                <DropdownMenuItem asChild className="text-amber-600 focus:text-amber-700 focus:bg-amber-50 font-medium gap-1.5">
+                <DropdownMenuItem
+                  asChild
+                  className="text-amber-600 focus:text-amber-700 focus:bg-amber-50 font-medium gap-1.5"
+                >
                   <Link href={`/admin/orders/${order.id}`}>
                     <AlertTriangleIcon className="size-3.5" />
                     Review order
@@ -275,12 +297,32 @@ export const columns: ColumnDef<Order>[] = [
               </>
             )}
             <DropdownMenuItem asChild>
-              <Link href={`/admin/orders/${order.id}`}>View details</Link>
+              <Link
+                href={`/admin/orders/${order.id}`}
+                className="inline-flex items-center gap-2 w-full"
+              >
+                View details <EyeIcon className="stroke-neutral-500" />
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="gap-2"
+              onClick={() => navigator.clipboard.writeText(order.id)}
+            >
+              Copy ID
+              <CopyIcon className="stroke-neutral-500" />
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => navigator.clipboard.writeText(order.id)}
             >
-              Copy order ID
+              <Link
+                href={row.original.product_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2"
+              >
+                View Source
+                <ExternalLinkIcon className="stroke-neutral-500" />
+              </Link>
             </DropdownMenuItem>
             {transitions.length > 0 && (
               <>
@@ -290,8 +332,14 @@ export const columns: ColumnDef<Order>[] = [
                   <DropdownMenuItem
                     key={status}
                     onClick={() => meta?.updateStatus(order.id, status)}
-                    data-variant={status === "cancelled" ? "destructive" : "default"}
-                    className={status === "cancelled" ? "text-destructive focus:text-destructive" : ""}
+                    data-variant={
+                      status === "cancelled" ? "destructive" : "default"
+                    }
+                    className={
+                      status === "cancelled"
+                        ? "text-destructive focus:text-destructive"
+                        : ""
+                    }
                   >
                     {TRANSITION_LABELS[status]}
                   </DropdownMenuItem>

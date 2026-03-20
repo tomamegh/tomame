@@ -1,8 +1,9 @@
 import { Badge } from "@/components/ui/badge";
+import { PlatformRoles } from "@/features/auth/types";
 import { ShieldIcon, UserIcon } from "lucide-react";
 
 interface UserRoleBadgeProps {
-  role: "user" | "admin";
+  role: PlatformRoles
 }
 
 export function UserRoleBadge({ role }: UserRoleBadgeProps) {

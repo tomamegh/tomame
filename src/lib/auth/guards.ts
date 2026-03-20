@@ -1,11 +1,11 @@
-import type { AuthenticatedUser } from "@/features/auth/types";
+import type { PlatformUser } from "@/features/users/types";
 import { APIError } from "./api-helpers";
 
 /**
  * Type-narrowing guard: ensures user is authenticated.
  * Returns a typed user or an error tuple.
  */
-export function requireAuth(user: AuthenticatedUser | null) {
+export function requireAuth(user: PlatformUser | null) {
   if (!user) throw new APIError(401, "Authentication Required");
   return user;
 }
@@ -15,7 +15,7 @@ export function requireAuth(user: AuthenticatedUser | null) {
  * Must only be called after requireAuth succeeds.
  */
 export function requireAdmin(
-  user: AuthenticatedUser,
+  user: PlatformUser,
 ) {
   if (user.profile.role !== "admin") {
     throw new APIError(403, 'You are not authorized to perform this action')

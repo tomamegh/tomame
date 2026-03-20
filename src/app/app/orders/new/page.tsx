@@ -15,7 +15,7 @@ import {
   TruckIcon,
 } from "lucide-react";
 import Image from "next/image";
-import type { OrderPricingBreakdown } from "@/types/db";
+import type { OrderPricingBreakdown } from "@/features/orders/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

@@ -1,20 +1,11 @@
 import {
-  Card,
-  CardAction,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
   CreditCardIcon,
   TrendingUpIcon,
-  CheckCircle2Icon,
-  XCircleIcon,
+  HandCoinsIcon,
+  CircleOffIcon,
 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { TransactionStats } from "../types";
+import AdminStatCard from "@/features/admin/components/stat-card";
 
 interface TransactionStatCardsProps {
   stats: TransactionStats | undefined;
@@ -40,179 +31,45 @@ export function TransactionStatCards({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* Total Transactions */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>Total Transactions</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? <Skeleton className="h-8 w-16" /> : fmt(stats?.total)}
-          </CardTitle>
-          <CardAction>
-            {isLoading ? (
-              <Skeleton className="h-6 w-20 rounded-full" />
-            ) : (
-              <Badge variant="outline">
-                <CreditCardIcon />
-                All time
-              </Badge>
-            )}
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          {isLoading ? (
-            <div className="space-y-2 w-full">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          ) : (
-            <>
-              <div className="line-clamp-1 flex gap-2 font-medium">
-                All payment attempts <CreditCardIcon className="size-4" />
-              </div>
-              <div className="text-muted-foreground">Across all customers</div>
-            </>
-          )}
-        </CardFooter>
-      </Card>
+      <AdminStatCard
+        title="Total Transactions"
+        description="Transaction recorded on the platform"
+        value={fmt(stats?.total)}
+        isLoading={!!isLoading}
+        icon={CreditCardIcon}
+        iconContainerClassName="bg-blue-200/20 border-blue-200"
+        iconClassName="stroke-blue-500"
+      />
 
-      {/* Total Revenue */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>Total Revenue</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : (
-              `GHS ${fmt(stats?.totalRevenueGhs, 2)}`
-            )}
-          </CardTitle>
-          <CardAction>
-            {isLoading ? (
-              <Skeleton className="h-6 w-24 rounded-full" />
-            ) : (
-              <Badge
-                variant="outline"
-                className="bg-green-500/10 text-green-600 border-green-500/30"
-              >
-                <TrendingUpIcon />
-                Successful
-              </Badge>
-            )}
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          {isLoading ? (
-            <div className="space-y-2 w-full">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          ) : (
-            <>
-              <div className="line-clamp-1 flex gap-2 font-medium text-green-600">
-                Revenue from successful payments <TrendingUpIcon className="size-4" />
-              </div>
-              <div className="text-muted-foreground">Paid in GHS</div>
-            </>
-          )}
-        </CardFooter>
-      </Card>
+      <AdminStatCard
+        title="Total Revenue"
+        description="Revenue from successful payments"
+        value={`GHS ${fmt(stats?.totalRevenueGhs, 2)}`}
+        isLoading={!!isLoading}
+        icon={HandCoinsIcon}
+        iconContainerClassName="bg-green-200/20 border-green-200"
+        iconClassName="stroke-green-500"
+      />
 
-      {/* Success Rate */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>Success Rate</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              `${successRate}%`
-            )}
-          </CardTitle>
-          <CardAction>
-            {isLoading ? (
-              <Skeleton className="h-6 w-16 rounded-full" />
-            ) : (
-              <Badge
-                variant="outline"
-                className={
-                  successRate >= 80
-                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                    : "bg-amber-500/10 text-amber-600 border-amber-500/30"
-                }
-              >
-                <CheckCircle2Icon />
-                {successRate >= 80 ? "Good" : "Low"}
-              </Badge>
-            )}
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          {isLoading ? (
-            <div className="space-y-2 w-full">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          ) : (
-            <>
-              <div className="line-clamp-1 flex gap-2 font-medium">
-                Payment success rate <CheckCircle2Icon className="size-4" />
-              </div>
-              <div className="text-muted-foreground">
-                {`${fmt(stats?.successful)} of ${fmt(stats?.total)} successful`}
-              </div>
-            </>
-          )}
-        </CardFooter>
-      </Card>
+      <AdminStatCard
+        title="Success Rate"
+        description="Rate of successful payments"
+        value={`${successRate}%`}
+        isLoading={!!isLoading}
+        icon={TrendingUpIcon}
+        iconContainerClassName="bg-cyan-200/20 border-cyan-200"
+        iconClassName="stroke-cyan-500"
+      />
 
-      {/* Failed */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>Failed</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? (
-              <Skeleton className="h-8 w-10" />
-            ) : (
-              fmt(stats?.failed)
-            )}
-          </CardTitle>
-          <CardAction>
-            {isLoading ? (
-              <Skeleton className="h-6 w-20 rounded-full" />
-            ) : (stats?.failed ?? 0) > 0 ? (
-              <Badge
-                variant="outline"
-                className="bg-red-500/10 text-red-600 border-red-500/30"
-              >
-                <XCircleIcon />
-                Attention
-              </Badge>
-            ) : (
-              <Badge variant="outline">
-                <XCircleIcon />
-                None
-              </Badge>
-            )}
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          {isLoading ? (
-            <div className="space-y-2 w-full">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          ) : (
-            <>
-              <div
-                className={`line-clamp-1 flex gap-2 font-medium ${(stats?.failed ?? 0) > 0 ? "text-red-600" : ""}`}
-              >
-                Failed payments <XCircleIcon className="size-4" />
-              </div>
-              <div className="text-muted-foreground">Requires investigation</div>
-            </>
-          )}
-        </CardFooter>
-      </Card>
+      <AdminStatCard
+        title="Failed Transactions"
+        description="No. of all failed transactions"
+        value={fmt(stats?.failed)}
+        isLoading={!!isLoading}
+        icon={CircleOffIcon}
+        iconContainerClassName="bg-red-200/20 border-red-200"
+        iconClassName="stroke-red-500"
+      />
     </div>
   );
 }

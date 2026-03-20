@@ -1,3 +1,16 @@
+// ── Database row type ─────────────────────────────────────────────────────────
+
+export interface DbExchangeRate {
+  id: string;
+  base_currency: string;
+  target_currency: string;
+  rate: number;
+  provider: string;
+  fetched_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Exchange rate provider interface.
  * Implement this to add new providers (e.g., ExchangeRateAPI, CurrencyLayer, etc.)
