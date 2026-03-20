@@ -1,20 +1,11 @@
 import {
-  Card,
-  CardAction,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
   UsersRoundIcon,
   ShieldIcon,
   UserIcon,
   CalendarIcon,
 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { UserStats } from "../types";
+import AdminStatCard from "@/features/admin/components/stat-card";
 
 interface UserStatCardsProps {
   stats: UserStats | undefined;
@@ -29,151 +20,45 @@ function fmt(n: number | undefined) {
 export function UserStatCards({ stats, isLoading }: UserStatCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* Total Users */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>Total Users</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? <Skeleton className="h-8 w-16" /> : fmt(stats?.total)}
-          </CardTitle>
-          <CardAction>
-            {isLoading ? (
-              <Skeleton className="h-6 w-20 rounded-full" />
-            ) : (
-              <Badge variant="outline">
-                <UsersRoundIcon />
-                All time
-              </Badge>
-            )}
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          {isLoading ? (
-            <div className="space-y-2 w-full">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          ) : (
-            <>
-              <div className="line-clamp-1 flex gap-2 font-medium">
-                Registered accounts <UsersRoundIcon className="size-4" />
-              </div>
-              <div className="text-muted-foreground">Platform-wide</div>
-            </>
-          )}
-        </CardFooter>
-      </Card>
+      <AdminStatCard
+        title="Total Users"
+        description="All registered accounts platform-wide"
+        value={fmt(stats?.total)}
+        isLoading={!!isLoading}
+        icon={UsersRoundIcon}
+        iconContainerClassName="bg-blue-200/20 border-blue-200"
+        iconClassName="stroke-blue-500"
+      />
 
-      {/* Admins */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>Admins</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? <Skeleton className="h-8 w-10" /> : fmt(stats?.admins)}
-          </CardTitle>
-          <CardAction>
-            {isLoading ? (
-              <Skeleton className="h-6 w-24 rounded-full" />
-            ) : (
-              <Badge
-                variant="outline"
-                className="bg-rose-500/10 text-rose-600 border-rose-500/30"
-              >
-                <ShieldIcon />
-                Admin role
-              </Badge>
-            )}
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          {isLoading ? (
-            <div className="space-y-2 w-full">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          ) : (
-            <>
-              <div className="line-clamp-1 flex gap-2 font-medium text-rose-600">
-                Admin accounts <ShieldIcon className="size-4" />
-              </div>
-              <div className="text-muted-foreground">With elevated privileges</div>
-            </>
-          )}
-        </CardFooter>
-      </Card>
+      <AdminStatCard
+        title="Admins"
+        description="Accounts with elevated privileges"
+        value={fmt(stats?.admins)}
+        isLoading={!!isLoading}
+        icon={ShieldIcon}
+        iconContainerClassName="bg-rose-200/20 border-rose-200"
+        iconClassName="stroke-rose-500"
+      />
 
-      {/* Regular Users */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>Regular Users</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? <Skeleton className="h-8 w-16" /> : fmt(stats?.regularUsers)}
-          </CardTitle>
-          <CardAction>
-            {isLoading ? (
-              <Skeleton className="h-6 w-20 rounded-full" />
-            ) : (
-              <Badge variant="outline">
-                <UserIcon />
-                User role
-              </Badge>
-            )}
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          {isLoading ? (
-            <div className="space-y-2 w-full">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          ) : (
-            <>
-              <div className="line-clamp-1 flex gap-2 font-medium">
-                Customer accounts <UserIcon className="size-4" />
-              </div>
-              <div className="text-muted-foreground">Standard access level</div>
-            </>
-          )}
-        </CardFooter>
-      </Card>
+      <AdminStatCard
+        title="Regular Users"
+        description="Customer accounts with standard access"
+        value={fmt(stats?.regularUsers)}
+        isLoading={!!isLoading}
+        icon={UserIcon}
+        iconContainerClassName="bg-violet-200/20 border-violet-200"
+        iconClassName="stroke-violet-500"
+      />
 
-      {/* New This Month */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>New This Month</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {isLoading ? <Skeleton className="h-8 w-10" /> : fmt(stats?.newThisMonth)}
-          </CardTitle>
-          <CardAction>
-            {isLoading ? (
-              <Skeleton className="h-6 w-24 rounded-full" />
-            ) : (
-              <Badge
-                variant="outline"
-                className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-              >
-                <CalendarIcon />
-                This month
-              </Badge>
-            )}
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          {isLoading ? (
-            <div className="space-y-2 w-full">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          ) : (
-            <>
-              <div className="line-clamp-1 flex gap-2 font-medium text-emerald-600">
-                New signups <CalendarIcon className="size-4" />
-              </div>
-              <div className="text-muted-foreground">Joined this calendar month</div>
-            </>
-          )}
-        </CardFooter>
-      </Card>
+      <AdminStatCard
+        title="New This Month"
+        description="New users joined this calendar month"
+        value={fmt(stats?.newThisMonth)}
+        isLoading={!!isLoading}
+        icon={CalendarIcon}
+        iconContainerClassName="bg-emerald-200/20 border-emerald-200"
+        iconClassName="stroke-emerald-500"
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { AdminUsersTable } from "@/features/users/components/admin-users-table";
-import { AddUserDialog } from "@/features/users/components/add-user-dialog";
 import { UsersPageClient } from "./users-page-client";
+import AddUserForm from "@/features/users/components/add-user-form";
 
 export default function AdminUsersPage() {
   return (
@@ -12,7 +12,7 @@ export default function AdminUsersPage() {
             Manage customer and admin accounts
           </p>
         </div>
-        <AddUserDialog />
+        <AddUserForm />
       </div>
       <UsersPageClient />
       <AdminUsersTable />

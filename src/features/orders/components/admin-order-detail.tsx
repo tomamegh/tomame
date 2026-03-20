@@ -40,7 +40,7 @@ import {
 } from "../hooks/useOrders";
 import { useAdminUserDetail } from "@/features/users/hooks/useUsers";
 import type { Order, OrderStatus, OriginCountry } from "../types";
-import type { DbAuditLog } from "@/types/db";
+import type { DbAuditLog } from "@/features/audit/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -510,11 +510,11 @@ function UserCard({ userId }: { userId: string }) {
             </div>
             <div className="space-y-0.5">
               <p className="text-xs text-stone-400">Role</p>
-              <UserRoleBadge role={data.user.role} />
+              <UserRoleBadge role={data.user.profile.role} />
             </div>
             <div className="space-y-0.5">
               <p className="text-xs text-stone-400">Member since</p>
-              <p className="text-stone-700">{fmtDate(data.user.createdAt)}</p>
+              <p className="text-stone-700">{fmtDate(data.user.created_at)}</p>
             </div>
             <div className="pt-1">
               <Button variant="outline" size="sm" className="w-full text-xs" asChild>

@@ -11,6 +11,8 @@ import { z } from "zod";
 const createUserSchema = z.object({
   email: z.email(),
   password: z.string().min(8),
+  first_name: z.string().min(1),
+  last_name: z.string().min(1),
   role: z.enum(["user", "admin"]),
 });
 
@@ -57,6 +59,8 @@ export async function POST(request: NextRequest) {
       parsed.data.email,
       parsed.data.password,
       parsed.data.role,
+      parsed.data.first_name,
+      parsed.data.last_name,
     );
     return successResponse(data, 201);
   } catch (error) {

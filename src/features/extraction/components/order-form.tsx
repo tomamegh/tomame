@@ -41,7 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEffect, useRef, useState } from "react";
-import { OrderPricingBreakdown } from "@/types/db";
+import type { OrderPricingBreakdown } from "@/features/orders/types";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

@@ -1,16 +1,8 @@
 "use client";
 
 import type { Table } from "@tanstack/react-table";
-import { SearchIcon, SlidersHorizontalIcon, XIcon } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { SlidersHorizontalIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -20,6 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Delivery } from "../../types";
+import TableGlobalFilter from "@/components/ui/table-global-filter";
+import TableFilter from "@/components/ui/table-filter-select";
 
 const COLUMN_LABELS: Record<string, string> = {
   id: "Order ID",
@@ -58,10 +52,6 @@ export function Toolbar({
   globalFilter,
   onGlobalFilterChange,
 }: ToolbarProps) {
-  const statusFilter =
-    (table.getColumn("status")?.getFilterValue() as string) ?? "";
-  const countryFilter =
-    (table.getColumn("origin_country")?.getFilterValue() as string) ?? "";
 
   const isFiltered =
     table.getState().columnFilters.length > 0 || globalFilter.length > 0;
@@ -71,54 +61,24 @@ export function Toolbar({
     <div className="flex items-center gap-2 flex-wrap">
       {/* Search */}
       <div className="relative flex-1 min-w-45 max-w-xs">
-        <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-stone-400 pointer-events-none" />
-        <Input
+        <TableGlobalFilter
           placeholder="Search product or tracking..."
           value={globalFilter}
           onChange={(e) => onGlobalFilterChange(e.target.value)}
-          className="pl-9 h-9"
         />
       </div>
 
-      {/* Status filter */}
-      <Select
-        value={statusFilter}
-        onValueChange={(v) =>
-          table.getColumn("status")?.setFilterValue(v === "all" ? undefined : v)
-        }
-      >
-        <SelectTrigger className="w-40 h-9">
-          <SelectValue placeholder="All Statuses" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Statuses</SelectItem>
-          {STATUS_OPTIONS.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <TableFilter
+        items={STATUS_OPTIONS}
+        placeholder="Status"
+        column={table.getColumn("status")!}
+      />
 
-      {/* Country filter */}
-      <Select
-        value={countryFilter}
-        onValueChange={(v) =>
-          table.getColumn("origin_country")?.setFilterValue(v === "all" ? undefined : v)
-        }
-      >
-        <SelectTrigger className="w-36 h-9">
-          <SelectValue placeholder="All Countries" />
-        </SelectTrigger>
-        <SelectContent position="popper">
-          <SelectItem value="all">All Countries</SelectItem>
-          {COUNTRY_OPTIONS.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <TableFilter
+        items={COUNTRY_OPTIONS}
+        placeholder="Country"
+        column={table.getColumn("origin_country")!}
+      />
 
       {/* Reset */}
       {isFiltered && (

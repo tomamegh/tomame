@@ -1,16 +1,19 @@
+import { PlatformRoles } from "@/features/auth/types";
 import type { OrderStatus } from "@/features/orders/types";
+import { User } from "@supabase/supabase-js";
 
-// interface User {
-  
-// }
+export interface PlatformUser extends User {
+  profile: UserProfile
+}
 
-export interface AdminUser {
+export interface UserProfile {
   id: string;
-  email: string;
-  role: "user" | "admin";
-  createdAt: string;
-  lastSignInAt: string | null;
-  emailConfirmed: boolean;
+  first_name?: string;
+  last_name?: string;
+  role: PlatformRoles;
+  bio?: string;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface UserRecentOrder {
@@ -24,7 +27,7 @@ export interface UserRecentOrder {
 // ── List / stats ──────────────────────────────────────────────────────────────
 
 export interface UserList {
-  users: AdminUser[];
+  users: PlatformUser[];
   count: number;
 }
 
@@ -38,24 +41,13 @@ export interface UserStats {
 // ── API response types ────────────────────────────────────────────────────────
 
 export interface UserListResponse {
-  users: AdminUser[];
+  users: PlatformUser[];
   count: number;
   stats: UserStats;
 }
 
 export interface UserDetailResponse {
-  user: AdminUser;
+  user: PlatformUser;
   recentOrders: UserRecentOrder[];
 }
 
-// ── API request types ─────────────────────────────────────────────────────────
-
-export interface CreateUserRequest {
-  email: string;
-  password: string;
-  role: "user" | "admin";
-}
-
-export interface UpdateUserRequest {
-  role: "user" | "admin";
-}

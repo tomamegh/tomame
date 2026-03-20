@@ -1,3 +1,16 @@
+// ── Database row type ─────────────────────────────────────────────────────────
+
+export interface DbPayment {
+  id: string;
+  user_id: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  status: "pending" | "success" | "failed";
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
 // ── Request types ────────────────────────────────────────────────────────────
 
 export interface InitializePaymentRequest {

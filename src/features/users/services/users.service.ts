@@ -3,23 +3,34 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/features/auth/types";
 import type { AuthUserResponse } from "@/features/auth/types";
 import type { MessageResponse } from "@/types/api";
-import type { DbUser, DbOrder } from "@/types/db";
+import type { DbOrder } from "@/features/orders/types";
 import type {
-  AdminUser,
+  PlatformUser,
+  UserProfile,
   UserListResponse,
   UserDetailResponse,
   UserRecentOrder,
 } from "@/features/users/types";
 
+/** Raw row returned by the `profiles` table — internal to this service. */
+type ProfileRow = {
+  id: string;
+  email: string;
+  role: "user" | "admin";
+  first_name: string | null;
+  last_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // ── DB queries ────────────────────────────────────────────────────────────────
 
-export async function getUserById(
+async function getProfileById(
   client: SupabaseClient,
-  id: string
-): Promise<DbUser | null> {
+  id: string,
+): Promise<ProfileRow | null> {
   const { data, error } = await client
     .from("profiles")
     .select("*")
@@ -27,13 +38,37 @@ export async function getUserById(
     .single();
 
   if (error) return null;
-  return data as DbUser;
+  return data as ProfileRow;
+}
+
+export async function getUserById(
+  client: SupabaseClient,
+  id: string,
+): Promise<PlatformUser | null> {
+  const [authResult, profileResult] = await Promise.all([
+    client.auth.admin.getUserById(id),
+    client.from("profiles").select("*").eq("id", id).single(),
+  ]);
+
+  if (authResult.error || !authResult.data.user) return null;
+
+  const raw = profileResult.data;
+  const profile: UserProfile = {
+    id,
+    role: raw?.role ?? "user",
+    first_name: raw?.first_name ?? undefined,
+    last_name: raw?.last_name ?? undefined,
+    created_at: new Date(raw?.created_at ?? authResult.data.user.created_at),
+    updated_at: new Date(raw?.updated_at ?? raw?.created_at ?? authResult.data.user.created_at),
+  };
+
+  return { ...authResult.data.user, profile };
 }
 
 async function getUserByEmail(
   client: SupabaseClient,
-  email: string
-): Promise<DbUser | null> {
+  email: string,
+): Promise<ProfileRow | null> {
   const { data, error } = await client
     .from("profiles")
     .select("*")
@@ -41,36 +76,15 @@ async function getUserByEmail(
     .single();
 
   if (error) return null;
-  return data as DbUser;
+  return data as ProfileRow;
 }
 
-async function insertUser(
-  client: SupabaseClient,
-  user: { id: string; email: string; role: "user" | "admin" }
-): Promise<DbUser | null> {
-  const { data, error } = await client
-    .from("profiles")
-    .insert(user)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error("insertUser failed", {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-    });
-    return null;
-  }
-  return data as DbUser;
-}
 
 async function updateUserRole(
   client: SupabaseClient,
   userId: string,
-  role: "user" | "admin"
-): Promise<DbUser | null> {
+  role: "user" | "admin",
+): Promise<ProfileRow | null> {
   const { data, error } = await client
     .from("profiles")
     .update({ role })
@@ -79,16 +93,16 @@ async function updateUserRole(
     .single();
 
   if (error) return null;
-  return data as DbUser;
+  return data as ProfileRow;
 }
 
 async function getAllUsers(
   client: SupabaseClient,
-  filters?: { role?: string }
-): Promise<{ users: AdminUser[]; count: number }> {
+  filters?: { role?: string },
+): Promise<{ users: PlatformUser[]; count: number }> {
   const [authResult, rolesResult] = await Promise.all([
     client.auth.admin.listUsers({ perPage: 1000 }),
-    client.from("profiles").select("id, role"),
+    client.from("profiles").select("*"),
   ]);
 
   if (authResult.error) {
@@ -98,61 +112,46 @@ async function getAllUsers(
     return { users: [], count: 0 };
   }
 
-  const roleMap = new Map<string, "user" | "admin">(
-    ((rolesResult.data ?? []) as { id: string; role: "user" | "admin" }[]).map(
-      (u) => [u.id, u.role]
-    )
+  const profileMap = new Map<string, ProfileRow>(
+    ((rolesResult.data ?? []) as ProfileRow[]).map((p) => [p.id, p]),
   );
 
-  let users: AdminUser[] = authResult.data.users.map((authUser) => ({
-    id: authUser.id,
-    email: authUser.email ?? "",
-    role: roleMap.get(authUser.id) ?? "user",
-    createdAt: authUser.created_at,
-    lastSignInAt: authUser.last_sign_in_at ?? null,
-    emailConfirmed: !!authUser.email_confirmed_at,
-  }));
+  let users: PlatformUser[] = authResult.data.users.map((authUser) => {
+    const profile = profileMap.get(authUser.id);
+    return {
+      ...authUser,
+      profile: {
+        id: authUser.id,
+        role: profile?.role ?? "user",
+        first_name: profile?.first_name ?? undefined,
+        last_name: profile?.last_name ?? undefined,
+        created_at: new Date(profile?.created_at ?? authUser.created_at),
+        updated_at: new Date(profile?.updated_at ?? profile?.created_at ?? authUser.created_at),
+      },
+    };
+  });
 
   users.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 
   if (filters?.role) {
-    users = users.filter((u) => u.role === filters.role);
+    users = users.filter((u) => u.profile.role === filters.role);
   }
 
   return { users, count: users.length };
 }
 
-async function getUserWithOrders(
-  client: SupabaseClient,
-  userId: string
-): Promise<{ user: DbUser | null; orders: DbOrder[] }> {
-  const [userResult, ordersResult] = await Promise.all([
-    client.from("profiles").select("*").eq("id", userId).single(),
-    client
-      .from("orders")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(10),
-  ]);
-
-  return {
-    user: userResult.error ? null : (userResult.data as DbUser),
-    orders: ordersResult.error ? [] : (ordersResult.data as DbOrder[]),
-  };
-}
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
 export async function promoteUserToAdmin(
-  admin: AuthenticatedUser,
+  admin: PlatformUser,
   targetUserId: string,
 ): Promise<AuthUserResponse> {
   const client = createAdminClient();
 
-  const targetUser = await getUserById(client, targetUserId);
+  const targetUser = await getProfileById(client, targetUserId);
   if (!targetUser) {
     throw new APIError(404, "User not found");
   }
@@ -179,7 +178,7 @@ export async function promoteUserToAdmin(
 }
 
 export async function createAdminUser(
-  admin: AuthenticatedUser,
+  admin: PlatformUser,
   email: string,
   password: string,
 ): Promise<AuthUserResponse> {
@@ -190,11 +189,12 @@ export async function createAdminUser(
     throw new APIError(409, "Email already in use");
   }
 
-  const { data: authData, error: authError } = await client.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
+  const { data: authData, error: authError } =
+    await client.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
 
   if (authError) {
     logger.error("Admin createUser failed", { error: authError.message });
@@ -202,12 +202,6 @@ export async function createAdminUser(
   }
 
   const newUserId = authData.user.id;
-
-  const dbUser = await insertUser(client, { id: newUserId, email, role: "admin" });
-  if (!dbUser) {
-    await client.auth.admin.deleteUser(newUserId);
-    throw new APIError(500, "Failed to create user record");
-  }
 
   await logAuditEvent({
     actorId: admin.id,
@@ -218,49 +212,53 @@ export async function createAdminUser(
     metadata: { createdBy: admin.email, newAdminEmail: email },
   });
 
-  return { id: dbUser.id, email: dbUser.email, role: dbUser.role };
+  return { id: newUserId, email, role: "admin" };
 }
 
 export async function listUsers(
   client: SupabaseClient,
-  _admin: AuthenticatedUser,
-  filters?: { role?: string }
+  _admin: PlatformUser,
+  filters?: { role?: string },
 ): Promise<UserListResponse> {
   const { users, count } = await getAllUsers(client, filters);
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const startOfMonth = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1,
+  ).toISOString();
 
   return {
     users,
     count,
     stats: {
       total: count,
-      admins: users.filter((u) => u.role === "admin").length,
-      regularUsers: users.filter((u) => u.role === "user").length,
-      newThisMonth: users.filter((u) => u.createdAt >= startOfMonth).length,
+      admins: users.filter((u) => u.profile.role === "admin").length,
+      regularUsers: users.filter((u) => u.profile.role === "user").length,
+      newThisMonth: users.filter((u) => u.created_at >= startOfMonth).length,
     },
   };
 }
 
 export async function getUserDetail(
   client: SupabaseClient,
-  _admin: AuthenticatedUser,
-  userId: string
+  _admin: PlatformUser,
+  userId: string,
 ): Promise<UserDetailResponse> {
-  const [authResult, { user: dbUser, orders }] = await Promise.all([
-    client.auth.admin.getUserById(userId),
-    getUserWithOrders(client, userId),
+  const [user, ordersResult] = await Promise.all([
+    getUserById(client, userId),
+    client
+      .from("orders")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(10),
   ]);
 
-  if (authResult.error || !authResult.data.user) {
-    throw new APIError(404, "User not found");
-  }
+  if (!user) throw new APIError(404, "User not found");
 
-  const authUser = authResult.data.user;
-  const role = dbUser?.role ?? "user";
-
-  const recentOrders: UserRecentOrder[] = orders.map((o) => ({
+  const recentOrders: UserRecentOrder[] = ((ordersResult.data ?? []) as DbOrder[]).map((o) => ({
     id: o.id,
     productName: o.product_name,
     status: o.status as UserRecentOrder["status"],
@@ -268,35 +266,29 @@ export async function getUserDetail(
     createdAt: o.created_at,
   }));
 
-  return {
-    user: {
-      id: authUser.id,
-      email: authUser.email ?? "",
-      role,
-      createdAt: authUser.created_at,
-      lastSignInAt: authUser.last_sign_in_at ?? null,
-      emailConfirmed: !!authUser.email_confirmed_at,
-    },
-    recentOrders,
-  };
+  return { user, recentOrders };
 }
 
 export async function createUser(
-  admin: AuthenticatedUser,
+  admin: PlatformUser,
   email: string,
   password: string,
-  role: "user" | "admin"
-): Promise<AdminUser> {
+  role: "user" | "admin",
+  first_name: string,
+  last_name: string,
+): Promise<PlatformUser> {
   const client = createAdminClient();
 
   const existing = await getUserByEmail(client, email);
   if (existing) throw new APIError(409, "Email already in use");
 
-  const { data: authData, error: authError } = await client.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
+  const { data: authData, error: authError } =
+    await client.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { first_name, last_name },
+    });
 
   if (authError) {
     logger.error("createUser (admin) failed", { error: authError.message });
@@ -304,12 +296,6 @@ export async function createUser(
   }
 
   const newUserId = authData.user.id;
-  const dbUser = await insertUser(client, { id: newUserId, email, role });
-
-  if (!dbUser) {
-    await client.auth.admin.deleteUser(newUserId);
-    throw new APIError(500, "Failed to create user record");
-  }
 
   await logAuditEvent({
     actorId: admin.id,
@@ -321,54 +307,49 @@ export async function createUser(
   });
 
   return {
-    id: authData.user.id,
-    email: authData.user.email ?? email,
-    role,
-    createdAt: authData.user.created_at,
-    lastSignInAt: null,
-    emailConfirmed: true,
+    ...authData.user,
+    profile: {
+      id: newUserId,
+      role,
+      first_name,
+      last_name,
+      created_at: new Date(authData.user.created_at),
+      updated_at: new Date(authData.user.created_at),
+    },
   };
 }
 
 export async function updateUser(
   client: SupabaseClient,
-  admin: AuthenticatedUser,
+  admin: PlatformUser,
   userId: string,
-  role: "user" | "admin"
-): Promise<AdminUser> {
-  const target = await getUserById(client, userId);
+  role: "user" | "admin",
+): Promise<PlatformUser> {
+
+  const target = await getProfileById(client, userId);
   if (!target) throw new APIError(404, "User not found");
 
-  const makeUser = (u: typeof target, r: "user" | "admin"): AdminUser => ({
-    id: u.id,
-    email: u.email,
-    role: r,
-    createdAt: u.created_at,
-    lastSignInAt: null,
-    emailConfirmed: true,
-  });
+  if (target.role !== role) {
+    const updated = await updateUserRole(client, userId, role);
+    if (!updated) throw new APIError(500, "Failed to update user");
 
-  if (target.role === role) {
-    return makeUser(target, role);
+    await logAuditEvent({
+      actorId: admin.id,
+      actorRole: "admin",
+      action: "user_role_updated",
+      entityType: "user",
+      entityId: userId,
+      metadata: { previousRole: target.role, newRole: role },
+    });
   }
 
-  const updated = await updateUserRole(client, userId, role);
-  if (!updated) throw new APIError(500, "Failed to update user");
-
-  await logAuditEvent({
-    actorId: admin.id,
-    actorRole: "admin",
-    action: "user_role_updated",
-    entityType: "user",
-    entityId: userId,
-    metadata: { previousRole: target.role, newRole: role },
-  });
-
-  return makeUser(updated, updated.role);
+  const result = await getUserById(client, userId);
+  if (!result) throw new APIError(500, "Failed to fetch updated user");
+  return result;
 }
 
 export async function adminResetUserPassword(
-  admin: AuthenticatedUser,
+  admin: PlatformUser,
   targetEmail: string,
 ): Promise<MessageResponse> {
   const client = createAdminClient();

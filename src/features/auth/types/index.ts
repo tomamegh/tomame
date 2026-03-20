@@ -1,22 +1,15 @@
-import { UserResponse } from "@supabase/supabase-js";
+import { PlatformUser } from "@/features/users/types";;
 
-export interface UserSession {
-  user: AuthenticatedUser;
-  profile: UserProfile;
-}
+// export interface UserSession {
+//   user: AuthenticatedUser;
+//   profile: UserProfile;
+// }
+export const ROLES = ["admin" , "user" , "system"] as const
 
-export interface UserProfile {
-  id: string;
-  first_name?: string;
-  last_name?: string;
-  role: string;
-  bio?: string;
-  created_at: Date;
-  updated_at: Date;
-}
-export type AuthenticatedUser = UserResponse['data']['user'] & {
-  profile: UserProfile;
-}
+export type PlatformRoles = typeof ROLES[number];
+
+
+export type AuthenticatedUser = PlatformUser
 
 export interface AppMetadata {
   provider: string;

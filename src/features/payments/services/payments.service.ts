@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { DbPayment } from "@/types/db";
+import type { DbPayment } from "@/features/payments/types";
 import {
   getOrderById,
   linkOrderToPayment,
@@ -15,7 +15,7 @@ import {
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { env } from "@/lib/env";
 import { PAYMENT_STATUSES } from "@/config/constants";
-import type { AuthenticatedUser } from "@/features/auth/types";
+import type { PlatformUser } from "@/features/users/types";
 import type {
   InitializePaymentResponse,
   PaymentInsert,
@@ -143,7 +143,7 @@ function toPaymentResponse(payment: DbPayment): PaymentResponse {
 // ── Service functions ─────────────────────────────────────────────────────────
 
 export async function initializePayment(
-  user: AuthenticatedUser,
+  user: PlatformUser,
   orderId: string,
 ): Promise<InitializePaymentResponse> {
   const admin = createAdminClient();
@@ -326,7 +326,7 @@ export interface TransactionListResponse {
 
 export async function listUserTransactions(
   client: SupabaseClient,
-  user: AuthenticatedUser,
+  user: PlatformUser,
 ): Promise<TransactionListResponse> {
   const payments = await getPaymentsByUserId(client, user.id);
   return {
@@ -337,7 +337,7 @@ export async function listUserTransactions(
 
 export async function listAllTransactions(
   client: SupabaseClient,
-  user: AuthenticatedUser,
+  user: PlatformUser,
   filters?: { status?: string; userId?: string },
 ): Promise<TransactionListResponse> {
   if (user.profile.role !== "admin") {

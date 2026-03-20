@@ -38,7 +38,7 @@ const TableFilter = <T, TValue>({
       onValueChange={handleValueChange}
       value={value}
     >
-      <SelectTrigger className="w-fit">
+      <SelectTrigger className="min-w-30 w-fit">
         <SelectValue placeholder={props?.placeholder || "Select"} />
       </SelectTrigger>
       <SelectContent position="popper">

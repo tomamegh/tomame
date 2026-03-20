@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { loginSchema } from "@/features/auth/auth.validators";
+import { loginSchema } from "@/features/auth/schema";
 import { login } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";

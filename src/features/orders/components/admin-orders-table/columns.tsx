@@ -132,23 +132,24 @@ export const columns: ColumnDef<Order>[] = [
       <SortableHeader column={column}>Product</SortableHeader>
     ),
     cell: ({ row }: { row: Row<Order> }) => (
-      <div className="flex items-center max-w-80 overflow-hidden gap-3">
+      <div className="flex items-center max-w-86 overflow-hidden gap-3">
         {row.original.product_image_url ? (
-          <Image
-            src={row.original.product_image_url}
-            alt={row.original.product_name}
-            width={30}
-            height={30}
-            className="object-contain w-full h-full"
-          />
+          <div className="relative size-12 shrink-0">
+            <Image
+              src={row.original.product_image_url}
+              alt={row.original.product_name}
+              fill
+              className="object-contain"
+            />
+          </div>
         ) : (
-          <div className="size-10 rounded-lg border border-stone-200 bg-stone-50 flex items-center justify-center p-1.5">
+          <div className="size-12 rounded-lg border border-stone-200 bg-stone-50 flex items-center justify-center p-1.5">
             <PackageIcon className="size-7 text-stone-300" />
           </div>
         )}
         <Link
           href={`/admin/orders/${row.original.id}`}
-          className="font-medium text-stone-800 hover:text-sky-600"
+          className="font-medium text-stone-800 hover:text-sky-600 overflow-hidden text-ellipsis"
         >
           {row.original.product_name}
         </Link>

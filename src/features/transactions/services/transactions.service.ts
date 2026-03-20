@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/features/auth/types";
-import type { DbPayment } from "@/types/db";
+import type { PlatformUser } from "@/features/users/types";
+import type { DbPayment } from "@/features/payments/types";
 import type { Transaction, TransactionStats } from "../types";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ export interface TransactionResponse {
 
 export async function listTransactions(
   client: SupabaseClient,
-  user: AuthenticatedUser,
+  user: PlatformUser,
 ): Promise<TransactionResponse> {
   if (user.profile.role !== "admin") {
     throw new APIError(403, "Admin access required");

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Table } from "@tanstack/react-table";
-import { SearchIcon, SlidersHorizontalIcon, XIcon } from "lucide-react";
+import { SlidersHorizontalIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,13 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Order, OrderStatus } from "../../types";
-import { Field } from "@/components/ui/field";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
 import TableFilter from "@/components/ui/table-filter-select";
+import TableGlobalFilter from "@/components/ui/table-global-filter";
 
 const COLUMN_LABELS: Record<string, string> = {
   id: "Order ID",
@@ -65,25 +60,20 @@ export function Toolbar({
   const statusColumn = table.getColumn("status");
   const countryColumn = table.getColumn("origin_country");
 
-  const statusColumnCount = statusColumn?.getFacetedUniqueValues() || new Map<string, number>()
+  const statusColumnCount =
+    statusColumn?.getFacetedUniqueValues() || new Map<string, number>();
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
       {/* Search */}
-      <Field
-        orientation={"horizontal"}
-        className="relative flex-1 min-w-45 max-w-sm"
-      >
-        <InputGroup className="rounded-lg shadow-none h-10 bg-neutral-100">
-          <InputGroupAddon>
-            <SearchIcon className="size-4 text-stone-400 pointer-events-none" />
-          </InputGroupAddon>
-          <InputGroupInput
-            placeholder="Search orders..."
-            value={globalFilter}
-            onChange={(e) => onGlobalFilterChange(e.target.value)}
-          />
-        </InputGroup>
+
+        <div className="relative flex-1 min-w-45 max-w-xs">
+        <TableGlobalFilter
+          placeholder="Search orders..."
+          value={globalFilter}
+          onChange={(e) => onGlobalFilterChange(e.target.value)}
+        />
+        </div>
         {statusColumn && (
           <TableFilter
             column={statusColumn}
@@ -93,13 +83,14 @@ export function Toolbar({
               return (
                 <div className="flex items-center gap-1 justify-between">
                   <span className="text-sm">{item.label}</span>
-                  <span className="text-sm text-neutral-400">({statusColumnCount.get(item.value) ?? 0})</span>
+                  <span className="text-sm text-neutral-400">
+                    ({statusColumnCount.get(item.value) ?? 0})
+                  </span>
                 </div>
               );
             }}
           />
         )}
-      </Field>
 
       {countryColumn && (
         <TableFilter

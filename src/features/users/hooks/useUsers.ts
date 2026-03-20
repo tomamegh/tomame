@@ -4,12 +4,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import type { ApiSuccessResponse, MessageResponse } from "@/types/api";
 import type {
-  AdminUser,
   UserListResponse,
   UserDetailResponse,
-  CreateUserRequest,
-  UpdateUserRequest,
+  PlatformUser,
 } from "../types";
+import { CreateUserSchemaType, UpdateUserSchemaType } from "../schema";
+import { User } from "@supabase/supabase-js";
 
 export const userKeys = {
   all: ["users"] as const,
@@ -18,7 +18,11 @@ export const userKeys = {
 };
 
 export function useAdminUsers() {
-  return useQuery<ApiSuccessResponse<UserListResponse>, Error, UserListResponse>({
+  return useQuery<
+    ApiSuccessResponse<UserListResponse>,
+    Error,
+    UserListResponse
+  >({
     queryKey: userKeys.admin(),
     queryFn: () =>
       apiFetch<ApiSuccessResponse<UserListResponse>>("/api/admin/users"),
@@ -28,10 +32,16 @@ export function useAdminUsers() {
 }
 
 export function useAdminUserDetail(id: string) {
-  return useQuery<ApiSuccessResponse<UserDetailResponse>, Error, UserDetailResponse>({
+  return useQuery<
+    ApiSuccessResponse<UserDetailResponse>,
+    Error,
+    UserDetailResponse
+  >({
     queryKey: userKeys.detail(id),
     queryFn: () =>
-      apiFetch<ApiSuccessResponse<UserDetailResponse>>(`/api/admin/users/${id}`),
+      apiFetch<ApiSuccessResponse<UserDetailResponse>>(
+        `/api/admin/users/${id}`,
+      ),
     select: (res) => res.data,
     staleTime: 30_000,
   });
@@ -39,9 +49,9 @@ export function useAdminUserDetail(id: string) {
 
 export function useCreateUser() {
   const queryClient = useQueryClient();
-  return useMutation<ApiSuccessResponse<AdminUser>, Error, CreateUserRequest>({
+  return useMutation<ApiSuccessResponse<User>, Error, CreateUserSchemaType>({
     mutationFn: (body) =>
-      apiFetch<ApiSuccessResponse<AdminUser>>("/api/admin/users", {
+      apiFetch<ApiSuccessResponse<User>>("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -54,9 +64,9 @@ export function useCreateUser() {
 
 export function useUpdateUser(userId: string) {
   const queryClient = useQueryClient();
-  return useMutation<ApiSuccessResponse<AdminUser>, Error, UpdateUserRequest>({
+  return useMutation<ApiSuccessResponse<PlatformUser>, Error, UpdateUserSchemaType>({
     mutationFn: (body) =>
-      apiFetch<ApiSuccessResponse<AdminUser>>(`/api/admin/users/${userId}`, {
+      apiFetch<ApiSuccessResponse<PlatformUser>>(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -73,7 +83,7 @@ export function useResetUserPassword() {
     mutationFn: (userId) =>
       apiFetch<ApiSuccessResponse<MessageResponse>>(
         `/api/admin/users/${userId}/reset-password`,
-        { method: "POST" }
+        { method: "POST" },
       ),
   });
 }

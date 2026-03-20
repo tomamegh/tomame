@@ -1,10 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/features/auth/types";
-import type { DbOrder, DbOrderDelivery } from "@/types/db";
-import type { Order } from "@/features/orders/types";
-import type { Delivery, DeliveryStats } from "../types";
+import type { PlatformUser } from "@/features/users/types";
+import type { DbOrder, Order } from "@/features/orders/types";
+import type { Delivery, DeliveryStats, DbOrderDelivery } from "../types";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
@@ -69,7 +68,7 @@ export interface DeliveryResponse {
 
 export async function listDeliveries(
   client: SupabaseClient,
-  user: AuthenticatedUser,
+  user: PlatformUser,
 ): Promise<DeliveryResponse> {
   if (user.profile.role !== "admin") {
     throw new APIError(403, "Admin access required");

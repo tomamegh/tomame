@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/features/auth/types";
+import type { PlatformUser } from "@/features/users/types";
 import type {
   PricingConfigResponse,
   PricingConfigListResponse,
@@ -11,8 +11,8 @@ import type {
 import type {
   DbPricingConfig,
   DbFixedFreightItem,
-  OrderPricingBreakdown,
-} from "@/types/db";
+} from "@/features/pricing/types";
+import type { OrderPricingBreakdown } from "@/features/orders/types";
 import { getGhsRate } from "@/lib/exchange-rates/service";
 import {
   SERVICE_FEE_TIERS,
@@ -184,7 +184,7 @@ export async function getAll(
 
 export async function updateRegionPricing(
   client: SupabaseClient,
-  admin: AuthenticatedUser,
+  admin: PlatformUser,
   region: "USA" | "UK" | "CHINA",
   baseShippingFeeUsd: number,
   exchangeRate: number,

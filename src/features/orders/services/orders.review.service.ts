@@ -3,9 +3,9 @@ import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { getOrderById } from "@/features/orders/services/orders.service";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { AuthenticatedUser } from "@/features/auth/types";
+import type { PlatformUser } from "@/features/users/types";
 import type { Order } from "../types";
-import type { DbOrder } from "@/types/db";
+import type { DbOrder } from "../types";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ async function updateOrderReview(
 
 export async function reviewOrder(
   client: SupabaseClient,
-  admin: AuthenticatedUser,
+  admin: PlatformUser,
   orderId: string,
   input: {
     action: "approve" | "reject";
