@@ -1,8 +1,10 @@
 // ── Database row types ────────────────────────────────────────────────────────
 
-export interface DbPricingConfig {
+import { OriginCountry } from "@/config/constants";
+
+export interface PricingConfig {
   id: string;
-  region: "USA" | "UK" | "CHINA";
+  region: OriginCountry;
   base_shipping_fee_usd: number;
   exchange_rate: number;
   service_fee_percentage: number;
@@ -10,7 +12,7 @@ export interface DbPricingConfig {
   updated_by: string | null;
 }
 
-export interface DbFixedFreightItem {
+export interface FixedFreightItem {
   id: string;
   category: string;
   product_name: string;
@@ -22,7 +24,7 @@ export interface DbFixedFreightItem {
   updated_at: string;
 }
 
-export interface DbPricingConstant {
+export interface PricingConstant {
   id: string;
   key: string;
   value: number;
@@ -40,7 +42,7 @@ export interface UpdatePricingConfigRequest {
   serviceFeePercentage: number;
 }
 
-// ── Response types — match DbPricingConfig shape ──────────────────────────────
+// ── Response types — match PricingConfig shape ──────────────────────────────
 
 export interface PricingConfigResponse {
   id: string;

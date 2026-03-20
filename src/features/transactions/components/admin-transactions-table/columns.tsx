@@ -1,17 +1,24 @@
 "use client";
 
-import type { ColumnDef, Row } from "@tanstack/react-table";
+import Link from "next/link";
+import type { ColumnDef, Row, Table as TTable } from "@tanstack/react-table";
 import {
   ArrowUpIcon,
   ArrowDownIcon,
   ChevronsUpDownIcon,
   MoreHorizontalIcon,
+  CreditCardIcon,
+  SmartphoneIcon,
+  BuildingIcon,
+  HelpCircleIcon,
+  RefreshCwIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TransactionStatusBadge } from "../transaction-status-badge";
@@ -45,6 +52,61 @@ function SortableHeader({
       )}
     </button>
   );
+}
+
+// ── Channel badge ─────────────────────────────────────────────────────────────
+
+const CHANNEL_CONFIG: Record<
+  string,
+  { label: string; icon: React.ElementType; className: string }
+> = {
+  card: {
+    label: "Card",
+    icon: CreditCardIcon,
+    className: "bg-blue-50 text-blue-700",
+  },
+  mobile_money: {
+    label: "Mobile Money",
+    icon: SmartphoneIcon,
+    className: "bg-emerald-50 text-emerald-700",
+  },
+  bank: {
+    label: "Bank",
+    icon: BuildingIcon,
+    className: "bg-violet-50 text-violet-700",
+  },
+  bank_transfer: {
+    label: "Bank Transfer",
+    icon: BuildingIcon,
+    className: "bg-violet-50 text-violet-700",
+  },
+};
+
+function ChannelBadge({ channel }: { channel: string | null }) {
+  if (!channel) {
+    return <span className="text-xs text-stone-400">—</span>;
+  }
+  const cfg = CHANNEL_CONFIG[channel] ?? {
+    label: channel,
+    icon: HelpCircleIcon,
+    className: "bg-stone-100 text-stone-600",
+  };
+  const Icon = cfg.icon;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${cfg.className}`}
+    >
+      <Icon className="size-3" />
+      {cfg.label}
+    </span>
+  );
+}
+
+// ── Table meta type ───────────────────────────────────────────────────────────
+
+export interface TransactionsTableMeta {
+  onSync: (id: string) => void;
+  syncingId: string | null;
 }
 
 // ── Column definitions ────────────────────────────────────────────────────────
@@ -120,6 +182,20 @@ export const columns: ColumnDef<Transaction>[] = [
     enableHiding: true,
   },
 
+  // ── Channel ───────────────────────────────────────────────────────────────────
+  {
+    accessorKey: "channel",
+    header: "Channel",
+    cell: ({ row }: { row: Row<Transaction> }) => (
+      <ChannelBadge channel={row.original.channel} />
+    ),
+    filterFn: (row, id, value: string) =>
+      !value || row.getValue(id) === value,
+    enableGlobalFilter: false,
+    enableHiding: true,
+    enableSorting: false,
+  },
+
   // ── Amount ───────────────────────────────────────────────────────────────────
   {
     id: "amount_ghs",
@@ -181,8 +257,10 @@ export const columns: ColumnDef<Transaction>[] = [
   // ── Actions ──────────────────────────────────────────────────────────────────
   {
     id: "actions",
-    cell: ({ row }: { row: Row<Transaction> }) => {
+    cell: ({ row, table }: { row: Row<Transaction>; table: TTable<Transaction> }) => {
       const txn = row.original;
+      const meta = table.options.meta as TransactionsTableMeta | undefined;
+      const isSyncing = meta?.syncingId === txn.id;
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -191,7 +269,24 @@ export const columns: ColumnDef<Transaction>[] = [
               <span className="sr-only">Open menu</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem asChild>
+              <Link href={`/admin/transactions/${txn.id}`}>View details</Link>
+            </DropdownMenuItem>
+            {txn.status === "pending" && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => meta?.onSync(txn.id)}
+                  disabled={isSyncing}
+                  className="gap-1.5"
+                >
+                  <RefreshCwIcon className={`size-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                  {isSyncing ? "Syncing…" : "Sync with Paystack"}
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => navigator.clipboard.writeText(txn.reference)}
             >

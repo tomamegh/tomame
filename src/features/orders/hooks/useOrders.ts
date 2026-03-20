@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import { Order, OrderList } from "../types";
 import type { ApiSuccessResponse } from "@/types/api";
-import type { DbAuditLog } from "@/features/audit/types";
+import type { AuditLog } from "@/features/audit/types";
 import { CreateOrderSchemaType } from "../schema";
 
 // ── Query keys ───────────────────────────────────────────────
@@ -174,9 +174,9 @@ export function useCancelOrder() {
 
 /** Get audit history for an order (used for timeline) */
 export function useOrderHistory(orderId: string) {
-  return useQuery<ApiSuccessResponse<DbAuditLog[]>, Error, DbAuditLog[]>({
+  return useQuery<ApiSuccessResponse<AuditLog[]>, Error, AuditLog[]>({
     queryKey: orderKeys.history(orderId),
-    queryFn: () => apiFetch<ApiSuccessResponse<DbAuditLog[]>>(`/api/orders/${orderId}/history`),
+    queryFn: () => apiFetch<ApiSuccessResponse<AuditLog[]>>(`/api/orders/${orderId}/history`),
     select: (res) => res.data,
     enabled: !!orderId,
   });

@@ -1,6 +1,6 @@
 // ── Database row type ─────────────────────────────────────────────────────────
 
-export interface DbNotification {
+export interface PlatformNotification {
   id: string;
   user_id: string;
   channel: "email" | "whatsapp";
@@ -10,7 +10,6 @@ export interface DbNotification {
   created_at: string;
   sent_at: string | null;
 }
-
 // ── Domain types ──────────────────────────────────────────────────────────────
 
 export type NotificationStatus = "pending" | "sent" | "failed";
@@ -34,5 +33,19 @@ export interface NotificationList {
 
 export interface NotificationListResponse {
   notifications: Notification[];
+  count: number;
+}
+
+export interface NotificationWithUser extends Notification {
+  user: {
+    id: string;
+    email: string;
+    first_name: string | null;
+    last_name: string | null;
+  } | null;
+}
+
+export interface AdminNotificationListResponse {
+  notifications: NotificationWithUser[];
   count: number;
 }

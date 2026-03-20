@@ -37,8 +37,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/auth/api-helpers";
+import type { ApiSuccessResponse } from "@/types/api";
+import type { SyncResult } from "../../services/transactions.service";
+import { toast } from "@/lib/sonner";
 import { useAdminTransactions } from "../../hooks/useTransactions";
+import { transactionKeys } from "../../hooks/useTransactions";
 import { columns } from "./columns";
+import type { TransactionsTableMeta } from "./columns";
 import { Toolbar } from "./toolbar";
 import {
   Card,
@@ -48,7 +55,35 @@ import {
 } from "@/components/ui/card";
 
 export function AdminTransactionsTable() {
-  const { data, isLoading } = useAdminTransactions();
+  const { data, isLoading, isFetching, refetch } = useAdminTransactions();
+  const queryClient = useQueryClient();
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  const syncMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<ApiSuccessResponse<SyncResult>>(`/api/admin/transactions/${id}/sync`, {
+        method: "POST",
+      }).then((res) => ({ id, result: res.data })),
+    onSuccess: ({ id, result }) => {
+      setSyncingId(null);
+      queryClient.invalidateQueries({ queryKey: transactionKeys.admin() });
+      queryClient.invalidateQueries({ queryKey: transactionKeys.detail(id) });
+      if (result.updated) {
+        toast.success({ title: "Transaction synced", description: result.message });
+      } else {
+        toast.info({ title: "Already up to date", description: result.message });
+      }
+    },
+    onError: (err: Error) => {
+      setSyncingId(null);
+      toast.error({ title: "Sync failed", description: err.message });
+    },
+  });
+
+  const handleSync = (id: string) => {
+    setSyncingId(id);
+    syncMutation.mutate(id);
+  };
 
   const [sorting, setSorting] = useState<SortingState>([
     { id: "createdAt", desc: true },
@@ -90,6 +125,10 @@ export function AdminTransactionsTable() {
     getPaginationRowModel: getPaginationRowModel(),
     enableRowSelection: true,
     globalFilterFn: "includesString",
+    meta: {
+      onSync: handleSync,
+      syncingId,
+    } satisfies TransactionsTableMeta,
   });
 
   const { pageIndex } = table.getState().pagination;
@@ -103,6 +142,8 @@ export function AdminTransactionsTable() {
           table={table}
           globalFilter={globalFilter}
           onGlobalFilterChange={setGlobalFilter}
+          onRefresh={() => refetch()}
+          isRefreshing={isFetching}
         />
       </CardHeader>
 

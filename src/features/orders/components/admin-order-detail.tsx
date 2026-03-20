@@ -40,7 +40,7 @@ import {
 } from "../hooks/useOrders";
 import { useAdminUserDetail } from "@/features/users/hooks/useUsers";
 import type { Order, OrderStatus, OriginCountry } from "../types";
-import type { DbAuditLog } from "@/features/audit/types";
+import type { AuditLog } from "@/features/audit/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -77,7 +77,7 @@ const STATUS_SEQUENCE: { status: OrderStatus; label: string; description: string
   { status: "completed",  label: "Completed",         description: "Order complete" },
 ];
 
-function getTs(logs: DbAuditLog[], status: string): string | null {
+function getTs(logs: AuditLog[], status: string): string | null {
   if (status === "pending") {
     return logs.find((l) => l.action === "order_created")?.created_at ?? null;
   }

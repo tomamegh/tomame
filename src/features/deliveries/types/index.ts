@@ -2,7 +2,7 @@ import type { Order, OrderStatus } from "@/features/orders/types";
 
 // ── Database row type ─────────────────────────────────────────────────────────
 
-export interface DbOrderDelivery {
+export interface OrderDelivery {
   id: string;
   order_id: string;
   user_id: string;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const initializePaymentSchema = z.object({
-  orderId: z.string().uuid("Invalid order ID"),
+  orderId: z.uuid("Invalid order ID"),
 });
 
 export const paymentCallbackSchema = z.object({

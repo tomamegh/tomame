@@ -1,7 +1,7 @@
 "use client";
 
 import type { Table } from "@tanstack/react-table";
-import { SlidersHorizontalIcon, XIcon, RefreshCwIcon } from "lucide-react";
+import { XIcon, SlidersHorizontalIcon, RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,62 +11,46 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Delivery } from "../../types";
 import TableGlobalFilter from "@/components/ui/table-global-filter";
 import TableFilter from "@/components/ui/table-filter-select";
+import type { NotificationWithUser } from "../../types";
 
 const COLUMN_LABELS: Record<string, string> = {
-  id: "Order ID",
-  productName: "Product",
+  recipient: "Recipient",
+  event: "Event",
+  channel: "Channel",
   status: "Status",
-  originCountry: "Ships From",
-  carrier: "Carrier",
-  tracking_number: "Tracking #",
-  tracking_url: "Track Link",
-  estimatedDeliveryDate: "Est. Delivery",
-  totalGhs: "Amount",
-  createdAt: "Date",
+  created_at: "Created",
+  sent_at: "Sent",
 };
 
 const STATUS_OPTIONS = [
-  { value: "processing", label: "Processing" },
-  { value: "in_transit", label: "In Transit" },
-  { value: "delivered", label: "Delivered" },
-  { value: "completed", label: "Completed" },
+  { value: "pending", label: "Pending" },
+  { value: "sent", label: "Sent" },
+  { value: "failed", label: "Failed" },
 ];
 
-const COUNTRY_OPTIONS = [
-  { value: "USA", label: "🇺🇸 USA" },
-  { value: "UK", label: "🇬🇧 UK" },
-  { value: "CHINA", label: "🇨🇳 China" },
+const CHANNEL_OPTIONS = [
+  { value: "email", label: "Email" },
+  { value: "whatsapp", label: "WhatsApp" },
 ];
 
 interface ToolbarProps {
-  table: Table<Delivery>;
+  table: Table<NotificationWithUser>;
   globalFilter: string;
   onGlobalFilterChange: (value: string) => void;
   onRefresh: () => void;
   isRefreshing: boolean;
 }
 
-export function Toolbar({
-  table,
-  globalFilter,
-  onGlobalFilterChange,
-  onRefresh,
-  isRefreshing,
-}: ToolbarProps) {
-
-  const isFiltered =
-    table.getState().columnFilters.length > 0 || globalFilter.length > 0;
-  const selectedCount = table.getFilteredSelectedRowModel().rows.length;
+export function Toolbar({ table, globalFilter, onGlobalFilterChange, onRefresh, isRefreshing }: ToolbarProps) {
+  const isFiltered = table.getState().columnFilters.length > 0 || globalFilter.length > 0;
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      {/* Search */}
       <div className="relative flex-1 min-w-45 max-w-xs">
         <TableGlobalFilter
-          placeholder="Search product or tracking..."
+          placeholder="Search recipient or event…"
           value={globalFilter}
           onChange={(e) => onGlobalFilterChange(e.target.value)}
         />
@@ -79,12 +63,11 @@ export function Toolbar({
       />
 
       <TableFilter
-        items={COUNTRY_OPTIONS}
-        placeholder="Country"
-        column={table.getColumn("origin_country")!}
+        items={CHANNEL_OPTIONS}
+        placeholder="Channel"
+        column={table.getColumn("channel")!}
       />
 
-      {/* Reset */}
       {isFiltered && (
         <Button
           variant="ghost"
@@ -101,12 +84,6 @@ export function Toolbar({
       )}
 
       <div className="ml-auto flex items-center gap-2">
-        {selectedCount > 0 && (
-          <span className="text-sm text-stone-500 bg-stone-100 px-2.5 py-1 rounded-lg">
-            {selectedCount} selected
-          </span>
-        )}
-
         {/* Refresh */}
         <Button
           variant="outline"
@@ -119,7 +96,6 @@ export function Toolbar({
           Refresh
         </Button>
 
-        {/* Column visibility */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-9 gap-1.5">

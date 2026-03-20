@@ -396,6 +396,10 @@ function NewOrderContent() {
     setOrderError(null);
     createOrder(data, {
       onSuccess: (result) => {
+        if (!result.needs_review) {
+          router.push(`/app/orders/${result.id}/checkout`);
+          return;
+        }
         setCreatedOrder({
           id: result.id,
           product_name: result.product_name,

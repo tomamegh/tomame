@@ -18,8 +18,7 @@ import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
 import type { PlatformUser } from "@/features/users/types";
 import type { PaginatedDataResponse } from "@/types/api";
-import type { DbOrder } from "../types";
-import type { DbAuditLog } from "@/features/audit/types";
+import type { AuditLog } from "@/features/audit/types";
 import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -28,7 +27,7 @@ import { CreateOrderSchemaType } from "../schema";
 export async function getOrderById(
   client: SupabaseClient,
   orderId: string,
-): Promise<DbOrder | null> {
+): Promise<Order | null> {
   const { data, error } = await client
     .from("orders")
     .select("*")
@@ -36,7 +35,7 @@ export async function getOrderById(
     .single();
 
   if (error) return null;
-  return data as DbOrder;
+  return data as Order;
 }
 
 async function upsertOrderDelivery(
@@ -77,7 +76,7 @@ async function updateOrderStatus(
     estimated_delivery_date?: string;
     delivered_at?: string;
   },
-): Promise<DbOrder | null> {
+): Promise<Order | null> {
   const { data, error } = await client
     .from("orders")
     .update(updates)
@@ -94,14 +93,14 @@ async function updateOrderStatus(
     });
     return null;
   }
-  return data as DbOrder;
+  return data as Order;
 }
 
 export async function linkOrderToPayment(
   client: SupabaseClient,
   orderId: string,
   paymentId: string,
-): Promise<DbOrder | null> {
+): Promise<Order | null> {
   const { data, error } = await client
     .from("orders")
     .update({ payment_id: paymentId, status: "paid" })
@@ -118,13 +117,13 @@ export async function linkOrderToPayment(
     });
     return null;
   }
-  return data as DbOrder;
+  return data as Order;
 }
 
 async function getOrdersByUserId(
   client: SupabaseClient,
   userId: string,
-): Promise<DbOrder[]> {
+): Promise<Order[]> {
   const { data, error } = await client
     .from("orders")
     .select("*")
@@ -137,13 +136,13 @@ async function getOrdersByUserId(
     logger.error("getOrdersByUserId failed", { userId, error: error.message });
     return [];
   }
-  return (data ?? []) as DbOrder[];
+  return (data ?? []) as Order[];
 }
 
 async function getAllOrders(
   client: SupabaseClient,
   filters?: { status?: string; userId?: string; needsReview?: boolean },
-): Promise<DbOrder[]> {
+): Promise<Order[]> {
   let query = client
     .from("orders")
     .select("*")
@@ -161,13 +160,13 @@ async function getAllOrders(
     logger.error("getAllOrders failed", { error: error.message });
     return [];
   }
-  return (data ?? []) as DbOrder[];
+  return (data ?? []) as Order[];
 }
 
 async function getOrderAuditLogs(
   client: SupabaseClient,
   orderId: string,
-): Promise<DbAuditLog[]> {
+): Promise<AuditLog[]> {
   const { data, error } = await client
     .from("audit_logs")
     .select("*")
@@ -179,12 +178,12 @@ async function getOrderAuditLogs(
     logger.error("getOrderAuditLogs failed", { orderId, error: error.message });
     return [];
   }
-  return (data ?? []) as DbAuditLog[];
+  return (data ?? []) as AuditLog[];
 }
 
 async function sendOrderStatusEmail(
   userId: string,
-  order: DbOrder,
+  order: Order,
   newStatus: string,
   trackingData?: {
     trackingNumber?: string;
@@ -529,7 +528,7 @@ export async function cancelOrderByUser(
 export async function getOrderAuditHistory(
   user: PlatformUser,
   orderId: string,
-): Promise<DbAuditLog[]> {
+): Promise<AuditLog[]> {
   const supabase = createAdminClient();
   const order = await getOrderById(supabase, orderId);
   if (!order) throw new APIError(404, "Order not found");

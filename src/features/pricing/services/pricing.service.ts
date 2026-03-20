@@ -9,8 +9,8 @@ import type {
   PricingConfigListResponse,
 } from "@/features/pricing/types";
 import type {
-  DbPricingConfig,
-  DbFixedFreightItem,
+  PricingConfig,
+  FixedFreightItem,
 } from "@/features/pricing/types";
 import type { OrderPricingBreakdown } from "@/features/orders/types";
 import { getGhsRate } from "@/lib/exchange-rates/service";
@@ -32,7 +32,7 @@ import { lookupProductWeight } from "@/lib/serpapi/weight-lookup";
 async function getPricingConfigByRegion(
   client: SupabaseClient,
   region: "USA" | "UK" | "CHINA"
-): Promise<DbPricingConfig | null> {
+): Promise<PricingConfig | null> {
   const { data, error } = await client
     .from("pricing_config")
     .select("*")
@@ -46,12 +46,12 @@ async function getPricingConfigByRegion(
     });
     return null;
   }
-  return data as DbPricingConfig;
+  return data as PricingConfig;
 }
 
 async function getAllPricingConfigs(
   client: SupabaseClient
-): Promise<DbPricingConfig[]> {
+): Promise<PricingConfig[]> {
   const { data, error } = await client
     .from("pricing_config")
     .select("*")
@@ -61,7 +61,7 @@ async function getAllPricingConfigs(
     logger.error("getAllPricingConfigs failed", { error: error.message });
     return [];
   }
-  return (data ?? []) as DbPricingConfig[];
+  return (data ?? []) as PricingConfig[];
 }
 
 async function updatePricingConfig(
@@ -73,7 +73,7 @@ async function updatePricingConfig(
     service_fee_percentage: number;
     updated_by: string;
   }
-): Promise<DbPricingConfig | null> {
+): Promise<PricingConfig | null> {
   const { data, error } = await client
     .from("pricing_config")
     .update({
@@ -91,7 +91,7 @@ async function updatePricingConfig(
     });
     return null;
   }
-  return data as DbPricingConfig;
+  return data as PricingConfig;
 }
 
 /**
@@ -101,7 +101,7 @@ async function updatePricingConfig(
  */
 async function findFixedFreightItem(
   productName: string,
-): Promise<DbFixedFreightItem | null> {
+): Promise<FixedFreightItem | null> {
   const client = createAdminClient();
 
   const { data, error } = await client
@@ -118,10 +118,10 @@ async function findFixedFreightItem(
   if (!data || data.length === 0) return null;
 
   const nameLower = productName.toLowerCase();
-  let bestMatch: DbFixedFreightItem | null = null;
+  let bestMatch: FixedFreightItem | null = null;
   let bestKeywordLength = 0;
 
-  for (const item of data as DbFixedFreightItem[]) {
+  for (const item of data as FixedFreightItem[]) {
     for (const keyword of item.keywords) {
       if (nameLower.includes(keyword) && keyword.length > bestKeywordLength) {
         bestMatch = item;
