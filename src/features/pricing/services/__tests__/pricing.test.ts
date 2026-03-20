@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { DbFixedFreightItem } from "@/features/pricing/types";
+import type { FixedFreightItem } from "@/features/pricing/types";
 
 // Mock server-only
 vi.mock("server-only", () => ({}));
@@ -34,7 +34,7 @@ import { getGhsRate } from "@/lib/exchange-rates/service";
 import { lookupProductWeight } from "@/lib/serpapi/weight-lookup";
 
 // Fixtures
-const IPHONE_16: DbFixedFreightItem = {
+const IPHONE_16: FixedFreightItem = {
   id: "ff-iphone16",
   category: "IPHONE",
   product_name: "iPhone 16",
@@ -46,7 +46,7 @@ const IPHONE_16: DbFixedFreightItem = {
   updated_at: "",
 };
 
-const IPHONE_16_PRO: DbFixedFreightItem = {
+const IPHONE_16_PRO: FixedFreightItem = {
   id: "ff-iphone16pro",
   category: "IPHONE",
   product_name: "iPhone 16 Pro & Max",
@@ -59,7 +59,7 @@ const IPHONE_16_PRO: DbFixedFreightItem = {
 };
 
 // Mock Supabase client
-let mockFixedFreightItems: DbFixedFreightItem[] = [];
+let mockFixedFreightItems: FixedFreightItem[] = [];
 const mockSupabaseClient = {
   from: (table: string) => {
     if (table === "fixed_freight_items") {

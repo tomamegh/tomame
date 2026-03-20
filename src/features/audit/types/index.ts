@@ -1,6 +1,6 @@
 // ── Database row type ─────────────────────────────────────────────────────────
 
-export interface DbAuditLog {
+export interface AuditLog {
   id: string;
   actor_id: string | null;
   actor_role: "user" | "admin" | "system";

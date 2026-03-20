@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { DbPayment } from "@/features/payments/types";
+import type { Payment } from "@/features/payments/types";
 import {
   getOrderById,
   linkOrderToPayment,
@@ -13,6 +13,7 @@ import {
   generatePaymentReference,
 } from "@/lib/paystack/client";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { createOrderNotifications } from "@/features/notifications/services/notifications.service";
 import { env } from "@/lib/env";
 import { PAYMENT_STATUSES } from "@/config/constants";
 import type { PlatformUser } from "@/features/users/types";
@@ -28,7 +29,7 @@ import type {
 async function insertPayment(
   client: SupabaseClient,
   payment: PaymentInsert
-): Promise<DbPayment | null> {
+): Promise<Payment | null> {
   const { data, error } = await client
     .from("payments")
     .insert(payment)
@@ -42,13 +43,13 @@ async function insertPayment(
     });
     return null;
   }
-  return data as DbPayment;
+  return data as Payment;
 }
 
 async function getPaymentByReference(
   client: SupabaseClient,
   reference: string
-): Promise<DbPayment | null> {
+): Promise<Payment | null> {
   const { data, error } = await client
     .from("payments")
     .select("*")
@@ -56,13 +57,13 @@ async function getPaymentByReference(
     .single();
 
   if (error) return null;
-  return data as DbPayment;
+  return data as Payment;
 }
 
 async function getPaymentsByUserId(
   client: SupabaseClient,
   userId: string
-): Promise<DbPayment[]> {
+): Promise<Payment[]> {
   const { data, error } = await client
     .from("payments")
     .select("*")
@@ -73,13 +74,13 @@ async function getPaymentsByUserId(
     logger.error("getPaymentsByUserId failed", { userId, error: error.message });
     return [];
   }
-  return (data ?? []) as DbPayment[];
+  return (data ?? []) as Payment[];
 }
 
 async function getAllPayments(
   client: SupabaseClient,
   filters?: { status?: string; userId?: string }
-): Promise<DbPayment[]> {
+): Promise<Payment[]> {
   let query = client
     .from("payments")
     .select("*")
@@ -94,19 +95,19 @@ async function getAllPayments(
     logger.error("getAllPayments failed", { error: error.message });
     return [];
   }
-  return (data ?? []) as DbPayment[];
+  return (data ?? []) as Payment[];
 }
 
 async function updatePaymentStatus(
   client: SupabaseClient,
   paymentId: string,
   status: string,
-  metadata?: Record<string, unknown>
-): Promise<DbPayment | null> {
+  metadata?: Record<string, unknown>,
+  channel?: string
+): Promise<Payment | null> {
   const update: Record<string, unknown> = { status };
-  if (metadata) {
-    update.metadata = metadata;
-  }
+  if (metadata) update.metadata = metadata;
+  if (channel) update.channel = channel;
 
   const { data, error } = await client
     .from("payments")
@@ -124,18 +125,19 @@ async function updatePaymentStatus(
     });
     return null;
   }
-  return data as DbPayment;
+  return data as Payment;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function toPaymentResponse(payment: DbPayment): PaymentResponse {
+function toPaymentResponse(payment: Payment): PaymentResponse {
   return {
     id: payment.id,
     reference: payment.reference,
     amount: payment.amount,
     currency: payment.currency,
     status: payment.status,
+    channel: payment.channel ?? null,
     createdAt: payment.created_at,
   };
 }
@@ -240,12 +242,17 @@ export async function handlePaymentCallback(
   const orderId = (payment.metadata as Record<string, unknown>)?.order_id as string;
 
   if (paystackStatus === "success") {
-    await updatePaymentStatus(admin, payment.id, PAYMENT_STATUSES.SUCCESS, {
-      paystack_verification: verifyData,
-    });
+    const paystackChannel = verifyData.channel as string | undefined;
+    await updatePaymentStatus(
+      admin,
+      payment.id,
+      PAYMENT_STATUSES.SUCCESS,
+      { paystack_verification: verifyData },
+      paystackChannel,
+    );
 
     if (orderId) {
-      await linkOrderToPayment(admin, orderId, payment.id);
+      const order = await linkOrderToPayment(admin, orderId, payment.id);
 
       await logAuditEvent({
         actorId: payment.user_id,
@@ -255,6 +262,15 @@ export async function handlePaymentCallback(
         entityId: orderId,
         metadata: { from: "pending", to: "paid", paymentId: payment.id },
       });
+
+      if (order) {
+        await createOrderNotifications(
+          payment.user_id,
+          orderId,
+          order.product_name,
+          order.pricing.total_ghs,
+        );
+      }
     }
 
     await logAuditEvent({
@@ -266,7 +282,7 @@ export async function handlePaymentCallback(
       metadata: { reference, orderId },
     });
 
-    return { redirectUrl: `${env.app.url}/orders?payment=success` };
+    return { redirectUrl: `${env.app.url}/app/orders/${orderId}?payment=success` };
   }
 
   await updatePaymentStatus(admin, payment.id, PAYMENT_STATUSES.FAILED, {

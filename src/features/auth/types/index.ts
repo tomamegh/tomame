@@ -41,11 +41,11 @@ export interface UserMetadataClass {
   sub: string;
 }
 
-export interface AuthUserResponse {
-  id: string;
-  email: string;
-  role: string;
-}
+// export interface AuthUserResponse {
+//   id: string;
+//   email: string;
+//   role: string;
+// }
 
 // ── Request types ────────────────────────────────────────────────────────────
 

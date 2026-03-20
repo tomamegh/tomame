@@ -1,6 +1,8 @@
 export const RATE_LIMIT = {
   /** Auth endpoints (signup, login, forgot-password) */
   auth: { windowMs: 15 * 60 * 1000, maxRequests: 10 },
+  /** General authenticated endpoints */
+  general: { windowMs: 15 * 60 * 1000, maxRequests: 60 },
   /** Admin endpoints */
   admin: { windowMs: 15 * 60 * 1000, maxRequests: 20 },
   /** Order creation — 5 requests per hour per user */

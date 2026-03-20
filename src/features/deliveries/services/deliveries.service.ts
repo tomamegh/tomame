@@ -2,8 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
 import type { PlatformUser } from "@/features/users/types";
-import type { DbOrder, Order } from "@/features/orders/types";
-import type { Delivery, DeliveryStats, DbOrderDelivery } from "../types";
+import type { Order } from "@/features/orders/types";
+import type { Delivery, DeliveryStats, OrderDelivery } from "../types";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ const DELIVERY_STATUSES = [
 async function getDeliveries(
   client: SupabaseClient,
   filters?: { status?: string; originCountry?: string },
-): Promise<DbOrder[]> {
+): Promise<Order[]> {
   const statuses =
     filters?.status && DELIVERY_STATUSES.includes(filters.status as (typeof DELIVERY_STATUSES)[number])
       ? [filters.status]
@@ -39,7 +39,7 @@ async function getDeliveries(
     logger.error("getDeliveries failed", { error: error.message });
     return [];
   }
-  return (data ?? []) as DbOrder[];
+  return (data ?? []) as Order[];
 }
 
 // ── Service functions ─────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ async function getDeliveries(
 async function getOrderDeliveryRecords(
   client: SupabaseClient,
   orderIds: string[],
-): Promise<DbOrderDelivery[]> {
+): Promise<OrderDelivery[]> {
   if (orderIds.length === 0) return [];
   const { data, error } = await client
     .from("order_deliveries")
@@ -57,7 +57,7 @@ async function getOrderDeliveryRecords(
     logger.error("getOrderDeliveryRecords failed", { error: error.message });
     return [];
   }
-  return (data ?? []) as DbOrderDelivery[];
+  return (data ?? []) as OrderDelivery[];
 }
 
 export interface DeliveryResponse {

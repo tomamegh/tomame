@@ -5,12 +5,11 @@ import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
 import type { MessageResponse } from "@/types/api";
 import { LoginSchemaType } from "../schema";
-import { type AuthenticatedUser, AuthUserResponse } from "../types";
+import { type AuthenticatedUser } from "../types";
+import { PlatformUser } from "@/features/users/types";
+import { User } from "@supabase/supabase-js";
 
-export async function signup(
-  email: string,
-  password: string,
-): Promise<AuthUserResponse> {
+export async function signup(email: string, password: string): Promise<User> {
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signUp({ email, password });
@@ -38,12 +37,10 @@ export async function signup(
     entityId: data.user.id,
   });
 
-  return { id: data.user.id, email: data.user.email!, role: "user" };
+  return data.user;
 }
 
-export async function login(
-  details: LoginSchemaType,
-): Promise<AuthUserResponse> {
+export async function login(details: LoginSchemaType): Promise<PlatformUser> {
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signInWithPassword(details);
@@ -52,25 +49,25 @@ export async function login(
     throw new APIError(401, "Invalid email or password");
   }
 
-  const { data: dbUser } = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
     .select("id, role")
     .eq("id", data.user.id)
     .single();
 
-  if (!dbUser) {
+  if (!profile) {
     throw new APIError(500, "User record not found");
   }
 
   await logAuditEvent({
-    actorId: dbUser.id,
-    actorRole: dbUser.role,
+    actorId: profile.id,
+    actorRole: profile.role,
     action: "user_logged_in",
     entityType: "user",
-    entityId: dbUser.id,
+    entityId: profile.id,
   });
 
-  return { email: data.user.email!, id: data.user.id, role: dbUser.role };
+  return { ...data.user, profile: profile as PlatformUser["profile"] };
 }
 
 /**
@@ -160,7 +157,15 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
   if (!profile || error) return null;
 
   return {
-    ...(data.user),
-    profile,
+    ...data.user,
+    profile: {
+      id: profile.id,
+      role: profile.role,
+      first_name: profile.first_name ?? undefined,
+      last_name: profile.last_name ?? undefined,
+      bio: profile.bio ?? undefined,
+      created_at: new Date(profile.created_at),
+      updated_at: new Date(profile.updated_at),
+    },
   };
 }

@@ -1,12 +1,13 @@
 // ── Database row type ─────────────────────────────────────────────────────────
 
-export interface DbPayment {
+export interface Payment {
   id: string;
   user_id: string;
   reference: string;
   amount: number;
   currency: string;
   status: "pending" | "success" | "failed";
+  channel: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
 }
@@ -25,6 +26,7 @@ export interface PaymentResponse {
   amount: number;
   currency: string;
   status: string;
+  channel: string | null;
   createdAt: string;
 }
 

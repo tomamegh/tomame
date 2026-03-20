@@ -5,7 +5,6 @@ import { getOrderById } from "@/features/orders/services/orders.service";
 import { APIError } from "@/lib/auth/api-helpers";
 import type { PlatformUser } from "@/features/users/types";
 import type { Order } from "../types";
-import type { DbOrder } from "../types";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
@@ -23,7 +22,7 @@ async function updateOrderReview(
     origin_country: string;
     status: string;
   }>,
-): Promise<DbOrder | null> {
+): Promise<Order | null> {
   const { data, error } = await client
     .from("orders")
     .update(updates)
@@ -39,7 +38,7 @@ async function updateOrderReview(
     });
     return null;
   }
-  return data as DbOrder;
+  return data as Order;
 }
 
 // ── Service functions ─────────────────────────────────────────────────────────

@@ -45,7 +45,7 @@ import type { UsersTableMeta } from "./columns";
 import { Toolbar } from "./toolbar";
 
 export function AdminUsersTable() {
-  const { data, isLoading } = useAdminUsers();
+  const { data, isLoading, isFetching, refetch } = useAdminUsers();
   const resetPassword = useResetUserPassword();
 
   const [sorting, setSorting] = useState<SortingState>([
@@ -108,6 +108,8 @@ export function AdminUsersTable() {
           table={table}
           globalFilter={globalFilter}
           onGlobalFilterChange={setGlobalFilter}
+          onRefresh={() => refetch()}
+          isRefreshing={isFetching}
         />
       </CardHeader>
 

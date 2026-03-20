@@ -56,7 +56,7 @@ import {
 } from "@/components/ui/card";
 
 export function AdminOrdersTable() {
-  const { data, isLoading } = useAdminOrdersData();
+  const { data, isLoading, isFetching, refetch } = useAdminOrdersData();
   const queryClient = useQueryClient();
 
   // ── Table state ────────────────────────────────────────────────────────────
@@ -133,6 +133,8 @@ export function AdminOrdersTable() {
           table={table}
           globalFilter={globalFilter}
           onGlobalFilterChange={setGlobalFilter}
+          onRefresh={() => refetch()}
+          isRefreshing={isFetching}
         />
       </CardHeader>
 

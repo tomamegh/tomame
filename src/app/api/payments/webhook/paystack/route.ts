@@ -9,7 +9,7 @@ import { logger } from "@/lib/logger";
 
 /**
  * @swagger
- * /api/webhooks/paystack:
+ * /api/payments/webhook/paystack:
  *   post:
  *     tags: [Webhooks]
  *     summary: Paystack webhook handler

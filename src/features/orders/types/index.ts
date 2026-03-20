@@ -104,32 +104,3 @@ export interface OrderList {
   orders: Order[];
   count: number;
 }
-
-// ── Database row type ─────────────────────────────────────────────────────────
-
-export interface DbOrder {
-  id: string;
-  user_id: string;
-  payment_id: string | null;
-  status: "pending" | "paid" | "processing" | "in_transit" | "delivered" | "completed" | "cancelled";
-  tracking_number: string | null;
-  carrier: string | null;
-  estimated_delivery_date: string | null;
-  delivered_at: string | null;
-  product_url: string;
-  product_name: string;
-  product_image_url: string | null;
-  estimated_price_usd: number;
-  quantity: number;
-  origin_country: "USA" | "UK" | "CHINA";
-  special_instructions: string | null;
-  pricing: OrderPricingBreakdown;
-  needs_review: boolean;
-  review_reasons: string[];
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  extraction_metadata: OrderExtractionMetadata | null;
-  extraction_data: Record<string, unknown> | null;
-  created_at: string;
-  updated_at: string;
-}

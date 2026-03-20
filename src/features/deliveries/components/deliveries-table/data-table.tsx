@@ -43,7 +43,7 @@ import { Toolbar } from "./toolbar";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 
 export function AdminDeliveriesTable() {
-  const { data, isLoading } = useAdminDeliveries();
+  const { data, isLoading, isFetching, refetch } = useAdminDeliveries();
 
   const [sorting, setSorting] = useState<SortingState>([
     { id: "createdAt", desc: true },
@@ -94,10 +94,12 @@ export function AdminDeliveriesTable() {
     <Card>
       <CardHeader>
         <Toolbar
-        table={table}
-        globalFilter={globalFilter}
-        onGlobalFilterChange={setGlobalFilter}
-      />
+          table={table}
+          globalFilter={globalFilter}
+          onGlobalFilterChange={setGlobalFilter}
+          onRefresh={() => refetch()}
+          isRefreshing={isFetching}
+        />
       </CardHeader>
 
       {/* Table */}
