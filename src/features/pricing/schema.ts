@@ -11,9 +11,9 @@ export const updatePricingConfigSchema = z.object({
     .number({ error: "Exchange rate is required" })
     .positive("Exchange rate must be positive"),
   serviceFeePercentage: z
-    .number({ error: "Service fee percentage is required" })
-    .min(0, "Service fee percentage cannot be negative")
-    .max(1, "Service fee percentage must be between 0 and 1"),
+    .number({ error: "Tax percentage is required" })
+    .min(0, "Tax percentage cannot be negative")
+    .max(1, "Tax percentage must be between 0 and 1"),
 });
 
 export type UpdatePricingConfigSchemaType = z.infer<typeof updatePricingConfigSchema>

@@ -217,7 +217,7 @@ function PricingBreakdown({ order }: { order: Order }) {
           { label: "Seller shipping", value: p.seller_shipping_usd ? `$${fmt(p.seller_shipping_usd)}` : "FREE" },
           { label: "Int'l freight (incl. customs)", value: `$${fmt(p.freight_usd ?? 0)}` },
           {
-            label: `Service fee (${((p.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`,
+            label: `Tax (${((p.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`,
             value: `$${fmt(p.service_fee_usd ?? 0)}`,
           },
           { label: "Handling", value: `$${fmt(p.handling_fee_usd ?? 0)}` },

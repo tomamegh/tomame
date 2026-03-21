@@ -1,5 +1,5 @@
-/** Service fee tiers — applied as percentage of item price (Method 2 only) */
-export const SERVICE_FEE_TIERS = [
+/** Tax tiers — applied as percentage of item price (Method 2 only) */
+export const TAX_TIERS = [
   { maxUsd: 100, percentage: 0.18, minimumUsd: 12 },
   { maxUsd: 300, percentage: 0.15, minimumUsd: 0 },
   { maxUsd: 700, percentage: 0.12, minimumUsd: 0 },
@@ -44,3 +44,6 @@ export const DEFAULT_HANDLING_FEE_USD = 15.0;
 
 /** Default volumetric weight divisor (for dimensions in inches) */
 export const DEFAULT_VOLUMETRIC_DIVISOR = 139;
+
+/** Default minimum tax per order (USD) */
+export const DEFAULT_MINIMUM_TAX_USD = 12.0;

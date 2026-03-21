@@ -40,7 +40,7 @@ function RegionForm({ config }: RegionFormProps) {
       return;
     }
     if (isNaN(serviceFeePercentage) || serviceFeePercentage < 0 || serviceFeePercentage > 1) {
-      toast.error("Service fee must be between 0% and 100%");
+      toast.error("Tax must be between 0% and 100%");
       return;
     }
 
@@ -86,7 +86,7 @@ function RegionForm({ config }: RegionFormProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor={`service-fee-${config.region}`}>Service Fee (%)</Label>
+          <Label htmlFor={`service-fee-${config.region}`}>Tax (%)</Label>
           <div className="relative">
             <Input
               id={`service-fee-${config.region}`}
@@ -103,7 +103,7 @@ function RegionForm({ config }: RegionFormProps) {
             </span>
           </div>
           <p className="text-xs text-stone-400">
-            Overrides tiered service fee tiers for this region. Enter as a percentage (e.g. 15).
+            Tax rate applied to formula-based orders for this region (e.g. 15 = 15%). Minimum tax from Pricing Constants is enforced.
           </p>
         </div>
       </div>
@@ -139,7 +139,7 @@ export function PricingConfigCard() {
       <CardHeader>
         <CardTitle>Pricing Configuration</CardTitle>
         <CardDescription>
-          Set the base shipping fee and service fee percentage per region.
+          Set the base shipping fee and tax percentage per region.
           Exchange rates are pulled live from the exchange rates table.
         </CardDescription>
       </CardHeader>

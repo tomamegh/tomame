@@ -58,8 +58,31 @@ const IPHONE_16_PRO: FixedFreightItem = {
   updated_at: "",
 };
 
+// Default pricing constants from DB
+const DEFAULT_PRICING_CONSTANTS = [
+  { key: "freight_rate_per_lb", value: 6.5 },
+  { key: "handling_fee_usd", value: 15 },
+  { key: "fx_buffer_pct", value: 0.04 },
+  { key: "volumetric_divisor", value: 139 },
+  { key: "minimum_tax_usd", value: 12 },
+];
+
+// Default region pricing config (10% tax for USA)
+const USA_PRICING_CONFIG = {
+  id: "pc-usa",
+  region: "USA",
+  base_shipping_fee_usd: 15,
+  exchange_rate: 14.5,
+  service_fee_percentage: 0.10,
+  last_updated: new Date().toISOString(),
+  updated_by: null,
+};
+
 // Mock Supabase client
 let mockFixedFreightItems: FixedFreightItem[] = [];
+let mockPricingConstants = DEFAULT_PRICING_CONSTANTS;
+let mockPricingConfig: typeof USA_PRICING_CONFIG | null = USA_PRICING_CONFIG;
+
 const mockSupabaseClient = {
   from: (table: string) => {
     if (table === "fixed_freight_items") {
@@ -75,7 +98,28 @@ const mockSupabaseClient = {
         }),
       };
     }
-    // pricing_config etc
+    if (table === "pricing_constants") {
+      return {
+        select: () =>
+          Promise.resolve({
+            data: mockPricingConstants,
+            error: null,
+          }),
+      };
+    }
+    if (table === "pricing_config") {
+      return {
+        select: () => ({
+          eq: () => ({
+            single: () =>
+              Promise.resolve({
+                data: mockPricingConfig,
+                error: mockPricingConfig ? null : { message: "not found" },
+              }),
+          }),
+        }),
+      };
+    }
     return {
       select: () => ({
         eq: () => ({
@@ -90,6 +134,8 @@ const mockSupabaseClient = {
 beforeEach(() => {
   vi.clearAllMocks();
   mockFixedFreightItems = [IPHONE_16, IPHONE_16_PRO];
+  mockPricingConstants = DEFAULT_PRICING_CONSTANTS;
+  mockPricingConfig = USA_PRICING_CONFIG;
 });
 
 describe("calculatePricing", () => {
@@ -132,9 +178,11 @@ describe("calculatePricing", () => {
   });
 
   describe("Method 2: Formula-Based", () => {
-    it("Bose Speaker @ $149, 2lbs, 12×10×8″ → ~GH₵ 3,655", async () => {
+    it("Bose Speaker @ $149, 2lbs, 12×10×8″ — uses region tax %", async () => {
       vi.mocked(getGhsRate).mockResolvedValue(15.2);
       mockFixedFreightItems = []; // No fixed freight matches
+      // Region tax = 10%
+      mockPricingConfig = { ...USA_PRICING_CONFIG, service_fee_percentage: 0.15 };
 
       const result = await calculatePricing({
         itemPriceUsd: 149,
@@ -158,7 +206,7 @@ describe("calculatePricing", () => {
       // Freight: 6.9 × $6.50 = $44.85
       expect(result.freight_usd).toBeCloseTo(44.89, 0);
 
-      // Service fee: $149 is in $100-300 tier → 15% = $22.35
+      // Tax: $149 × 15% (from region config) = $22.35
       expect(result.service_fee_percentage).toBe(0.15);
       expect(result.service_fee_usd).toBeCloseTo(22.35, 1);
 
@@ -172,9 +220,11 @@ describe("calculatePricing", () => {
       expect(result.total_ghs).toBeCloseTo(3655, -1);
     });
 
-    it("applies 18% minimum $12 service fee for items under $100", async () => {
+    it("applies minimum tax from pricing_constants for cheap items", async () => {
       vi.mocked(getGhsRate).mockResolvedValue(15.2);
       mockFixedFreightItems = [];
+      // Region tax = 10%, minimum_tax = $12
+      mockPricingConfig = { ...USA_PRICING_CONFIG, service_fee_percentage: 0.10 };
 
       const result = await calculatePricing({
         itemPriceUsd: 50,
@@ -184,9 +234,49 @@ describe("calculatePricing", () => {
         weightSource: "scraped",
       });
 
-      // 50 × 18% = $9, but minimum is $12
+      // 50 × 10% = $5, but minimum is $12
       expect(result.service_fee_usd).toBe(12);
-      expect(result.service_fee_percentage).toBe(0.18);
+      expect(result.service_fee_percentage).toBe(0.10);
+    });
+
+    it("uses admin-editable minimum tax from DB", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.2);
+      mockFixedFreightItems = [];
+      mockPricingConfig = { ...USA_PRICING_CONFIG, service_fee_percentage: 0.10 };
+      // Admin changed minimum tax to $8
+      mockPricingConstants = DEFAULT_PRICING_CONSTANTS.map((c) =>
+        c.key === "minimum_tax_usd" ? { ...c, value: 8 } : c,
+      );
+
+      const result = await calculatePricing({
+        itemPriceUsd: 50,
+        quantity: 1,
+        region: "USA",
+        weightLbs: 1,
+        weightSource: "scraped",
+      });
+
+      // 50 × 10% = $5, but new minimum is $8
+      expect(result.service_fee_usd).toBe(8);
+    });
+
+    it("falls back to tiered tax when region config has 0% tax", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.2);
+      mockFixedFreightItems = [];
+      // Region tax is 0 — should fall back to tiers
+      mockPricingConfig = { ...USA_PRICING_CONFIG, service_fee_percentage: 0 };
+
+      const result = await calculatePricing({
+        itemPriceUsd: 149,
+        quantity: 1,
+        region: "USA",
+        weightLbs: 2,
+        weightSource: "scraped",
+      });
+
+      // Falls back to tier: $100-300 = 15%
+      expect(result.service_fee_percentage).toBe(0.15);
+      expect(result.service_fee_usd).toBeCloseTo(22.35, 1);
     });
 
     it("uses SerpAPI weight when scraped weight unavailable", async () => {
@@ -241,6 +331,30 @@ describe("calculatePricing", () => {
       // Fallback: 14.50 × 1.04 = 15.08
       expect(result.mid_market_rate).toBe(14.5);
       expect(result.exchange_rate).toBeCloseTo(15.08, 2);
+    });
+
+    it("uses admin-editable freight rate and handling fee from DB", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.2);
+      mockFixedFreightItems = [];
+      // Admin changed freight to $8/lb and handling to $20
+      mockPricingConstants = DEFAULT_PRICING_CONSTANTS.map((c) => {
+        if (c.key === "freight_rate_per_lb") return { ...c, value: 8 };
+        if (c.key === "handling_fee_usd") return { ...c, value: 20 };
+        return c;
+      });
+
+      const result = await calculatePricing({
+        itemPriceUsd: 100,
+        quantity: 1,
+        region: "USA",
+        weightLbs: 2,
+        weightSource: "scraped",
+      });
+
+      // Freight: 2 × $8 = $16
+      expect(result.freight_usd).toBe(16);
+      // Handling: $20
+      expect(result.handling_fee_usd).toBe(20);
     });
   });
 });

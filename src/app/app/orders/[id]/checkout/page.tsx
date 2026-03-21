@@ -158,12 +158,22 @@ export default function CheckoutPage({ params }: Props) {
             : [
                 { label: "Subtotal", value: `$${p.subtotal_usd.toFixed(2)}` },
                 {
+                  label: "Seller shipping",
+                  value: p.seller_shipping_usd
+                    ? `$${p.seller_shipping_usd.toFixed(2)}`
+                    : "FREE",
+                },
+                {
                   label: "Int'l freight (incl. customs)",
                   value: `$${(p.freight_usd ?? 0).toFixed(2)}`,
                 },
                 {
-                  label: `Service fee (${((p.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`,
+                  label: `Tax (${((p.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`,
                   value: `$${(p.service_fee_usd ?? 0).toFixed(2)}`,
+                },
+                {
+                  label: "Handling",
+                  value: `$${(p.handling_fee_usd ?? 0).toFixed(2)}`,
                 },
                 { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
               ]

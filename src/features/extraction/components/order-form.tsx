@@ -409,7 +409,7 @@ export function OrderForm({
                         value: `$${(pricing.freight_usd ?? 0).toFixed(2)}`,
                       },
                       {
-                        label: `Service fee (${((pricing.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`,
+                        label: `Tax (${((pricing.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`,
                         value: `$${(pricing.service_fee_usd ?? 0).toFixed(2)}`,
                       },
                       {

@@ -1,4 +1,5 @@
 import { PricingConfigCard } from "@/features/settings/components/pricing-config-card";
+import { PricingConstantsCard } from "@/features/settings/components/pricing-constants-card";
 import { ExchangeRatesCard } from "@/features/settings/components/exchange-rates-card";
 
 export default function SettingsPage() {
@@ -12,6 +13,7 @@ export default function SettingsPage() {
       </div>
 
       <ExchangeRatesCard />
+      <PricingConstantsCard />
       <PricingConfigCard />
     </div>
   );

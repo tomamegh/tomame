@@ -245,7 +245,7 @@ function OrderSuccess({
                     { label: "Subtotal", value: fmtUsd(p.subtotal_usd) },
                     { label: "Seller shipping", value: p.seller_shipping_usd ? fmtUsd(p.seller_shipping_usd) : "FREE" },
                     { label: "Int'l freight (incl. customs)", value: fmtUsd(p.freight_usd ?? 0) },
-                    { label: `Service fee (${((p.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`, value: fmtUsd(p.service_fee_usd ?? 0) },
+                    { label: `Tax (${((p.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`, value: fmtUsd(p.service_fee_usd ?? 0) },
                     { label: "Handling", value: fmtUsd(p.handling_fee_usd ?? 0) },
                     { label: "Total (USD)", value: fmtUsd(p.total_usd ?? 0), muted: true },
                     { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
