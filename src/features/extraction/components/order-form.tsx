@@ -480,7 +480,7 @@ export function OrderForm({
               <Button
                 type="button"
                 onClick={form.handleSubmit((data) =>
-                  onSubmit(data as CreateOrderSchemaType),
+                  onSubmit({ ...data, pricing: pricing ?? undefined } as CreateOrderSchemaType),
                 )}
                 variant="primary"
                 disabled={isLoading}

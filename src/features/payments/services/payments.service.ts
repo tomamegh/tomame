@@ -77,6 +77,22 @@ async function getPaymentsByUserId(
   return (data ?? []) as Payment[];
 }
 
+async function getActivePaymentForOrder(
+  client: SupabaseClient,
+  orderId: string,
+): Promise<Payment | null> {
+  const { data } = await client
+    .from("payments")
+    .select("*")
+    .filter("metadata->>order_id", "eq", orderId)
+    .in("status", [PAYMENT_STATUSES.PENDING, PAYMENT_STATUSES.SUCCESS])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data as Payment | null;
+}
+
 async function getAllPayments(
   client: SupabaseClient,
   filters?: { status?: string; userId?: string }
@@ -154,6 +170,15 @@ export async function initializePayment(
   if (!order) throw new APIError(404, "Order not found");
   if (order.user_id !== user.id) throw new APIError(404, "Order not found");
   if (order.status !== "pending") throw new APIError(400, "Order is not awaiting payment");
+
+  // Guard against double payment: block if a pending or successful payment already exists
+  const existingPayment = await getActivePaymentForOrder(admin, orderId);
+  if (existingPayment) {
+    if (existingPayment.status === PAYMENT_STATUSES.SUCCESS) {
+      throw new APIError(409, "This order has already been paid.");
+    }
+    throw new APIError(409, "A payment is already in progress for this order.");
+  }
 
   const totalPesewas = order.pricing.total_pesewas;
   const reference = generatePaymentReference();

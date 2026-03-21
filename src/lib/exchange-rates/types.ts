@@ -1,6 +1,6 @@
 // ── Database row type ─────────────────────────────────────────────────────────
 
-export interface DbExchangeRate {
+export interface ExchangeRate {
   id: string;
   base_currency: string;
   target_currency: string;

@@ -10,5 +10,5 @@
  *   FixedFreightItem,
  *   PricingConstant             → src/features/pricing/types/index.ts
  * OrderDelivery                 → src/features/deliveries/types/index.ts
- * DbExchangeRate                  → src/lib/exchange-rates/types.ts
+ * ExchangeRate                  → src/lib/exchange-rates/types.ts
  */

@@ -58,6 +58,7 @@ export const createOrderSchema = z.object({
   review_reasons: z.array(z.string()).optional(),
   extraction_metadata: extractionMetadataSchema.optional(),
   extraction_data: z.record(z.string(), z.unknown()).optional(),
+  pricing: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const reviewOrderSchema = z.object({

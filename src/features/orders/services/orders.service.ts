@@ -23,6 +23,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CreateOrderSchemaType } from "../schema";
+import type { OrderPricingBreakdown } from "../types";
 
 export async function getOrderById(
   client: SupabaseClient,
@@ -257,7 +258,7 @@ export async function createOrder(
     );
   }
 
-  const pricing = await calculatePricing({
+  const pricing: OrderPricingBreakdown = (input.pricing as OrderPricingBreakdown | undefined) ?? await calculatePricing({
     itemPriceUsd: input.estimated_price_usd,
     quantity: input.quantity,
     region: input.origin_country,

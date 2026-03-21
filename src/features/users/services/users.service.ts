@@ -3,7 +3,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { APIError } from "@/lib/auth/api-helpers";
-// import type { AuthUserResponse } from "@/features/auth/types";
 import type { MessageResponse } from "@/types/api";
 import type { Order } from "@/features/orders/types";
 import type {
@@ -11,7 +10,6 @@ import type {
   UserProfile,
   UserListResponse,
   UserDetailResponse,
-  UserRecentOrder,
 } from "@/features/users/types";
 
 async function getProfileById(
@@ -260,17 +258,7 @@ export async function getUserDetail(
 
   if (!user) throw new APIError(404, "User not found");
 
-  const recentOrders: UserRecentOrder[] = (
-    (ordersResult.data ?? []) as Order[]
-  ).map((o) => ({
-    id: o.id,
-    productName: o.product_name,
-    status: o.status as UserRecentOrder["status"],
-    totalGhs: o.pricing?.total_ghs ?? 0,
-    createdAt: o.created_at,
-  }));
-
-  return { user, recentOrders };
+  return { user, recentOrders: ordersResult.data as Order[] };
 }
 
 export async function createUser(
