@@ -264,7 +264,7 @@ export function UserDetailClient({ userId }: Props) {
                               href={`/admin/orders/${order.id}`}
                               className="font-medium text-stone-800 text-sm hover:text-rose-600 hover:underline line-clamp-1 max-w-52 block"
                             >
-                              {order.productName}
+                              {order.product_name}
                             </Link>
                             <p className="text-xs text-stone-400 font-mono">
                               #{order.id.slice(0, 8)}
@@ -275,10 +275,10 @@ export function UserDetailClient({ userId }: Props) {
                           <OrderStatusBadge status={order.status as OrderStatus} />
                         </TableCell>
                         <TableCell className="text-right font-medium text-sm text-stone-800">
-                          {formatGhs(order.totalGhs)}
+                          {formatGhs(order.pricing.total_ghs)}
                         </TableCell>
                         <TableCell className="text-right text-sm text-stone-500 pr-6">
-                          {formatDate(order.createdAt)}
+                          {formatDate(order.created_at)}
                         </TableCell>
                       </TableRow>
                     ))

@@ -1,5 +1,5 @@
 import { PlatformRoles } from "@/features/auth/types";
-import type { OrderStatus } from "@/features/orders/types";
+import type { Order } from "@/features/orders/types";
 import { User } from "@supabase/supabase-js";
 
 export interface PlatformUser extends User {
@@ -14,14 +14,6 @@ export interface UserProfile {
   bio?: string;
   created_at: Date;
   updated_at: Date;
-}
-
-export interface UserRecentOrder {
-  id: string;
-  productName: string;
-  status: OrderStatus;
-  totalGhs: number;
-  createdAt: string;
 }
 
 // ── List / stats ──────────────────────────────────────────────────────────────
@@ -48,6 +40,6 @@ export interface UserListResponse {
 
 export interface UserDetailResponse {
   user: PlatformUser;
-  recentOrders: UserRecentOrder[];
+  recentOrders: Order[];
 }
 

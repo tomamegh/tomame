@@ -75,7 +75,7 @@ export function ProductPreview({
 
       {/* Product card */}
       <Card className="overflow-hidden">
-        <CardContent className="flex start gap-5 md:gap-8">
+        <CardContent className="flex start max-md:flex-col gap-5 md:gap-8">
           {/* Product image */}
           <div className="shrink-0">
             {image ? (

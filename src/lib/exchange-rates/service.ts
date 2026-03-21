@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
-import type { DbExchangeRate, ExchangeRateProvider } from "./types";
+import type { ExchangeRate, ExchangeRateProvider } from "./types";
 import { freeCurrencyProvider } from "./freecurrency";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
@@ -8,7 +8,7 @@ import { freeCurrencyProvider } from "./freecurrency";
 /**
  * Get exchange rate from DB by base currency.
  */
-export async function getRate(baseCurrency: string): Promise<DbExchangeRate | null> {
+export async function getRate(baseCurrency: string): Promise<ExchangeRate | null> {
   const client = createAdminClient();
 
   const { data, error } = await client
@@ -23,13 +23,13 @@ export async function getRate(baseCurrency: string): Promise<DbExchangeRate | nu
     return null;
   }
 
-  return data as DbExchangeRate;
+  return data as ExchangeRate;
 }
 
 /**
  * Get all exchange rates from DB.
  */
-export async function getAllRates(): Promise<DbExchangeRate[]> {
+export async function getAllRates(): Promise<ExchangeRate[]> {
   const client = createAdminClient();
 
   const { data, error } = await client
@@ -43,7 +43,7 @@ export async function getAllRates(): Promise<DbExchangeRate[]> {
     return [];
   }
 
-  return (data ?? []) as DbExchangeRate[];
+  return (data ?? []) as ExchangeRate[];
 }
 
 /**
@@ -53,7 +53,7 @@ async function upsertRate(
   baseCurrency: string,
   rate: number,
   provider: string
-): Promise<DbExchangeRate | null> {
+): Promise<ExchangeRate | null> {
   const client = createAdminClient();
   const now = new Date().toISOString();
 
@@ -78,7 +78,7 @@ async function upsertRate(
     return null;
   }
 
-  return data as DbExchangeRate;
+  return data as ExchangeRate;
 }
 
 // ── Service functions ─────────────────────────────────────────────────────────

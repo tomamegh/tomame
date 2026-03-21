@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { PricingConfigListResponse, PricingConfigResponse } from "@/features/pricing/types";
-import type { DbExchangeRate } from "@/lib/exchange-rates/types";
+import type { ExchangeRate } from "@/lib/exchange-rates/types";
 
 // ── Query keys ────────────────────────────────────────────────────────────────
 
@@ -44,10 +44,10 @@ export function useUpdatePricingConfig() {
 }
 
 export function useExchangeRates() {
-  return useQuery<ApiSuccessResponse<{ rates: DbExchangeRate[] }>, Error, DbExchangeRate[]>({
+  return useQuery<ApiSuccessResponse<{ rates: ExchangeRate[] }>, Error, ExchangeRate[]>({
     queryKey: settingsKeys.exchangeRates,
     queryFn: () =>
-      apiFetch<ApiSuccessResponse<{ rates: DbExchangeRate[] }>>("/api/admin/exchange-rates"),
+      apiFetch<ApiSuccessResponse<{ rates: ExchangeRate[] }>>("/api/admin/exchange-rates"),
     select: (res) => res.data.rates,
     staleTime: 60_000,
   });

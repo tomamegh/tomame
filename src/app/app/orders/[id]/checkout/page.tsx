@@ -74,6 +74,8 @@ export default function CheckoutPage({ params }: Props) {
     );
   }
 
+  const alreadyPaid = order.status !== "pending";
+
   const p = order.pricing;
 
   return (
@@ -94,7 +96,14 @@ export default function CheckoutPage({ params }: Props) {
         </div>
       </div>
 
-      {paymentStatus === "failed" && (
+      {alreadyPaid && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
+          <CheckCircle2Icon className="size-4 shrink-0" />
+          This order has already been paid. No further action is needed.
+        </div>
+      )}
+
+      {!alreadyPaid && paymentStatus === "failed" && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           Payment was not completed. Please try again.
         </div>
@@ -177,27 +186,37 @@ export default function CheckoutPage({ params }: Props) {
 
         {/* Pay button */}
         <div className="px-5 py-4 space-y-3">
-          <Button
-            className="w-full gap-2"
-            size="lg"
-            onClick={handlePay}
-            disabled={isPending}
-          >
-            {isPending ? (
-              <>
-                Redirecting <Spinner />
-              </>
-            ) : (
-              <>
-                <CreditCardIcon className="size-4" />
-                Pay {fmtGhs(p.total_ghs)}
-              </>
-            )}
-          </Button>
-          <div className="flex items-center justify-center gap-1.5 text-xs text-stone-400">
-            <ShieldCheckIcon className="size-3.5" />
-            Secured by Paystack · Mobile Money &amp; Card accepted
-          </div>
+          {alreadyPaid ? (
+            <Link href={`/app/orders/${id}`} className="block">
+              <Button variant="outline" className="w-full gap-2" size="lg">
+                View Order
+              </Button>
+            </Link>
+          ) : (
+            <>
+              <Button
+                className="w-full gap-2"
+                size="lg"
+                onClick={handlePay}
+                disabled={isPending}
+              >
+                {isPending ? (
+                  <>
+                    Redirecting <Spinner />
+                  </>
+                ) : (
+                  <>
+                    <CreditCardIcon className="size-4" />
+                    Pay {fmtGhs(p.total_ghs)}
+                  </>
+                )}
+              </Button>
+              <div className="flex items-center justify-center gap-1.5 text-xs text-stone-400">
+                <ShieldCheckIcon className="size-3.5" />
+                Secured by Paystack · Mobile Money &amp; Card accepted
+              </div>
+            </>
+          )}
         </div>
       </Card>
 

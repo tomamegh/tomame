@@ -97,7 +97,7 @@ export const columns: ColumnDef<Delivery>[] = [
 
   // ── Product ──────────────────────────────────────────────────────────────────
   {
-    accessorKey: 'product_name',
+    accessorKey: "product_name",
     accessorFn: (row: Delivery) => row.product_name,
     header: ({ column }) => (
       <SortableHeader column={column}>Product</SortableHeader>
@@ -124,8 +124,7 @@ export const columns: ColumnDef<Delivery>[] = [
     cell: ({ row }: { row: Row<Delivery> }) => (
       <DeliveryStatusBadge status={row.original.status as DeliveryStatus} />
     ),
-    filterFn: (row, id, value: string) =>
-      !value || row.getValue(id) === value,
+    filterFn: (row, id, value: string) => !value || row.getValue(id) === value,
     enableGlobalFilter: false,
     enableHiding: true,
   },
@@ -143,12 +142,12 @@ export const columns: ColumnDef<Delivery>[] = [
       };
       return (
         <span className="text-sm text-stone-600">
-          {flags[row.original.origin_country] ?? ""} {row.original.origin_country}
+          {flags[row.original.origin_country] ?? ""}{" "}
+          {row.original.origin_country}
         </span>
       );
     },
-    filterFn: (row, id, value: string) =>
-      !value || row.getValue(id) === value,
+    filterFn: (row, id, value: string) => !value || row.getValue(id) === value,
     enableGlobalFilter: false,
     enableHiding: true,
   },
@@ -159,9 +158,7 @@ export const columns: ColumnDef<Delivery>[] = [
     header: "Carrier",
     cell: ({ row }: { row: Row<Delivery> }) => (
       <span className="text-sm text-stone-600">
-        {row.original.carrier ?? (
-          <span className="text-stone-300">—</span>
-        )}
+        {row.original.carrier ?? <span className="text-stone-300">—</span>}
       </span>
     ),
     enableGlobalFilter: true,
@@ -213,8 +210,7 @@ export const columns: ColumnDef<Delivery>[] = [
 
   // ── Est. Delivery ─────────────────────────────────────────────────────────────
   {
-    id: "estimatedDeliveryDate",
-    accessorKey: 'estimated_delivery_date',
+    accessorKey: "estimated_delivery_date",
     accessorFn: (row: Delivery) => row.estimated_delivery_date ?? "",
     header: "Est. Delivery",
     cell: ({ row }: { row: Row<Delivery> }) =>
@@ -236,7 +232,6 @@ export const columns: ColumnDef<Delivery>[] = [
   // ── Amount ───────────────────────────────────────────────────────────────────
   {
     id: "totalGhs",
-    accessorKey: '',
     accessorFn: (row: Delivery) => row.pricing?.total_ghs ?? 0,
     header: ({ column }) => (
       <SortableHeader column={column}>Amount</SortableHeader>
@@ -260,8 +255,7 @@ export const columns: ColumnDef<Delivery>[] = [
 
   // ── Date ─────────────────────────────────────────────────────────────────────
   {
-    id: "createdAt",
-    accessorFn: (row: Delivery) => row.created_at,
+    accessorKey: "created_at",
     header: ({ column }) => (
       <SortableHeader column={column}>Date</SortableHeader>
     ),

@@ -17,15 +17,15 @@ import TableFilter from "@/components/ui/table-filter-select";
 
 const COLUMN_LABELS: Record<string, string> = {
   id: "Order ID",
-  productName: "Product",
+  product_name: "Product",
   status: "Status",
-  originCountry: "Ships From",
+  origin_country: "Ships From",
   carrier: "Carrier",
   tracking_number: "Tracking #",
   tracking_url: "Track Link",
-  estimatedDeliveryDate: "Est. Delivery",
+  estimated_delivery_date: "Est. Delivery",
   totalGhs: "Amount",
-  createdAt: "Date",
+  created_at: "Date",
 };
 
 const STATUS_OPTIONS = [
