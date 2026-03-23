@@ -213,30 +213,71 @@ export class AmazonScraper extends PlatformScraper {
     "a.co", // Amazon short URL (mobile app sharing)
   ];
 
+  /**
+   * Try a direct HTTP fetch with browser-like headers.
+   * Amazon serves SSR HTML — no JS rendering needed for product data.
+   */
+  private async directFetch(url: string): Promise<string | null> {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          "Accept":
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache",
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) return null;
+      const html = await res.text();
+      // Verify we got a product page, not a CAPTCHA/bot page
+      if (html.includes("productTitle") || html.includes("dp/")) return html;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   public async scrape(url: string): Promise<ScrapedProduct> {
     const cleanedUrl = AmazonScraper.cleanUrl(url);
+    let html: string | null = null;
 
-    // Try with #productTitle selector first, fall back to loading without it
-    let result = await this.browserless.scrapeContent({
-      url: cleanedUrl,
-      waitForSelector: "#productTitle",
-      timeout: 20000,
-    });
+    // Short URLs need Browserless for redirect resolution
+    const isShortUrl = new URL(url).hostname === "a.co";
 
-    if (!result.success || !result.html) {
-      // Retry without waitForSelector — page may have loaded with a
-      // different layout (e.g. CAPTCHA, A/B test, redesigned template)
-      result = await this.browserless.scrapeContent({
-        url: cleanedUrl,
+    if (!isShortUrl) {
+      // Try direct HTTP fetch first — faster and avoids bot detection
+      html = await this.directFetch(cleanedUrl);
+    }
+
+    // Fall back to Browserless (needed for short URLs and JS-heavy pages)
+    if (!html) {
+      const target = isShortUrl ? url : cleanedUrl;
+      let result = await this.browserless.scrapeContent({
+        url: target,
+        waitForSelector: "#productTitle",
         timeout: 20000,
       });
+
+      if (!result.success || !result.html) {
+        result = await this.browserless.scrapeContent({
+          url: target,
+          timeout: 20000,
+        });
+      }
+
+      if (!result.success || !result.html) {
+        throw new Error(result.error ?? "Failed to fetch page");
+      }
+      html = result.html;
     }
 
-    if (!result.success || !result.html) {
-      throw new Error(result.error ?? "Failed to fetch page");
-    }
-
-    const $ = cheerio.load(result.html);
+    const $ = cheerio.load(html);
     return this.extract($);
   }
 
