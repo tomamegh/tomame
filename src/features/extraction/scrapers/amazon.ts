@@ -177,6 +177,28 @@ function extractDimensions(specs: Record<string, string>): string | null {
 }
 
 export class AmazonScraper extends PlatformScraper {
+  /**
+   * Strip Amazon search/session params — only the /dp/ASIN path matters.
+   * Keeps the URL clean and avoids anti-bot triggers from tracking params.
+   */
+  private static cleanUrl(raw: string): string {
+    try {
+      const u = new URL(raw);
+      // Short URLs (a.co) must be passed as-is — they redirect
+      if (u.hostname === "a.co") return raw;
+
+      // Extract ASIN from /dp/XXXX path segment
+      const dpMatch = u.pathname.match(/\/dp\/([A-Z0-9]{10})/i);
+      if (dpMatch) {
+        // Rebuild with just the product path, no query params
+        return `${u.origin}/dp/${dpMatch[1]}`;
+      }
+      // Fallback: keep path, drop query params
+      return `${u.origin}${u.pathname}`;
+    } catch {
+      return raw;
+    }
+  }
   public readonly domains = [
     "amazon.com",
     "amazon.co.uk",
@@ -192,10 +214,23 @@ export class AmazonScraper extends PlatformScraper {
   ];
 
   public async scrape(url: string): Promise<ScrapedProduct> {
-    const result = await this.browserless.scrapeContent({
-      url,
+    const cleanedUrl = AmazonScraper.cleanUrl(url);
+
+    // Try with #productTitle selector first, fall back to loading without it
+    let result = await this.browserless.scrapeContent({
+      url: cleanedUrl,
       waitForSelector: "#productTitle",
+      timeout: 20000,
     });
+
+    if (!result.success || !result.html) {
+      // Retry without waitForSelector — page may have loaded with a
+      // different layout (e.g. CAPTCHA, A/B test, redesigned template)
+      result = await this.browserless.scrapeContent({
+        url: cleanedUrl,
+        timeout: 20000,
+      });
+    }
 
     if (!result.success || !result.html) {
       throw new Error(result.error ?? "Failed to fetch page");

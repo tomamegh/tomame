@@ -42,16 +42,23 @@ export class BrowserlessClient {
    * Fetch the fully-rendered HTML content of a page.
    */
   public async scrapeContent(options: ScrapeContentOptions): Promise<ScrapeContentResult> {
-    const { url, timeout = 15000, waitForSelector } = options;
+    const { url, timeout = 20000, waitForSelector } = options;
     const apiKey = getApiKey();
 
     try {
       const body: Record<string, unknown> = {
         url,
+        bestAttempt: true,
         gotoOptions: {
-          waitUntil: "networkidle2",
+          waitUntil: "domcontentloaded",
           timeout,
         },
+        // Stealth flags to avoid bot detection
+        setExtraHTTPHeaders: {
+          "Accept-Language": "en-US,en;q=0.9",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        },
+        setJavaScriptEnabled: true,
       };
 
       if (waitForSelector) {
@@ -61,7 +68,7 @@ export class BrowserlessClient {
         };
       }
 
-      const response = await fetch(`${this.apiUrl}/content?token=${apiKey}`, {
+      const response = await fetch(`${this.apiUrl}/content?token=${apiKey}&stealth`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

@@ -102,6 +102,7 @@ export function OrderForm({
       review_reasons: reviewReasons,
       // Full extraction result — all fields whether null or not
       extraction_metadata: extractionData,
+      extraction_cache_id: extractionData.extraction_cache_id ?? undefined,
     },
   });
 

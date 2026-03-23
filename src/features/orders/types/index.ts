@@ -67,6 +67,7 @@ export interface Order {
   reviewed_by: string | null;
   reviewed_at: string | null;
   extraction_metadata: OrderExtractionMetadata | null;
+  extraction_cache_id: string | null;
   created_at: string;
   updated_at: string;
   // Joined from order_deliveries (present on admin fetch)
