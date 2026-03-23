@@ -1,16 +1,12 @@
--- Move exchange rate fetching from Vercel cron to pg_cron + pg_net.
--- Runs 6 times daily at 0:00, 4:00, 8:00, 12:00, 16:00, 20:00 UTC.
+-- Exchange rate refresh via pg_cron + pg_net.
+-- Calls our /api/cron/exchange-rates endpoint 6 times daily.
 --
--- pg_cron triggers pg_net to call our own API endpoint,
--- which uses the FREECURRENCY_API_KEY env var to fetch rates.
---
--- Setup required: store your app URL and service role key in Postgres config:
---   alter database postgres set app.settings.supabase_url = 'https://your-project.supabase.co';
---   alter database postgres set app.settings.service_role_key = 'your-service-role-key';
+-- Setup required (run once in Supabase SQL editor for production):
+--   alter database postgres set app.settings.app_url = 'https://your-app.vercel.app';
+--   alter database postgres set app.settings.cron_secret = 'your-cron-secret';
 
 create extension if not exists pg_net with schema extensions;
 
--- Call our own /api/cron/exchange-rates endpoint via pg_net.
 create or replace function refresh_exchange_rates() returns void as $$
 declare
   v_app_url text;
@@ -33,7 +29,7 @@ begin
 end;
 $$ language plpgsql security definer;
 
--- Schedule: fetch rates 6 times daily (every 4 hours)
+-- Every 4 hours: 0:00, 4:00, 8:00, 12:00, 16:00, 20:00 UTC
 select cron.schedule(
   'fetch-exchange-rates',
   '0 0,4,8,12,16,20 * * *',
