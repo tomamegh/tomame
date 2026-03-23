@@ -16,7 +16,7 @@ export async function getRate(baseCurrency: string): Promise<ExchangeRate | null
     .select("*")
     .eq("base_currency", baseCurrency.toUpperCase())
     .eq("target_currency", "GHS")
-    .single();
+    .maybeSingle();
 
   if (error) {
     logger.error("getRate failed", { baseCurrency, error: error.message });

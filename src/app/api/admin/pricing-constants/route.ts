@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const client = createAdminClient();
     const { data, error } = await client
       .from("pricing_constants")
-      .select("*")
+      .select("id, key, value, label, description, unit, updated_at, updated_by")
       .order("key");
 
     if (error) throw new APIError(500, error.message);
