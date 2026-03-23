@@ -35,9 +35,9 @@ export async function apiFetch<T>(url: string, options?: RequestInit): Promise<T
   const res = await fetch(url, options);
   const json = await res.json();
   if (!res.ok) {
-    if (res.status === 401 && typeof window !== "undefined") {
-      window.location.href = `/auth/login?next=${encodeURIComponent(window.location.pathname)}`;
-    }
+    // if (res.status === 401 && typeof window !== "undefined") {
+    //   window.location.href = `/auth/login?next=${encodeURIComponent(window.location.pathname)}`;
+    // }
     throw new Error(json.error ?? "Request failed");
   }
   return json as T;

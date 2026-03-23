@@ -1,7 +1,13 @@
 "use client";
 
 import { RefreshCwIcon } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
@@ -37,8 +43,14 @@ export function ExchangeRatesCard() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
-      await apiFetch("/api/cron/exchange-rates");
-      await queryClient.invalidateQueries({ queryKey: settingsKeys.exchangeRates });
+      await apiFetch("/api/pricing/rates/refresh", {
+        headers: {
+          Authorization: `Bearer ${process.env.CRON_SECRET}`,
+        },
+      });
+      await queryClient.invalidateQueries({
+        queryKey: settingsKeys.exchangeRates,
+      });
       toast.success("Exchange rates refreshed");
     } catch {
       toast.error("Failed to refresh rates");
@@ -54,7 +66,8 @@ export function ExchangeRatesCard() {
           <div>
             <CardTitle>Live Exchange Rates</CardTitle>
             <CardDescription className="mt-1">
-              Mid-market rates fetched every 4 hours. Pricing applies a 4% buffer on top.
+              Mid-market rates fetched every 4 hours. Pricing applies a 4%
+              buffer on top.
             </CardDescription>
           </div>
           <Button
@@ -80,16 +93,23 @@ export function ExchangeRatesCard() {
             <span>Loading…</span>
           </div>
         ) : !rates?.length ? (
-          <p className="text-sm text-stone-400 text-center py-6">No rates available yet.</p>
+          <p className="text-sm text-stone-400 text-center py-6">
+            No rates available yet.
+          </p>
         ) : (
           <div className="divide-y divide-stone-100">
             {rates.map((rate) => {
               const meta = CURRENCY_LABELS[rate.base_currency];
               const appliedRate = rate.rate * (1 + DEFAULT_FX_BUFFER_PCT);
               return (
-                <div key={rate.id} className="flex items-center justify-between py-3 gap-4">
+                <div
+                  key={rate.id}
+                  className="flex items-center justify-between py-3 gap-4"
+                >
                   <div className="flex items-center gap-3">
-                    <span className="text-xl leading-none">{meta?.flag ?? "🌐"}</span>
+                    <span className="text-xl leading-none">
+                      {meta?.flag ?? "🌐"}
+                    </span>
                     <div>
                       <p className="text-sm font-medium text-stone-800">
                         {rate.base_currency} → GHS
@@ -105,8 +125,13 @@ export function ExchangeRatesCard() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 justify-end">
-                      <span className="text-xs text-stone-400">Applied (+4%)</span>
-                      <Badge variant="secondary" className="font-mono text-xs font-semibold">
+                      <span className="text-xs text-stone-400">
+                        Applied (+4%)
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        className="font-mono text-xs font-semibold"
+                      >
                         {appliedRate.toFixed(4)}
                       </Badge>
                     </div>

@@ -106,6 +106,7 @@ export async function fetchAndStoreRates(
         errors.push(`${currency}: DB upsert failed`);
       }
     } catch (err) {
+      console.log('Exchange Rate Error',err)
       const message = err instanceof Error ? err.message : String(err);
       errors.push(`${currency}: ${message}`);
       logger.error("Failed to fetch/store rate", { currency, error: message });
