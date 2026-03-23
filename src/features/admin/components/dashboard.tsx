@@ -14,7 +14,7 @@ export function AdminDashboard() {
     <div className="space-y-8 py-2">
       <StatCards stats={data?.stats} isLoading={isLoading} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <OverviewChart />
+        <OverviewChart data={data?.chartData} isLoading={isLoading} />
         <LatestOrdersTable orders={data?.latestOrders} isLoading={isLoading} />
         <LatestDeliveriesTable
           deliveries={data?.latestDeliveries}

@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
-
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Card,
@@ -14,8 +13,6 @@ import {
 } from "@/components/ui/card";
 import {
   ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
 import {
@@ -26,173 +23,275 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { ChartDataPoint, ChartMetric } from "../types";
 
-export const description = "An interactive area chart";
+// ── Config ────────────────────────────────────────────────────────────────────
 
-const chartData = [
-  { date: "2024-04-01", desktop: 222, mobile: 150 },
-  { date: "2024-04-02", desktop: 97, mobile: 180 },
-  { date: "2024-04-03", desktop: 167, mobile: 120 },
-  { date: "2024-04-04", desktop: 242, mobile: 260 },
-  { date: "2024-04-05", desktop: 373, mobile: 290 },
-  { date: "2024-04-06", desktop: 301, mobile: 340 },
-  { date: "2024-04-07", desktop: 245, mobile: 180 },
-  { date: "2024-04-08", desktop: 409, mobile: 320 },
-  { date: "2024-04-09", desktop: 59, mobile: 110 },
-  { date: "2024-04-10", desktop: 261, mobile: 190 },
-  { date: "2024-04-11", desktop: 327, mobile: 350 },
-  { date: "2024-04-12", desktop: 292, mobile: 210 },
-  { date: "2024-04-13", desktop: 342, mobile: 380 },
-  { date: "2024-04-14", desktop: 137, mobile: 220 },
-  { date: "2024-04-15", desktop: 120, mobile: 170 },
-  { date: "2024-04-16", desktop: 138, mobile: 190 },
-  { date: "2024-04-17", desktop: 446, mobile: 360 },
-  { date: "2024-04-18", desktop: 364, mobile: 410 },
-  { date: "2024-04-19", desktop: 243, mobile: 180 },
-  { date: "2024-04-20", desktop: 89, mobile: 150 },
-  { date: "2024-04-21", desktop: 137, mobile: 200 },
-  { date: "2024-04-22", desktop: 224, mobile: 170 },
-  { date: "2024-04-23", desktop: 138, mobile: 230 },
-  { date: "2024-04-24", desktop: 387, mobile: 290 },
-  { date: "2024-04-25", desktop: 215, mobile: 250 },
-  { date: "2024-04-26", desktop: 75, mobile: 130 },
-  { date: "2024-04-27", desktop: 383, mobile: 420 },
-  { date: "2024-04-28", desktop: 122, mobile: 180 },
-  { date: "2024-04-29", desktop: 315, mobile: 240 },
-  { date: "2024-04-30", desktop: 454, mobile: 380 },
-  { date: "2024-05-01", desktop: 165, mobile: 220 },
-  { date: "2024-05-02", desktop: 293, mobile: 310 },
-  { date: "2024-05-03", desktop: 247, mobile: 190 },
-  { date: "2024-05-04", desktop: 385, mobile: 420 },
-  { date: "2024-05-05", desktop: 481, mobile: 390 },
-  { date: "2024-05-06", desktop: 498, mobile: 520 },
-  { date: "2024-05-07", desktop: 388, mobile: 300 },
-  { date: "2024-05-08", desktop: 149, mobile: 210 },
-  { date: "2024-05-09", desktop: 227, mobile: 180 },
-  { date: "2024-05-10", desktop: 293, mobile: 330 },
-  { date: "2024-05-11", desktop: 335, mobile: 270 },
-  { date: "2024-05-12", desktop: 197, mobile: 240 },
+const DEFAULT_METRIC: ChartMetric = "orders";
+const DEFAULT_TIME_RANGE = "30";
+
+type MetricOption = {
+  value: ChartMetric;
+  label: string;
+  description: string;
+  color: string;
+  dataKey: keyof ChartDataPoint;
+  yFormatter: (v: number) => string;
+  tooltipFormatter: (v: number) => string;
+};
+
+const METRIC_OPTIONS: MetricOption[] = [
+  {
+    value: "orders",
+    label: "Orders",
+    description: "Total orders placed",
+    color: "#f43f5e",
+    dataKey: "orders",
+    yFormatter: (v) => String(v),
+    tooltipFormatter: (v) => `${v} order${v !== 1 ? "s" : ""}`,
+  },
+  {
+    value: "revenue",
+    label: "Revenue",
+    description: "Total revenue collected (GHS)",
+    color: "#10b981",
+    dataKey: "revenueGhs",
+    yFormatter: (v) =>
+      v >= 1000 ? `₵${(v / 1000).toFixed(1)}K` : `₵${v.toFixed(0)}`,
+    tooltipFormatter: (v) =>
+      `GH₵ ${v.toLocaleString("en-GH", { minimumFractionDigits: 2 })}`,
+  },
+  {
+    value: "users",
+    label: "Active Users",
+    description: "Unique users with activity",
+    color: "#3b82f6",
+    dataKey: "users",
+    yFormatter: (v) => String(v),
+    tooltipFormatter: (v) => `${v} user${v !== 1 ? "s" : ""}`,
+  },
+  {
+    value: "transactions",
+    label: "Transactions",
+    description: "Successful payments processed",
+    color: "#8b5cf6",
+    dataKey: "transactions",
+    yFormatter: (v) => String(v),
+    tooltipFormatter: (v) => `${v} transaction${v !== 1 ? "s" : ""}`,
+  },
+  {
+    value: "deliveries",
+    label: "Deliveries",
+    description: "New shipments started",
+    color: "#f59e0b",
+    dataKey: "deliveries",
+    yFormatter: (v) => String(v),
+    tooltipFormatter: (v) => `${v} deliver${v !== 1 ? "ies" : "y"}`,
+  },
 ];
 
-const chartConfig = {
-  visitors: {
-    label: "Visitors",
-  },
-  desktop: {
-    label: "Desktop",
-    color: "var(--primary)",
-  },
-  mobile: {
-    label: "Mobile",
-    color: "var(--primary)",
-  },
-} satisfies ChartConfig;
+const TIME_RANGE_OPTIONS = [
+  { value: "7", label: "Last 7 days" },
+  { value: "14", label: "Last 14 days" },
+  { value: "30", label: "Last 30 days" },
+];
 
-export function OverviewChart() {
+// Build a stable ChartConfig so ChartContainer always has all keys defined
+const chartConfig: ChartConfig = Object.fromEntries(
+  METRIC_OPTIONS.map((m) => [m.dataKey, { label: m.label, color: m.color }]),
+);
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+
+function CustomTooltip({
+  active,
+  payload,
+  label,
+  metric,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number }>;
+  label?: string;
+  metric: MetricOption;
+}) {
+  if (!active || !payload?.length) return null;
+  const value = payload[0]?.value ?? 0;
+  return (
+    <div className="rounded-xl border border-stone-200 bg-white px-3 py-2 shadow-md text-xs">
+      <p className="text-stone-400 mb-1">
+        {label
+          ? new Date(label).toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            })
+          : ""}
+      </p>
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-block w-2 h-2 rounded-full shrink-0"
+          style={{ backgroundColor: metric.color }}
+        />
+        <span className="font-semibold text-stone-800">
+          {metric.tooltipFormatter(value)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+interface OverviewChartProps {
+  data?: ChartDataPoint[];
+  isLoading?: boolean;
+}
+
+export function OverviewChart({ data = [], isLoading = false }: OverviewChartProps) {
   const isMobile = useIsMobile();
-  const [timeRange, setTimeRange] = React.useState("30d");
+  const [metric, setMetric] = React.useState<ChartMetric>(DEFAULT_METRIC);
+  const [timeRange, setTimeRange] = React.useState(DEFAULT_TIME_RANGE);
 
+  // Default to 7-day view on mobile
   React.useEffect(() => {
-    if (isMobile) {
-      setTimeRange("7d");
-    }
+    if (isMobile) setTimeRange("7");
   }, [isMobile]);
 
-  const filteredData = chartData.filter((item) => {
-    const date = new Date(item.date);
-    const referenceDate = new Date(date);
-    const daysToSubtract = parseInt(timeRange.replace('d', ''))
-    const startDate = new Date(referenceDate);
-    startDate.setDate(startDate.getDate() - daysToSubtract);
-    return date >= startDate;
-  });
+  const activeMetric = METRIC_OPTIONS.find((m) => m.value === metric)!;
 
+  const filteredData = React.useMemo(() => {
+    const days = parseInt(timeRange, 10);
+    return data.slice(-days);
+  }, [data, timeRange]);
+
+  const timeRangeLabel =
+    TIME_RANGE_OPTIONS.find((o) => o.value === timeRange)?.label ?? "";
+
+  function handleMetricChange(value: string) {
+    setMetric(value as ChartMetric);
+    // Reset time range to default when switching metrics
+    setTimeRange(isMobile ? "7" : DEFAULT_TIME_RANGE);
+  }
 
   return (
     <Card className="@container/card soft-shadow border-none">
       <CardHeader>
-        <CardTitle>Total Visitors</CardTitle>
-        <CardDescription>
-          <span className="hidden @[540px]/card:block">
-            Total for the last 3 months
-          </span>
-          <span className="@[540px]/card:hidden">Last 3 months</span>
-        </CardDescription>
+        <div className="min-w-0">
+          <CardTitle>{activeMetric.label}</CardTitle>
+          <CardDescription>
+            <span className="hidden @[540px]/card:block">
+              {activeMetric.description} &middot; {timeRangeLabel}
+            </span>
+            <span className="@[540px]/card:hidden">{timeRangeLabel}</span>
+          </CardDescription>
+        </div>
         <CardAction>
-          <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Period" />
-            </SelectTrigger>
-            <SelectContent position="popper">
-              <SelectGroup>
-                <SelectItem value="7d">Last 7 days</SelectItem>
-                <SelectItem value="30d">Last Month</SelectItem>
-                <SelectItem value="90d">Last 3 Months</SelectItem>
-                <SelectItem value="180d">Last 6 Months</SelectItem>
-                <SelectItem value="360d">Last 12 Months</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap gap-2 justify-end">
+            <Select value={metric} onValueChange={handleMetricChange}>
+              <SelectTrigger className="w-[140px] h-8 text-xs">
+                <SelectValue placeholder="Select graph" />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectGroup>
+                  {METRIC_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select value={timeRange} onValueChange={setTimeRange}>
+              <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectValue placeholder="Period" />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectGroup>
+                  {TIME_RANGE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
         </CardAction>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-        <ChartContainer
-          config={chartConfig}
-          className="aspect-auto h-64 w-full"
-        >
-          <AreaChart data={filteredData}>
-            <defs>
-              <linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--chart-3)"
-                  stopOpacity={0.8}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--chart-2)"
-                  stopOpacity={0.1}
-                />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              minTickGap={32}
-              tickFormatter={(value) => {
-                const date = new Date(value);
-                return date.toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                });
-              }}
-            />
-            <ChartTooltip
-              cursor={false}
-              content={
-                <ChartTooltipContent
-                  labelFormatter={(value) => {
-                    return new Date(value).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    });
-                  }}
-                  indicator="dot"
-                />
-              }
-            />
-            <Area
-              dataKey="mobile"
-              type="natural"
-              fill="url(#fillMobile)"
-              stroke="var(--chart-5)"
-              stackId="a"
-            />
-          </AreaChart>
-        </ChartContainer>
+        {isLoading ? (
+          <Skeleton className="h-64 w-full rounded-xl" />
+        ) : (
+          <ChartContainer config={chartConfig} className="aspect-auto h-64 w-full">
+            <AreaChart
+              data={filteredData}
+              margin={{ top: 4, right: 8, left: -8, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor={activeMetric.color}
+                    stopOpacity={0.25}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor={activeMetric.color}
+                    stopOpacity={0}
+                  />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                vertical={false}
+                strokeDasharray="3 3"
+                stroke="#f5f5f4"
+              />
+              <XAxis
+                dataKey="date"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                minTickGap={32}
+                tick={{ fontSize: 11, fill: "#a8a29e" }}
+                tickFormatter={(value) =>
+                  new Date(value).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })
+                }
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: "#a8a29e" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={activeMetric.yFormatter}
+                width={48}
+              />
+              <Tooltip
+                cursor={false}
+                content={({ active, payload, label }) => (
+                  <CustomTooltip
+                    active={active}
+                    payload={payload as Array<{ value: number }>}
+                    label={label as string | undefined}
+                    metric={activeMetric}
+                  />
+                )}
+              />
+              <Area
+                key={activeMetric.dataKey}
+                type="monotone"
+                dataKey={activeMetric.dataKey}
+                stroke={activeMetric.color}
+                strokeWidth={2}
+                fill="url(#chart-fill)"
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0, fill: activeMetric.color }}
+              />
+            </AreaChart>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   );

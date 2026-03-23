@@ -10,6 +10,8 @@ export interface ChartDataPoint {
   orders: number;
   revenueGhs: number;
   users: number;
+  transactions: number;
+  deliveries: number;
 }
 
 export interface DashboardLatestOrder {
@@ -49,4 +51,4 @@ export interface DashboardData {
   latestTransactions: DashboardLatestTransaction[];
 }
 
-export type ChartMetric = "orders" | "revenue" | "users";
+export type ChartMetric = "orders" | "revenue" | "users" | "transactions" | "deliveries";
