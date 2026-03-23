@@ -1,6 +1,7 @@
 create or replace function public.custom_access_token_hook(event jsonb)
 returns jsonb
 language plpgsql
+security definer set search_path = public
 as $$
   declare
     claims jsonb;
@@ -22,6 +23,8 @@ $$;
 
 
 grant usage on schema public to supabase_auth_admin;
+
+grant select on public.profiles to supabase_auth_admin;
 
 grant execute
   on function public.custom_access_token_hook

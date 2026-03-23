@@ -19,8 +19,6 @@ async function NavbarAuthButton({ user }: { user?: JwtPayload | undefined }) {
   // const { data } = await supabase.auth.getClaims();
   // const user = data?.claims;
 
-  console.log(user)
-
   return user ? (
     <DropdownMenu>
       <DropdownMenuTrigger asChild className="max-md:ml-auto">
@@ -37,13 +35,13 @@ async function NavbarAuthButton({ user }: { user?: JwtPayload | undefined }) {
         <DropdownMenuGroup>
           {user.app_metadata?.role === "admin" ? (
             <>
-              <DropdownMenuItem>
+              <DropdownMenuItem className="bg-sky-200/20 text-sky-500 border-sky-200 border hover:text-sky-500">
                 <Link
                   href={"/admin"}
-                  className="flex items-center gap-2 bg-sky-200/20 text-sky-500"
+                  className="flex items-center gap-2"
                 >
                   <ShieldUserIcon className="stroke-sky-500" />
-                  Admin Dashboard
+                  Admin
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>

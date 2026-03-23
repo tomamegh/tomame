@@ -128,11 +128,9 @@ async function getOrdersByUserId(
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
-  console.log(data);
-
   if (error) {
     logger.error("getOrdersByUserId failed", { userId, error: error.message });
-    return [];
+    throw new APIError(500, 'An error occurred while fetching your orders')
   }
   return (data ?? []) as Order[];
 }
@@ -156,7 +154,7 @@ async function getAllOrders(
 
   if (error) {
     logger.error("getAllOrders failed", { error: error.message });
-    return [];
+    throw new APIError(500, 'An error occurred while fetching orders')
   }
   return (data ?? []) as Order[];
 }
