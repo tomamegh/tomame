@@ -66,12 +66,13 @@ interface CachedExtraction {
   result: ExtractionResult;
 }
 
-async function getCachedExtraction(urlHash: string): Promise<CachedExtraction | null> {
+async function getCachedExtraction(userId: string, urlHash: string): Promise<CachedExtraction | null> {
   try {
     const db = createAdminClient();
     const { data, error } = await db
       .from("extraction_cache")
       .select("id, result")
+      .eq("user_id", userId)
       .eq("url_hash", urlHash)
       .eq("is_valid", true)
       .gt("expires_at", new Date().toISOString())
@@ -86,6 +87,7 @@ async function getCachedExtraction(urlHash: string): Promise<CachedExtraction | 
 }
 
 async function setCachedExtraction(
+  userId: string,
   urlHash: string,
   productUrl: string,
   result: ExtractionResult,
@@ -98,13 +100,14 @@ async function setCachedExtraction(
       .from("extraction_cache")
       .upsert(
         {
+          user_id: userId,
           url_hash: urlHash,
           product_url: productUrl,
           result,
           is_valid: true,
           expires_at: expiresAt,
         },
-        { onConflict: "url_hash" },
+        { onConflict: "user_id,url_hash" },
       )
       .select("id")
       .single();
@@ -142,7 +145,7 @@ async function resolveShortUrl(shortUrl: string): Promise<string> {
 
 const SHORT_URL_HOSTS = new Set(["a.co"]);
 
-export async function extractProductData(url: string): Promise<ExtractionResponse> {
+export async function extractProductData(url: string, userId: string): Promise<ExtractionResponse> {
   // Resolve short URLs up-front so country detection uses the real domain
   let resolvedUrl = url;
   try {
@@ -156,8 +159,8 @@ export async function extractProductData(url: string): Promise<ExtractionRespons
 
   const urlHash = hashUrl(url);
 
-  // Check cache first
-  const cached = await getCachedExtraction(urlHash);
+  // Check cache first (scoped to user)
+  const cached = await getCachedExtraction(userId, urlHash);
   if (cached) {
     logger.info("extraction cache hit", { url, urlHash });
     return { ...cached.result, extraction_cache_id: cached.id };
@@ -198,7 +201,7 @@ export async function extractProductData(url: string): Promise<ExtractionRespons
     // Only cache successful extractions
     let cacheId: string | null = null;
     if (extractionSuccess) {
-      cacheId = await setCachedExtraction(urlHash, url, result);
+      cacheId = await setCachedExtraction(userId, urlHash, url, result);
     }
 
     return { ...result, extraction_cache_id: cacheId };

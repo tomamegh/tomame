@@ -25,14 +25,14 @@ export async function POST(request: NextRequest) {
     }
 
     const user = await getAuthenticatedUser();
-    const _authUser = requireAuth(user);
+    const authUser = requireAuth(user);
 
     const platform = resolvePlatform(parsed.data.product_url);
     if (!platform) {
       throw new APIError(400, "Product URL must be from a supported store");
     }
 
-    const data = await extractProductData(parsed.data.product_url);
+    const data = await extractProductData(parsed.data.product_url, authUser.id);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

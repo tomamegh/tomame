@@ -10,7 +10,7 @@ export async function GET(
 ) {
   try {
     const user = await getAuthenticatedUser();
-    requireAuth(user);
+    const authUser = requireAuth(user);
 
     const { id } = await params;
 
@@ -19,6 +19,7 @@ export async function GET(
       .from("extraction_cache")
       .select("id, product_url, result, is_valid, expires_at")
       .eq("id", id)
+      .eq("user_id", authUser.id)
       .eq("is_valid", true)
       .gt("expires_at", new Date().toISOString())
       .single();
