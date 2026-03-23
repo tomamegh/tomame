@@ -1,92 +1,66 @@
 import { TomameCategory } from "./categories/tomame_category";
+import pricingData from "./pricing-categories.json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface CategoryPricing {
-  /** Human-readable group name */
   name: string;
-  /** Fixed freight in GHS (null = must calculate from weight) */
-  flat_rate_ghs: number | null;
+  /** Fixed GHS value OR an expression string using `w` (weight in lbs) */
+  flat_rate_ghs: number | string;
   /** Fee as a percentage of item value (e.g. 0.05 = 5%) */
   value_percentage: number;
-  /** Whether weight is required to calculate freight */
-  weight_required: boolean;
-  /** USD per lb rate when weight-based (null if flat_rate) */
-  per_weight_rate_usd: number | null;
 }
 
 // ── Pricing groups ───────────────────────────────────────────────────────────
 
-export type PricingGroup =
-  | "phones"
-  | "phone_accessories"
-  | "car_parts"
-  | "gaming_consoles"
-  | "sound_speakers";
+export type PricingGroup = keyof typeof pricingData;
 
-export const CATEGORY_PRICING: Record<PricingGroup, CategoryPricing> = {
-  phones: {
-    name: "Phones",
-    flat_rate_ghs: 1200,
-    value_percentage: 0.05,
-    weight_required: false,
-    per_weight_rate_usd: null,
-  },
-  phone_accessories: {
-    name: "Phone Accessories",
-    flat_rate_ghs: 250,
-    value_percentage: 0.04,
-    weight_required: false,
-    per_weight_rate_usd: null,
-  },
-  car_parts: {
-    name: "Car Parts",
-    flat_rate_ghs: null,
-    value_percentage: 0.08,
-    weight_required: true,
-    per_weight_rate_usd: 6.5,
-  },
-  gaming_consoles: {
-    name: "Gaming Consoles",
-    flat_rate_ghs: 1500,
-    value_percentage: 0.06,
-    weight_required: false,
-    per_weight_rate_usd: null,
-  },
-  sound_speakers: {
-    name: "Sound & Speakers",
-    flat_rate_ghs: null,
-    value_percentage: 0.07,
-    weight_required: true,
-    per_weight_rate_usd: 6.5,
-  },
-};
+export const CATEGORY_PRICING = pricingData as Record<PricingGroup, CategoryPricing>;
 
 // ── TomameCategory → PricingGroup mapping ────────────────────────────────────
-// Multiple TomameCategories can map to one pricing group.
-// Categories not in this map → needs_review.
 
 export const CATEGORY_TO_PRICING_GROUP = new Map<TomameCategory, PricingGroup>([
-  // Phones
   [TomameCategory.CELL_PHONES, "phones"],
-
-  // Phone Accessories
   [TomameCategory.HEADPHONES, "phone_accessories"],
   [TomameCategory.WEARABLE_TECHNOLOGY, "phone_accessories"],
-
-  // Car Parts
   [TomameCategory.AUTOMOTIVE, "car_parts"],
   [TomameCategory.CAR_CARE, "car_parts"],
   [TomameCategory.CAR_ELECTRONICS, "car_parts"],
-
-  // Gaming Consoles
   [TomameCategory.VIDEO_GAMES, "gaming_consoles"],
-
-  // Sound & Speakers
   [TomameCategory.SMART_HOME, "sound_speakers"],
 ]);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Returns true if flat_rate_ghs is an expression requiring weight */
+export function isWeightExpression(flatRate: number | string): flatRate is string {
+  return typeof flatRate === "string";
+}
+
+/**
+ * Evaluate a flat_rate expression, substituting `w` with weight in lbs.
+ * Only allows digits, decimals, whitespace, w, and basic arithmetic.
+ */
+export function evaluateFlatRate(expr: string, w: number): number {
+  if (!/^[\d\s.w+\-*/()]+$/.test(expr)) {
+    throw new Error(`Invalid flat rate expression: "${expr}"`);
+  }
+  const resolved = expr.replace(/w/g, String(w));
+  return new Function(`return (${resolved})`)() as number;
+}
+
+/**
+ * Resolve flat_rate_ghs to a number. If it's an expression, evaluate with weight.
+ * Returns null if expression requires weight but none provided.
+ */
+export function resolveFlatRate(
+  flatRate: number | string,
+  weightLbs?: number | null,
+): number | null {
+  if (typeof flatRate === "number") return flatRate;
+  if (weightLbs == null) return null;
+  return evaluateFlatRate(flatRate, weightLbs);
+}
 
 /**
  * Look up the pricing config for a TomameCategory.
@@ -96,9 +70,7 @@ export function getCategoryPricing(
   category: TomameCategory | string | null | undefined,
 ): { group: PricingGroup; pricing: CategoryPricing } | null {
   if (!category) return null;
-
   const group = CATEGORY_TO_PRICING_GROUP.get(category as TomameCategory);
   if (!group) return null;
-
   return { group, pricing: CATEGORY_PRICING[group] };
 }

@@ -240,22 +240,13 @@ function OrderSuccess({
                   Pricing is pending admin review.
                 </div>
               ) : null}
-              {p.pricing_method !== "needs_review" && (p.pricing_method === "flat_rate"
-                ? [
-                    { label: "Item price (USD)", value: fmtUsd(p.subtotal_usd) },
-                    { label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`, value: fmtUsd(p.tax_usd) },
-                    { label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`, value: fmtUsd(p.value_fee_usd) },
-                    { label: "Freight (flat rate)", value: `GH₵ ${(p.flat_rate_ghs ?? 0).toFixed(2)}` },
-                    { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
-                  ]
-                : [
-                    { label: "Subtotal", value: fmtUsd(p.subtotal_usd) },
-                    { label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`, value: fmtUsd(p.tax_usd) },
-                    { label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`, value: fmtUsd(p.value_fee_usd) },
-                    { label: "Freight (weight-based)", value: `GH₵ ${(p.freight_ghs ?? 0).toFixed(2)}` },
-                    { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
-                  ]
-              )?.map(({ label, value, muted }) => (
+              {p.pricing_method !== "needs_review" && [
+                { label: "Item price (USD)", value: fmtUsd(p.subtotal_usd) },
+                { label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`, value: fmtUsd(p.tax_usd) },
+                { label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`, value: fmtUsd(p.value_fee_usd) },
+                { label: "Freight", value: `GH₵ ${p.flat_rate_ghs.toFixed(2)}` },
+                { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
+              ].map(({ label, value, muted }) => (
                 <div
                   key={label}
                   className={`flex justify-between text-sm gap-4 ${muted ? "text-stone-400" : "text-stone-600"}`}

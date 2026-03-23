@@ -258,13 +258,9 @@ export async function createOrder(
   const pricing: OrderPricingBreakdown = (input.pricing as OrderPricingBreakdown | undefined) ?? await calculatePricing({
     itemPriceUsd: input.estimated_price_usd,
     quantity: input.quantity,
-    region: input.origin_country,
     category: input.extraction_metadata?.product?.category ?? null,
     weightLbs:
       parseWeight(input.extraction_metadata?.product?.weight) ?? undefined,
-    weightSource: input.extraction_metadata?.product?.weight
-      ? "scraped"
-      : undefined,
   });
 
   // If pricing needs review, auto-flag the order for admin review

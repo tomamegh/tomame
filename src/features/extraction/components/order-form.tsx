@@ -88,8 +88,6 @@ export function OrderForm({
   const reviewReasons = buildReviewReasons(extractionData);
   const needsReview = reviewReasons.length > 0;
 
-  const defaultOrigin = country ?? "USA";
-
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(createOrderSchema),
     defaultValues: {
@@ -98,7 +96,7 @@ export function OrderForm({
       product_image_url: product.image ?? undefined,
       estimated_price_usd: parsePriceValue(product.price),
       quantity: 1,
-      origin_country: defaultOrigin,
+      origin_country: "USA",
       special_instructions: undefined,
       needs_review: needsReview,
       review_reasons: reviewReasons,
@@ -109,14 +107,12 @@ export function OrderForm({
 
   const quantity = form.watch("quantity") ?? 1;
   const estimatedPriceUsd = form.watch("estimated_price_usd");
-  const originCountry = form.watch("origin_country");
-
   const [pricing, setPricing] = useState<OrderPricingBreakdown | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!estimatedPriceUsd || estimatedPriceUsd <= 0 || !originCountry) {
+    if (!estimatedPriceUsd || estimatedPriceUsd <= 0) {
       setPricing(null);
       return;
     }
@@ -127,8 +123,10 @@ export function OrderForm({
         const params = new URLSearchParams({
           itemPriceUsd: String(estimatedPriceUsd),
           quantity: String(quantity),
-          region: originCountry,
         });
+        if (product.category) {
+          params.set("category", product.category);
+        }
         const res = await fetch(`/api/pricing/preview?${params}`);
         if (res.ok) {
           const json = await res.json();
@@ -145,7 +143,7 @@ export function OrderForm({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [estimatedPriceUsd, quantity, originCountry]);
+  }, [estimatedPriceUsd, quantity, product.category]);
 
   return (
     <div className="space-y-4 fade-in">
@@ -197,86 +195,7 @@ export function OrderForm({
                 }}
               />
 
-              {/* Price & Country — two columns */}
-              <Field className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Estimated Price */}
-                <Controller
-                  control={form.control}
-                  name="estimated_price_usd"
-                  render={({ field, fieldState }) => {
-                    return (
-                      <Field data-invalid={fieldState.invalid}>
-                        <FieldLabel
-                          htmlFor="order-price"
-                          className="text-sm font-medium text-stone-700"
-                        >
-                          Estimated Price (USD){" "}
-                          <span className="text-destructive ml-0.5">*</span>
-                        </FieldLabel>
-                        <InputGroup className="relative">
-                          <InputGroupAddon>$</InputGroupAddon>
-                          <InputGroupInput
-                            {...field}
-                            id="order-price"
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            max="50000"
-                            placeholder="0.00"
-                            className="soft-input"
-                            aria-invalid={fieldState.invalid}
-                            disabled={isLoading}
-                          />
-                        </InputGroup>
-                        {fieldState.error && (
-                          <FieldError errors={[fieldState.error]} />
-                        )}
-                      </Field>
-                    );
-                  }}
-                />
-
-                {/* Origin Country */}
-                <Controller
-                  control={form.control}
-                  name="origin_country"
-                  render={({ field, fieldState }) => {
-                    return (
-                      <Field data-invalid={!!fieldState.error}>
-                        <FieldLabel
-                          htmlFor="order-country"
-                          className="text-sm font-medium text-stone-700"
-                        >
-                          Origin Country{" "}
-                          <span className="text-destructive ml-0.5">*</span>
-                        </FieldLabel>
-                        <Select
-                          name={field.name}
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <SelectTrigger
-                            id="select-country"
-                            aria-invalid={fieldState.invalid}
-                          >
-                            <SelectValue placeholder="Select" />
-                          </SelectTrigger>
-                          <SelectContent position="popper">
-                            {["CHINA", "UK", "USA"].map((country) => (
-                              <SelectItem key={country} value={country}>
-                                {country}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {fieldState.error && (
-                          <FieldError errors={[fieldState.error]} />
-                        )}
-                      </Field>
-                    );
-                  }}
-                />
-              </Field>
+              {/* Price & Country are set from extraction data (hidden) */}
 
               {/* Quantity */}
               <Controller
@@ -380,60 +299,14 @@ export function OrderForm({
                   </div>
                 ) : (
                   <>
-                    {(pricing.pricing_method === "flat_rate"
-                      ? [
-                          {
-                            label: "Item price",
-                            value: `$${pricing.item_price_usd.toFixed(2)}`,
-                          },
-                          {
-                            label: `Subtotal (×${pricing.quantity})`,
-                            value: `$${pricing.subtotal_usd.toFixed(2)}`,
-                          },
-                          {
-                            label: `Tax (${(pricing.tax_percentage * 100).toFixed(0)}%)`,
-                            value: `$${pricing.tax_usd.toFixed(2)}`,
-                          },
-                          {
-                            label: `Value fee (${(pricing.value_fee_percentage * 100).toFixed(0)}%)`,
-                            value: `$${pricing.value_fee_usd.toFixed(2)}`,
-                          },
-                          {
-                            label: "Freight (flat rate)",
-                            value: `GH₵ ${(pricing.flat_rate_ghs ?? 0).toFixed(2)}`,
-                          },
-                          {
-                            label: "Exchange rate",
-                            value: `1 USD = ${pricing.exchange_rate} GHS`,
-                          },
-                        ]
-                      : [
-                          {
-                            label: "Item price",
-                            value: `$${pricing.item_price_usd.toFixed(2)}`,
-                          },
-                          {
-                            label: `Subtotal (×${pricing.quantity})`,
-                            value: `$${pricing.subtotal_usd.toFixed(2)}`,
-                          },
-                          {
-                            label: `Tax (${(pricing.tax_percentage * 100).toFixed(0)}%)`,
-                            value: `$${pricing.tax_usd.toFixed(2)}`,
-                          },
-                          {
-                            label: `Value fee (${(pricing.value_fee_percentage * 100).toFixed(0)}%)`,
-                            value: `$${pricing.value_fee_usd.toFixed(2)}`,
-                          },
-                          {
-                            label: "Freight (weight-based)",
-                            value: `GH₵ ${(pricing.freight_ghs ?? 0).toFixed(2)}`,
-                          },
-                          {
-                            label: "Exchange rate",
-                            value: `1 USD = ${pricing.exchange_rate} GHS`,
-                          },
-                        ]
-                    ).map(({ label, value }) => (
+                    {[
+                      { label: "Item price", value: `$${pricing.item_price_usd.toFixed(2)}` },
+                      { label: `Subtotal (×${pricing.quantity})`, value: `$${pricing.subtotal_usd.toFixed(2)}` },
+                      { label: `Tax (${(pricing.tax_percentage * 100).toFixed(0)}%)`, value: `$${pricing.tax_usd.toFixed(2)}` },
+                      { label: `Value fee (${(pricing.value_fee_percentage * 100).toFixed(0)}%)`, value: `$${pricing.value_fee_usd.toFixed(2)}` },
+                      { label: "Freight", value: `GH₵ ${pricing.flat_rate_ghs.toFixed(2)}` },
+                      { label: "Exchange rate", value: `1 USD = ${pricing.exchange_rate} GHS` },
+                    ].map(({ label, value }) => (
                       <div
                         key={label}
                         className="flex justify-between text-sm gap-4 text-stone-600"

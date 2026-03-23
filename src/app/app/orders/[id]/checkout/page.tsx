@@ -152,40 +152,13 @@ export default function CheckoutPage({ params }: Props) {
             </div>
           ) : (
             <>
-              {(p.pricing_method === "flat_rate"
-                ? [
-                    { label: "Item price (USD)", value: `$${p.subtotal_usd.toFixed(2)}` },
-                    {
-                      label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`,
-                      value: `$${p.tax_usd.toFixed(2)}`,
-                    },
-                    {
-                      label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`,
-                      value: `$${p.value_fee_usd.toFixed(2)}`,
-                    },
-                    {
-                      label: "Freight (flat rate)",
-                      value: `GH₵ ${(p.flat_rate_ghs ?? 0).toFixed(2)}`,
-                    },
-                    { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
-                  ]
-                : [
-                    { label: "Subtotal", value: `$${p.subtotal_usd.toFixed(2)}` },
-                    {
-                      label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`,
-                      value: `$${p.tax_usd.toFixed(2)}`,
-                    },
-                    {
-                      label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`,
-                      value: `$${p.value_fee_usd.toFixed(2)}`,
-                    },
-                    {
-                      label: "Freight (weight-based)",
-                      value: `GH₵ ${(p.freight_ghs ?? 0).toFixed(2)}`,
-                    },
-                    { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
-                  ]
-              ).map(({ label, value, muted }) => (
+              {[
+                { label: "Item price (USD)", value: `$${p.subtotal_usd.toFixed(2)}` },
+                { label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`, value: `$${p.tax_usd.toFixed(2)}` },
+                { label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`, value: `$${p.value_fee_usd.toFixed(2)}` },
+                { label: "Freight", value: `GH₵ ${p.flat_rate_ghs.toFixed(2)}` },
+                { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
+              ].map(({ label, value, muted }) => (
                 <div
                   key={label}
                   className={`flex justify-between text-sm gap-4 ${muted ? "text-stone-400" : "text-stone-600"}`}

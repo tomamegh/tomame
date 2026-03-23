@@ -202,24 +202,14 @@ function PricingBreakdown({ order }: { order: Order }) {
     );
   }
 
-  const rows =
-    p.pricing_method === "flat_rate"
-      ? [
-          { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
-          { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
-          { label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`, value: `$${fmt(p.tax_usd)}` },
-          { label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`, value: `$${fmt(p.value_fee_usd)}` },
-          { label: "Freight (flat rate)", value: `GH₵ ${fmt(p.flat_rate_ghs ?? 0)}` },
-          { label: "Exchange rate", value: `1 USD = ${p.exchange_rate} GHS` },
-        ]
-      : [
-          { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
-          { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
-          { label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`, value: `$${fmt(p.tax_usd)}` },
-          { label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`, value: `$${fmt(p.value_fee_usd)}` },
-          { label: "Freight (weight-based)", value: `GH₵ ${fmt(p.freight_ghs ?? 0)}` },
-          { label: "Exchange rate", value: `1 USD = ${p.exchange_rate} GHS` },
-        ];
+  const rows = [
+    { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
+    { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
+    { label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`, value: `$${fmt(p.tax_usd)}` },
+    { label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`, value: `$${fmt(p.value_fee_usd)}` },
+    { label: "Freight", value: `GH₵ ${fmt(p.flat_rate_ghs)}` },
+    { label: "Exchange rate", value: `1 USD = ${p.exchange_rate} GHS` },
+  ];
 
   return (
     <div className="space-y-2">

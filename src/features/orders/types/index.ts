@@ -1,36 +1,9 @@
 // ── Pricing breakdown ────────────────────────────────────────────────────────
 
-/** Shape of the JSONB pricing column stored on each order */
-export interface OrderPricingBreakdown {
-  // Common fields
-  pricing_method: "flat_rate" | "weight_based" | "needs_review";
-  pricing_group: string | null;
-  item_price_usd: number;
-  quantity: number;
-  subtotal_usd: number;
-  exchange_rate: number;
-  mid_market_rate: number;
-  tax_percentage: number;
-  tax_usd: number;
-  value_fee_percentage: number;
-  value_fee_usd: number;
-  total_ghs: number;
-  total_pesewas: number;
-  region: "USA" | "UK" | "CHINA";
+import type { PricingBreakdown } from "@/lib/pricing";
 
-  // Flat rate fields (fixed GHS freight — weight baked in)
-  flat_rate_ghs?: number;
-
-  // Weight-based fields
-  freight_usd?: number;
-  freight_ghs?: number;
-  weight_lbs?: number;
-  weight_source?: "scraped" | "category_default";
-  per_weight_rate_usd?: number;
-
-  // Needs review — pricing incomplete, flagged for admin
-  review_reason?: string;
-}
+/** Re-export from lib/pricing — this is the JSONB pricing column on each order */
+export type OrderPricingBreakdown = PricingBreakdown;
 
 // ── Extraction metadata ───────────────────────────────────────────────────────
 
