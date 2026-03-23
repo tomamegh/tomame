@@ -16,7 +16,7 @@ export async function getRate(baseCurrency: string): Promise<ExchangeRate | null
     .select("*")
     .eq("base_currency", baseCurrency.toUpperCase())
     .eq("target_currency", "GHS")
-    .single();
+    .maybeSingle();
 
   if (error) {
     logger.error("getRate failed", { baseCurrency, error: error.message });
@@ -106,6 +106,7 @@ export async function fetchAndStoreRates(
         errors.push(`${currency}: DB upsert failed`);
       }
     } catch (err) {
+      console.log('Exchange Rate Error',err)
       const message = err instanceof Error ? err.message : String(err);
       errors.push(`${currency}: ${message}`);
       logger.error("Failed to fetch/store rate", { currency, error: message });
