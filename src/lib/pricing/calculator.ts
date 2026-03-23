@@ -10,11 +10,23 @@ import { logger } from "@/lib/logger";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+export interface PricingConstants {
+  freight_rate_per_lb: number;
+  handling_fee_usd: number;
+  minimum_tax_usd: number;
+  fx_buffer_pct: number;
+  tax_pct_usa: number;
+  tax_pct_uk: number;
+  tax_pct_china: number;
+}
+
 export interface PricingInput {
   itemPriceUsd: number;
   quantity: number;
   category?: string | null;
   weightLbs?: number | null;
+  /** Region for tax tier lookup. Defaults to "usa". */
+  region?: "usa" | "uk" | "china";
 }
 
 export interface PricingBreakdown {
@@ -42,9 +54,32 @@ export interface PricingBreakdown {
 export class PricingCalculator {
   private midMarketRate: number | null = null;
   private appliedRate: number | null = null;
+  private constants: PricingConstants | null = null;
 
   private static roundTo2(n: number): number {
     return Math.round(n * 100) / 100;
+  }
+
+  /** Inject DB-loaded pricing constants. Falls back to config defaults if not set. */
+  setConstants(constants: PricingConstants): void {
+    this.constants = constants;
+  }
+
+  private get fxBufferPct(): number {
+    return this.constants?.fx_buffer_pct ?? DEFAULT_FX_BUFFER_PCT;
+  }
+
+  private getTaxPercentage(region?: "usa" | "uk" | "china"): number {
+    if (!this.constants) return TAX_PERCENTAGE;
+    switch (region) {
+      case "uk":
+        return this.constants.tax_pct_uk;
+      case "china":
+        return this.constants.tax_pct_china;
+      case "usa":
+      default:
+        return this.constants.tax_pct_usa;
+    }
   }
 
   /** Fetch and cache the FX rate. Throws 503 if unavailable. */
@@ -58,7 +93,7 @@ export class PricingCalculator {
     }
     this.midMarketRate = midMarket;
     this.appliedRate = PricingCalculator.roundTo2(
-      midMarket * (1 + DEFAULT_FX_BUFFER_PCT),
+      midMarket * (1 + this.fxBufferPct),
     );
   }
 
@@ -72,9 +107,12 @@ export class PricingCalculator {
     const fxRate = this.appliedRate!;
     const midRate = this.midMarketRate!;
 
-    const { itemPriceUsd, quantity, category } = input;
+    const { itemPriceUsd, quantity, category, region } = input;
     const subtotalUsd = r2(itemPriceUsd * quantity);
-    const taxUsd = r2(subtotalUsd * TAX_PERCENTAGE);
+    const taxPct = this.getTaxPercentage(region);
+    const rawTax = r2(subtotalUsd * taxPct);
+    const minimumTax = this.constants?.minimum_tax_usd ?? 0;
+    const taxUsd = Math.max(rawTax, minimumTax);
 
     const catPricing = getCategoryPricing(category);
 
@@ -86,6 +124,7 @@ export class PricingCalculator {
       return this.buildReview({
         input,
         subtotalUsd,
+        taxPct,
         taxUsd,
         fxRate,
         midRate,
@@ -107,6 +146,7 @@ export class PricingCalculator {
       return this.buildReview({
         input,
         subtotalUsd,
+        taxPct,
         taxUsd,
         fxRate,
         midRate,
@@ -122,6 +162,7 @@ export class PricingCalculator {
       return this.buildReview({
         input,
         subtotalUsd,
+        taxPct,
         taxUsd,
         fxRate,
         midRate,
@@ -147,7 +188,7 @@ export class PricingCalculator {
       subtotal_usd: subtotalUsd,
       exchange_rate: fxRate,
       mid_market_rate: midRate,
-      tax_percentage: TAX_PERCENTAGE,
+      tax_percentage: taxPct,
       tax_usd: taxUsd,
       value_fee_percentage: pricing.value_percentage,
       value_fee_usd: valueFeeUsd,
@@ -164,6 +205,7 @@ export class PricingCalculator {
   private buildReview(opts: {
     input: PricingInput;
     subtotalUsd: number;
+    taxPct: number;
     taxUsd: number;
     fxRate: number;
     midRate: number;
@@ -180,7 +222,7 @@ export class PricingCalculator {
       subtotal_usd: opts.subtotalUsd,
       exchange_rate: opts.fxRate,
       mid_market_rate: opts.midRate,
-      tax_percentage: TAX_PERCENTAGE,
+      tax_percentage: opts.taxPct,
       tax_usd: opts.taxUsd,
       value_fee_percentage: opts.valueFeePercentage,
       value_fee_usd: opts.valueFeeUsd,

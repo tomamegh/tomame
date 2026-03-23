@@ -1,4 +1,5 @@
 import { ExchangeRatesCard } from "@/features/settings/components/exchange-rates-card";
+import { PricingConstantsCard } from "@/features/settings/components/pricing-constants-card";
 
 export default function SettingsPage() {
   return (
@@ -6,11 +7,12 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-xl font-bold text-stone-800">Settings</h1>
         <p className="text-sm text-stone-500 mt-0.5">
-          Manage exchange rates.
+          Manage exchange rates and pricing configuration.
         </p>
       </div>
 
       <ExchangeRatesCard />
+      <PricingConstantsCard />
     </div>
   );
 }
