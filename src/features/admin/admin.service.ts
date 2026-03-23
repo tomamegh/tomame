@@ -17,6 +17,8 @@ export async function getDashboardData(
       revenueOrdersRes,
       activeUsersRes,
       chartOrdersRes,
+      chartTransactionsRes,
+      chartDeliveriesRes,
       latestOrdersRes,
       latestDeliveriesRes,
       latestTransactionsRes,
@@ -41,9 +43,22 @@ export async function getDashboardData(
 
       client
         .from("orders")
-        .select("created_at, user_id, pricing")
+        .select("created_at, user_id, pricing, status")
         .gte("created_at", thirtyDaysAgo)
         .neq("status", "cancelled"),
+
+      // Successful payments per day for transactions chart
+      client
+        .from("payments")
+        .select("created_at")
+        .gte("created_at", thirtyDaysAgo)
+        .eq("status", "success"),
+
+      // Delivery records started per day for deliveries chart
+      client
+        .from("order_deliveries")
+        .select("created_at")
+        .gte("created_at", thirtyDaysAgo),
 
       client
         .from("orders")
@@ -77,13 +92,13 @@ export async function getDashboardData(
 
     const chartMap = new Map<
       string,
-      { orders: number; revenueGhs: number; userIds: Set<string> }
+      { orders: number; revenueGhs: number; userIds: Set<string>; transactions: number; deliveries: number }
     >();
 
     for (let i = 29; i >= 0; i--) {
       const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
       const key = d.toISOString().split("T")[0]!;
-      chartMap.set(key, { orders: 0, revenueGhs: 0, userIds: new Set() });
+      chartMap.set(key, { orders: 0, revenueGhs: 0, userIds: new Set(), transactions: 0, deliveries: 0 });
     }
 
     for (const order of chartOrdersRes.data ?? []) {
@@ -97,11 +112,25 @@ export async function getDashboardData(
       }
     }
 
+    for (const txn of chartTransactionsRes.data ?? []) {
+      const key = (txn.created_at as string).split("T")[0]!;
+      const entry = chartMap.get(key);
+      if (entry) entry.transactions++;
+    }
+
+    for (const delivery of chartDeliveriesRes.data ?? []) {
+      const key = (delivery.created_at as string).split("T")[0]!;
+      const entry = chartMap.get(key);
+      if (entry) entry.deliveries++;
+    }
+
     const chartData = Array.from(chartMap.entries()).map(([date, e]) => ({
       date,
       orders: e.orders,
       revenueGhs: e.revenueGhs,
       users: e.userIds.size,
+      transactions: e.transactions,
+      deliveries: e.deliveries,
     }));
 
     const latestOrders = (latestOrdersRes.data ?? []).map((o) => ({

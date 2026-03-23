@@ -1,27 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { FixedFreightItem } from "@/features/pricing/types";
 
 // Mock server-only
 vi.mock("server-only", () => ({}));
 
-// Mock supabase admin
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => mockSupabaseClient,
-}));
-
 // Mock exchange rate service
 vi.mock("@/lib/exchange-rates/service", () => ({
   getGhsRate: vi.fn(),
-}));
-
-// Mock serpapi weight lookup
-vi.mock("@/lib/serpapi/weight-lookup", () => ({
-  lookupProductWeight: vi.fn(),
-}));
-
-// Mock audit service
-vi.mock("@/features/audit/services/audit.service", () => ({
-  logAuditEvent: vi.fn(),
 }));
 
 // Mock logger
@@ -29,218 +13,178 @@ vi.mock("@/lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { calculatePricing } from "../pricing.service";
+import { PricingCalculator } from "@/lib/pricing";
 import { getGhsRate } from "@/lib/exchange-rates/service";
-import { lookupProductWeight } from "@/lib/serpapi/weight-lookup";
-
-// Fixtures
-const IPHONE_16: FixedFreightItem = {
-  id: "ff-iphone16",
-  category: "IPHONE",
-  product_name: "iPhone 16",
-  freight_rate_ghs: 1400,
-  keywords: ["iphone 16"],
-  sort_order: 5,
-  is_active: true,
-  created_at: "",
-  updated_at: "",
-};
-
-const IPHONE_16_PRO: FixedFreightItem = {
-  id: "ff-iphone16pro",
-  category: "IPHONE",
-  product_name: "iPhone 16 Pro & Max",
-  freight_rate_ghs: 1600,
-  keywords: ["iphone 16 pro", "iphone 16 pro max", "iphone 16 max"],
-  sort_order: 4,
-  is_active: true,
-  created_at: "",
-  updated_at: "",
-};
-
-// Mock Supabase client
-let mockFixedFreightItems: FixedFreightItem[] = [];
-const mockSupabaseClient = {
-  from: (table: string) => {
-    if (table === "fixed_freight_items") {
-      return {
-        select: () => ({
-          eq: (_col: string, _val: unknown) => ({
-            order: () =>
-              Promise.resolve({
-                data: mockFixedFreightItems,
-                error: null,
-              }),
-          }),
-        }),
-      };
-    }
-    // pricing_config etc
-    return {
-      select: () => ({
-        eq: () => ({
-          single: () =>
-            Promise.resolve({ data: null, error: { message: "not found" } }),
-        }),
-      }),
-    };
-  },
-};
+import { TomameCategory } from "@/config/categories/tomame_category";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockFixedFreightItems = [IPHONE_16, IPHONE_16_PRO];
 });
 
-describe("calculatePricing", () => {
-  describe("Method 1: Fixed Freight", () => {
-    it("iPhone 16 @ $799 with mid-market 15.20 → ~GH₵ 14,030", async () => {
+describe("PricingCalculator", () => {
+  describe("Flat Rate (phones)", () => {
+    it("Cell phone → flat_rate with phones pricing group", async () => {
       vi.mocked(getGhsRate).mockResolvedValue(15.2);
 
-      const result = await calculatePricing({
+      const calc = new PricingCalculator();
+      const result = await calc.calculate({
         itemPriceUsd: 799,
         quantity: 1,
-        region: "USA",
-        productName: "Apple iPhone 16 128GB",
+        category: TomameCategory.CELL_PHONES,
       });
 
-      expect(result.pricing_method).toBe("fixed_freight");
-      expect(result.fixed_freight_ghs).toBe(1400);
-      expect(result.fixed_freight_item_id).toBe("ff-iphone16");
-      expect(result.exchange_rate).toBeCloseTo(15.808, 2);
-      expect(result.mid_market_rate).toBe(15.2);
-
-      // Item price in GHS: 799 × 15.808 = 12,630.59
-      // + freight 1400 = 14,030.59
-      expect(result.total_ghs).toBeCloseTo(14030, -1);
+      expect(result.pricing_method).toBe("flat_rate");
+      expect(result.pricing_group).toBe("phones");
+      expect(result.flat_rate_ghs).toBe(1200);
+      expect(result.value_fee_percentage).toBe(0.05);
+      expect(result.tax_percentage).toBe(0.1);
+      expect(result.tax_usd).toBeCloseTo(79.9, 1);
+      expect(result.value_fee_usd).toBeCloseTo(39.95, 1);
+      expect(result.total_ghs).toBeGreaterThan(15000);
+      expect(result.total_pesewas).toBe(Math.round(result.total_ghs * 100));
     });
 
-    it("iPhone 16 Pro Max matches the more specific keyword", async () => {
-      vi.mocked(getGhsRate).mockResolvedValue(15.2);
+    it("quantity multiplies subtotal correctly", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
 
-      const result = await calculatePricing({
-        itemPriceUsd: 1199,
-        quantity: 1,
-        region: "USA",
-        productName: "Apple iPhone 16 Pro Max 256GB",
+      const calc = new PricingCalculator();
+      const result = await calc.calculate({
+        itemPriceUsd: 100,
+        quantity: 3,
+        category: TomameCategory.CELL_PHONES,
       });
 
-      expect(result.pricing_method).toBe("fixed_freight");
-      expect(result.fixed_freight_ghs).toBe(1600);
-      expect(result.fixed_freight_item_id).toBe("ff-iphone16pro");
+      expect(result.subtotal_usd).toBe(300);
+      expect(result.tax_usd).toBeCloseTo(30, 1);
+      expect(result.value_fee_usd).toBeCloseTo(15, 1);
     });
   });
 
-  describe("Method 2: Formula-Based", () => {
-    it("Bose Speaker @ $149, 2lbs, 12×10×8″ → ~GH₵ 3,655", async () => {
+  describe("Flat Rate (phone accessories)", () => {
+    it("Headphones → flat_rate with phone_accessories group", async () => {
       vi.mocked(getGhsRate).mockResolvedValue(15.2);
-      mockFixedFreightItems = []; // No fixed freight matches
 
-      const result = await calculatePricing({
-        itemPriceUsd: 149,
-        quantity: 1,
-        region: "USA",
-        productName: "Bose Speaker Something",
-        sellerShippingUsd: 0,
-        weightLbs: 2,
-        weightSource: "scraped",
-        dimensionsInches: { length: 12, width: 10, height: 8 },
-      });
-
-      expect(result.pricing_method).toBe("formula");
-
-      // Volumetric: (12×10×8) / 139 = 6.9
-      expect(result.volumetric_weight_lbs).toBeCloseTo(6.91, 1);
-
-      // Chargeable: max(2, 6.9) = 6.9
-      expect(result.chargeable_weight_lbs).toBeCloseTo(6.91, 1);
-
-      // Freight: 6.9 × $6.50 = $44.85
-      expect(result.freight_usd).toBeCloseTo(44.89, 0);
-
-      // Service fee: $149 is in $100-300 tier → 15% = $22.35
-      expect(result.service_fee_percentage).toBe(0.15);
-      expect(result.service_fee_usd).toBeCloseTo(22.35, 1);
-
-      // Handling: $15
-      expect(result.handling_fee_usd).toBe(15);
-
-      // Total USD: 149 + 0 + 44.89 + 22.35 + 15 ≈ 231.24
-      expect(result.total_usd).toBeCloseTo(231.24, 0);
-
-      // Total GHS: 231.24 × 15.808 ≈ 3,656
-      expect(result.total_ghs).toBeCloseTo(3655, -1);
-    });
-
-    it("applies 18% minimum $12 service fee for items under $100", async () => {
-      vi.mocked(getGhsRate).mockResolvedValue(15.2);
-      mockFixedFreightItems = [];
-
-      const result = await calculatePricing({
+      const calc = new PricingCalculator();
+      const result = await calc.calculate({
         itemPriceUsd: 50,
         quantity: 1,
-        region: "USA",
-        weightLbs: 1,
-        weightSource: "scraped",
+        category: TomameCategory.HEADPHONES,
       });
 
-      // 50 × 18% = $9, but minimum is $12
-      expect(result.service_fee_usd).toBe(12);
-      expect(result.service_fee_percentage).toBe(0.18);
+      expect(result.pricing_method).toBe("flat_rate");
+      expect(result.pricing_group).toBe("phone_accessories");
+      expect(result.flat_rate_ghs).toBe(250);
+      expect(result.value_fee_percentage).toBe(0.04);
     });
+  });
 
-    it("uses SerpAPI weight when scraped weight unavailable", async () => {
+  describe("Weight Expression (car parts)", () => {
+    it("car part with weight → weight_expression pricing", async () => {
       vi.mocked(getGhsRate).mockResolvedValue(15.2);
-      vi.mocked(lookupProductWeight).mockResolvedValue({
-        weightLbs: 3.5,
-        source: "serpapi:https://example.com",
-      });
-      mockFixedFreightItems = [];
 
-      const result = await calculatePricing({
+      const calc = new PricingCalculator();
+      const result = await calc.calculate({
         itemPriceUsd: 200,
         quantity: 1,
-        region: "USA",
-        productName: "Some Unknown Product",
+        category: TomameCategory.AUTOMOTIVE,
+        weightLbs: 16,
       });
 
-      expect(result.weight_lbs).toBe(3.5);
-      expect(result.weight_source).toBe("internet_search");
-      expect(lookupProductWeight).toHaveBeenCalledWith("Some Unknown Product");
+      expect(result.pricing_method).toBe("weight_expression");
+      expect(result.pricing_group).toBe("car_parts");
+      expect(result.value_fee_percentage).toBe(0.08);
+      // formula: 5 + (w / 8) = 5 + 2 = 7
+      expect(result.flat_rate_ghs).toBe(7);
+      expect(result.weight_lbs).toBe(16);
+      expect(result.flat_rate_expression).toBe("5 + (w / 8)");
+      expect(result.total_ghs).toBeGreaterThan(0);
     });
 
-    it("falls back to category default when SerpAPI returns nothing", async () => {
+    it("car part without weight → needs_review", async () => {
       vi.mocked(getGhsRate).mockResolvedValue(15.2);
-      vi.mocked(lookupProductWeight).mockResolvedValue(null);
-      mockFixedFreightItems = [];
 
-      const result = await calculatePricing({
+      const calc = new PricingCalculator();
+      const result = await calc.calculate({
         itemPriceUsd: 200,
         quantity: 1,
-        region: "USA",
-        productName: "Some Unknown Phone",
-        category: "Cell Phones & Accessories",
+        category: TomameCategory.AUTOMOTIVE,
       });
 
-      expect(result.weight_lbs).toBe(0.5);
-      expect(result.weight_source).toBe("category_default");
+      expect(result.pricing_method).toBe("needs_review");
+      expect(result.pricing_group).toBe("car_parts");
+      expect(result.total_ghs).toBe(0);
+      expect(result.review_reason).toContain("requires weight");
+    });
+  });
+
+  describe("Needs Review (unmapped category)", () => {
+    it("returns needs_review when category has no pricing group", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.2);
+
+      const calc = new PricingCalculator();
+      const result = await calc.calculate({
+        itemPriceUsd: 200,
+        quantity: 1,
+        category: "Some Unknown Category",
+      });
+
+      expect(result.pricing_method).toBe("needs_review");
+      expect(result.pricing_group).toBeNull();
+      expect(result.total_ghs).toBe(0);
+      expect(result.total_pesewas).toBe(0);
+      expect(result.review_reason).toBeTruthy();
     });
 
-    it("uses fallback FX rate when exchange_rates table empty", async () => {
+    it("returns needs_review when no category provided", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.2);
+
+      const calc = new PricingCalculator();
+      const result = await calc.calculate({
+        itemPriceUsd: 200,
+        quantity: 1,
+      });
+
+      expect(result.pricing_method).toBe("needs_review");
+      expect(result.review_reason).toContain("could not be determined");
+    });
+  });
+
+  describe("Exchange Rate", () => {
+    it("throws when exchange rate is not available", async () => {
       vi.mocked(getGhsRate).mockResolvedValue(null);
-      mockFixedFreightItems = [];
 
-      const result = await calculatePricing({
+      const calc = new PricingCalculator();
+      await expect(
+        calc.calculate({
+          itemPriceUsd: 100,
+          quantity: 1,
+          category: TomameCategory.CELL_PHONES,
+        }),
+      ).rejects.toThrow("Exchange rate for USD/GHS not available");
+    });
+
+    it("applies FX buffer to mid-market rate", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      const result = await calc.calculate({
         itemPriceUsd: 100,
         quantity: 1,
-        region: "USA",
-        weightLbs: 1,
-        weightSource: "scraped",
+        category: TomameCategory.CELL_PHONES,
       });
 
-      // Fallback: 14.50 × 1.04 = 15.08
-      expect(result.mid_market_rate).toBe(14.5);
-      expect(result.exchange_rate).toBeCloseTo(15.08, 2);
+      expect(result.mid_market_rate).toBe(15.0);
+      expect(result.exchange_rate).toBeCloseTo(15.6, 1);
+    });
+
+    it("caches FX rate across multiple calculations", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      await calc.calculate({ itemPriceUsd: 100, quantity: 1, category: TomameCategory.CELL_PHONES });
+      await calc.calculate({ itemPriceUsd: 200, quantity: 1, category: TomameCategory.HEADPHONES });
+
+      expect(getGhsRate).toHaveBeenCalledTimes(1);
     });
   });
 });

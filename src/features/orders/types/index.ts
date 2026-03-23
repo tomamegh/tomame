@@ -1,35 +1,9 @@
 // ── Pricing breakdown ────────────────────────────────────────────────────────
 
-/** Shape of the JSONB pricing column stored on each order */
-export interface OrderPricingBreakdown {
-  // Common fields
-  pricing_method: "fixed_freight" | "formula";
-  item_price_usd: number;
-  quantity: number;
-  subtotal_usd: number;
-  exchange_rate: number;
-  mid_market_rate: number;
-  total_ghs: number;
-  total_pesewas: number;
-  region: "USA" | "UK" | "CHINA";
+import type { PricingBreakdown } from "@/lib/pricing";
 
-  // Fixed freight fields (Method 1)
-  fixed_freight_ghs?: number;
-  fixed_freight_item_id?: string;
-
-  // Formula fields (Method 2)
-  seller_shipping_usd?: number;
-  freight_usd?: number;
-  service_fee_usd?: number;
-  service_fee_percentage?: number;
-  handling_fee_usd?: number;
-  total_usd?: number;
-  weight_lbs?: number;
-  weight_source?: "scraped" | "internet_search" | "category_default";
-  dimensions_inches?: { length: number; width: number; height: number } | null;
-  volumetric_weight_lbs?: number;
-  chargeable_weight_lbs?: number;
-}
+/** Re-export from lib/pricing — this is the JSONB pricing column on each order */
+export type OrderPricingBreakdown = PricingBreakdown;
 
 // ── Extraction metadata ───────────────────────────────────────────────────────
 
@@ -93,6 +67,7 @@ export interface Order {
   reviewed_by: string | null;
   reviewed_at: string | null;
   extraction_metadata: OrderExtractionMetadata | null;
+  extraction_cache_id: string | null;
   created_at: string;
   updated_at: string;
   // Joined from order_deliveries (present on admin fetch)

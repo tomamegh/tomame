@@ -15,9 +15,9 @@ describe("amazonScraper", () => {
   const result = amazonScraper.extract($);
 
   describe("domains", () => {
-    it("should include amazon.com and amazon.co.uk", () => {
+    it("should include amazon.com and a.co", () => {
       expect(amazonScraper.domains).toContain("amazon.com");
-      expect(amazonScraper.domains).toContain("amazon.co.uk");
+      expect(amazonScraper.domains).toContain("a.co");
     });
   });
 

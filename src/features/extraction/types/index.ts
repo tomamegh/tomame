@@ -10,6 +10,8 @@ export interface ExtractionResult {
   product: ScrapedProduct;
   errors: string[];
   fetched_at: string;
+  /** ID of the extraction_cache row — present when returned from the API */
+  extraction_cache_id?: string | null;
 }
 
 export interface ProductPreviewProps {

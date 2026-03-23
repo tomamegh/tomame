@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
 
     return successResponse(data, 201);
   } catch (error) {
+    console.log(error)
     return errorResponse(error);
   }
 }

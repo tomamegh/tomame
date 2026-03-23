@@ -4,12 +4,10 @@ import { logger } from "@/lib/logger";
 
 /**
  * Cron endpoint to fetch and store exchange rates.
- * Protected by CRON_SECRET header (Vercel auto-validates this).
- *
- * Schedule: Daily at midnight UTC (configured in vercel.json)
+ * Called by pg_cron via pg_net every 4 hours.
+ * Protected by CRON_SECRET bearer token.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  // Verify cron secret (Vercel sends this automatically)
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
 
@@ -39,7 +37,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           updated: result.updated,
           errors: result.errors,
         },
-        { status: 207 }
+        { status: 207 },
       );
     }
   } catch (error) {

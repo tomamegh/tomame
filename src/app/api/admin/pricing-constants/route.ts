@@ -5,19 +5,18 @@ import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
-import { getAll, updateRegionPricing } from "@/features/pricing/services/pricing.service";
+import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { z } from "zod";
 
 const patchSchema = z.object({
-  region: z.enum(["USA", "UK", "CHINA"]),
-  baseShippingFeeUsd: z.number().positive(),
-  serviceFeePercentage: z.number().min(0).max(1),
+  key: z.string().min(1),
+  value: z.number().nonnegative("Value must be non-negative"),
 });
 
 export async function GET(request: NextRequest) {
   try {
     const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-pricing:${ip}`, RATE_LIMIT.admin).allowed) {
+    if (!checkRateLimit(`admin-pricing-constants:${ip}`, RATE_LIMIT.admin).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
@@ -25,8 +24,15 @@ export async function GET(request: NextRequest) {
     const auth = requireAuth(user);
     requireAdmin(auth);
 
-    const data = await getAll(createAdminClient());
-    return successResponse(data);
+    const client = createAdminClient();
+    const { data, error } = await client
+      .from("pricing_constants")
+      .select("*")
+      .order("key");
+
+    if (error) throw new APIError(500, error.message);
+
+    return successResponse({ constants: data });
   } catch (error) {
     return errorResponse(error);
   }
@@ -35,7 +41,7 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-pricing:${ip}`, RATE_LIMIT.admin).allowed) {
+    if (!checkRateLimit(`admin-pricing-constants:${ip}`, RATE_LIMIT.admin).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
@@ -49,24 +55,41 @@ export async function PATCH(request: NextRequest) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const { region, baseShippingFeeUsd, serviceFeePercentage } = parsed.data;
+    const { key, value } = parsed.data;
     const client = createAdminClient();
 
-    // Fetch current config to preserve existing exchange_rate
-    const { configs } = await getAll(client);
-    const current = configs.find((c) => c.region === region);
+    // Fetch current value for audit
+    const { data: current } = await client
+      .from("pricing_constants")
+      .select("*")
+      .eq("key", key)
+      .single();
+
     if (!current) {
-      throw new APIError(404, `Pricing config not found for region ${region}`);
+      throw new APIError(404, `Pricing constant "${key}" not found`);
     }
 
-    const updated = await updateRegionPricing(
-      client,
-      admin,
-      region,
-      baseShippingFeeUsd,
-      current.exchange_rate,
-      serviceFeePercentage,
-    );
+    const { data: updated, error } = await client
+      .from("pricing_constants")
+      .update({ value, updated_at: new Date().toISOString(), updated_by: admin.id })
+      .eq("key", key)
+      .select()
+      .single();
+
+    if (error) throw new APIError(500, error.message);
+
+    await logAuditEvent({
+      actorId: admin.id,
+      actorRole: "admin",
+      action: "pricing_constant_updated",
+      entityType: "order",
+      entityId: updated.id,
+      metadata: {
+        key,
+        previousValue: current.value,
+        newValue: value,
+      },
+    });
 
     return successResponse(updated);
   } catch (error) {
