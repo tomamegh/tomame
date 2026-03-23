@@ -1,5 +1,3 @@
-import { CATEGORY_DEFAULT_WEIGHTS } from "@/config/pricing";
-
 /**
  * Parse a weight string into lbs.
  * Handles formats like "5 lbs", "2.3 kg", "500g", "0.5 pounds", "8 oz".
@@ -7,7 +5,9 @@ import { CATEGORY_DEFAULT_WEIGHTS } from "@/config/pricing";
 export function parseWeight(raw: string | null | undefined): number | null {
   if (!raw) return null;
 
-  const cleaned = raw.trim().toLowerCase();
+  // Strip invisible Unicode chars (LTR marks, zero-width spaces, etc.) that
+  // Amazon embeds in spec values
+  const cleaned = raw.replace(/[\u200E\u200F\u200B\u00AD\uFEFF]/g, "").trim().toLowerCase();
 
   // Try lbs / pounds
   const lbMatch = cleaned.match(/([\d.]+)\s*(?:lbs?|pounds?)/);
@@ -48,7 +48,7 @@ export function parseDimensions(
 ): { length: number; width: number; height: number } | null {
   if (!raw) return null;
 
-  const cleaned = raw.trim().toLowerCase();
+  const cleaned = raw.replace(/[\u200E\u200F\u200B\u00AD\uFEFF]/g, "").trim().toLowerCase();
 
   // Match patterns like "12 x 10 x 8", "12×10×8", "12 X 10 X 8"
   const match = cleaned.match(
@@ -72,17 +72,6 @@ export function parseDimensions(
   }
 
   return { length, width, height };
-}
-
-/**
- * Get category default weight in lbs from category string.
- * Returns null if no default is found.
- */
-export function getCategoryDefaultWeight(
-  category: string | null | undefined,
-): number | null {
-  if (!category) return null;
-  return CATEGORY_DEFAULT_WEIGHTS[category] ?? null;
 }
 
 function roundTo2(n: number): number {

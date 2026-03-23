@@ -1,9 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
-import {
-  parseWeight,
-  parseDimensions,
-} from "@/features/pricing/services/weight-parser";
+import { parseWeight } from "@/features/pricing/services/weight-parser";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
 import { sendEmail } from "@/lib/email/transport";
@@ -261,27 +258,26 @@ export async function createOrder(
   const pricing: OrderPricingBreakdown = (input.pricing as OrderPricingBreakdown | undefined) ?? await calculatePricing({
     itemPriceUsd: input.estimated_price_usd,
     quantity: input.quantity,
-    region: input.origin_country,
-    productName: input.product_name,
     category: input.extraction_metadata?.product?.category ?? null,
-    sellerShippingUsd: 0,
     weightLbs:
       parseWeight(input.extraction_metadata?.product?.weight) ?? undefined,
-    weightSource: input.extraction_metadata?.product?.weight
-      ? "scraped"
-      : undefined,
-    dimensionsInches:
-      parseDimensions(input.extraction_metadata?.product?.dimensions) ??
-      undefined,
   });
+
+  // If pricing needs review, auto-flag the order for admin review
+  const pricingNeedsReview = pricing.pricing_method === "needs_review";
+  const needsReview = pricingNeedsReview || (input.needs_review ?? false);
+  const reviewReasons = [
+    ...(input.review_reasons ?? []),
+    ...(pricingNeedsReview ? [pricing.review_reason ?? "Pricing could not be determined"] : []),
+  ];
 
   const orderToCreate = {
     user_id: user.id,
     ...input,
     pricing,
     status: "pending",
-    needs_review: input.needs_review ?? false,
-    review_reasons: input.review_reasons ?? [],
+    needs_review: needsReview,
+    review_reasons: reviewReasons,
     extraction_metadata: (input.extraction_metadata ?? null) as Record<
       string,
       unknown

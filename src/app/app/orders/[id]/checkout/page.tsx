@@ -75,8 +75,8 @@ export default function CheckoutPage({ params }: Props) {
   }
 
   const alreadyPaid = order.status !== "pending";
-
   const p = order.pricing;
+  const pricingPendingReview = p.pricing_method === "needs_review";
 
   return (
     <div className="space-y-6 max-w-lg">
@@ -146,52 +146,35 @@ export default function CheckoutPage({ params }: Props) {
           <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-3">
             Pricing Breakdown
           </p>
-          {(p.pricing_method === "fixed_freight"
-            ? [
-                { label: "Item price (USD)", value: `$${p.subtotal_usd.toFixed(2)}` },
-                {
-                  label: "Int'l freight (incl. customs)",
-                  value: `GH₵ ${(p.fixed_freight_ghs ?? 0).toFixed(2)}`,
-                },
-                { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
-              ]
-            : [
-                { label: "Subtotal", value: `$${p.subtotal_usd.toFixed(2)}` },
-                {
-                  label: "Seller shipping",
-                  value: p.seller_shipping_usd
-                    ? `$${p.seller_shipping_usd.toFixed(2)}`
-                    : "FREE",
-                },
-                {
-                  label: "Int'l freight (incl. customs)",
-                  value: `$${(p.freight_usd ?? 0).toFixed(2)}`,
-                },
-                {
-                  label: `Tax (${((p.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`,
-                  value: `$${(p.service_fee_usd ?? 0).toFixed(2)}`,
-                },
-                {
-                  label: "Handling",
-                  value: `$${(p.handling_fee_usd ?? 0).toFixed(2)}`,
-                },
-                { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
-              ]
-          ).map(({ label, value, muted }) => (
-            <div
-              key={label}
-              className={`flex justify-between text-sm gap-4 ${muted ? "text-stone-400" : "text-stone-600"}`}
-            >
-              <span>{label}</span>
-              <span className="tabular-nums">{value}</span>
+          {p.pricing_method === "needs_review" ? (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
+              Pricing is pending admin review. You&apos;ll be notified once confirmed.
             </div>
-          ))}
-          <div className="flex justify-between items-baseline pt-2 border-t border-stone-200 mt-2">
-            <span className="text-sm font-semibold text-stone-700">Total</span>
-            <span className="text-2xl font-bold text-stone-900 tabular-nums">
-              {fmtGhs(p.total_ghs)}
-            </span>
-          </div>
+          ) : (
+            <>
+              {[
+                { label: "Item price (USD)", value: `$${p.subtotal_usd.toFixed(2)}` },
+                { label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`, value: `$${p.tax_usd.toFixed(2)}` },
+                { label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`, value: `$${p.value_fee_usd.toFixed(2)}` },
+                { label: "Freight", value: `GH₵ ${p.flat_rate_ghs.toFixed(2)}` },
+                { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
+              ].map(({ label, value, muted }) => (
+                <div
+                  key={label}
+                  className={`flex justify-between text-sm gap-4 ${muted ? "text-stone-400" : "text-stone-600"}`}
+                >
+                  <span>{label}</span>
+                  <span className="tabular-nums">{value}</span>
+                </div>
+              ))}
+              <div className="flex justify-between items-baseline pt-2 border-t border-stone-200 mt-2">
+                <span className="text-sm font-semibold text-stone-700">Total</span>
+                <span className="text-2xl font-bold text-stone-900 tabular-nums">
+                  {fmtGhs(p.total_ghs)}
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Pay button */}
@@ -208,7 +191,7 @@ export default function CheckoutPage({ params }: Props) {
                 className="w-full gap-2"
                 size="lg"
                 onClick={handlePay}
-                disabled={isPending}
+                disabled={isPending || pricingPendingReview}
               >
                 {isPending ? (
                   <>
