@@ -150,16 +150,36 @@ function extractBrand($: CheerioAPI): string | null {
 }
 
 function extractCategory($: CheerioAPI): TomameCategory | null {
-  // Get the first breadcrumb link (top-level category)
-  const firstBreadcrumb = $(
-    "#wayfinding-breadcrumbs_feature_div ul li:first-child a"
-  )
-    .text()
-    .trim();
+  // Try multiple breadcrumb selectors — Amazon varies HTML across layouts
+  const breadcrumbSelectors = [
+    "#wayfinding-breadcrumbs_feature_div ul li:first-child a",
+    "#wayfinding-breadcrumbs_feature_div ul li a",
+    ".a-breadcrumb li:first-child a",
+    "#nav-subnav .nav-a:first-child",
+  ];
 
-  if (!firstBreadcrumb) return null;
+  for (const selector of breadcrumbSelectors) {
+    const els = $(selector);
+    for (let i = 0; i < els.length; i++) {
+      const crumb = els.eq(i).text().trim();
+      if (!crumb) continue;
+      const mapped = AMAZON_CATEGORY_MAP.get(crumb);
+      if (mapped) return mapped;
+    }
+  }
 
-  return AMAZON_CATEGORY_MAP.get(firstBreadcrumb) ?? TomameCategory.OTHER;
+  // Check the department nav dropdown (shows "Automotive Parts & Accessories" etc.)
+  const deptText = $("#searchDropdownBox option[selected]").text().trim();
+  if (deptText) {
+    const mapped = AMAZON_CATEGORY_MAP.get(deptText);
+    if (mapped) return mapped;
+  }
+
+  // Check any breadcrumb text we found, even if not in the map
+  const firstBreadcrumb = $(breadcrumbSelectors[0]!).text().trim();
+  if (firstBreadcrumb) return TomameCategory.OTHER;
+
+  return null;
 }
 
 function extractWeight(specs: Record<string, string>): string | null {

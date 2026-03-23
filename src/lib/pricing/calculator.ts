@@ -93,8 +93,8 @@ export class PricingCalculator {
         valueFeePercentage: 0,
         valueFeeUsd: 0,
         reason: category
-          ? `Category "${category}" has no pricing configuration`
-          : "Product category could not be determined",
+          ? `We don't have pricing set up for "${category}" products yet.`
+          : "We couldn't determine the product category.",
       });
     }
 
@@ -113,7 +113,7 @@ export class PricingCalculator {
         group,
         valueFeePercentage: pricing.value_percentage,
         valueFeeUsd,
-        reason: `Category "${pricing.name}" requires weight but none was provided`,
+        reason: `We couldn't determine the weight of this product, which is needed to calculate shipping for ${pricing.name.toLowerCase()}.`,
       });
     }
 
@@ -128,7 +128,7 @@ export class PricingCalculator {
         group,
         valueFeePercentage: pricing.value_percentage,
         valueFeeUsd,
-        reason: `Could not resolve flat rate for "${pricing.name}"`,
+        reason: `We couldn't calculate shipping for ${pricing.name.toLowerCase()}.`,
       });
     }
 

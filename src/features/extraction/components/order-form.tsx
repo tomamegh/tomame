@@ -294,8 +294,9 @@ export function OrderForm({
                   <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
                     <p className="font-medium">Pricing pending admin review</p>
                     <p className="text-xs mt-0.5 text-amber-600">
-                      We couldn&apos;t determine freight for this product. Our team will
-                      review and confirm the price after you submit.
+                      {pricing.review_reason ??
+                        "We couldn\u0027t determine freight for this product."}{" "}
+                      Our team will review and confirm the price after you submit.
                     </p>
                   </div>
                 ) : (
