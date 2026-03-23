@@ -233,30 +233,59 @@ export class AmazonScraper extends PlatformScraper {
     "a.co", // Amazon short URL (mobile app sharing)
   ];
 
+  private static readonly FETCH_HEADERS = {
+    "User-Agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Accept":
+      "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+  };
+
   /**
-   * Try a direct HTTP fetch with browser-like headers.
+   * Resolve a short URL (a.co) to its final destination without downloading the body.
+   */
+  private async resolveShortUrl(shortUrl: string): Promise<string | null> {
+    try {
+      const res = await fetch(shortUrl, {
+        method: "HEAD",
+        headers: AmazonScraper.FETCH_HEADERS,
+        redirect: "follow",
+        signal: AbortSignal.timeout(10000),
+      });
+      // After redirect, res.url is the final destination
+      return res.url || null;
+    } catch {
+      // HEAD might be blocked — try GET with redirect follow
+      try {
+        const res = await fetch(shortUrl, {
+          headers: AmazonScraper.FETCH_HEADERS,
+          redirect: "follow",
+          signal: AbortSignal.timeout(10000),
+        });
+        return res.url || null;
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  /**
+   * Fetch a product page via direct HTTP with browser-like headers.
    * Amazon serves SSR HTML — no JS rendering needed for product data.
    */
   private async directFetch(url: string): Promise<string | null> {
     try {
       const res = await fetch(url, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-          "Accept":
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9",
-          "Accept-Encoding": "gzip, deflate, br",
-          "Cache-Control": "no-cache",
-          "Pragma": "no-cache",
-        },
+        headers: AmazonScraper.FETCH_HEADERS,
         redirect: "follow",
         signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) return null;
       const html = await res.text();
-      // Verify we got a product page, not a CAPTCHA/bot page
-      if (html.includes("productTitle") || html.includes("dp/")) return html;
+      if (html.includes("productTitle")) return html;
       return null;
     } catch {
       return null;
@@ -264,37 +293,24 @@ export class AmazonScraper extends PlatformScraper {
   }
 
   public async scrape(url: string): Promise<ScrapedProduct> {
-    const cleanedUrl = AmazonScraper.cleanUrl(url);
-    let html: string | null = null;
+    let productUrl = url;
 
-    // Short URLs need Browserless for redirect resolution
-    const isShortUrl = new URL(url).hostname === "a.co";
-
-    if (!isShortUrl) {
-      // Try direct HTTP fetch first — faster and avoids bot detection
-      html = await this.directFetch(cleanedUrl);
+    // Step 1: Resolve short URL to full product URL
+    if (new URL(url).hostname === "a.co") {
+      const resolved = await this.resolveShortUrl(url);
+      if (!resolved) {
+        throw new Error("Failed to resolve short URL");
+      }
+      productUrl = resolved;
     }
 
-    // Fall back to Browserless (needed for short URLs and JS-heavy pages)
+    // Step 2: Clean the URL (strip tracking params, keep /dp/ASIN)
+    const cleanedUrl = AmazonScraper.cleanUrl(productUrl);
+
+    // Step 3: Direct HTTP fetch
+    const html = await this.directFetch(cleanedUrl);
     if (!html) {
-      const target = isShortUrl ? url : cleanedUrl;
-      let result = await this.browserless.scrapeContent({
-        url: target,
-        waitForSelector: "#productTitle",
-        timeout: 20000,
-      });
-
-      if (!result.success || !result.html) {
-        result = await this.browserless.scrapeContent({
-          url: target,
-          timeout: 20000,
-        });
-      }
-
-      if (!result.success || !result.html) {
-        throw new Error(result.error ?? "Failed to fetch page");
-      }
-      html = result.html;
+      throw new Error("Failed to fetch product page");
     }
 
     const $ = cheerio.load(html);

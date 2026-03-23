@@ -5,7 +5,9 @@
 export function parseWeight(raw: string | null | undefined): number | null {
   if (!raw) return null;
 
-  const cleaned = raw.trim().toLowerCase();
+  // Strip invisible Unicode chars (LTR marks, zero-width spaces, etc.) that
+  // Amazon embeds in spec values
+  const cleaned = raw.replace(/[\u200E\u200F\u200B\u00AD\uFEFF]/g, "").trim().toLowerCase();
 
   // Try lbs / pounds
   const lbMatch = cleaned.match(/([\d.]+)\s*(?:lbs?|pounds?)/);
@@ -46,7 +48,7 @@ export function parseDimensions(
 ): { length: number; width: number; height: number } | null {
   if (!raw) return null;
 
-  const cleaned = raw.trim().toLowerCase();
+  const cleaned = raw.replace(/[\u200E\u200F\u200B\u00AD\uFEFF]/g, "").trim().toLowerCase();
 
   // Match patterns like "12 x 10 x 8", "12×10×8", "12 X 10 X 8"
   const match = cleaned.match(
