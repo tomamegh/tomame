@@ -242,11 +242,12 @@ function ReviewForm({
   const [pricingLoading, setPricingLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const unsupportedRegion = !country;
   const needsReview = !extraction_success || !name || price === null;
 
   // Fetch pricing preview
   useEffect(() => {
-    if (!price || price <= 0) {
+    if (unsupportedRegion || !price || price <= 0) {
       setPricing(null);
       return;
     }
@@ -279,8 +280,22 @@ function ReviewForm({
 
   return (
     <div className="space-y-4 fade-in">
+      {/* Unsupported region notice */}
+      {unsupportedRegion && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertCircleIcon className="mt-0.5 size-4 shrink-0 text-red-500" />
+          <div>
+            <p className="font-semibold">Region not supported</p>
+            <p className="text-red-700/80 text-xs mt-0.5">
+              This product is from an Amazon region we don&apos;t currently support.
+              Only Amazon US (amazon.com) orders are available at this time.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Needs review notice */}
-      {needsReview && (
+      {!unsupportedRegion && needsReview && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-amber-500" />
           <div>
@@ -446,60 +461,79 @@ function ReviewForm({
       </Card>
 
       {/* Pricing preview */}
-      {pricingLoading && (
-        <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-500">
-          <LoaderCircleIcon className="size-4 animate-spin shrink-0" />
-          Calculating pricing…
-        </div>
-      )}
-      {!pricingLoading && pricing && (
+      {unsupportedRegion ? (
         <Card>
           <CardContent className="pt-4 space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
-              Estimated Pricing Breakdown
+              Pricing
             </p>
-            {pricing.pricing_method === "needs_review" ? (
-              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
-                <p className="font-medium">Pricing pending admin review</p>
-                <p className="text-xs mt-0.5 text-amber-600">
-                  {pricing.review_reason ??
-                    "We couldn\u0027t determine freight for this product."}{" "}
-                  Our team will review and confirm the price after you submit.
-                </p>
-              </div>
-            ) : (
-              <>
-                {[
-                  { label: "Item price", value: `$${pricing.item_price_usd.toFixed(2)}` },
-                  { label: `Subtotal (×${pricing.quantity})`, value: `$${pricing.subtotal_usd.toFixed(2)}` },
-                  { label: `Tax (${(pricing.tax_percentage * 100).toFixed(0)}%)`, value: `$${pricing.tax_usd.toFixed(2)}` },
-                  { label: `Value fee (${(pricing.value_fee_percentage * 100).toFixed(0)}%)`, value: `$${pricing.value_fee_usd.toFixed(2)}` },
-                  { label: "Freight", value: `GH₵ ${pricing.flat_rate_ghs.toFixed(2)}` },
-                  { label: "Exchange rate", value: `1 USD = ${pricing.exchange_rate} GHS` },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex justify-between text-sm gap-4 text-stone-600">
-                    <span>{label}</span>
-                    <span className="tabular-nums">{value}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between font-bold text-base text-stone-900 pt-2 border-t border-stone-300">
-                  <span>Total (GHS)</span>
-                  <span className="tabular-nums">
-                    {new Intl.NumberFormat("en-GH", {
-                      style: "currency",
-                      currency: "GHS",
-                      minimumFractionDigits: 2,
-                    }).format(pricing.total_ghs)}
-                  </span>
-                </div>
-              </>
-            )}
+            <div className="flex justify-between text-sm text-stone-400">
+              <span>Total</span>
+              <span className="italic">Cannot be determined</span>
+            </div>
             <p className="text-xs text-stone-400 pt-1">
-              Estimate only — final total confirmed after admin review. Full
-              payment required before processing.
+              Pricing is unavailable for unsupported regions.
             </p>
           </CardContent>
         </Card>
+      ) : (
+        <>
+          {pricingLoading && (
+            <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-500">
+              <LoaderCircleIcon className="size-4 animate-spin shrink-0" />
+              Calculating pricing…
+            </div>
+          )}
+          {!pricingLoading && pricing && (
+            <Card>
+              <CardContent className="pt-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+                  Estimated Pricing Breakdown
+                </p>
+                {pricing.pricing_method === "needs_review" ? (
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
+                    <p className="font-medium">Pricing pending admin review</p>
+                    <p className="text-xs mt-0.5 text-amber-600">
+                      {pricing.review_reason ??
+                        "We couldn\u0027t determine freight for this product."}{" "}
+                      Our team will review and confirm the price after you submit.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {[
+                      { label: "Item price", value: `$${pricing.item_price_usd.toFixed(2)}` },
+                      { label: `Subtotal (×${pricing.quantity})`, value: `$${pricing.subtotal_usd.toFixed(2)}` },
+                      { label: `Tax (${(pricing.tax_percentage * 100).toFixed(0)}%)`, value: `$${pricing.tax_usd.toFixed(2)}` },
+                      { label: `Value fee (${(pricing.value_fee_percentage * 100).toFixed(0)}%)`, value: `$${pricing.value_fee_usd.toFixed(2)}` },
+                      { label: "Freight", value: `GH₵ ${pricing.flat_rate_ghs.toFixed(2)}` },
+                      { label: "Exchange rate", value: `1 USD = ${pricing.exchange_rate} GHS` },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex justify-between text-sm gap-4 text-stone-600">
+                        <span>{label}</span>
+                        <span className="tabular-nums">{value}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between font-bold text-base text-stone-900 pt-2 border-t border-stone-300">
+                      <span>Total (GHS)</span>
+                      <span className="tabular-nums">
+                        {new Intl.NumberFormat("en-GH", {
+                          style: "currency",
+                          currency: "GHS",
+                          minimumFractionDigits: 2,
+                        }).format(pricing.total_ghs)}
+                      </span>
+                    </div>
+                  </>
+                )}
+                <p className="text-xs text-stone-400 pt-1">
+                  Estimate only — final total confirmed after admin review. Full
+                  payment required before processing.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       {/* Submit */}
@@ -517,7 +551,7 @@ function ReviewForm({
         <Button
           type="button"
           variant="primary"
-          disabled={isLoading}
+          disabled={isLoading || unsupportedRegion}
           className="gap-1.5"
           onClick={() =>
             onSubmit({

@@ -8,17 +8,10 @@ import type { ExtractionResult } from "./types";
 const CACHE_TTL_MINUTES = 30;
 
 const DOMAIN_COUNTRY_MAP: Record<string, "USA" | "UK" | "CHINA"> = {
+  // Amazon — US only for now
   "amazon.com": "USA",
-  "amazon.ca": "USA",
-  "amazon.co.uk": "UK",
-  "amazon.de": "UK",
-  "amazon.fr": "UK",
-  "amazon.es": "UK",
-  "amazon.it": "UK",
-  "amazon.com.au": "USA",
-  "amazon.in": "CHINA",
-  "amazon.co.jp": "CHINA",
-  "a.co": "USA",
+  // Future: "amazon.co.uk": "UK", "amazon.ca": "USA", "amazon.de": "UK", etc.
+
   "ebay.com": "USA",
   "ebay.co.uk": "UK",
   "walmart.com": "USA",
@@ -130,7 +123,37 @@ export interface ExtractionResponse extends ExtractionResult {
   extraction_cache_id: string | null;
 }
 
+/**
+ * Resolve a short URL (e.g. a.co) to its final destination so we can
+ * determine the actual domain for country mapping.
+ */
+async function resolveShortUrl(shortUrl: string): Promise<string> {
+  try {
+    const res = await fetch(shortUrl, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res.url || shortUrl;
+  } catch {
+    return shortUrl;
+  }
+}
+
+const SHORT_URL_HOSTS = new Set(["a.co"]);
+
 export async function extractProductData(url: string): Promise<ExtractionResponse> {
+  // Resolve short URLs up-front so country detection uses the real domain
+  let resolvedUrl = url;
+  try {
+    if (SHORT_URL_HOSTS.has(new URL(url).hostname.toLowerCase())) {
+      resolvedUrl = await resolveShortUrl(url);
+      logger.info("resolved short URL", { from: url, to: resolvedUrl });
+    }
+  } catch {
+    // If URL parsing fails, continue with original
+  }
+
   const urlHash = hashUrl(url);
 
   // Check cache first
@@ -148,6 +171,7 @@ export async function extractProductData(url: string): Promise<ExtractionRespons
   }
 
   const scraper = getScraperByPlatform(platform);
+  const country = getCountryFromDomain(resolvedUrl);
 
   try {
     const product = await scraper.scrape(url);
@@ -157,11 +181,15 @@ export async function extractProductData(url: string): Promise<ExtractionRespons
       errors.push("Could not extract product name or price from page");
     }
 
+    if (!country) {
+      errors.push("This Amazon region is not currently supported. Only amazon.com (US) is available.");
+    }
+
     const result: ExtractionResult = {
       extraction_attempted: true,
       extraction_success: extractionSuccess,
       platform,
-      country: getCountryFromDomain(url),
+      country,
       product,
       errors,
       fetched_at: new Date().toISOString(),

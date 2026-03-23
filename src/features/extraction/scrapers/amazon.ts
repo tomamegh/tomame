@@ -221,16 +221,8 @@ export class AmazonScraper extends PlatformScraper {
   }
   public readonly domains = [
     "amazon.com",
-    "amazon.co.uk",
-    "amazon.ca",
-    "amazon.de",
-    "amazon.fr",
-    "amazon.es",
-    "amazon.it",
-    "amazon.com.au",
-    "amazon.in",
-    "amazon.co.jp",
-    "a.co", // Amazon short URL (mobile app sharing)
+    "a.co", // Amazon short URL (mobile app sharing, resolves to amazon.com)
+    // Future: "amazon.co.uk", "amazon.ca", "amazon.de", etc.
   ];
 
   private static readonly FETCH_HEADERS = {
