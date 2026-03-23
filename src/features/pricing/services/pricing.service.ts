@@ -1,268 +1,70 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
-import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { PlatformUser } from "@/features/users/types";
-import type {
-  PricingConfigResponse,
-  PricingConfigListResponse,
-} from "@/features/pricing/types";
-import type {
-  PricingConfig,
-  FixedFreightItem,
-} from "@/features/pricing/types";
 import type { OrderPricingBreakdown } from "@/features/orders/types";
 import { getGhsRate } from "@/lib/exchange-rates/service";
-import {
-  SERVICE_FEE_TIERS,
-  FALLBACK_FX_RATE,
-  DEFAULT_FX_BUFFER_PCT,
-  DEFAULT_FREIGHT_RATE_PER_LB,
-  DEFAULT_HANDLING_FEE_USD,
-  DEFAULT_VOLUMETRIC_DIVISOR,
-} from "@/config/pricing";
-import {
-  getCategoryDefaultWeight,
-} from "./weight-parser";
-import { lookupProductWeight } from "@/lib/serpapi/weight-lookup";
+import { TAX_PERCENTAGE, DEFAULT_FX_BUFFER_PCT } from "@/config/pricing";
+import { getCategoryPricing } from "@/config/pricing-categories";
 
-// ── DB queries ────────────────────────────────────────────────────────────────
-
-async function getPricingConfigByRegion(
-  client: SupabaseClient,
-  region: "USA" | "UK" | "CHINA"
-): Promise<PricingConfig | null> {
-  const { data, error } = await client
-    .from("pricing_config")
-    .select("*")
-    .eq("region", region)
-    .single();
-
-  if (error) {
-    logger.error("getPricingConfigByRegion failed", {
-      region,
-      error: error.message,
-    });
-    return null;
-  }
-  return data as PricingConfig;
-}
-
-async function getAllPricingConfigs(
-  client: SupabaseClient
-): Promise<PricingConfig[]> {
-  const { data, error } = await client
-    .from("pricing_config")
-    .select("*")
-    .order("region");
-
-  if (error) {
-    logger.error("getAllPricingConfigs failed", { error: error.message });
-    return [];
-  }
-  return (data ?? []) as PricingConfig[];
-}
-
-async function updatePricingConfig(
-  client: SupabaseClient,
-  region: "USA" | "UK" | "CHINA",
-  updates: {
-    base_shipping_fee_usd: number;
-    exchange_rate: number;
-    service_fee_percentage: number;
-    updated_by: string;
-  }
-): Promise<PricingConfig | null> {
-  const { data, error } = await client
-    .from("pricing_config")
-    .update({
-      ...updates,
-      last_updated: new Date().toISOString(),
-    })
-    .eq("region", region)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error("updatePricingConfig failed", {
-      region,
-      error: error.message,
-    });
-    return null;
-  }
-  return data as PricingConfig;
-}
-
-/**
- * Find a fixed freight item by matching product name against keywords.
- * Keywords are stored lowercase; we do case-insensitive substring matching.
- * More specific matches (longer keywords) are preferred.
- */
-async function findFixedFreightItem(
-  productName: string,
-): Promise<FixedFreightItem | null> {
-  const client = createAdminClient();
-
-  const { data, error } = await client
-    .from("fixed_freight_items")
-    .select("*")
-    .eq("is_active", true)
-    .order("sort_order");
-
-  if (error) {
-    logger.error("findFixedFreightItem query failed", { error: error.message });
-    return null;
-  }
-
-  if (!data || data.length === 0) return null;
-
-  const nameLower = productName.toLowerCase();
-  let bestMatch: FixedFreightItem | null = null;
-  let bestKeywordLength = 0;
-
-  for (const item of data as FixedFreightItem[]) {
-    for (const keyword of item.keywords) {
-      if (nameLower.includes(keyword) && keyword.length > bestKeywordLength) {
-        bestMatch = item;
-        bestKeywordLength = keyword.length;
-      }
-    }
-  }
-
-  return bestMatch;
-}
-
-/**
- * Get the applied FX rate: mid-market rate × (1 + buffer).
- * Falls back to FALLBACK_FX_RATE if DB has no data.
- */
-async function getAppliedFxRate(
-  baseCurrency: string,
-): Promise<{ appliedRate: number; midMarketRate: number }> {
-  const midMarketRate = await getGhsRate(baseCurrency);
-  const rate = midMarketRate ?? FALLBACK_FX_RATE;
-  return {
-    midMarketRate: rate,
-    appliedRate: roundTo2(rate * (1 + DEFAULT_FX_BUFFER_PCT)),
-  };
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function roundTo2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
 /**
- * Calculate the tiered service fee for Method 2.
+ * Get the applied FX rate: mid-market rate × (1 + buffer).
+ * Throws if no rate exists in DB (cron must have run first).
  */
-function calculateServiceFee(itemPriceUsd: number): {
-  feeUsd: number;
-  percentage: number;
-} {
-  for (const tier of SERVICE_FEE_TIERS) {
-    if (itemPriceUsd <= tier.maxUsd) {
-      const calculated = roundTo2(itemPriceUsd * tier.percentage);
-      const feeUsd = Math.max(calculated, tier.minimumUsd);
-      return { feeUsd, percentage: tier.percentage };
-    }
+async function getAppliedFxRate(
+  baseCurrency: string,
+): Promise<{ appliedRate: number; midMarketRate: number }> {
+  const midMarketRate = await getGhsRate(baseCurrency);
+
+  if (midMarketRate == null) {
+    throw new APIError(
+      503,
+      `Exchange rate for ${baseCurrency}/GHS not available. Please try again later.`,
+    );
   }
-  // Shouldn't reach here since last tier is Infinity — fallback to 8%
+
   return {
-    feeUsd: roundTo2(itemPriceUsd * 0.08),
-    percentage: 0.08,
+    midMarketRate,
+    appliedRate: roundTo2(midMarketRate * (1 + DEFAULT_FX_BUFFER_PCT)),
   };
 }
 
-// ── Service functions ─────────────────────────────────────────────────────────
-
-export async function getAll(
-  client: SupabaseClient,
-): Promise<PricingConfigListResponse> {
-  const configs = await getAllPricingConfigs(client);
-  return { configs: configs as PricingConfigResponse[] };
-}
-
-export async function updateRegionPricing(
-  client: SupabaseClient,
-  admin: PlatformUser,
-  region: "USA" | "UK" | "CHINA",
-  baseShippingFeeUsd: number,
-  exchangeRate: number,
-  serviceFeePercentage: number,
-): Promise<PricingConfigResponse> {
-  const current = await getPricingConfigByRegion(client, region);
-  if (!current) {
-    throw new APIError(404, "Pricing config not found for region");
-  }
-
-  const updated = await updatePricingConfig(client, region, {
-    base_shipping_fee_usd: baseShippingFeeUsd,
-    exchange_rate: exchangeRate,
-    service_fee_percentage: serviceFeePercentage,
-    updated_by: admin.id,
-  });
-
-  if (!updated) {
-    throw new APIError(500, "Failed to update pricing config");
-  }
-
-  await logAuditEvent({
-    actorId: admin.id,
-    actorRole: "admin",
-    action: "pricing_config_updated",
-    entityType: "order",
-    entityId: updated.id,
-    metadata: {
-      region,
-      previous: {
-        baseShippingFeeUsd: current.base_shipping_fee_usd,
-        exchangeRate: current.exchange_rate,
-        serviceFeePercentage: current.service_fee_percentage,
-      },
-      updated: { baseShippingFeeUsd, exchangeRate, serviceFeePercentage },
-    },
-  });
-
-  return updated as PricingConfigResponse;
-}
-
-// ── Input type for calculatePricing ──────────────────────────────────────────
+// ── Input type ───────────────────────────────────────────────────────────────
 
 export interface CalculatePricingInput {
   itemPriceUsd: number;
   quantity: number;
   region: "USA" | "UK" | "CHINA";
-  productName?: string;
+  /** TomameCategory string from extraction */
   category?: string | null;
-  sellerShippingUsd?: number;
+  /** Weight in lbs (from scraping) */
   weightLbs?: number;
   weightSource?: "scraped" | "category_default";
-  dimensionsInches?: { length: number; width: number; height: number } | null;
 }
 
 /**
  * Calculate the full pricing breakdown for an order.
  *
- * Two methods:
- *   Method 1 (Fixed Freight) — for recognized products in the fixed_freight_items table
- *   Method 2 (Formula-Based) — weight-based freight, tiered service fee, handling
- *
- * FX rate: mid-market from exchange_rates table × (1 + 4% buffer).
+ * 1. Look up TomameCategory → pricing group
+ *    - Not found → needs_review
+ * 2. If flat_rate → freight is fixed GHS
+ *    If weight_required:
+ *      - No weight → needs_review
+ *      - Has weight → freight = weight × per_weight_rate × fx_rate
+ * 3. value_fee = subtotal × value_percentage
+ * 4. tax = subtotal × TAX_PERCENTAGE
+ * 5. total_ghs = (subtotal + tax + value_fee) × fx_rate + freight_ghs
  */
 export async function calculatePricing(
   input: CalculatePricingInput,
 ): Promise<OrderPricingBreakdown> {
-  const {
-    itemPriceUsd,
-    quantity,
-    region,
-    productName,
-    category,
-    sellerShippingUsd = 0,
-    dimensionsInches,
-  } = input;
+  const { itemPriceUsd, quantity, region, category } = input;
 
-  // Resolve FX rate based on region
+  // Resolve FX rate
   const currencyMap: Record<string, string> = {
     USA: "USD",
     UK: "GBP",
@@ -272,123 +74,113 @@ export async function calculatePricing(
   const { appliedRate, midMarketRate } = await getAppliedFxRate(baseCurrency);
 
   const subtotalUsd = roundTo2(itemPriceUsd * quantity);
+  const taxUsd = roundTo2(subtotalUsd * TAX_PERCENTAGE);
 
-  // Try fixed freight matching if product name is provided
-  const fixedFreightItem = productName
-    ? await findFixedFreightItem(productName)
-    : null;
+  // Look up category pricing
+  const catPricing = getCategoryPricing(category);
 
-  if (fixedFreightItem) {
-    // ── Method 1: Fixed Freight ──────────────────────────────────────────
-    const itemPriceGhs = roundTo2(subtotalUsd * appliedRate);
-    const totalGhs = roundTo2(itemPriceGhs + fixedFreightItem.freight_rate_ghs);
-    const totalPesewas = Math.round(totalGhs * 100);
-
+  if (!catPricing) {
+    logger.info("No pricing group for category, flagging for review", { category, region });
     return {
-      pricing_method: "fixed_freight",
+      pricing_method: "needs_review",
+      pricing_group: null,
       item_price_usd: itemPriceUsd,
       quantity,
       subtotal_usd: subtotalUsd,
       exchange_rate: appliedRate,
       mid_market_rate: midMarketRate,
-      total_ghs: totalGhs,
-      total_pesewas: totalPesewas,
+      tax_percentage: TAX_PERCENTAGE,
+      tax_usd: taxUsd,
+      value_fee_percentage: 0,
+      value_fee_usd: 0,
+      total_ghs: 0,
+      total_pesewas: 0,
       region,
-      fixed_freight_ghs: fixedFreightItem.freight_rate_ghs,
-      fixed_freight_item_id: fixedFreightItem.id,
+      review_reason: category
+        ? `Category "${category}" has no pricing configuration`
+        : "Product category could not be determined",
     };
   }
 
-  // ── Method 2: Formula-Based ──────────────────────────────────────────
-  // Resolve weight — 3-step fallback:
-  //   Step 1: Scraped weight from product URL (passed in as input.weightLbs)
-  //   Step 2: Search internet via SerpAPI for "[product name] weight specs"
-  //   Step 3: Apply category default weight
-  let weightLbs = input.weightLbs ?? null;
-  let weightSource: "scraped" | "internet_search" | "category_default" =
-    input.weightSource ?? "scraped";
+  const { group, pricing } = catPricing;
+  const valueFeeUsd = roundTo2(subtotalUsd * pricing.value_percentage);
 
-  // Step 2: SerpAPI internet search if no scraped weight
-  if (weightLbs == null && productName) {
-    const serpResult = await lookupProductWeight(productName);
-    if (serpResult) {
-      weightLbs = serpResult.weightLbs;
-      weightSource = "internet_search";
-    }
+  // ── Flat rate path ─────────────────────────────────────────────────────
+  if (pricing.flat_rate_ghs != null) {
+    const usdComponentGhs = roundTo2((subtotalUsd + taxUsd + valueFeeUsd) * appliedRate);
+    const totalGhs = roundTo2(usdComponentGhs + pricing.flat_rate_ghs);
+    const totalPesewas = Math.round(totalGhs * 100);
+
+    return {
+      pricing_method: "flat_rate",
+      pricing_group: group,
+      item_price_usd: itemPriceUsd,
+      quantity,
+      subtotal_usd: subtotalUsd,
+      exchange_rate: appliedRate,
+      mid_market_rate: midMarketRate,
+      tax_percentage: TAX_PERCENTAGE,
+      tax_usd: taxUsd,
+      value_fee_percentage: pricing.value_percentage,
+      value_fee_usd: valueFeeUsd,
+      total_ghs: totalGhs,
+      total_pesewas: totalPesewas,
+      region,
+      flat_rate_ghs: pricing.flat_rate_ghs,
+    };
   }
 
-  // Step 3: Category default weight
-  if (weightLbs == null && category) {
-    weightLbs = getCategoryDefaultWeight(category);
-    if (weightLbs != null) {
-      weightSource = "category_default";
-    }
+  // ── Weight-based path ──────────────────────────────────────────────────
+  const weightLbs = input.weightLbs ?? null;
+  const weightSource = input.weightSource ?? "scraped";
+
+  if (pricing.weight_required && weightLbs == null) {
+    return {
+      pricing_method: "needs_review",
+      pricing_group: group,
+      item_price_usd: itemPriceUsd,
+      quantity,
+      subtotal_usd: subtotalUsd,
+      exchange_rate: appliedRate,
+      mid_market_rate: midMarketRate,
+      tax_percentage: TAX_PERCENTAGE,
+      tax_usd: taxUsd,
+      value_fee_percentage: pricing.value_percentage,
+      value_fee_usd: valueFeeUsd,
+      total_ghs: 0,
+      total_pesewas: 0,
+      region,
+      review_reason: `Category "${pricing.name}" requires weight but none was provided`,
+    };
   }
 
-  // Final fallback to general accessories weight
-  if (weightLbs == null) {
-    weightLbs = 0.5;
-    weightSource = "category_default";
-  }
+  const perLbRate = pricing.per_weight_rate_usd ?? 0;
+  const freightUsd = roundTo2((weightLbs ?? 0) * perLbRate);
+  const freightGhs = roundTo2(freightUsd * appliedRate);
 
-  // Calculate volumetric weight if dimensions available
-  let volumetricWeightLbs: number | null = null;
-  const dims = dimensionsInches ?? null;
-  if (dims) {
-    volumetricWeightLbs = roundTo2(
-      (dims.length * dims.width * dims.height) / DEFAULT_VOLUMETRIC_DIVISOR,
-    );
-  }
-
-  // Chargeable weight = max(actual, volumetric)
-  const chargeableWeight = roundTo2(
-    Math.max(weightLbs, volumetricWeightLbs ?? 0),
-  );
-
-  // Freight
-  const freightUsd = roundTo2(chargeableWeight * DEFAULT_FREIGHT_RATE_PER_LB);
-
-  // Tiered service fee
-  const { feeUsd: serviceFeeUsd, percentage: serviceFeePercentage } =
-    calculateServiceFee(itemPriceUsd);
-
-  // Handling
-  const handlingFeeUsd = DEFAULT_HANDLING_FEE_USD;
-
-  // Total USD (all components summed before FX)
-  const sellerShipping = roundTo2(sellerShippingUsd);
-  const totalUsd = roundTo2(
-    subtotalUsd +
-      sellerShipping +
-      freightUsd +
-      serviceFeeUsd +
-      handlingFeeUsd,
-  );
-
-  // Convert to GHS
-  const totalGhs = roundTo2(totalUsd * appliedRate);
+  const usdComponentGhs = roundTo2((subtotalUsd + taxUsd + valueFeeUsd) * appliedRate);
+  const totalGhs = roundTo2(usdComponentGhs + freightGhs);
   const totalPesewas = Math.round(totalGhs * 100);
 
   return {
-    pricing_method: "formula",
+    pricing_method: "weight_based",
+    pricing_group: group,
     item_price_usd: itemPriceUsd,
     quantity,
     subtotal_usd: subtotalUsd,
     exchange_rate: appliedRate,
     mid_market_rate: midMarketRate,
+    tax_percentage: TAX_PERCENTAGE,
+    tax_usd: taxUsd,
+    value_fee_percentage: pricing.value_percentage,
+    value_fee_usd: valueFeeUsd,
     total_ghs: totalGhs,
     total_pesewas: totalPesewas,
     region,
-    seller_shipping_usd: sellerShipping,
     freight_usd: freightUsd,
-    service_fee_usd: serviceFeeUsd,
-    service_fee_percentage: serviceFeePercentage,
-    handling_fee_usd: handlingFeeUsd,
-    total_usd: totalUsd,
-    weight_lbs: weightLbs,
+    freight_ghs: freightGhs,
+    weight_lbs: weightLbs ?? undefined,
     weight_source: weightSource,
-    dimensions_inches: dims,
-    volumetric_weight_lbs: volumetricWeightLbs ?? undefined,
-    chargeable_weight_lbs: chargeableWeight,
+    per_weight_rate_usd: perLbRate,
   };
 }

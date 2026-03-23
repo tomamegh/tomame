@@ -235,22 +235,27 @@ function OrderSuccess({
               </p>
             </div>
             <div className="px-4 py-3 space-y-2">
-              {(p.pricing_method === "fixed_freight"
+              {p.pricing_method === "needs_review" ? (
+                <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
+                  Pricing is pending admin review.
+                </div>
+              ) : null}
+              {p.pricing_method !== "needs_review" && (p.pricing_method === "flat_rate"
                 ? [
                     { label: "Item price (USD)", value: fmtUsd(p.subtotal_usd) },
-                    { label: "Int'l freight (incl. customs)", value: `GH₵ ${(p.fixed_freight_ghs ?? 0).toFixed(2)}` },
+                    { label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`, value: fmtUsd(p.tax_usd) },
+                    { label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`, value: fmtUsd(p.value_fee_usd) },
+                    { label: "Freight (flat rate)", value: `GH₵ ${(p.flat_rate_ghs ?? 0).toFixed(2)}` },
                     { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
                   ]
                 : [
                     { label: "Subtotal", value: fmtUsd(p.subtotal_usd) },
-                    { label: "Seller shipping", value: p.seller_shipping_usd ? fmtUsd(p.seller_shipping_usd) : "FREE" },
-                    { label: "Int'l freight (incl. customs)", value: fmtUsd(p.freight_usd ?? 0) },
-                    { label: `Service fee (${((p.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`, value: fmtUsd(p.service_fee_usd ?? 0) },
-                    { label: "Handling", value: fmtUsd(p.handling_fee_usd ?? 0) },
-                    { label: "Total (USD)", value: fmtUsd(p.total_usd ?? 0), muted: true },
+                    { label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`, value: fmtUsd(p.tax_usd) },
+                    { label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`, value: fmtUsd(p.value_fee_usd) },
+                    { label: "Freight (weight-based)", value: `GH₵ ${(p.freight_ghs ?? 0).toFixed(2)}` },
                     { label: "Rate", value: `1 USD = ${p.exchange_rate} GHS`, muted: true },
                   ]
-              ).map(({ label, value, muted }) => (
+              )?.map(({ label, value, muted }) => (
                 <div
                   key={label}
                   className={`flex justify-between text-sm gap-4 ${muted ? "text-stone-400" : "text-stone-600"}`}

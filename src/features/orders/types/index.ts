@@ -3,32 +3,33 @@
 /** Shape of the JSONB pricing column stored on each order */
 export interface OrderPricingBreakdown {
   // Common fields
-  pricing_method: "fixed_freight" | "formula";
+  pricing_method: "flat_rate" | "weight_based" | "needs_review";
+  pricing_group: string | null;
   item_price_usd: number;
   quantity: number;
   subtotal_usd: number;
   exchange_rate: number;
   mid_market_rate: number;
+  tax_percentage: number;
+  tax_usd: number;
+  value_fee_percentage: number;
+  value_fee_usd: number;
   total_ghs: number;
   total_pesewas: number;
   region: "USA" | "UK" | "CHINA";
 
-  // Fixed freight fields (Method 1)
-  fixed_freight_ghs?: number;
-  fixed_freight_item_id?: string;
+  // Flat rate fields (fixed GHS freight — weight baked in)
+  flat_rate_ghs?: number;
 
-  // Formula fields (Method 2)
-  seller_shipping_usd?: number;
+  // Weight-based fields
   freight_usd?: number;
-  service_fee_usd?: number;
-  service_fee_percentage?: number;
-  handling_fee_usd?: number;
-  total_usd?: number;
+  freight_ghs?: number;
   weight_lbs?: number;
-  weight_source?: "scraped" | "internet_search" | "category_default";
-  dimensions_inches?: { length: number; width: number; height: number } | null;
-  volumetric_weight_lbs?: number;
-  chargeable_weight_lbs?: number;
+  weight_source?: "scraped" | "category_default";
+  per_weight_rate_usd?: number;
+
+  // Needs review — pricing incomplete, flagged for admin
+  review_reason?: string;
 }
 
 // ── Extraction metadata ───────────────────────────────────────────────────────

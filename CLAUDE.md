@@ -19,7 +19,7 @@ This repository currently contains **design specifications only** — no source 
 - **Auth**: Supabase Auth
 - **Database**: Supabase PostgreSQL with Row Level Security (RLS)
 - **Payments**: Paystack (Mobile Money + Card), server-side only
-- **Email**: SendGrid (transactional, default notification channel)
+- **Email**: Resend (transactional, default notification channel)
 - **Notifications**: Email (default) + WhatsApp (optional)
 
 ## Expected Build Commands
@@ -42,9 +42,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 PAYSTACK_SECRET_KEY
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
-SENDGRID_API_KEY
-SENDGRID_FROM_EMAIL
-SENDGRID_FROM_NAME
+RESEND_API_KEY
+RESEND_FROM_EMAIL
 NEXT_PUBLIC_APP_URL
 ```
 
@@ -67,7 +66,7 @@ src/
 ├── db/queries/      # Database access ONLY (no business logic)
 ├── lib/
 │   ├── supabase/    # client.ts, server.ts, admin.ts (service role - NEVER in client code), types.ts
-│   ├── email/       # sendgrid.ts + templates/
+│   ├── email/       # resend.ts + templates/
 │   ├── validators/
 │   ├── rate-limit/
 │   ├── logger/

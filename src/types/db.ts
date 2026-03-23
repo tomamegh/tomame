@@ -6,9 +6,6 @@
  * Payment                       → src/features/payments/types/index.ts
  * PlatformNotification                  → src/features/notifications/types/index.ts
  * DbJob                           → src/features/jobs/types/index.ts
- * PricingConfig,
- *   FixedFreightItem,
- *   PricingConstant             → src/features/pricing/types/index.ts
  * OrderDelivery                 → src/features/deliveries/types/index.ts
  * ExchangeRate                  → src/lib/exchange-rates/types.ts
  */

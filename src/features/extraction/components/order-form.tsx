@@ -370,85 +370,90 @@ export function OrderForm({
                 <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
                   Estimated Pricing Breakdown
                 </p>
-                {(pricing.pricing_method === "fixed_freight"
-                  ? [
-                      {
-                        label: "Item price",
-                        value: `$${pricing.item_price_usd.toFixed(2)}`,
-                      },
-                      {
-                        label: `Subtotal (×${pricing.quantity})`,
-                        value: `$${pricing.subtotal_usd.toFixed(2)}`,
-                      },
-                      {
-                        label: "Int'l freight (incl. customs)",
-                        value: `GH₵ ${(pricing.fixed_freight_ghs ?? 0).toFixed(2)}`,
-                      },
-                      {
-                        label: "Exchange rate",
-                        value: `1 USD = ${pricing.exchange_rate} GHS`,
-                      },
-                    ]
-                  : [
-                      {
-                        label: "Item price",
-                        value: `$${pricing.item_price_usd.toFixed(2)}`,
-                      },
-                      {
-                        label: `Subtotal (×${pricing.quantity})`,
-                        value: `$${pricing.subtotal_usd.toFixed(2)}`,
-                      },
-                      {
-                        label: "Seller shipping",
-                        value: pricing.seller_shipping_usd
-                          ? `$${pricing.seller_shipping_usd.toFixed(2)}`
-                          : "FREE",
-                      },
-                      {
-                        label: "Int'l freight (incl. customs)",
-                        value: `$${(pricing.freight_usd ?? 0).toFixed(2)}`,
-                      },
-                      {
-                        label: `Service fee (${((pricing.service_fee_percentage ?? 0) * 100).toFixed(0)}%)`,
-                        value: `$${(pricing.service_fee_usd ?? 0).toFixed(2)}`,
-                      },
-                      {
-                        label: "Handling",
-                        value: `$${(pricing.handling_fee_usd ?? 0).toFixed(2)}`,
-                      },
-                      {
-                        label: "Total (USD)",
-                        value: `$${(pricing.total_usd ?? 0).toFixed(2)}`,
-                        bold: true,
-                      },
-                      {
-                        label: "Exchange rate",
-                        value: `1 USD = ${pricing.exchange_rate} GHS`,
-                      },
-                    ]
-                ).map(({ label, value, bold }) => (
-                  <div
-                    key={label}
-                    className={`flex justify-between text-sm gap-4 ${
-                      bold
-                        ? "font-semibold text-stone-800 pt-2 border-t border-stone-200"
-                        : "text-stone-600"
-                    }`}
-                  >
-                    <span>{label}</span>
-                    <span className="tabular-nums">{value}</span>
+                {pricing.pricing_method === "needs_review" ? (
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
+                    <p className="font-medium">Pricing pending admin review</p>
+                    <p className="text-xs mt-0.5 text-amber-600">
+                      We couldn&apos;t determine freight for this product. Our team will
+                      review and confirm the price after you submit.
+                    </p>
                   </div>
-                ))}
-                <div className="flex justify-between font-bold text-base text-stone-900 pt-2 border-t border-stone-300">
-                  <span>Total (GHS)</span>
-                  <span className="tabular-nums">
-                    {new Intl.NumberFormat("en-GH", {
-                      style: "currency",
-                      currency: "GHS",
-                      minimumFractionDigits: 2,
-                    }).format(pricing.total_ghs)}
-                  </span>
-                </div>
+                ) : (
+                  <>
+                    {(pricing.pricing_method === "flat_rate"
+                      ? [
+                          {
+                            label: "Item price",
+                            value: `$${pricing.item_price_usd.toFixed(2)}`,
+                          },
+                          {
+                            label: `Subtotal (×${pricing.quantity})`,
+                            value: `$${pricing.subtotal_usd.toFixed(2)}`,
+                          },
+                          {
+                            label: `Tax (${(pricing.tax_percentage * 100).toFixed(0)}%)`,
+                            value: `$${pricing.tax_usd.toFixed(2)}`,
+                          },
+                          {
+                            label: `Value fee (${(pricing.value_fee_percentage * 100).toFixed(0)}%)`,
+                            value: `$${pricing.value_fee_usd.toFixed(2)}`,
+                          },
+                          {
+                            label: "Freight (flat rate)",
+                            value: `GH₵ ${(pricing.flat_rate_ghs ?? 0).toFixed(2)}`,
+                          },
+                          {
+                            label: "Exchange rate",
+                            value: `1 USD = ${pricing.exchange_rate} GHS`,
+                          },
+                        ]
+                      : [
+                          {
+                            label: "Item price",
+                            value: `$${pricing.item_price_usd.toFixed(2)}`,
+                          },
+                          {
+                            label: `Subtotal (×${pricing.quantity})`,
+                            value: `$${pricing.subtotal_usd.toFixed(2)}`,
+                          },
+                          {
+                            label: `Tax (${(pricing.tax_percentage * 100).toFixed(0)}%)`,
+                            value: `$${pricing.tax_usd.toFixed(2)}`,
+                          },
+                          {
+                            label: `Value fee (${(pricing.value_fee_percentage * 100).toFixed(0)}%)`,
+                            value: `$${pricing.value_fee_usd.toFixed(2)}`,
+                          },
+                          {
+                            label: "Freight (weight-based)",
+                            value: `GH₵ ${(pricing.freight_ghs ?? 0).toFixed(2)}`,
+                          },
+                          {
+                            label: "Exchange rate",
+                            value: `1 USD = ${pricing.exchange_rate} GHS`,
+                          },
+                        ]
+                    ).map(({ label, value }) => (
+                      <div
+                        key={label}
+                        className="flex justify-between text-sm gap-4 text-stone-600"
+                      >
+                        <span>{label}</span>
+                        <span className="tabular-nums">{value}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between font-bold text-base text-stone-900 pt-2 border-t border-stone-300">
+                      <span>Total (GHS)</span>
+                      <span className="tabular-nums">
+                        {new Intl.NumberFormat("en-GH", {
+                          style: "currency",
+                          currency: "GHS",
+                          minimumFractionDigits: 2,
+                        }).format(pricing.total_ghs)}
+                      </span>
+                    </div>
+                  </>
+                )}
                 <p className="text-xs text-stone-400 pt-1">
                   Estimate only — final total confirmed after admin review. Full
                   payment required before processing.

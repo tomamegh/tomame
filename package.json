@@ -9,7 +9,13 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "supabase:start": "npx supabase start",
+    "supabase:stop": "npx supabase stop",
+    "supabase:status": "npx supabase status",
+    "supabase:reset": "npx supabase db reset",
+    "supabase:env": "npx tsx scripts/write-env.ts",
+    "supabase:setup": "npm run supabase:start && npm run supabase:env"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
@@ -32,13 +38,13 @@
     "next": "^16.1.6",
     "next-swagger-doc": "^0.4.1",
     "next-themes": "^0.4.6",
-    "nodemailer": "^8.0.1",
     "postcss": "^8.5.6",
     "radix-ui": "^1.4.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-hook-form": "^7.71.1",
-    "recharts": "2.15.4",
+    "recharts": "^2.15.4",
+    "resend": "^6.9.4",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.0",
@@ -48,7 +54,6 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
     "@eslint/js": "^9.39.2",
-    "@types/nodemailer": "^7.0.9",
     "dotenv": "^17.3.1",
     "shadcn": "^3.8.5",
     "supabase": "^2.76.14",

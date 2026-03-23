@@ -1,5 +1,3 @@
-import { CATEGORY_DEFAULT_WEIGHTS } from "@/config/pricing";
-
 /**
  * Parse a weight string into lbs.
  * Handles formats like "5 lbs", "2.3 kg", "500g", "0.5 pounds", "8 oz".
@@ -72,17 +70,6 @@ export function parseDimensions(
   }
 
   return { length, width, height };
-}
-
-/**
- * Get category default weight in lbs from category string.
- * Returns null if no default is found.
- */
-export function getCategoryDefaultWeight(
-  category: string | null | undefined,
-): number | null {
-  if (!category) return null;
-  return CATEGORY_DEFAULT_WEIGHTS[category] ?? null;
 }
 
 function roundTo2(n: number): number {
