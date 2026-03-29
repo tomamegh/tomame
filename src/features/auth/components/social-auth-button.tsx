@@ -9,7 +9,7 @@ function SocialAuthButtons() {
     const {error} = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${location.origin}/auth/callback`,
+        redirectTo: `${process.env.NEXT_PUBLIC_URL}/auth/callback`,
       },
     });
 
