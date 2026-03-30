@@ -6,14 +6,12 @@ import Image from "next/image";
 function SocialAuthButtons() {
   const handleGoogleSignin = async () => {
     const supabase = createClient()
-    const {error} = await supabase.auth.signInWithOAuth({
+    const {error: _} = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
-
-    console.error('oauth error', error)
   };
 
   return (
@@ -25,7 +23,7 @@ function SocialAuthButtons() {
           width={25}
           height={25}
         />
-        <span className="font-normal">Sign up with Google</span>
+        <span className="font-normal">Continue with Google</span>
       </Button>
     </Field>
   );
