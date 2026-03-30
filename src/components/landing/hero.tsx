@@ -19,7 +19,11 @@ const floatConfig = (delay = 0, duration = 5) => ({
 });
 
 
-export default function LandingHeroSection() {
+interface LandingHeroSectionProps {
+  usdToGhs: number;
+}
+
+export default function LandingHeroSection({ usdToGhs }: LandingHeroSectionProps) {
   return (
     <section className="relative overflow-hidden bg-white flex items-center">
       {/* Dot grid */}
@@ -81,6 +85,10 @@ export default function LandingHeroSection() {
               <span>USA · UK · China</span>
               <span className="w-1 h-1 rounded-full bg-stone-300" />
               <span>Transparent pricing</span>
+              <span className="w-1 h-1 rounded-full bg-stone-300" />
+              <span className="font-medium text-stone-500">
+                $1 ≈ GH₵{usdToGhs.toFixed(2)}
+              </span>
             </motion.div>
           </motion.div>
 

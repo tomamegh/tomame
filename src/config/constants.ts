@@ -29,6 +29,8 @@ export const ORDER_STATUSES = {
   PENDING: "pending",
   PAID: "paid",
   PROCESSING: "processing",
+  IN_TRANSIT: "in_transit",
+  DELIVERED: "delivered",
   COMPLETED: "completed",
   CANCELLED: "cancelled",
 } as const;
@@ -52,4 +54,3 @@ export const ORIGIN_COUNTRIES = {
 
 export type OriginCountry =
   (typeof ORIGIN_COUNTRIES)[keyof typeof ORIGIN_COUNTRIES];
-

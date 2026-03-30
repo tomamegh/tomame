@@ -1,11 +1,13 @@
+import { emailLayout, button, heading, paragraph, muted } from "./layout";
+
 export function resetPasswordTemplate(resetUrl: string) {
   return {
     subject: "Reset your Tomame password",
-    html: `
-      <h2>Password Reset</h2>
-      <p>Click the link below to reset your password:</p>
-      <p><a href="${resetUrl}">Reset Password</a></p>
-      <p>If you didn't request this, you can ignore this email.</p>
-    `,
+    html: emailLayout(`
+      ${heading("Reset Your Password")}
+      ${paragraph("We received a request to reset the password for your Tomame account. Click the button below to choose a new password.")}
+      ${button(resetUrl, "Reset Password")}
+      ${muted("If you didn't request a password reset, you can safely ignore this email. This link expires in 1 hour.")}
+    `),
   };
 }

@@ -2,7 +2,20 @@
   "permissions": {
     "allow": [
       "Bash(bun dev:*)",
-      "Bash(bun install:*)"
+      "Bash(bun install:*)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "Bash(bun run:*)",
+      "Bash(ls:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(xargs sed:*)",
+      "Bash(find /Users/browny/Workspace/tomame/src/app/admin -type f -name *.tsx -o -name *.ts)",
+      "mcp__shadcn__get_add_command_for_items",
+      "Bash(bunx shadcn@latest add @shadcn/tabs --yes)",
+      "Bash(npx tsc:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "shadcn"
+  ]
 }

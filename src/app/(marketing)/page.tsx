@@ -1,11 +1,18 @@
-
 import { LandingPageBlogSection, LandingPageCTASection, LandingPageFAQSection, LandingPageFeaturesSection, LandingPageHeroSection, LandingPageProcessSteps, LandingPageTestimonialsSection, LandingPageValueSection } from '@/components/landing';
+import { getGhsRate } from '@/lib/exchange-rates/service';
+import { DEFAULT_FX_BUFFER_PCT } from '@/config/pricing';
 
+export const revalidate = 14400; // 4 hours
 
-export default function HomePage() {
+export default async function HomePage() {
+  const midMarketRate = await getGhsRate('USD');
+  const usdToGhs = midMarketRate
+    ? midMarketRate * (1 + DEFAULT_FX_BUFFER_PCT)
+    : 14.5; // Fallback for marketing display only
+
   return (
     <>
-      <LandingPageHeroSection />
+      <LandingPageHeroSection usdToGhs={usdToGhs} />
       <LandingPageFeaturesSection />
       <LandingPageProcessSteps />
       <LandingPageValueSection /> 

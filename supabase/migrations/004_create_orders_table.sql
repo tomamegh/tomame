@@ -3,7 +3,7 @@
 
 CREATE TABLE orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id),
+  user_id UUID NOT NULL REFERENCES profiles(id),
   payment_id UUID,  -- FK to payments added in future migration when payments table exists
   status TEXT NOT NULL DEFAULT 'pending' CHECK (
     status IN ('pending', 'paid', 'processing', 'completed', 'cancelled')
@@ -32,8 +32,8 @@ CREATE POLICY "admins can read all orders"
   ON orders FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
     )
   );
 
@@ -47,8 +47,8 @@ CREATE POLICY "admins can update orders"
   ON orders FOR UPDATE
   USING (
     EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
     )
   );
 

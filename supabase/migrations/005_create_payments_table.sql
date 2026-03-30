@@ -3,7 +3,7 @@
 
 CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id),
+  user_id UUID NOT NULL REFERENCES profiles(id),
   reference TEXT UNIQUE NOT NULL,
   amount INTEGER NOT NULL,  -- pesewas (GHS × 100)
   currency TEXT NOT NULL DEFAULT 'GHS',
@@ -24,8 +24,8 @@ CREATE POLICY "admins can read all payments"
   ON payments FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
     )
   );
 

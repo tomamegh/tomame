@@ -1,0 +1,144 @@
+"use client";
+
+import * as React from "react";
+import {
+  Command,
+  CreditCardIcon,
+  LayoutGridIcon,
+  LifeBuoy,
+  Send,
+  Settings2Icon,
+  ShoppingCartIcon,
+  TruckIcon,
+  UsersRoundIcon,
+} from "lucide-react";
+
+import { NavMain } from "./nav-main";
+import { NavSecondary } from "./nav-secondary";
+import { NavUser } from "./user";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
+import { LinkItem } from "@/types";
+import { createClient } from "@/lib/supabase/client";
+import { PlatformUser } from "@/features/users/types";
+
+const NAV_LIST: Array<{ label?: string; links: LinkItem[] }> = [
+  {
+    label: undefined,
+    links: [
+      {
+        title: "Dashboard",
+        url: "/admin",
+        icon: LayoutGridIcon,
+      },
+      {
+        title: "Orders",
+        url: "/admin/orders",
+        icon: ShoppingCartIcon,
+      },
+      {
+        title: "Deliveries",
+        url: "/admin/deliveries",
+        icon: TruckIcon,
+      },
+      {
+        title: "Transactions",
+        url: "/admin/transactions",
+        icon: CreditCardIcon,
+      },
+    ],
+  },
+  {
+    label: "System",
+    links: [
+      {
+        title: "Users",
+        url: "/admin/users",
+        icon: UsersRoundIcon,
+      },
+      {
+        title: "Settings",
+        url: "/admin/settings",
+        icon: Settings2Icon,
+      },
+    ],
+  },
+];
+
+const data = {
+  navSecondary: [
+    {
+      title: "Support",
+      url: "#",
+      icon: LifeBuoy,
+    },
+    {
+      title: "Feedback",
+      url: "#",
+      icon: Send,
+    },
+  ],
+};
+
+export default function AppSidebar({
+  ...props
+}: React.ComponentProps<typeof Sidebar>) {
+  const [user, setUser] = React.useState<PlatformUser | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchUser = async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user as PlatformUser | null);
+      setLoading(false);
+    };
+
+    fetchUser();
+  }, []);
+
+  if (loading) return null;
+  if (!user) return null;
+
+  return (
+    <Sidebar variant="sidebar" collapsible="icon" {...props}>
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <div>
+                <div className="gradient-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                  <Command className="size-4" />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">Tomame</span>
+                  <span className="truncate text-xs text-neutral-400">
+                    Admin Dashboard
+                  </span>
+                </div>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent className="mt-5">
+        {NAV_LIST.map((nav, i) => (
+          <NavMain key={i.toString()} label={nav.label} links={nav.links} />
+        ))}
+        <NavSecondary items={data.navSecondary} className="mt-auto" />
+      </SidebarContent>
+      <SidebarFooter>
+        <NavUser user={user} />
+      </SidebarFooter>
+    </Sidebar>
+  );
+}

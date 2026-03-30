@@ -15,8 +15,8 @@ import { useOrders } from "../hooks";
 import { HandbagIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function OrdersList() {
-  const { data, isPending, isFetching, error, refetch, } = useOrders();
+export function OrdersList({ variant = "all" }: { variant?: "all" | "recent" }) {
+  const { data, isPending, isFetching, error, refetch } = useOrders();
 
   if (isPending) {
     return (
@@ -47,7 +47,7 @@ export function OrdersList() {
     );
   }
 
-  if (!data?.data.length) {
+  if (!data?.length) {
     return (
       <Empty className="bg-white">
         <EmptyHeader>
@@ -61,7 +61,12 @@ export function OrdersList() {
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <Button variant="primary" size="sm" className="px-5" onClick={()=>refetch()}>
+          <Button
+            variant="primary"
+            size="sm"
+            className="px-5"
+            onClick={() => refetch()}
+          >
             {isFetching && <Spinner />}
             {isFetching ? "Refreshing..." : "Refresh"}
           </Button>
@@ -71,8 +76,8 @@ export function OrdersList() {
   }
 
   return (
-    <div className="space-y-4 bg-white">
-      {data.data.map((order) => (
+    <div className="divide-y divide-stone-100 space-y-3">
+      {(variant === "all" ? data : data.slice(0, 3)).map((order) => (
         <OrderCard key={order.id} order={order} />
       ))}
     </div>

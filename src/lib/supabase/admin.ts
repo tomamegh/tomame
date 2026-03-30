@@ -1,31 +1,25 @@
+import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Service-role Supabase client — bypasses RLS.
- * Lazily initialized to avoid reading env vars at build time.
- * NEVER import this in client-side code.
+ * Creates a service-role Supabase client that bypasses RLS.
+ * Only call this in:
+ *   - Route handlers that need admin privilege (pass result to service)
+ *   - System functions with no user session (webhooks, background jobs)
+ * NEVER import this in client-side code — the "server-only" guard above
+ * will cause a build error if you try.
  */
-let _client: SupabaseClient | null = null;
-
-export function getSupabaseAdmin(): SupabaseClient {
-  if (!_client) {
-    _client = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
-  }
-  return _client;
+export function createAdminClient(): SupabaseClient {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    },
+  );
 }
 
-/** Convenience alias — getter disguised as a value for drop-in usage */
-export const supabaseAdmin = new Proxy({} as SupabaseClient, {
-  get(_target, prop, receiver) {
-    return Reflect.get(getSupabaseAdmin(), prop, receiver);
-  },
-});
+export const supabaseAdminClient = createAdminClient().auth.admin

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { loginSchema } from "@/features/auth/auth.validators";
-import { login } from "@/features/auth/auth.service";
+import { loginSchema } from "@/features/auth/schema";
+import { login } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
@@ -20,10 +20,8 @@ export async function POST(request: NextRequest) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const result = await login(parsed.data);
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data);
+    const data = await login(parsed.data);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }

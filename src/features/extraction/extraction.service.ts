@@ -1,45 +1,22 @@
-import * as cheerio from "cheerio";
-import type { ServiceResult } from "@/types/domain";
+import { createHash } from "crypto";
+import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { resolvePlatform, getScraperByPlatform } from "./scrapers";
+import type { ExtractionResult } from "./types";
 
-// ── Types ──────────────────────────────────────────────────
-
-export interface ExtractionField {
-  value: string | number | null;
-  source:
-    | "json_ld"
-    | "og_meta"
-    | "meta_tag"
-    | "dom_selector"
-    | "domain_mapping"
-    | null;
-  confidence: "high" | "medium" | "low" | null;
-}
-
-export interface ExtractionResult {
-  extractionAttempted: boolean;
-  extractionSuccess: boolean;
-  fields: {
-    name: ExtractionField;
-    price: ExtractionField & { currency?: string };
-    image: ExtractionField;
-    country: ExtractionField;
-  };
-  errors: string[];
-  fetchedAt: string;
-  responseStatus: number | null;
-}
-
-// ── Domain → Country mapping ───────────────────────────────
+const CACHE_TTL_MINUTES = 30;
 
 const DOMAIN_COUNTRY_MAP: Record<string, "USA" | "UK" | "CHINA"> = {
+  // Amazon — US only for now
   "amazon.com": "USA",
+  // Future: "amazon.co.uk": "UK", "amazon.ca": "USA", "amazon.de": "UK", etc.
+
   "ebay.com": "USA",
+  "ebay.co.uk": "UK",
   "walmart.com": "USA",
   "target.com": "USA",
   "bestbuy.com": "USA",
-  "amazon.co.uk": "UK",
-  "ebay.co.uk": "UK",
   "argos.co.uk": "UK",
   "aliexpress.com": "CHINA",
   "alibaba.com": "CHINA",
@@ -47,14 +24,12 @@ const DOMAIN_COUNTRY_MAP: Record<string, "USA" | "UK" | "CHINA"> = {
   "shein.com": "CHINA",
 };
 
-function getCountryFromDomain(
-  url: string,
-): { country: "USA" | "UK" | "CHINA"; domain: string } | null {
+function getCountryFromDomain(url: string): "USA" | "UK" | "CHINA" | null {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
     for (const [domain, country] of Object.entries(DOMAIN_COUNTRY_MAP)) {
       if (hostname === domain || hostname.endsWith(`.${domain}`)) {
-        return { country, domain };
+        return country;
       }
     }
     return null;
@@ -63,267 +38,176 @@ function getCountryFromDomain(
   }
 }
 
-// ── JSON-LD extraction ─────────────────────────────────────
+// ── URL hashing ────────────────────────────────────────────────────────────
 
-interface JsonLdProduct {
-  name?: string;
-  image?: string | string[] | { url?: string };
-  offers?:
-    | { price?: string | number; priceCurrency?: string }
-    | Array<{ price?: string | number; priceCurrency?: string }>;
-}
-
-function extractFromJsonLd($: cheerio.CheerioAPI): {
-  name?: string;
-  price?: number;
-  currency?: string;
-  image?: string;
-} {
-  const result: { name?: string; price?: number; currency?: string; image?: string } = {};
-
-  $('script[type="application/ld+json"]').each((_, el) => {
-    try {
-      const text = $(el).html();
-      if (!text) return;
-      const data = JSON.parse(text);
-
-      // Handle both single objects and arrays of objects
-      const items: unknown[] = Array.isArray(data) ? data : [data];
-
-      for (const item of items) {
-        const typed = item as JsonLdProduct & { "@type"?: string | string[]; "@graph"?: unknown[] };
-
-        // Check @graph for nested Product types
-        if (typed["@graph"] && Array.isArray(typed["@graph"])) {
-          items.push(...typed["@graph"]);
-          continue;
-        }
-
-        const type = typed["@type"];
-        const isProduct =
-          type === "Product" ||
-          (Array.isArray(type) && type.includes("Product"));
-
-        if (!isProduct) continue;
-
-        if (typed.name && !result.name) {
-          result.name = String(typed.name).trim();
-        }
-
-        if (typed.image && !result.image) {
-          if (typeof typed.image === "string") {
-            result.image = typed.image;
-          } else if (Array.isArray(typed.image)) {
-            result.image = String(typed.image[0]);
-          } else if (typeof typed.image === "object" && typed.image.url) {
-            result.image = typed.image.url;
-          }
-        }
-
-        if (typed.offers && result.price === undefined) {
-          const offer = Array.isArray(typed.offers)
-            ? typed.offers[0]
-            : typed.offers;
-          if (offer?.price !== undefined) {
-            const parsed = parseFloat(String(offer.price));
-            if (!isNaN(parsed)) {
-              result.price = parsed;
-              result.currency = offer.priceCurrency ?? undefined;
-            }
-          }
-        }
-      }
-    } catch {
-      // Ignore malformed JSON-LD
-    }
-  });
-
-  return result;
-}
-
-// ── OG Meta extraction ─────────────────────────────────────
-
-function extractFromOgMeta($: cheerio.CheerioAPI): {
-  title?: string;
-  image?: string;
-  price?: number;
-  currency?: string;
-} {
-  const result: { title?: string; image?: string; price?: number; currency?: string } = {};
-
-  const ogTitle = $('meta[property="og:title"]').attr("content");
-  if (ogTitle) result.title = ogTitle.trim();
-
-  const ogImage = $('meta[property="og:image"]').attr("content");
-  if (ogImage) result.image = ogImage;
-
-  const ogPrice = $('meta[property="og:price:amount"]').attr("content");
-  if (ogPrice) {
-    const parsed = parseFloat(ogPrice);
-    if (!isNaN(parsed)) result.price = parsed;
-  }
-
-  const ogCurrency = $('meta[property="og:price:currency"]').attr("content");
-  if (ogCurrency) result.currency = ogCurrency;
-
-  return result;
-}
-
-// ── Meta/Title fallback extraction ─────────────────────────
-
-function extractFromMetaTags($: cheerio.CheerioAPI): {
-  title?: string;
-} {
-  const result: { title?: string } = {};
-
-  const titleTag = $("title").first().text();
-  if (titleTag) result.title = titleTag.trim();
-
-  return result;
-}
-
-// ── Main extraction function ───────────────────────────────
-
-export async function extractProductData(
-  url: string,
-): Promise<ServiceResult<ExtractionResult>> {
-  const errors: string[] = [];
-  let responseStatus: number | null = null;
-
-  const emptyField: ExtractionField = { value: null, source: null, confidence: null };
-  const fields: ExtractionResult["fields"] = {
-    name: { ...emptyField },
-    price: { ...emptyField },
-    image: { ...emptyField },
-    country: { ...emptyField },
-  };
-
-  // Fetch the URL
-  let html: string;
+function normalizeUrl(raw: string): string {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
+    const u = new URL(raw);
+    u.hash = "";
+    // Drop tracking params that don't affect the product
+    ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref", "tag"].forEach(
+      (p) => u.searchParams.delete(p),
+    );
+    u.searchParams.sort();
+    return u.toString().replace(/\/+$/, "");
+  } catch {
+    return raw.trim().toLowerCase();
+  }
+}
 
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-      },
-      redirect: "follow",
-    });
+function hashUrl(url: string): string {
+  return createHash("sha256").update(normalizeUrl(url)).digest("hex");
+}
 
-    clearTimeout(timeout);
-    responseStatus = response.status;
+// ── Cache helpers ──────────────────────────────────────────────────────────
 
-    if (!response.ok) {
-      errors.push(`HTTP ${response.status}: ${response.statusText}`);
-      return {
-        success: true,
-        data: {
-          extractionAttempted: true,
-          extractionSuccess: false,
-          fields,
-          errors,
-          fetchedAt: new Date().toISOString(),
-          responseStatus,
+interface CachedExtraction {
+  id: string;
+  result: ExtractionResult;
+}
+
+async function getCachedExtraction(userId: string, urlHash: string): Promise<CachedExtraction | null> {
+  try {
+    const db = createAdminClient();
+    const { data, error } = await db
+      .from("extraction_cache")
+      .select("id, result")
+      .eq("user_id", userId)
+      .eq("url_hash", urlHash)
+      .eq("is_valid", true)
+      .gt("expires_at", new Date().toISOString())
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return { id: data.id as string, result: data.result as ExtractionResult };
+  } catch (err) {
+    logger.warn("extraction cache read failed", { error: err });
+    return null;
+  }
+}
+
+async function setCachedExtraction(
+  userId: string,
+  urlHash: string,
+  productUrl: string,
+  result: ExtractionResult,
+): Promise<string | null> {
+  try {
+    const db = createAdminClient();
+    const expiresAt = new Date(Date.now() + CACHE_TTL_MINUTES * 60 * 1000).toISOString();
+
+    const { data, error } = await db
+      .from("extraction_cache")
+      .upsert(
+        {
+          user_id: userId,
+          url_hash: urlHash,
+          product_url: productUrl,
+          result,
+          is_valid: true,
+          expires_at: expiresAt,
         },
-      };
+        { onConflict: "user_id,url_hash" },
+      )
+      .select("id")
+      .single();
+
+    if (error || !data) return null;
+    return data.id as string;
+  } catch (err) {
+    logger.warn("extraction cache write failed", { error: err });
+    return null;
+  }
+}
+
+// ── Main extraction ────────────────────────────────────────────────────────
+
+export interface ExtractionResponse extends ExtractionResult {
+  extraction_cache_id: string | null;
+}
+
+/**
+ * Resolve a short URL (e.g. a.co) to its final destination so we can
+ * determine the actual domain for country mapping.
+ */
+async function resolveShortUrl(shortUrl: string): Promise<string> {
+  try {
+    const res = await fetch(shortUrl, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res.url || shortUrl;
+  } catch {
+    return shortUrl;
+  }
+}
+
+const SHORT_URL_HOSTS = new Set(["a.co"]);
+
+export async function extractProductData(url: string, userId: string): Promise<ExtractionResponse> {
+  // Resolve short URLs up-front so country detection uses the real domain
+  let resolvedUrl = url;
+  try {
+    if (SHORT_URL_HOSTS.has(new URL(url).hostname.toLowerCase())) {
+      resolvedUrl = await resolveShortUrl(url);
+      logger.info("resolved short URL", { from: url, to: resolvedUrl });
+    }
+  } catch {
+    // If URL parsing fails, continue with original
+  }
+
+  const urlHash = hashUrl(url);
+
+  // Check cache first (scoped to user)
+  const cached = await getCachedExtraction(userId, urlHash);
+  if (cached) {
+    logger.info("extraction cache hit", { url, urlHash });
+    return { ...cached.result, extraction_cache_id: cached.id };
+  }
+
+  const errors: string[] = [];
+
+  const platform = resolvePlatform(url);
+  if (!platform) {
+    throw new APIError(400, "Unsupported platform");
+  }
+
+  const scraper = getScraperByPlatform(platform);
+  const country = getCountryFromDomain(resolvedUrl);
+
+  try {
+    const product = await scraper.scrape(url);
+
+    const extractionSuccess = product.title !== null || product.price !== null;
+    if (!extractionSuccess) {
+      errors.push("Could not extract product name or price from page");
     }
 
-    html = await response.text();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Fetch failed";
-    errors.push(`Fetch error: ${message}`);
-    logger.error("extractProductData fetch failed", { url, error: message });
+    if (!country) {
+      errors.push("This Amazon region is not currently supported. Only amazon.com (US) is available.");
+    }
 
-    return {
-      success: true,
-      data: {
-        extractionAttempted: true,
-        extractionSuccess: false,
-        fields,
-        errors,
-        fetchedAt: new Date().toISOString(),
-        responseStatus,
-      },
-    };
-  }
-
-  // Parse HTML
-  const $ = cheerio.load(html);
-
-  // 1. JSON-LD (highest priority)
-  const jsonLd = extractFromJsonLd($);
-
-  // 2. OG Meta
-  const ogMeta = extractFromOgMeta($);
-
-  // 3. Meta/Title fallback
-  const metaTags = extractFromMetaTags($);
-
-  // ── Name ─────────────────────────────────────────────────
-  if (jsonLd.name) {
-    fields.name = { value: jsonLd.name, source: "json_ld", confidence: "high" };
-  } else if (ogMeta.title) {
-    fields.name = { value: ogMeta.title, source: "og_meta", confidence: "medium" };
-  } else if (metaTags.title) {
-    fields.name = { value: metaTags.title, source: "meta_tag", confidence: "low" };
-  }
-
-  // ── Price ────────────────────────────────────────────────
-  if (jsonLd.price !== undefined) {
-    fields.price = {
-      value: jsonLd.price,
-      source: "json_ld",
-      confidence: "high",
-      currency: jsonLd.currency,
-    };
-  } else if (ogMeta.price !== undefined) {
-    fields.price = {
-      value: ogMeta.price,
-      source: "og_meta",
-      confidence: "medium",
-      currency: ogMeta.currency,
-    };
-  }
-
-  // ── Image ────────────────────────────────────────────────
-  if (jsonLd.image) {
-    fields.image = { value: jsonLd.image, source: "json_ld", confidence: "high" };
-  } else if (ogMeta.image) {
-    fields.image = { value: ogMeta.image, source: "og_meta", confidence: "medium" };
-  }
-
-  // ── Country (domain mapping) ─────────────────────────────
-  const countryMapping = getCountryFromDomain(url);
-  if (countryMapping) {
-    fields.country = {
-      value: countryMapping.country,
-      source: "domain_mapping",
-      confidence: "high",
-    };
-  }
-
-  // Determine overall success (at least name OR price extracted)
-  const extractionSuccess =
-    fields.name.value !== null || fields.price.value !== null;
-
-  if (!extractionSuccess) {
-    errors.push("Could not extract product name or price from page");
-  }
-
-  return {
-    success: true,
-    data: {
-      extractionAttempted: true,
-      extractionSuccess,
-      fields,
+    const result: ExtractionResult = {
+      extraction_attempted: true,
+      extraction_success: extractionSuccess,
+      platform,
+      country,
+      product,
       errors,
-      fetchedAt: new Date().toISOString(),
-      responseStatus,
-    },
-  };
+      fetched_at: new Date().toISOString(),
+    };
+
+    // Only cache successful extractions
+    let cacheId: string | null = null;
+    if (extractionSuccess) {
+      cacheId = await setCachedExtraction(userId, urlHash, url, result);
+    }
+
+    return { ...result, extraction_cache_id: cacheId };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Scrape failed";
+    logger.error("extractProductData failed", { url, platform, error: message });
+    throw new APIError(502, message);
+  }
 }

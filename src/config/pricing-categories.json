@@ -1,0 +1,27 @@
+{
+  "phones": {
+    "name": "Phones",
+    "flat_rate_ghs": 1200,
+    "value_percentage": 0.05
+  },
+  "phone_accessories": {
+    "name": "Phone Accessories",
+    "flat_rate_ghs": 250,
+    "value_percentage": 0.04
+  },
+  "car_parts": {
+    "name": "Car Parts",
+    "flat_rate_ghs": "5 + (w / 8)",
+    "value_percentage": 0.08
+  },
+  "gaming_consoles": {
+    "name": "Gaming Consoles",
+    "flat_rate_ghs": 1500,
+    "value_percentage": 0.06
+  },
+  "sound_speakers": {
+    "name": "Sound & Speakers",
+    "flat_rate_ghs": "5 + (w / 8)",
+    "value_percentage": 0.07
+  }
+}

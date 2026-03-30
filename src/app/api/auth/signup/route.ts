@@ -1,11 +1,7 @@
 import { NextRequest } from "next/server";
-import { signupSchema } from "@/features/auth/auth.validators";
-import { signup } from "@/features/auth/auth.service";
-import {
-  APIError,
-  successResponse,
-  errorResponse,
-} from "@/lib/auth/api-helpers";
+import { signupSchema } from "@/features/auth/schema";
+import { signup } from "@/features/auth/services/auth.service";
+import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
@@ -21,16 +17,11 @@ export async function POST(request: NextRequest) {
     });
     const parsed = signupSchema.safeParse(body);
     if (!parsed.success) {
-      throw new APIError(
-        400,
-        parsed.error.issues[0]?.message ?? "Invalid input",
-      );
+      throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const result = await signup(parsed.data.email, parsed.data.password);
-    if (!result.success) throw new APIError(result.status, result.error);
-
-    return successResponse(result.data, 201);
+    const data = await signup(parsed.data.email, parsed.data.password);
+    return successResponse(data, 201);
   } catch (error) {
     return errorResponse(error);
   }

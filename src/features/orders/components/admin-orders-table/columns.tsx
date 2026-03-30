@@ -1,0 +1,357 @@
+"use client";
+
+import type { ColumnDef, Row, Table as TTable } from "@tanstack/react-table";
+import Link from "next/link";
+import {
+  ArrowUpIcon,
+  ArrowDownIcon,
+  ChevronsUpDownIcon,
+  ExternalLinkIcon,
+  AlertTriangleIcon,
+  MoreHorizontalIcon,
+  CopyIcon,
+  EyeIcon,
+  PackageIcon,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { OrderStatusBadge } from "../order-status-badge";
+import type { Order, OrderStatus } from "../../types";
+import Image from "next/image";
+
+// ── Table meta type ───────────────────────────────────────────────────────────
+
+export interface OrdersTableMeta {
+  updateStatus: (id: string, status: string) => void;
+}
+
+// ── State machine transitions (mirrors server) ────────────────────────────────
+
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  pending: ["cancelled"],
+  paid: ["processing"],
+  processing: ["in_transit"],
+  in_transit: ["delivered"],
+  delivered: ["completed"],
+};
+
+const TRANSITION_LABELS: Record<string, string> = {
+  cancelled: "Cancel order",
+  processing: "Mark Processing",
+  in_transit: "Mark In Transit",
+  delivered: "Mark Delivered",
+  completed: "Mark Completed",
+};
+
+// ── Sortable header ───────────────────────────────────────────────────────────
+
+function SortableHeader({
+  column,
+  children,
+}: {
+  column: {
+    getIsSorted: () => false | "asc" | "desc";
+    toggleSorting: (asc: boolean) => void;
+  };
+  children: React.ReactNode;
+}) {
+  const sorted = column.getIsSorted();
+  return (
+    <button
+      className="flex items-center gap-1 font-medium hover:text-stone-800 transition-colors"
+      onClick={() => column.toggleSorting(sorted === "asc")}
+    >
+      {children}
+      {sorted === "asc" ? (
+        <ArrowUpIcon className="size-3" />
+      ) : sorted === "desc" ? (
+        <ArrowDownIcon className="size-3" />
+      ) : (
+        <ChevronsUpDownIcon className="size-3 opacity-40" />
+      )}
+    </button>
+  );
+}
+
+// ── Column definitions ────────────────────────────────────────────────────────
+
+export const columns: ColumnDef<Order>[] = [
+  // ── Select ──────────────────────────────────────────────────────────────────
+  {
+    id: "select",
+    header: ({ table }: { table: TTable<Order> }) => (
+      <input
+        type="checkbox"
+        checked={table.getIsAllPageRowsSelected()}
+        ref={(el) => {
+          if (el) el.indeterminate = table.getIsSomePageRowsSelected();
+        }}
+        onChange={table.getToggleAllPageRowsSelectedHandler()}
+        aria-label="Select all"
+        className="size-4 rounded border-stone-300 cursor-pointer accent-stone-700"
+      />
+    ),
+    cell: ({ row }: { row: Row<Order> }) => (
+      <input
+        type="checkbox"
+        checked={row.getIsSelected()}
+        disabled={!row.getCanSelect()}
+        onChange={row.getToggleSelectedHandler()}
+        aria-label="Select row"
+        className="size-4 rounded border-stone-300 cursor-pointer accent-stone-700"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+    size: 44,
+  },
+
+  // ── Order ID ─────────────────────────────────────────────────────────────────
+  {
+    accessorKey: "id",
+    header: "Order ID",
+    cell: ({ row }: { row: Row<Order> }) => (
+      <span className="font-mono text-xs text-stone-500">
+        #{row.original.id.slice(0, 8)}
+      </span>
+    ),
+    enableGlobalFilter: false,
+    enableHiding: true,
+  },
+
+  {
+    accessorKey: "product_name",
+    header: ({ column }) => (
+      <SortableHeader column={column}>Product</SortableHeader>
+    ),
+    cell: ({ row }: { row: Row<Order> }) => (
+      <div className="flex items-center max-w-86 overflow-hidden gap-3">
+        {row.original.product_image_url ? (
+          <div className="relative size-12 shrink-0">
+            <Image
+              src={row.original.product_image_url}
+              alt={row.original.product_name}
+              fill
+              className="object-contain"
+            />
+          </div>
+        ) : (
+          <div className="size-12 rounded-lg border border-stone-200 bg-stone-50 flex items-center justify-center p-1.5">
+            <PackageIcon className="size-7 text-stone-300" />
+          </div>
+        )}
+        <Link
+          href={`/admin/orders/${row.original.id}`}
+          className="font-medium text-stone-800 hover:text-sky-600 overflow-hidden text-ellipsis"
+        >
+          {row.original.product_name}
+        </Link>
+      </div>
+    ),
+    enableGlobalFilter: true,
+    enableHiding: false,
+    enableSorting: true,
+  },
+
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }: { row: Row<Order> }) => (
+      <OrderStatusBadge status={row.original.status as OrderStatus} />
+    ),
+    filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
+    enableGlobalFilter: false,
+    enableHiding: true,
+  },
+
+  {
+    accessorKey: "origin_country",
+    header: "Ships From",
+    cell: ({ row }: { row: Row<Order> }) => {
+      const flags: Record<string, string> = {
+        USA: "🇺🇸",
+        UK: "🇬🇧",
+        CHINA: "🇨🇳",
+      };
+      return (
+        <span className="text-sm text-stone-600">
+          {flags[row.original.origin_country] ?? ""}{" "}
+          {row.original.origin_country}
+        </span>
+      );
+    },
+    filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
+    enableGlobalFilter: false,
+    enableHiding: true,
+  },
+
+  {
+    accessorKey: "needs_review",
+    header: "Review",
+    cell: ({ row }: { row: Row<Order> }) =>
+      row.original.needs_review ? (
+        <div className="inline-flex items-center gap-1 text-amber-600 text-xs font-medium bg-amber-50 px-2 py-0.5 rounded-full">
+          <AlertTriangleIcon className="size-3" />
+          Review
+        </div>
+      ) : (
+        <span className="text-stone-300 text-xs">—</span>
+      ),
+    filterFn: (row, id, value: boolean[]) => value.includes(row.getValue(id)),
+    enableGlobalFilter: false,
+    enableHiding: true,
+  },
+
+  {
+    id: "totalGhs",
+    accessorFn: (row: Order) => row.pricing?.total_ghs ?? 0,
+    header: ({ column }) => (
+      <SortableHeader column={column}>Amount</SortableHeader>
+    ),
+    cell: ({ getValue }) => {
+      const v = getValue() as number;
+      return (
+        <span className="font-medium text-sm text-stone-800">
+          {new Intl.NumberFormat("en-GH", {
+            style: "currency",
+            currency: "GHS",
+            minimumFractionDigits: 2,
+          }).format(v)}
+        </span>
+      );
+    },
+    enableSorting: true,
+    enableGlobalFilter: false,
+    enableHiding: true,
+  },
+
+  {
+    accessorKey: "quantity",
+    header: ({ column }) => (
+      <SortableHeader column={column}>Qty</SortableHeader>
+    ),
+    cell: ({ row }: { row: Row<Order> }) => (
+      <span className="text-sm text-stone-600">{row.original.quantity}</span>
+    ),
+    enableSorting: true,
+    enableGlobalFilter: false,
+    enableHiding: true,
+  },
+
+  {
+    accessorKey: "created_at",
+    header: ({ column }) => (
+      <SortableHeader column={column}>Date</SortableHeader>
+    ),
+    cell: ({ row }: { row: Row<Order> }) => (
+      <span className="text-sm text-stone-500 whitespace-nowrap">
+        {new Date(row.original.created_at).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })}
+      </span>
+    ),
+    enableSorting: true,
+    enableGlobalFilter: false,
+    enableHiding: true,
+  },
+
+  {
+    id: "actions",
+    cell: ({ row, table }: { row: Row<Order>; table: TTable<Order> }) => {
+      const meta = table.options.meta as OrdersTableMeta | undefined;
+      const order = row.original;
+      const transitions = ALLOWED_TRANSITIONS[order.status] ?? [];
+
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" className="size-8">
+              <MoreHorizontalIcon className="size-4" />
+              <span className="sr-only">Open menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {order.needs_review && !order.reviewed_by && (
+              <>
+                <DropdownMenuItem
+                  asChild
+                  className="text-amber-600 focus:text-amber-700 focus:bg-amber-50 font-medium gap-1.5"
+                >
+                  <Link href={`/admin/orders/${order.id}`}>
+                    <AlertTriangleIcon className="size-3.5" />
+                    Review order
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuItem asChild>
+              <Link
+                href={`/admin/orders/${order.id}`}
+                className="inline-flex items-center gap-2 w-full"
+              >
+                View details <EyeIcon className="stroke-neutral-500" />
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="gap-2"
+              onClick={() => navigator.clipboard.writeText(order.id)}
+            >
+              Copy ID
+              <CopyIcon className="stroke-neutral-500" />
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => navigator.clipboard.writeText(order.id)}
+            >
+              <Link
+                href={row.original.product_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2"
+              >
+                View Source
+                <ExternalLinkIcon className="stroke-neutral-500" />
+              </Link>
+            </DropdownMenuItem>
+            {transitions.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Update status</DropdownMenuLabel>
+                {transitions.map((status) => (
+                  <DropdownMenuItem
+                    key={status}
+                    onClick={() => meta?.updateStatus(order.id, status)}
+                    data-variant={
+                      status === "cancelled" ? "destructive" : "default"
+                    }
+                    className={
+                      status === "cancelled"
+                        ? "text-destructive focus:text-destructive"
+                        : ""
+                    }
+                  >
+                    {TRANSITION_LABELS[status]}
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    },
+    enableSorting: false,
+    enableHiding: false,
+    size: 52,
+  },
+];
