@@ -24,7 +24,7 @@ async function NavbarAuthButton({ user }: { user?: JwtPayload | undefined }) {
       <DropdownMenuTrigger asChild className="max-md:ml-auto">
         <Button variant="ghost" size="icon" className="rounded-full border border-neutral-300">
           <Avatar>
-            <AvatarImage src={user.user_metadata?.avatar_url || undefined} alt="shadcn" />
+            <AvatarImage src={user.user_metadata?.avatar_url || undefined} alt={user.email} />
             <AvatarFallback><UserRoundIcon /></AvatarFallback>
           </Avatar>
           {/* <span className="font-normal text-sm">{user.email}</span> */}

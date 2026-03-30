@@ -26,6 +26,8 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { LinkItem } from "@/types";
+import { createClient } from "@/lib/supabase/client";
+import { PlatformUser } from "@/features/users/types";
 
 const NAV_LIST: Array<{ label?: string; links: LinkItem[] }> = [
   {
@@ -71,12 +73,6 @@ const NAV_LIST: Array<{ label?: string; links: LinkItem[] }> = [
 ];
 
 const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
-
   navSecondary: [
     {
       title: "Support",
@@ -94,6 +90,25 @@ const data = {
 export default function AppSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const [user, setUser] = React.useState<PlatformUser | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchUser = async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user as PlatformUser | null);
+      setLoading(false);
+    };
+
+    fetchUser();
+  }, []);
+
+  if (loading) return null;
+  if (!user) return null;
+
   return (
     <Sidebar variant="sidebar" collapsible="icon" {...props}>
       <SidebarHeader>
@@ -106,7 +121,9 @@ export default function AppSidebar({
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">Tomame</span>
-                  <span className="truncate text-xs text-neutral-400">Admin Dashboard</span>
+                  <span className="truncate text-xs text-neutral-400">
+                    Admin Dashboard
+                  </span>
                 </div>
               </div>
             </SidebarMenuButton>
@@ -120,7 +137,7 @@ export default function AppSidebar({
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
   );
