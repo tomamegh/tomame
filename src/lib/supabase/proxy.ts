@@ -64,7 +64,7 @@ export async function updateSession(request: NextRequest) {
 
   // Authenticated non-admins → back to app
   // Role is read from the JWT (set by custom_access_token_hook) — no DB call.
-  if (isAdminRoute && user?.app_metadata?.role !== "admin") {
+  if (isAdminRoute && user?.app_metadata?.role !== "admin" && !user?.email?.endsWith("@tomame.ca")) {
     const url = request.nextUrl.clone();
     url.pathname = "/app";
     return NextResponse.redirect(url);
