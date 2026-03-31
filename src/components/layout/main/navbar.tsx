@@ -25,18 +25,9 @@ export default async function MainNav() {
         >
           Tomame
         </Link>
-
-        {/* Desktop nav links */}
         <NavLinks links={NAV_LINKS} />
-
-        {/* Mobile menu */}
-        {/* <Suspense> */}
           <NavbarAuthButton user={user} />
-        {/* </Suspense> */}
-
-        {/* <Suspense> */}
           <MobileMenu links={NAV_LINKS} isAuthenticated={!!user} />
-        {/* </Suspense> */}
       </div>
     </nav>
   );

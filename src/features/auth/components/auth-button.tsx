@@ -7,25 +7,37 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LayoutGridIcon, PackageSearchIcon, ShieldUserIcon, UserRoundIcon } from "lucide-react";
+import {
+  LayoutGridIcon,
+  PackageSearchIcon,
+  ShieldUserIcon,
+  UserRoundIcon,
+  UserCogIcon,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import LogoutButton from "./logout-button";
 import { JwtPayload } from "@supabase/supabase-js";
+import { canAccessAdmin } from "../services";
 
-async function NavbarAuthButton({ user }: { user?: JwtPayload | undefined }) {
-  // const supabase = await createClient();
-  // const { data } = await supabase.auth.getClaims();
-  // const user = data?.claims;
-
+async function NavbarAuthButton({ user }: { user?: JwtPayload }) {
   return user ? (
     <DropdownMenu>
       <DropdownMenuTrigger asChild className="max-md:ml-auto">
-        <Button variant="ghost" size="icon" className="rounded-full border border-neutral-300">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-full border border-neutral-300"
+        >
           <Avatar>
-            <AvatarImage src={user.user_metadata?.avatar_url || undefined} alt={user.email} />
-            <AvatarFallback><UserRoundIcon /></AvatarFallback>
+            <AvatarImage
+              src={user.user_metadata?.avatar_url || undefined}
+              alt={user.email}
+            />
+            <AvatarFallback>
+              <UserRoundIcon />
+            </AvatarFallback>
           </Avatar>
           {/* <span className="font-normal text-sm">{user.email}</span> */}
           {/* <ChevronDown className="w-4 h-4 opacity-50" /> */}
@@ -33,32 +45,30 @@ async function NavbarAuthButton({ user }: { user?: JwtPayload | undefined }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
-          {user.app_metadata?.role === "admin" ? (
-            <>
-              <DropdownMenuItem className="bg-sky-200/20 text-sky-500 border-sky-200 border hover:text-sky-500">
-                <Link
-                  href={"/admin"}
-                  className="flex items-center gap-2"
-                >
-                  <ShieldUserIcon className="stroke-sky-500" />
-                  Admin
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Link href={"/app"} className="flex items-center gap-2">
-                  <LayoutGridIcon />
-                  Dashboard
-                </Link>
-              </DropdownMenuItem>
-            </>
-          ) : (
+          {canAccessAdmin(user) && (
+            <DropdownMenuGroup>
             <DropdownMenuItem>
-              <Link href={"/app"} className="flex items-center gap-2">
-                <LayoutGridIcon />
-                Dashboard
+              <Link href={"/admin"} className="flex items-center gap-2">
+                <ShieldUserIcon className="stroke-stone-800" />
+                Admin
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            </DropdownMenuGroup>
           )}
+          <DropdownMenuItem>
+            <Link href={"/app"} className="flex items-center gap-2">
+              <LayoutGridIcon />
+              Dashboard
+            </Link>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem>
+            <Link href={"/app/account"} className="flex items-center gap-2">
+              <UserCogIcon />
+              My Account
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem>
             <Link href={"/app/orders"} className="flex items-center gap-2">
               <PackageSearchIcon />

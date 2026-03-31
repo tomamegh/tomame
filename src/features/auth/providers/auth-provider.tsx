@@ -9,7 +9,6 @@ import {
 } from "react";
 import {
   type Session,
-  type User,
   type SupabaseClient,
 } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
@@ -20,7 +19,7 @@ import { PlatformUser } from "@/features/users/types";
 type AuthContextType = {
   supabase: SupabaseClient;
   session: Session | null;
-  user: User | null;
+  user: PlatformUser | null;
   isLoading: boolean;
 };
 
@@ -41,9 +40,39 @@ export default function SupabaseSessionProvider({
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, currentSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       setSession(currentSession);
-      setUser((currentSession?.user as PlatformUser) ?? null);
+
+      if (currentSession?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name, role, bio, created_at, updated_at")
+          .eq("id", currentSession.user.id)
+          .single();
+
+        setUser({
+          ...currentSession.user,
+          profile: profile
+            ? {
+                id: profile.id,
+                role: profile.role,
+                first_name: profile.first_name ?? undefined,
+                last_name: profile.last_name ?? undefined,
+                bio: profile.bio ?? undefined,
+                created_at: new Date(profile.created_at),
+                updated_at: new Date(profile.updated_at),
+              }
+            : {
+                id: currentSession.user.id,
+                role: "user" as const,
+                created_at: new Date(),
+                updated_at: new Date(),
+              },
+        });
+      } else {
+        setUser(null);
+      }
+
       setIsLoading(false);
 
       // Handle specific events
