@@ -3,6 +3,7 @@ import { Providers } from "./providers";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -38,6 +39,7 @@ export default function RootLayout({
         />
       </body>
       <Analytics />
+      <SpeedInsights />
     </html>
   );
 }
