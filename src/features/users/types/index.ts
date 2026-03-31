@@ -3,7 +3,7 @@ import type { Order } from "@/features/orders/types";
 import { User } from "@supabase/supabase-js";
 
 export interface PlatformUser extends User {
-  profile: UserProfile
+  profile: UserProfile;
 }
 
 export interface UserProfile {
@@ -42,4 +42,3 @@ export interface UserDetailResponse {
   user: PlatformUser;
   recentOrders: Order[];
 }
-
