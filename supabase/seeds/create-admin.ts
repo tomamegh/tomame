@@ -2,7 +2,7 @@
  * Admin seed script.
  * Usage: npx tsx src/db/seeds/create-admin.ts <email> <password>
  *
- * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+ * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY
  * in .env.local or exported in the environment.
  */
 
@@ -12,11 +12,11 @@ config({ path: ".env.local" });
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const serviceRoleKey = process.env.SUPABASE_SECRET_KEY;
 
 if (!supabaseUrl || !serviceRoleKey) {
   console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment"
+    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in environment"
   );
   process.exit(1);
 }

@@ -7,7 +7,7 @@ import type { MessageResponse } from "@/types/api";
 import { LoginSchemaType } from "../schema";
 import { type AuthenticatedUser } from "../types";
 import { PlatformUser } from "@/features/users/types";
-import { User } from "@supabase/supabase-js";
+import { JwtPayload, User } from "@supabase/supabase-js";
 
 export async function signup(email: string, password: string): Promise<User> {
   const supabase = await createClient();
@@ -168,4 +168,9 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
       updated_at: new Date(profile.updated_at),
     },
   };
+}
+
+export function canAccessAdmin(user: JwtPayload): boolean {
+  if (!user || !user.email) return false;
+  return user.app_metadata?.role === "admin" && user.email.endsWith("@tomame.ca");
 }

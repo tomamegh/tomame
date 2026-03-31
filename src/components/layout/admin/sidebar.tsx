@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+
 import {
   Command,
   CreditCardIcon,
@@ -26,8 +26,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { LinkItem } from "@/types";
-import { createClient } from "@/lib/supabase/client";
-import { PlatformUser } from "@/features/users/types";
+import { useProfile } from "@/features/account/hooks/useProfile";
 
 const NAV_LIST: Array<{ label?: string; links: LinkItem[] }> = [
   {
@@ -87,26 +86,10 @@ const data = {
   ],
 };
 
-export default function AppSidebar({
-  ...props
-}: React.ComponentProps<typeof Sidebar>) {
-  const [user, setUser] = React.useState<PlatformUser | null>(null);
-  const [loading, setLoading] = React.useState(true);
+export default function AppSidebar(props: { className?: string }) {
+  const { data: user, isLoading } = useProfile();
 
-  React.useEffect(() => {
-    const fetchUser = async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user as PlatformUser | null);
-      setLoading(false);
-    };
-
-    fetchUser();
-  }, []);
-
-  if (loading) return null;
+  if (isLoading) return null;
   if (!user) return null;
 
   return (
