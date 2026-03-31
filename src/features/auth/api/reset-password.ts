@@ -10,7 +10,7 @@ export async function resetPassword(data: ResetPasswordSchema) {
   const response = await fetch("/api/auth/reset-password", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password: parsed.data.password }),
+    body: JSON.stringify({ password: parsed.data.password, confirmPassword: parsed.data.confirmPassword }),
   });
 
   const json = await response.json();
