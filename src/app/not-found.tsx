@@ -3,7 +3,7 @@ import { NotFoundButtons } from "@/components";
 
 export default function NotFound() {
   return (
-    <main className="min-h-screen relative flex items-center justify-center p-4 sm:p-8 bg-white">
+    <main className="min-h-screen relative flex items-center justify-center p-4 sm:p-8 bg-white overflow-hidden">
       {/* Subtle gradient blobs */}
       <div
         aria-hidden
