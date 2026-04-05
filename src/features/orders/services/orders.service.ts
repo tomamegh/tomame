@@ -380,7 +380,7 @@ export async function listAllOrders(
   user: PlatformUser,
   filters?: { status?: string; userId?: string; needsReview?: boolean },
 ): Promise<OrderList> {
-  if (user.profile.role !== "admin") {
+  if (user.app_metadata?.role !== "admin") {
     throw new APIError(403, "Admin access required");
   }
 
@@ -409,7 +409,7 @@ export async function updateOrderStatusAdmin(
     notes?: string;
   },
 ): Promise<Order> {
-  if (user.profile.role !== "admin") {
+  if (user.app_metadata?.role !== "admin") {
     throw new APIError(403, "Admin access required");
   }
 
