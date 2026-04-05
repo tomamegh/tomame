@@ -16,6 +16,9 @@ export const env = {
     secretKey: required("PAYSTACK_SECRET_KEY"),
     publicKey: required("NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY"),
   },
+  apify: {
+    apiToken: required("APIFY_API_TOKEN"),
+  },
   app: {
     url: required("NEXT_PUBLIC_APP_URL"),
   },
