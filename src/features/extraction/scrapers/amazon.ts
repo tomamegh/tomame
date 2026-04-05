@@ -3,6 +3,9 @@ import type { CheerioAPI } from "cheerio";
 import { PlatformScraper, type ScrapedProduct } from "./types";
 import { browserlessClient } from "@/lib/browserless/client";
 import { TomameCategory, AMAZON_CATEGORY_MAP } from "@/config/categories";
+import { scrapeAmazonWithApify, type ApifyAmazonProduct } from "@/lib/apify/client";
+
+import { logger } from "@/lib/logger";
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
@@ -196,6 +199,72 @@ function extractDimensions(specs: Record<string, string>): string | null {
   return null;
 }
 
+function mapApifyToScrapedProduct(item: ApifyAmazonProduct): ScrapedProduct {
+  const price = item.price ?? null;
+  // axesso actor scrapes via amazon.com domain — always USD
+  const currency = "USD";
+
+  // Convert productDetails array [{name, value}] to Record<string, string>
+  const specs: Record<string, string> = {};
+  if (item.productDetails) {
+    for (const detail of item.productDetails) {
+      if (detail.name && detail.value) specs[detail.name] = detail.value;
+    }
+  }
+
+  // Extract brand from manufacturer field (e.g. "Visit the GOOACC Store" → "GOOACC")
+  let brand: string | null = specs["Brand"] ?? null;
+  if (!brand && item.manufacturer) {
+    const match = item.manufacturer.match(/(?:Visit the |Brand:\s*)(.+?)(?:\s+Store)?$/i);
+    brand = match?.[1]?.trim() ?? item.manufacturer;
+  }
+
+  // Map breadcrumbs to category (if present), otherwise try productDetails
+  let category: TomameCategory | null = null;
+  if (item.breadcrumbs && item.breadcrumbs.length > 0) {
+    for (const crumb of item.breadcrumbs) {
+      if (crumb.text) {
+        const mapped = AMAZON_CATEGORY_MAP.get(crumb.text);
+        if (mapped) { category = mapped; break; }
+      }
+    }
+  }
+  // Fallback: check Best Sellers Rank for category hints
+  if (!category) {
+    const bsr = specs["Best Sellers Rank"];
+    if (bsr) {
+      for (const [key, mapped] of AMAZON_CATEGORY_MAP) {
+        if (bsr.includes(key)) { category = mapped; break; }
+      }
+    }
+    if (!category && bsr) category = TomameCategory.OTHER;
+  }
+
+  const images = item.imageUrlList ?? [];
+
+  return {
+    title: item.title ?? null,
+    image: images[0] ?? null,
+    price,
+    currency,
+    description: item.features?.join("\n") ?? item.productDescription ?? null,
+    brand,
+    category,
+    size: specs["Size Name"] ?? null,
+    weight: extractWeight(specs),
+    dimensions: extractDimensions(specs),
+    specifications: specs,
+    metadata: {
+      images,
+      availableSizes: [],
+      asin: item.asin ?? specs["ASIN"] ?? null,
+      rating: item.productRating ?? null,
+      reviewCount: item.countReview != null ? `${item.countReview} ratings` : null,
+      source: "apify",
+    },
+  };
+}
+
 export class AmazonScraper extends PlatformScraper {
   /**
    * Strip Amazon search/session params — only the /dp/ASIN path matters.
@@ -301,12 +370,19 @@ export class AmazonScraper extends PlatformScraper {
 
     // Step 3: Direct HTTP fetch
     const html = await this.directFetch(cleanedUrl);
-    if (!html) {
-      throw new Error("Failed to fetch product page");
+    if (html) {
+      const $ = cheerio.load(html);
+      return this.extract($);
     }
 
-    const $ = cheerio.load(html);
-    return this.extract($);
+    // Step 4: Fallback to Apify when direct fetch fails (e.g. Amazon blocking)
+    logger.warn("direct fetch failed, falling back to Apify", { url: cleanedUrl });
+    const apifyResult = await scrapeAmazonWithApify(cleanedUrl);
+    if (apifyResult) {
+      return mapApifyToScrapedProduct(apifyResult);
+    }
+
+    throw new Error("Failed to fetch product page (direct fetch and Apify both failed)");
   }
 
   public extract($: CheerioAPI): ScrapedProduct {
