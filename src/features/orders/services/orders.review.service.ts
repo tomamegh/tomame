@@ -1,9 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { JwtPayload, SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { getOrderById } from "@/features/orders/services/orders.service";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { PlatformUser } from "@/features/users/types";
 import type { Order } from "../types";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
@@ -45,7 +44,7 @@ async function updateOrderReview(
 
 export async function reviewOrder(
   client: SupabaseClient,
-  admin: PlatformUser,
+  admin: JwtPayload,
   orderId: string,
   input: {
     action: "approve" | "reject";
