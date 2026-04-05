@@ -11,7 +11,11 @@
       "Bash(find /Users/browny/Workspace/tomame/src/app/admin -type f -name *.tsx -o -name *.ts)",
       "mcp__shadcn__get_add_command_for_items",
       "Bash(bunx shadcn@latest add @shadcn/tabs --yes)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git remote:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
