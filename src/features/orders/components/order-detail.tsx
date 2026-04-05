@@ -10,12 +10,14 @@ import {
   CheckCircle2Icon,
   CircleIcon,
   ClipboardListIcon,
+  CreditCardIcon,
   ImageIcon,
   ShoppingCartIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
 import { OrderStatusBadge } from "./order-status-badge";
 import { useOrder, useCancelOrder, useOrderHistory } from "../hooks/useOrders";
 import type { Order, OrderStatus } from "../types";
@@ -456,9 +458,17 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
             </div>
           </div>
 
-          {/* Cancel */}
-          {!isAdmin && order.status === "pending" && (
-            <div className="mt-4 pt-4 border-t border-stone-100">
+          {/* Actions */}
+          {!order.payment_id && order.status === "pending" && (
+            <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-3 flex-wrap">
+              {!order.needs_review && (!!order.reviewed_by || order.review_reasons.length === 0) && (
+                <Link href={`/app/orders/${orderId}/checkout`}>
+                  <Button size="sm" className="gap-1.5">
+                    <CreditCardIcon className="size-3.5" />
+                    Complete Payment
+                  </Button>
+                </Link>
+              )}
               <CancelSection orderId={orderId} />
             </div>
           )}

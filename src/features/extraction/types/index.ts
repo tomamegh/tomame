@@ -20,3 +20,8 @@ export interface ProductPreviewProps {
   onOrder: () => void;
   onReset: () => void;
 }
+
+export interface CachedExtraction {
+  id: string;
+  result: ExtractionResult;
+}

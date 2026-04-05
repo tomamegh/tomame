@@ -6,6 +6,7 @@ import type { Payment } from "@/features/payments/types";
 import {
   getOrderById,
   linkOrderToPayment,
+  sendOrderStatusEmail,
 } from "@/features/orders/services/orders.service";
 import {
   initializeTransaction,
@@ -295,6 +296,7 @@ export async function handlePaymentCallback(
           order.product_name,
           order.pricing.total_ghs,
         );
+        sendOrderStatusEmail(payment.user_id, order, "paid");
       }
     }
 

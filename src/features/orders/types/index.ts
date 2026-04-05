@@ -79,3 +79,29 @@ export interface OrderList {
   orders: Order[];
   count: number;
 }
+
+// ── Review types ─────────────────────────────────────────────────────────────
+
+export interface OrderReviewUpdates {
+  needs_review?: boolean;
+  review_reasons?: string[];
+  reviewed_by?: string;
+  reviewed_at?: string;
+  product_name?: string;
+  product_image_url?: string | null;
+  estimated_price_usd?: number;
+  origin_country?: string;
+  status?: string;
+  pricing?: Record<string, unknown>;
+}
+
+export interface OrderReviewInput {
+  action: "approve" | "reject";
+  updates?: {
+    product_name?: string;
+    estimated_price_usd?: number;
+    product_image_url?: string | null;
+    origin_country?: OriginCountry;
+  };
+  reason?: string;
+}

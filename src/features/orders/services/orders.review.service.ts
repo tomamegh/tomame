@@ -1,28 +1,26 @@
-import type { JwtPayload, SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { getOrderById } from "@/features/orders/services/orders.service";
+import { calculatePricing } from "@/features/pricing/services/pricing.service";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEmail } from "@/lib/email/transport";
+import {
+  orderApprovedTemplate,
+  orderRejectedTemplate,
+} from "@/lib/email/templates/order-status";
+import { env } from "@/lib/env";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { Order } from "../types";
+import type { Order, OrderReviewInput, OrderReviewUpdates } from "../types";
+import { PlatformUser } from "@/features/users/types";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
 async function updateOrderReview(
-  client: SupabaseClient,
   orderId: string,
-  updates: Partial<{
-    needs_review: boolean;
-    review_reasons: string[];
-    reviewed_by: string;
-    reviewed_at: string;
-    product_name: string;
-    product_image_url: string | null;
-    estimated_price_usd: number;
-    origin_country: string;
-    status: string;
-  }>,
+  updates: Partial<OrderReviewUpdates>,
 ): Promise<Order | null> {
-  const { data, error } = await client
+  const { data, error } = await createAdminClient()
     .from("orders")
     .update(updates)
     .eq("id", orderId)
@@ -40,27 +38,96 @@ async function updateOrderReview(
   return data as Order;
 }
 
+/** Mark any pending payments for this order as failed so the customer can re-pay at the new price. */
+async function voidPendingPaymentsForOrder(orderId: string): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("payments")
+    .update({ status: "failed", metadata: { voided_reason: "order_repriced" } })
+    .filter("metadata->>order_id", "eq", orderId)
+    .eq("status", "pending");
+
+  if (error) {
+    logger.error("voidPendingPaymentsForOrder failed", {
+      orderId,
+      error: error.message,
+    });
+  }
+}
+
+/** Send a review outcome email to the order owner. Errors are logged, never thrown. */
+async function sendReviewEmail(
+  userId: string,
+  order: Order,
+  action: "approve" | "reject",
+  opts: { priceChanged: boolean; reason?: string },
+): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { data: userData, error } =
+      await admin.auth.admin.getUserById(userId);
+    if (error || !userData?.user?.email) return;
+
+    const paymentUrl =
+      action === "approve"
+        ? `${env.app.url}/app/orders/${order.id}`
+        : undefined;
+
+    const p = order.pricing;
+    const template =
+      action === "approve"
+        ? orderApprovedTemplate({
+            productName: order.product_name,
+            orderId: order.id,
+            totalGhs: p.total_ghs,
+            pricing:
+              p.pricing_method !== "needs_review"
+                ? {
+                    itemPriceUsd: p.item_price_usd,
+                    subtotalUsd: p.subtotal_usd,
+                    taxPercentage: p.tax_percentage,
+                    taxUsd: p.tax_usd,
+                    valueFeePercentage: p.value_fee_percentage,
+                    valueFeeUsd: p.value_fee_usd,
+                    flatRateGhs: p.flat_rate_ghs,
+                    exchangeRate: p.exchange_rate,
+                    totalGhs: p.total_ghs,
+                  }
+                : undefined,
+            priceChanged: opts.priceChanged,
+            paymentUrl,
+          })
+        : orderRejectedTemplate({
+            productName: order.product_name,
+            orderId: order.id,
+            reason: opts.reason,
+          });
+
+    await sendEmail({
+      to: userData.user.email,
+      subject: template.subject,
+      html: template.html,
+    });
+  } catch (err) {
+    logger.error("sendReviewEmail failed", {
+      userId,
+      orderId: order.id,
+      action,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 // ── Service functions ─────────────────────────────────────────────────────────
+
+const REGION_MAP = { USA: "usa", UK: "uk", CHINA: "china" } as const;
 
 export async function reviewOrder(
   client: SupabaseClient,
-  admin: JwtPayload,
+  admin: PlatformUser,
   orderId: string,
-  input: {
-    action: "approve" | "reject";
-    updates?: {
-      product_name?: string;
-      estimated_price_usd?: number;
-      product_image_url?: string | null;
-      origin_country?: "USA" | "UK" | "CHINA";
-    };
-    reason?: string;
-  },
+  input: OrderReviewInput,
 ): Promise<Order> {
-  if (admin.app_metadata?.role !== "admin") {
-    throw new APIError(403, "Admin access required");
-  }
-
   const order = await getOrderById(client, orderId);
   if (!order) {
     throw new APIError(404, "Order not found");
@@ -71,26 +138,48 @@ export async function reviewOrder(
   }
 
   if (input.action === "approve") {
+    const newPrice =
+      input.updates?.estimated_price_usd ?? order.estimated_price_usd;
+    const newCountry = input.updates?.origin_country ?? order.origin_country;
+    const priceChanged =
+      input.updates?.estimated_price_usd !== undefined &&
+      input.updates.estimated_price_usd !== order.estimated_price_usd;
+    const countryChanged =
+      input.updates?.origin_country !== undefined &&
+      input.updates.origin_country !== order.origin_country;
+
     const updates: Record<string, unknown> = {
       needs_review: false,
       reviewed_by: admin.id,
       reviewed_at: new Date().toISOString(),
     };
 
-    if (input.updates?.product_name) {
+    if (input.updates?.product_name)
       updates.product_name = input.updates.product_name;
-    }
-    if (input.updates?.estimated_price_usd !== undefined) {
+    if (input.updates?.estimated_price_usd !== undefined)
       updates.estimated_price_usd = input.updates.estimated_price_usd;
-    }
-    if (input.updates?.product_image_url !== undefined) {
+    if (input.updates?.product_image_url !== undefined)
       updates.product_image_url = input.updates.product_image_url;
-    }
-    if (input.updates?.origin_country) {
+    if (input.updates?.origin_country)
       updates.origin_country = input.updates.origin_country;
+
+    // Always recalculate pricing on approval so pricing_method is never "needs_review"
+    // after approval (checkout page and email both require a resolved pricing method).
+    const newPricing = await calculatePricing({
+      itemPriceUsd: newPrice,
+      quantity: order.quantity,
+      category: order.extraction_metadata?.product?.category ?? null,
+      weightLbs: order.pricing.weight_lbs ?? undefined,
+      region: REGION_MAP[newCountry],
+    });
+    updates.pricing = newPricing as unknown as Record<string, unknown>;
+
+    if (priceChanged || countryChanged) {
+      // Void any pending payment so the customer re-pays at the updated price
+      await voidPendingPaymentsForOrder(orderId);
     }
 
-    const updated = await updateOrderReview(client, orderId, updates);
+    const updated = await updateOrderReview(orderId, updates);
     if (!updated) {
       throw new APIError(500, "Failed to approve order");
     }
@@ -103,15 +192,19 @@ export async function reviewOrder(
       entityId: orderId,
       metadata: {
         updates: input.updates ?? null,
+        priceChanged,
+        countryChanged,
         previousReviewReasons: order.review_reasons,
       },
     });
+
+    sendReviewEmail(order.user_id, updated, "approve", { priceChanged });
 
     return updated as Order;
   }
 
   // Reject: cancel the order
-  const updated = await updateOrderReview(client, orderId, {
+  const updated = await updateOrderReview(orderId, {
     needs_review: false,
     reviewed_by: admin.id,
     reviewed_at: new Date().toISOString(),
@@ -132,6 +225,11 @@ export async function reviewOrder(
       reason: input.reason ?? null,
       previousReviewReasons: order.review_reasons,
     },
+  });
+
+  sendReviewEmail(order.user_id, updated, "reject", {
+    priceChanged: false,
+    reason: input.reason,
   });
 
   return updated as Order;

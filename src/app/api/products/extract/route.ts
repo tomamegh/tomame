@@ -2,8 +2,7 @@ import { NextRequest } from "next/server";
 import { extractProductSchema } from "@/features/extraction/schema";
 import { extractProductData } from "@/features/extraction/extraction.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
-import { requireAuth } from "@/lib/auth/guards";
+import { getUserSession } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
@@ -24,15 +23,14 @@ export async function POST(request: NextRequest) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const user = await getAuthenticatedUser();
-    const authUser = requireAuth(user);
+    const {user} = await getUserSession();
 
     const platform = resolvePlatform(parsed.data.product_url);
     if (!platform) {
       throw new APIError(400, "Product URL must be from a supported store");
     }
 
-    const data = await extractProductData(parsed.data.product_url, authUser.id);
+    const data = await extractProductData(parsed.data.product_url, user.id);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

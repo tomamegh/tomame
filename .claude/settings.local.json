@@ -15,7 +15,12 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Read(//usr/local/bin/**)",
+      "Read(//home/browny/.nvm/versions/node/**)",
+      "Bash(~/.nvm/versions/node/v22.22.2/bin/node node_modules/.bin/tsc --noEmit)",
+      "Bash(git diff:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

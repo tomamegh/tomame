@@ -5,12 +5,14 @@ import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
 import { sendEmail } from "@/lib/email/transport";
 import {
+  orderPlacedTemplate,
   orderPaidTemplate,
   orderProcessingTemplate,
   orderShippedTemplate,
   orderDeliveredTemplate,
   orderCancelledTemplate,
 } from "@/lib/email/templates/order-status";
+import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
 import type { PlatformUser } from "@/features/users/types";
@@ -177,7 +179,7 @@ async function getOrderAuditLogs(
   return (data ?? []) as AuditLog[];
 }
 
-async function sendOrderStatusEmail(
+export async function sendOrderStatusEmail(
   userId: string,
   order: Order,
   newStatus: string,
@@ -318,6 +320,29 @@ export async function createOrder(
     },
   });
 
+  // Fire-and-forget: notify the customer their order was received
+  (async () => {
+    try {
+      const supabase = createAdminClient();
+      const { data: userData, error } = await supabase.auth.admin.getUserById(user.id);
+      if (!error && userData?.user?.email) {
+        const template = orderPlacedTemplate({
+          productName: order.product_name,
+          orderId: order.id,
+          totalGhs: pricing.total_ghs,
+          needsReview: needsReview,
+          paymentUrl: needsReview ? undefined : `${env.app.url}/app/orders/${order.id}`,
+        });
+        await sendEmail({ to: userData.user.email, subject: template.subject, html: template.html });
+      }
+    } catch (err) {
+      logger.error("order placed email failed", {
+        orderId: order.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  })();
+
   return order as Order;
 }
 
@@ -377,12 +402,8 @@ export async function listUserOrders(
 
 export async function listAllOrders(
   client: SupabaseClient,
-  user: PlatformUser,
   filters?: { status?: string; userId?: string; needsReview?: boolean },
 ): Promise<OrderList> {
-  if (user.app_metadata?.role !== "admin") {
-    throw new APIError(403, "Admin access required");
-  }
 
   const orders = await getAllOrders(client, filters);
   return { orders: orders as Order[], count: orders.length };
