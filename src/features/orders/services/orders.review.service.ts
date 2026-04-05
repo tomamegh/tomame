@@ -58,7 +58,7 @@ export async function reviewOrder(
     reason?: string;
   },
 ): Promise<Order> {
-  if (admin.role !== "admin") {
+  if (admin.app_metadata?.role !== "admin") {
     throw new APIError(403, "Admin access required");
   }
 
