@@ -16,6 +16,7 @@ import {
   ImageIcon,
   CheckIcon,
   XIcon,
+  CreditCardIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -198,9 +199,51 @@ function OrderTimeline({
 
 function PricingBreakdown({ order }: { order: Order }) {
   const p = order.pricing;
+  const fmtGhs = (n: number) =>
+    new Intl.NumberFormat("en-GH", {
+      style: "currency",
+      currency: "GHS",
+      minimumFractionDigits: 2,
+    }).format(n);
 
   if (!p) {
     return <p className="text-sm text-stone-400">Pricing not available</p>;
+  }
+
+  // Admin-set price (overrides calculated pricing)
+  if (order.admin_total_ghs != null) {
+    return (
+      <div className="space-y-2">
+        {p.pricing_method !== "needs_review" && (
+          <>
+            {[
+              { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
+              { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex justify-between text-sm gap-4 text-stone-400">
+                <span>{label}</span>
+                <span className="tabular-nums">{value}</span>
+              </div>
+            ))}
+          </>
+        )}
+        <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-700 mt-2">
+          <p className="font-medium">Price set by admin</p>
+          {order.admin_pricing_note && (
+            <p className="text-xs mt-1 text-blue-600">{order.admin_pricing_note}</p>
+          )}
+          {order.pricing_set_at && (
+            <p className="text-xs mt-1 text-blue-500">
+              Set on {fmtDateTime(order.pricing_set_at)}
+            </p>
+          )}
+        </div>
+        <div className="flex justify-between font-bold text-base text-stone-900 pt-2 border-t border-stone-200">
+          <span>Total (GHS)</span>
+          <span className="tabular-nums">{fmtGhs(order.admin_total_ghs)}</span>
+        </div>
+      </div>
+    );
   }
 
   if (p.pricing_method === "needs_review") {
@@ -234,13 +277,7 @@ function PricingBreakdown({ order }: { order: Order }) {
       ))}
       <div className="flex justify-between font-bold text-base text-stone-900 pt-2 border-t border-stone-200">
         <span>Total (GHS)</span>
-        <span className="tabular-nums">
-          {new Intl.NumberFormat("en-GH", {
-            style: "currency",
-            currency: "GHS",
-            minimumFractionDigits: 2,
-          }).format(p.total_ghs)}
-        </span>
+        <span className="tabular-nums">{fmtGhs(p.total_ghs)}</span>
       </div>
     </div>
   );
@@ -249,7 +286,7 @@ function PricingBreakdown({ order }: { order: Order }) {
 // ── Review panel ──────────────────────────────────────────────────────────────
 
 function ReviewPanel({ order }: { order: Order }) {
-  const [mode, setMode] = useState<null | "approve" | "reject">(null);
+  const [mode, setMode] = useState<null | "approve" | "reject" | "set_price">(null);
 
   // Approve fields
   const [productName, setProductName] = useState(order.product_name);
@@ -260,6 +297,10 @@ function ReviewPanel({ order }: { order: Order }) {
 
   // Reject field
   const [rejectReason, setRejectReason] = useState("");
+
+  // Set price fields
+  const [adminTotalGhs, setAdminTotalGhs] = useState("");
+  const [adminPricingNote, setAdminPricingNote] = useState("");
 
   const reviewMutation = useReviewOrder();
 
@@ -350,6 +391,14 @@ function ReviewPanel({ order }: { order: Order }) {
             >
               <CheckIcon className="size-3.5" />
               Approve
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1.5 bg-blue-600 hover:bg-blue-700"
+              onClick={() => setMode("set_price")}
+            >
+              <CreditCardIcon className="size-3.5" />
+              Set Price
             </Button>
             <Button
               size="sm"
@@ -451,6 +500,79 @@ function ReviewPanel({ order }: { order: Order }) {
               >
                 <XIcon className="size-3.5" />
                 {reviewMutation.isPending ? "Declining..." : "Confirm Decline"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setMode(null)}
+                disabled={reviewMutation.isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Set Price form */}
+        {mode === "set_price" && (
+          <div className="space-y-3 pt-1">
+            <p className="text-xs font-medium text-stone-600">
+              Set the total GHS price for this order:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Total Price (GHS)</Label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={adminTotalGhs}
+                  onChange={(e) => setAdminTotalGhs(e.target.value)}
+                  placeholder="e.g. 1500.00"
+                  className="h-8 text-sm"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Note (optional)</Label>
+                <Input
+                  value={adminPricingNote}
+                  onChange={(e) => setAdminPricingNote(e.target.value)}
+                  placeholder="Pricing rationale..."
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="gap-1.5 bg-blue-600 hover:bg-blue-700"
+                onClick={() => {
+                  const price = parseFloat(adminTotalGhs);
+                  if (isNaN(price) || price <= 0) {
+                    toast.error("Enter a valid GHS price");
+                    return;
+                  }
+                  reviewMutation.mutate(
+                    {
+                      id: order.id,
+                      action: "set_price",
+                      admin_total_ghs: price,
+                      admin_pricing_note: adminPricingNote || undefined,
+                    },
+                    {
+                      onSuccess: () => {
+                        toast.success("Price set successfully");
+                        setMode(null);
+                      },
+                      onError: (err) => toast.error(err.message),
+                    },
+                  );
+                }}
+                disabled={reviewMutation.isPending}
+              >
+                <CreditCardIcon className="size-3.5" />
+                {reviewMutation.isPending ? "Setting price..." : "Confirm Price"}
               </Button>
               <Button
                 size="sm"

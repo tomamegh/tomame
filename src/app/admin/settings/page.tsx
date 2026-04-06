@@ -1,5 +1,8 @@
 import { ExchangeRatesCard } from "@/features/settings/components/exchange-rates-card";
 import { PricingConstantsCard } from "@/features/settings/components/pricing-constants-card";
+import { PricingGroupsCard } from "@/features/pricing/components/pricing-groups-card";
+import { CategoryMappingsCard } from "@/features/pricing/components/category-mappings-card";
+import { ImportExportCard } from "@/features/pricing/components/import-export-controls";
 
 export default function SettingsPage() {
   return (
@@ -7,12 +10,15 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-xl font-bold text-stone-800">Settings</h1>
         <p className="text-sm text-stone-500 mt-0.5">
-          Manage exchange rates and pricing configuration.
+          Manage exchange rates, pricing configuration, and category mappings.
         </p>
       </div>
 
       <ExchangeRatesCard />
       <PricingConstantsCard />
+      <PricingGroupsCard />
+      <CategoryMappingsCard />
+      <ImportExportCard />
     </div>
   );
 }
