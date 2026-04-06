@@ -20,6 +20,10 @@ async function updateOrderReview(
     estimated_price_usd: number;
     origin_country: string;
     status: string;
+    admin_total_ghs: number;
+    admin_pricing_note: string | null;
+    pricing_set_by: string;
+    pricing_set_at: string;
   }>,
 ): Promise<Order | null> {
   const { data, error } = await client
@@ -47,7 +51,7 @@ export async function reviewOrder(
   admin: JwtPayload,
   orderId: string,
   input: {
-    action: "approve" | "reject";
+    action: "approve" | "reject" | "set_price";
     updates?: {
       product_name?: string;
       estimated_price_usd?: number;
@@ -55,6 +59,8 @@ export async function reviewOrder(
       origin_country?: "USA" | "UK" | "CHINA";
     };
     reason?: string;
+    admin_total_ghs?: number;
+    admin_pricing_note?: string;
   },
 ): Promise<Order> {
   if (admin.app_metadata?.role !== "admin") {
@@ -108,6 +114,56 @@ export async function reviewOrder(
     });
 
     return updated as Order;
+  }
+
+  // Set price: admin manually sets the GHS total for a needs_review order
+  if (input.action === "set_price") {
+    if (!input.admin_total_ghs || input.admin_total_ghs <= 0) {
+      throw new APIError(400, "A positive GHS price is required");
+    }
+
+    const now = new Date().toISOString();
+    const priceUpdates: Record<string, unknown> = {
+      needs_review: false,
+      reviewed_by: admin.id,
+      reviewed_at: now,
+      admin_total_ghs: input.admin_total_ghs,
+      admin_pricing_note: input.admin_pricing_note ?? null,
+      pricing_set_by: admin.id,
+      pricing_set_at: now,
+    };
+
+    // Also apply any product detail corrections
+    if (input.updates?.product_name) {
+      priceUpdates.product_name = input.updates.product_name;
+    }
+    if (input.updates?.estimated_price_usd !== undefined) {
+      priceUpdates.estimated_price_usd = input.updates.estimated_price_usd;
+    }
+    if (input.updates?.origin_country) {
+      priceUpdates.origin_country = input.updates.origin_country;
+    }
+
+    const priceUpdated = await updateOrderReview(client, orderId, priceUpdates);
+    if (!priceUpdated) {
+      throw new APIError(500, "Failed to set price on order");
+    }
+
+    await logAuditEvent({
+      actorId: admin.id,
+      actorRole: "admin",
+      action: "order_price_set",
+      entityType: "order",
+      entityId: orderId,
+      metadata: {
+        admin_total_ghs: input.admin_total_ghs,
+        admin_pricing_note: input.admin_pricing_note ?? null,
+        previousReviewReasons: order.review_reasons,
+        updates: input.updates ?? null,
+      },
+    });
+
+    return priceUpdated as Order;
   }
 
   // Reject: cancel the order

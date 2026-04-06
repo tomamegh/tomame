@@ -63,7 +63,7 @@ export const createOrderSchema = z.object({
 });
 
 export const reviewOrderSchema = z.object({
-  action: z.enum(["approve", "reject"]),
+  action: z.enum(["approve", "reject", "set_price"]),
   updates: z
     .object({
       product_name: z.string().min(1).max(500).optional(),
@@ -73,6 +73,8 @@ export const reviewOrderSchema = z.object({
     })
     .optional(),
   reason: z.string().max(1000).optional(),
+  admin_total_ghs: z.number().positive().max(500_000).optional(),
+  admin_pricing_note: z.string().max(1000).optional(),
 });
 
 export const updateOrderStatusSchema = z.object({

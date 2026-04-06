@@ -5,7 +5,9 @@ import {
   getCategoryPricing,
   isWeightExpression,
   resolveFlatRate,
+  evaluateFlatRate,
 } from "@/config/pricing-categories";
+import type { PricingGroupRow } from "@/db/queries/pricing-groups";
 import { logger } from "@/lib/logger";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -55,6 +57,7 @@ export class PricingCalculator {
   private midMarketRate: number | null = null;
   private appliedRate: number | null = null;
   private constants: PricingConstants | null = null;
+  private categoryPricingMap: Map<string, PricingGroupRow> | null = null;
 
   private static roundTo2(n: number): number {
     return Math.round(n * 100) / 100;
@@ -63,6 +66,11 @@ export class PricingCalculator {
   /** Inject DB-loaded pricing constants. Falls back to config defaults if not set. */
   setConstants(constants: PricingConstants): void {
     this.constants = constants;
+  }
+
+  /** Inject DB-loaded category→pricing group map. Falls back to JSON config if not set. */
+  setCategoryPricing(map: Map<string, PricingGroupRow>): void {
+    this.categoryPricingMap = map;
   }
 
   private get fxBufferPct(): number {
@@ -97,6 +105,62 @@ export class PricingCalculator {
     );
   }
 
+  /**
+   * Look up pricing for a category. Uses DB map if available, else falls back to JSON config.
+   */
+  private lookupCategoryPricing(category: string | null | undefined): {
+    group: string;
+    flat_rate_ghs: number | null;
+    flat_rate_expression: string | null;
+    value_percentage: number;
+    value_percentage_high: number | null;
+    value_threshold_usd: number | null;
+    default_weight_lbs: number | null;
+    requires_weight: boolean;
+    name: string;
+  } | null {
+    if (!category) return null;
+
+    // DB-loaded map takes priority
+    if (this.categoryPricingMap) {
+      const pg = this.categoryPricingMap.get(category);
+      if (!pg) return null;
+      return {
+        group: pg.slug,
+        flat_rate_ghs: pg.flat_rate_ghs,
+        flat_rate_expression: pg.flat_rate_expression,
+        value_percentage: pg.value_percentage,
+        value_percentage_high: pg.value_percentage_high,
+        value_threshold_usd: pg.value_threshold_usd,
+        default_weight_lbs: pg.default_weight_lbs,
+        requires_weight: pg.requires_weight,
+        name: pg.name,
+      };
+    }
+
+    // Fallback to JSON config
+    const jsonPricing = getCategoryPricing(category);
+    if (!jsonPricing) return null;
+    const { group, pricing } = jsonPricing;
+    return {
+      group,
+      flat_rate_ghs:
+        typeof pricing.flat_rate_ghs === "number"
+          ? pricing.flat_rate_ghs
+          : null,
+      flat_rate_expression:
+        typeof pricing.flat_rate_ghs === "string"
+          ? pricing.flat_rate_ghs
+          : null,
+      value_percentage: pricing.value_percentage,
+      value_percentage_high: null,
+      value_threshold_usd: null,
+      default_weight_lbs: null,
+      requires_weight: false,
+      name: pricing.name,
+    };
+  }
+
   /** Calculate the full pricing breakdown for an order. */
   async calculate(input: PricingInput): Promise<PricingBreakdown> {
     if (this.appliedRate == null) {
@@ -114,7 +178,7 @@ export class PricingCalculator {
     const minimumTax = this.constants?.minimum_tax_usd ?? 0;
     const taxUsd = Math.max(rawTax, minimumTax);
 
-    const catPricing = getCategoryPricing(category);
+    const catPricing = this.lookupCategoryPricing(category);
 
     // No pricing group → needs_review
     if (!catPricing) {
@@ -137,69 +201,124 @@ export class PricingCalculator {
       });
     }
 
-    const { group, pricing } = catPricing;
-    const valueFeeUsd = r2(subtotalUsd * pricing.value_percentage);
-    const rawFlatRate = pricing.flat_rate_ghs;
-
-    // Expression that needs weight but weight not provided → needs_review
-    if (isWeightExpression(rawFlatRate) && input.weightLbs == null) {
-      return this.buildReview({
-        input,
-        subtotalUsd,
-        taxPct,
-        taxUsd,
-        fxRate,
-        midRate,
-        group,
-        valueFeePercentage: pricing.value_percentage,
-        valueFeeUsd,
-        reason: `We couldn't determine the weight of this product, which is needed to calculate shipping for ${pricing.name.toLowerCase()}.`,
-      });
+    // Resolve value fee percentage (tiered if configured)
+    let valueFeePercentage = catPricing.value_percentage;
+    if (
+      catPricing.value_threshold_usd != null &&
+      catPricing.value_percentage_high != null &&
+      subtotalUsd > catPricing.value_threshold_usd
+    ) {
+      valueFeePercentage = catPricing.value_percentage_high;
     }
 
-    const resolvedFlatRate = resolveFlatRate(rawFlatRate, input.weightLbs);
-    if (resolvedFlatRate == null) {
-      return this.buildReview({
-        input,
-        subtotalUsd,
-        taxPct,
-        taxUsd,
-        fxRate,
-        midRate,
-        group,
-        valueFeePercentage: pricing.value_percentage,
-        valueFeeUsd,
-        reason: `We couldn't calculate shipping for ${pricing.name.toLowerCase()}.`,
-      });
+    const valueFeeUsd = r2(subtotalUsd * valueFeePercentage);
+
+    // Determine if this is a weight-expression pricing group
+    const hasExpression = catPricing.flat_rate_expression != null;
+    const hasFlatRate = catPricing.flat_rate_ghs != null;
+
+    if (hasExpression) {
+      // Weight-based pricing: try input weight → default weight → needs_review
+      const effectiveWeight =
+        input.weightLbs ?? catPricing.default_weight_lbs ?? null;
+
+      if (effectiveWeight == null) {
+        // requires_weight: reject with specific reason
+        if (catPricing.requires_weight) {
+          return this.buildReview({
+            input,
+            subtotalUsd,
+            taxPct,
+            taxUsd,
+            fxRate,
+            midRate,
+            group: catPricing.group,
+            valueFeePercentage,
+            valueFeeUsd,
+            reason: `This product requires weight information for shipping. ${catPricing.name} orders cannot be processed without weight.`,
+          });
+        }
+
+        return this.buildReview({
+          input,
+          subtotalUsd,
+          taxPct,
+          taxUsd,
+          fxRate,
+          midRate,
+          group: catPricing.group,
+          valueFeePercentage,
+          valueFeeUsd,
+          reason: `We couldn't determine the weight of this product, which is needed to calculate shipping for ${catPricing.name.toLowerCase()}.`,
+        });
+      }
+
+      const flatRateGhs = r2(
+        evaluateFlatRate(catPricing.flat_rate_expression!, effectiveWeight),
+      );
+      const usdComponentGhs = r2(
+        (subtotalUsd + taxUsd + valueFeeUsd) * fxRate,
+      );
+      const totalGhs = r2(usdComponentGhs + flatRateGhs);
+
+      return {
+        pricing_method: "weight_expression",
+        pricing_group: catPricing.group,
+        item_price_usd: itemPriceUsd,
+        quantity,
+        subtotal_usd: subtotalUsd,
+        exchange_rate: fxRate,
+        mid_market_rate: midRate,
+        tax_percentage: taxPct,
+        tax_usd: taxUsd,
+        value_fee_percentage: valueFeePercentage,
+        value_fee_usd: valueFeeUsd,
+        flat_rate_ghs: flatRateGhs,
+        total_ghs: totalGhs,
+        total_pesewas: Math.round(totalGhs * 100),
+        flat_rate_expression: catPricing.flat_rate_expression!,
+        weight_lbs: effectiveWeight,
+      };
     }
 
-    const flatRateGhs = r2(resolvedFlatRate);
-    const usdComponentGhs = r2((subtotalUsd + taxUsd + valueFeeUsd) * fxRate);
-    const totalGhs = r2(usdComponentGhs + flatRateGhs);
-    const totalPesewas = Math.round(totalGhs * 100);
+    if (hasFlatRate) {
+      const flatRateGhs = r2(catPricing.flat_rate_ghs!);
+      const usdComponentGhs = r2(
+        (subtotalUsd + taxUsd + valueFeeUsd) * fxRate,
+      );
+      const totalGhs = r2(usdComponentGhs + flatRateGhs);
 
-    const isExpression = isWeightExpression(rawFlatRate);
+      return {
+        pricing_method: "flat_rate",
+        pricing_group: catPricing.group,
+        item_price_usd: itemPriceUsd,
+        quantity,
+        subtotal_usd: subtotalUsd,
+        exchange_rate: fxRate,
+        mid_market_rate: midRate,
+        tax_percentage: taxPct,
+        tax_usd: taxUsd,
+        value_fee_percentage: valueFeePercentage,
+        value_fee_usd: valueFeeUsd,
+        flat_rate_ghs: flatRateGhs,
+        total_ghs: totalGhs,
+        total_pesewas: Math.round(totalGhs * 100),
+      };
+    }
 
-    return {
-      pricing_method: isExpression ? "weight_expression" : "flat_rate",
-      pricing_group: group,
-      item_price_usd: itemPriceUsd,
-      quantity,
-      subtotal_usd: subtotalUsd,
-      exchange_rate: fxRate,
-      mid_market_rate: midRate,
-      tax_percentage: taxPct,
-      tax_usd: taxUsd,
-      value_fee_percentage: pricing.value_percentage,
-      value_fee_usd: valueFeeUsd,
-      flat_rate_ghs: flatRateGhs,
-      total_ghs: totalGhs,
-      total_pesewas: totalPesewas,
-      ...(isExpression && {
-        flat_rate_expression: rawFlatRate,
-        weight_lbs: input.weightLbs!,
-      }),
-    };
+    // Should not reach here due to DB CHECK constraint, but handle gracefully
+    return this.buildReview({
+      input,
+      subtotalUsd,
+      taxPct,
+      taxUsd,
+      fxRate,
+      midRate,
+      group: catPricing.group,
+      valueFeePercentage,
+      valueFeeUsd,
+      reason: `We couldn't calculate shipping for ${catPricing.name.toLowerCase()}.`,
+    });
   }
 
   private buildReview(opts: {
