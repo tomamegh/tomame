@@ -20,7 +20,9 @@
       "Read(//usr/local/bin/**)",
       "Read(//home/browny/.nvm/versions/node/**)",
       "Bash(~/.nvm/versions/node/v22.22.2/bin/node node_modules/.bin/tsc --noEmit)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(grep -E \"\\\\.\\(test|spec\\)\\\\.\\(ts|tsx\\)$\")"
     ]
   },
   "enableAllProjectMcpServers": true,

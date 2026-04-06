@@ -57,9 +57,9 @@ async function NavbarAuthButton({ user }: { user?: JwtPayload }) {
             </DropdownMenuGroup>
           )}
           <DropdownMenuItem>
-            <Link href={"/app/orders"} className="flex items-center gap-2">
-              <PackageSearchIcon />
-              My Orders
+            <Link href={"/app"} className="flex items-center gap-2">
+              <LayoutGridIcon />
+              Dashboard
             </Link>
           </DropdownMenuItem>
 
