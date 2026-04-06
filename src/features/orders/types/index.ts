@@ -100,7 +100,7 @@ export interface OrderReviewUpdates {
 }
 
 export interface OrderReviewInput {
-  action: "approve" | "reject";
+  action: "approve" | "reject" | "set_price";
   updates?: {
     product_name?: string;
     estimated_price_usd?: number;
@@ -108,4 +108,6 @@ export interface OrderReviewInput {
     origin_country?: OriginCountry;
   };
   reason?: string;
+    admin_total_ghs?: number;
+    admin_pricing_note?: string;
 }
