@@ -12,7 +12,7 @@ import {
 import { OrderStatusBadge } from "./order-status-badge";
 import { Button } from "@/components/ui/button";
 import type { Order } from "../types";
-import { Item, ItemContent, ItemHeader } from "@/components/ui/item";
+import { Item, ItemContent, ItemFooter, ItemHeader } from "@/components/ui/item";
 
 interface OrderCardProps {
   order: Order;
@@ -50,21 +50,7 @@ export function OrderCard({ order }: OrderCardProps) {
         </Button>
       </ItemHeader>
 
-      {/* Status banners */}
-      {order.needs_review && order.status === "pending" ? (
-        <div className="flex items-center gap-2 px-5 py-2.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-700 font-medium">
-          <AlertTriangleIcon className="size-3.5 shrink-0" />
-          Pending admin review
-        </div>
-      ) : order.tracking_number ? (
-        <div className="flex items-center gap-2 px-5 py-2.5 bg-indigo-50 border-b border-indigo-100 text-xs text-indigo-700 font-medium">
-          <TruckIcon className="size-3.5 shrink-0" />
-          Tracking: {order.tracking_number}
-          {order.carrier && (
-            <span className="text-indigo-400 font-normal">via {order.carrier}</span>
-          )}
-        </div>
-      ) : null}
+      
 
       {/* Product row */}
       <ItemContent className="flex flex-row gap-4 px-5 py-4">
@@ -111,6 +97,24 @@ export function OrderCard({ order }: OrderCardProps) {
           </div>
         </div>
       </ItemContent>
+
+      <ItemFooter>
+        {/* Status banners */}
+      {order.needs_review && order.status === "pending" ? (
+        <div className="flex items-center gap-2 px-5 py-2.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-700 font-medium">
+          <AlertTriangleIcon className="size-3.5 shrink-0" />
+          Pending admin review
+        </div>
+      ) : order.tracking_number ? (
+        <div className="flex items-center gap-2 px-5 py-2.5 bg-indigo-50 border-b border-indigo-100 text-xs text-indigo-700 font-medium">
+          <TruckIcon className="size-3.5 shrink-0" />
+          Tracking: {order.tracking_number}
+          {order.carrier && (
+            <span className="text-indigo-400 font-normal">via {order.carrier}</span>
+          )}
+        </div>
+      ) : null}
+      </ItemFooter>
     </Item>
   );
 }

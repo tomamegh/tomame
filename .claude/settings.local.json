@@ -22,7 +22,11 @@
       "Bash(~/.nvm/versions/node/v22.22.2/bin/node node_modules/.bin/tsc --noEmit)",
       "Bash(git diff:*)",
       "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
-      "Bash(grep -E \"\\\\.\\(test|spec\\)\\\\.\\(ts|tsx\\)$\")"
+      "Bash(grep -E \"\\\\.\\(test|spec\\)\\\\.\\(ts|tsx\\)$\")",
+      "Bash(node_modules/.bin/tsc --noEmit --pretty)",
+      "Bash(npm run:*)",
+      "Bash(~/.nvm/versions/node/v22.14.0/bin/npx tsc:*)",
+      "Bash(/home/browny/.nvm/versions/node/v22.22.2/bin/npx tsc:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

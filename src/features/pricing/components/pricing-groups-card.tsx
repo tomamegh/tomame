@@ -2,14 +2,6 @@
 
 import { useState } from "react";
 import {
-  PencilIcon,
-  PlusIcon,
-  Trash2Icon,
-  WeightIcon,
-  SaveIcon,
-  XIcon,
-} from "lucide-react";
-import {
   Card,
   CardContent,
   CardDescription,
@@ -18,7 +10,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
@@ -31,12 +22,12 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
-  usePricingGroups,
   useCreatePricingGroup,
   useUpdatePricingGroup,
   useDeletePricingGroup,
   type PricingGroup,
 } from "../hooks/usePricingGroups";
+import { PricingGroupsDataTable } from "./pricing-groups-table/data-table";
 
 // ── Create / Edit Form ──────────────────────────────────────────────────────
 
@@ -335,81 +326,9 @@ function GroupFormDialog({
   );
 }
 
-// ── Group Row ───────────────────────────────────────────────────────────────
-
-function GroupRow({
-  group,
-  onEdit,
-  onDelete,
-}: {
-  group: PricingGroup;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const isExpression = !!group.flat_rate_expression;
-
-  return (
-    <div className="flex items-center justify-between py-3 gap-4">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-stone-800">{group.name}</p>
-          <Badge variant="secondary" className="text-[10px]">
-            {group.slug}
-          </Badge>
-          {!group.is_active && (
-            <Badge variant="destructive" className="text-[10px]">
-              Inactive
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-3 mt-0.5 text-xs text-stone-400">
-          <span>
-            {isExpression ? (
-              <>
-                <WeightIcon className="size-3 inline mr-0.5" />
-                {group.flat_rate_expression}
-              </>
-            ) : (
-              `GHS ${group.flat_rate_ghs?.toFixed(2)}`
-            )}
-          </span>
-          <span>{(group.value_percentage * 100).toFixed(1)}% fee</span>
-          {group.value_threshold_usd != null && (
-            <span>
-              {(group.value_percentage_high! * 100).toFixed(1)}% over $
-              {group.value_threshold_usd}
-            </span>
-          )}
-          {group.requires_weight && <span className="text-amber-500">weight required</span>}
-          {group.default_weight_lbs != null && (
-            <span>default: {group.default_weight_lbs} lbs</span>
-          )}
-          <span>{group.category_count} categories</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <Button variant="ghost" size="icon" className="size-7" onClick={onEdit}>
-          <PencilIcon className="size-3.5 text-stone-400" />
-        </Button>
-        {group.is_active && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            onClick={onDelete}
-          >
-            <Trash2Icon className="size-3.5 text-stone-400" />
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Main Card ───────────────────────────────────────────────────────────────
 
 export function PricingGroupsCard() {
-  const { data: groups, isLoading } = usePricingGroups();
   const deleteMutation = useDeletePricingGroup();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editGroup, setEditGroup] = useState<PricingGroup | null>(null);
@@ -425,7 +344,12 @@ export function PricingGroupsCard() {
   }
 
   async function handleDelete(group: PricingGroup) {
-    if (!confirm(`Deactivate "${group.name}"? This will not delete existing orders.`)) return;
+    if (
+      !confirm(
+        `Deactivate "${group.name}"? This will not delete existing orders.`,
+      )
+    )
+      return;
     try {
       await deleteMutation.mutateAsync(group.id);
       toast.success(`"${group.name}" deactivated`);
@@ -437,40 +361,18 @@ export function PricingGroupsCard() {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Pricing Groups</CardTitle>
-            <CardDescription>
-              Define shipping rates and service fees per product group.
-            </CardDescription>
-          </div>
-          <Button size="sm" onClick={handleCreate}>
-            <PlusIcon className="size-4 mr-1" />
-            Add Group
-          </Button>
+        <CardHeader>
+          <CardTitle>Pricing Groups</CardTitle>
+          <CardDescription>
+            Define shipping rates and service fees per product group.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center gap-2 text-stone-400 text-sm h-24">
-              <Spinner className="size-4" />
-              <span>Loading...</span>
-            </div>
-          ) : !groups?.length ? (
-            <p className="text-sm text-stone-400 text-center py-6">
-              No pricing groups configured.
-            </p>
-          ) : (
-            <div className="divide-y divide-stone-100">
-              {groups.map((g) => (
-                <GroupRow
-                  key={g.id}
-                  group={g}
-                  onEdit={() => handleEdit(g)}
-                  onDelete={() => handleDelete(g)}
-                />
-              ))}
-            </div>
-          )}
+          <PricingGroupsDataTable
+            onAdd={handleCreate}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
         </CardContent>
       </Card>
 
