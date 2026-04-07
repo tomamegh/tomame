@@ -68,6 +68,10 @@ export interface Order {
   reviewed_at: string | null;
   extraction_metadata: OrderExtractionMetadata | null;
   extraction_cache_id: string | null;
+  admin_total_ghs: number | null;
+  admin_pricing_note: string | null;
+  pricing_set_by: string | null;
+  pricing_set_at: string | null;
   created_at: string;
   updated_at: string;
   // Joined from order_deliveries (present on admin fetch)
@@ -78,4 +82,32 @@ export interface Order {
 export interface OrderList {
   orders: Order[];
   count: number;
+}
+
+// ── Review types ─────────────────────────────────────────────────────────────
+
+export interface OrderReviewUpdates {
+  needs_review?: boolean;
+  review_reasons?: string[];
+  reviewed_by?: string;
+  reviewed_at?: string;
+  product_name?: string;
+  product_image_url?: string | null;
+  estimated_price_usd?: number;
+  origin_country?: string;
+  status?: string;
+  pricing?: Record<string, unknown>;
+}
+
+export interface OrderReviewInput {
+  action: "approve" | "reject" | "set_price";
+  updates?: {
+    product_name?: string;
+    estimated_price_usd?: number;
+    product_image_url?: string | null;
+    origin_country?: OriginCountry;
+  };
+  reason?: string;
+    admin_total_ghs?: number;
+    admin_pricing_note?: string;
 }

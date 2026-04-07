@@ -356,7 +356,7 @@ export async function adminResetUserPassword(
   });
 
   if (error) {
-    logger.error("Admin reset password failed", { error: error.message });
+    logger.error("Admin reset password failed", { error: error.message, _error: error });
     throw new APIError(500, "Failed to send reset email");
   }
 

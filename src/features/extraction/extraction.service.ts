@@ -3,7 +3,7 @@ import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePlatform, getScraperByPlatform } from "./scrapers";
-import type { ExtractionResult } from "./types";
+import type { CachedExtraction, ExtractionResult } from "./types";
 
 const CACHE_TTL_MINUTES = 30;
 
@@ -60,11 +60,6 @@ function hashUrl(url: string): string {
 }
 
 // ── Cache helpers ──────────────────────────────────────────────────────────
-
-interface CachedExtraction {
-  id: string;
-  result: ExtractionResult;
-}
 
 async function getCachedExtraction(userId: string, urlHash: string): Promise<CachedExtraction | null> {
   try {
@@ -207,7 +202,7 @@ export async function extractProductData(url: string, userId: string): Promise<E
     return { ...result, extraction_cache_id: cacheId };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Scrape failed";
-    logger.error("extractProductData failed", { url, platform, error: message });
+    logger.error("extractProductData failed", { url, platform, error: message, _error: err });
     throw new APIError(502, message);
   }
 }
