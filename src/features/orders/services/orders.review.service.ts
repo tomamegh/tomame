@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { JwtPayload, SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { getOrderById } from "@/features/orders/services/orders.service";
@@ -124,7 +124,7 @@ const REGION_MAP = { USA: "usa", UK: "uk", CHINA: "china" } as const;
 
 export async function reviewOrder(
   client: SupabaseClient,
-  admin: PlatformUser,
+  admin: JwtPayload,
   orderId: string,
   input: OrderReviewInput,
 ): Promise<Order> {

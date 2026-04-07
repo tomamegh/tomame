@@ -31,6 +31,15 @@ export async function POST(
     }
 
 
+    const admin = adminData?.claims;
+
+    console.log(admin)
+
+    if (error|| !admin) {
+      throw new APIError(403, "Admin access required");
+    }
+
+    
     const { id } = await params;
     const data = await reviewOrder(supabase, user, id, parsed.data);
     return successResponse(data);
