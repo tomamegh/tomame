@@ -180,7 +180,7 @@ export async function extractProductData(url: string, userId: string): Promise<E
     }
 
     if (!country) {
-      errors.push("This Amazon region is not currently supported. Only amazon.com (US) is available.");
+      errors.push("This region is not currently supported.");
     }
 
     const result: ExtractionResult = {

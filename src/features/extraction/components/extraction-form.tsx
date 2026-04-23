@@ -29,6 +29,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 // Hardcoded supported stores (matches scraper domains)
 const SUPPORTED_STORES = [
   { id: "amazon", name: "Amazon" },
+  { id: "ebay", name: "eBay" },
 ];
 
 interface ExtractionFormProps {
