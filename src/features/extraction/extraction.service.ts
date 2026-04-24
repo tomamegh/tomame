@@ -14,6 +14,7 @@ const DOMAIN_COUNTRY_MAP: Record<string, "USA" | "UK" | "CHINA"> = {
 
   "ebay.com": "USA",
   "ebay.co.uk": "UK",
+  "microcenter.com": "USA",
   "walmart.com": "USA",
   "target.com": "USA",
   "bestbuy.com": "USA",
