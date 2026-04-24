@@ -19,18 +19,30 @@ function parseJsonLd($: CheerioAPI): JsonLdNode[] {
   $("script[type='application/ld+json']").each((_, el) => {
     const raw = $(el).contents().text();
     if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed)) {
-        for (const item of parsed) if (item && typeof item === "object") nodes.push(item as JsonLdNode);
-      } else if (parsed && typeof parsed === "object") {
-        nodes.push(parsed as JsonLdNode);
-      }
-    } catch {
-      // Ignore malformed blocks
+    const parsed = tryParseLenient(raw);
+    if (!parsed) return;
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) if (item && typeof item === "object") nodes.push(item as JsonLdNode);
+    } else if (typeof parsed === "object") {
+      nodes.push(parsed as JsonLdNode);
     }
   });
   return nodes;
+}
+
+/** Parse JSON; on failure, replace raw control characters with spaces and retry.
+ *  Micro Center occasionally embeds literal newlines inside Product description strings
+ *  which makes JSON.parse reject the whole block. */
+function tryParseLenient(raw: string): unknown | null {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    try {
+      return JSON.parse(raw.replace(/[\n\r\t]/g, " "));
+    } catch {
+      return null;
+    }
+  }
 }
 
 function findByType(nodes: JsonLdNode[], type: string): JsonLdNode | null {
@@ -78,9 +90,14 @@ function extractImages(product: JsonLdNode | null, $: CheerioAPI): string[] {
       for (const i of img) if (typeof i === "string" && !images.includes(i)) images.push(i);
     }
   }
+  // og:image is always present on Micro Center product pages and points to the canonical hero image
+  if (images.length === 0) {
+    const og = $("meta[property='og:image']").attr("content");
+    if (og) images.push(og);
+  }
   // HTML fallback: <img> tags in the product gallery
   if (images.length === 0) {
-    $("#productImage img, .ProductImage img, #mainProductImage").each((_, el) => {
+    $("#productImage img, .ProductImage img, #mainProductImage, .product-image img").each((_, el) => {
       const src = $(el).attr("data-src") ?? $(el).attr("src");
       if (src && !images.includes(src)) images.push(src);
     });
@@ -219,7 +236,10 @@ export class MicrocenterScraper extends PlatformScraper {
       ?? text($, "h1");
 
     const images = extractImages(product, $);
-    const description = typeof product?.description === "string" ? product.description.trim() : null;
+    let description = typeof product?.description === "string" ? product.description.trim() : null;
+    if (!description) {
+      description = $("meta[property='og:description']").attr("content")?.trim() || null;
+    }
 
     let brand: string | null = null;
     if (product && typeof product.brand === "object" && product.brand !== null) {
