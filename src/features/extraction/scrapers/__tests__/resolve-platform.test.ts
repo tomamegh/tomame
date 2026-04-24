@@ -78,4 +78,10 @@ describe("resolvePlatform", () => {
       ),
     ).toBe(SupportedPlatform.EBAY);
   });
+
+  it("should resolve ebay.us short URLs (share button)", () => {
+    expect(resolvePlatform("https://ebay.us/abc123")).toBe(
+      SupportedPlatform.EBAY,
+    );
+  });
 });

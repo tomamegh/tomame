@@ -301,6 +301,7 @@ export class EbayScraper extends PlatformScraper {
   public readonly domains = [
     "ebay.com",
     "ebay.co.uk",
+    "ebay.us", // eBay short URL (mobile app / share button, resolves to ebay.com)
     // Future: "ebay.ca", "ebay.de", "ebay.com.au", etc.
   ];
 
@@ -329,6 +330,33 @@ export class EbayScraper extends PlatformScraper {
       return `${u.origin}${u.pathname}`;
     } catch {
       return raw;
+    }
+  }
+
+  /**
+   * Resolve an eBay short URL (ebay.us) to its final /itm/ destination
+   * without downloading the full body. Mirrors AmazonScraper.resolveShortUrl.
+   */
+  private async resolveShortUrl(shortUrl: string): Promise<string | null> {
+    try {
+      const res = await fetch(shortUrl, {
+        method: "HEAD",
+        headers: EbayScraper.FETCH_HEADERS,
+        redirect: "follow",
+        signal: AbortSignal.timeout(10000),
+      });
+      return res.url || null;
+    } catch {
+      try {
+        const res = await fetch(shortUrl, {
+          headers: EbayScraper.FETCH_HEADERS,
+          redirect: "follow",
+          signal: AbortSignal.timeout(10000),
+        });
+        return res.url || null;
+      } catch {
+        return null;
+      }
     }
   }
 
@@ -377,7 +405,23 @@ export class EbayScraper extends PlatformScraper {
   }
 
   public async scrape(url: string): Promise<ScrapedProduct> {
-    const cleanedUrl = EbayScraper.cleanUrl(url);
+    let productUrl = url;
+
+    // Resolve short URLs (ebay.us) to the full /itm/ destination first
+    try {
+      if (new URL(url).hostname.toLowerCase() === "ebay.us") {
+        const resolved = await this.resolveShortUrl(url);
+        if (!resolved) {
+          throw new Error("Failed to resolve eBay short URL");
+        }
+        productUrl = resolved;
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith("Failed to resolve")) throw err;
+      // URL parsing failure — let it flow through to cleanUrl which also guards
+    }
+
+    const cleanedUrl = EbayScraper.cleanUrl(productUrl);
 
     const html = await this.directFetch(cleanedUrl);
     if (html) {
