@@ -224,21 +224,31 @@ export class MicrocenterScraper extends PlatformScraper {
   public async scrape(url: string): Promise<ScrapedProduct> {
     const cleanedUrl = MicrocenterScraper.cleanUrl(url);
 
-    // Micro Center sits behind Cloudflare's JS challenge — direct fetch returns
-    // the "Just a moment..." page. Use browserless (stealth mode) to render.
-    const result = await this.browserless.scrapeContent({
-      url: cleanedUrl,
-      timeout: 25000,
-      waitForSelector: "[class^='ProductLink_']",
-    });
+    // Micro Center sits behind Cloudflare's JS challenge. Browserless stealth
+    // mode clears it ~2 out of 3 times — retry on a challenge-page response
+    // (detected by the absence of any ProductLink_* span in the HTML).
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const result = await this.browserless.scrapeContent({
+        url: cleanedUrl,
+        timeout: 15000,
+        waitForSelector: "[class^='ProductLink_']",
+      });
 
-    if (!result.success || !result.html) {
-      logger.warn("microcenter browserless fetch failed", { url: cleanedUrl, error: result.error });
-      throw new Error("Failed to fetch Micro Center product page");
+      if (result.success && result.html && result.html.includes("ProductLink_")) {
+        const $ = cheerio.load(result.html);
+        return this.extract($);
+      }
+
+      logger.warn("microcenter fetch did not return product page", {
+        url: cleanedUrl,
+        attempt,
+        error: result.error,
+        htmlLength: result.html?.length ?? 0,
+      });
     }
 
-    const $ = cheerio.load(result.html);
-    return this.extract($);
+    throw new Error("Failed to fetch Micro Center product page after retries");
   }
 
   public extract($: CheerioAPI): ScrapedProduct {
