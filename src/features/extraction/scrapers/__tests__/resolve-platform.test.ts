@@ -84,4 +84,10 @@ describe("resolvePlatform", () => {
       SupportedPlatform.EBAY,
     );
   });
+
+  it("should resolve ebay.to short URLs", () => {
+    expect(resolvePlatform("https://ebay.to/3XyZ9Ab")).toBe(
+      SupportedPlatform.EBAY,
+    );
+  });
 });

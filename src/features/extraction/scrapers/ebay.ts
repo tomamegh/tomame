@@ -302,8 +302,11 @@ export class EbayScraper extends PlatformScraper {
     "ebay.com",
     "ebay.co.uk",
     "ebay.us", // eBay short URL (mobile app / share button, resolves to ebay.com)
+    "ebay.to", // eBay short URL (alternate share domain)
     // Future: "ebay.ca", "ebay.de", "ebay.com.au", etc.
   ];
+
+  private static readonly SHORT_URL_HOSTS = new Set(["ebay.us", "ebay.to"]);
 
   private static readonly FETCH_HEADERS = {
     "User-Agent":
@@ -407,9 +410,9 @@ export class EbayScraper extends PlatformScraper {
   public async scrape(url: string): Promise<ScrapedProduct> {
     let productUrl = url;
 
-    // Resolve short URLs (ebay.us) to the full /itm/ destination first
+    // Resolve short URLs (ebay.us, ebay.to) to the full /itm/ destination first
     try {
-      if (new URL(url).hostname.toLowerCase() === "ebay.us") {
+      if (EbayScraper.SHORT_URL_HOSTS.has(new URL(url).hostname.toLowerCase())) {
         const resolved = await this.resolveShortUrl(url);
         if (!resolved) {
           throw new Error("Failed to resolve eBay short URL");

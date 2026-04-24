@@ -138,7 +138,7 @@ async function resolveShortUrl(shortUrl: string): Promise<string> {
   }
 }
 
-const SHORT_URL_HOSTS = new Set(["a.co", "ebay.us"]);
+const SHORT_URL_HOSTS = new Set(["a.co", "ebay.us", "ebay.to"]);
 
 export async function extractProductData(url: string, userId: string): Promise<ExtractionResponse> {
   // Resolve short URLs up-front so country detection uses the real domain
