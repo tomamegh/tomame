@@ -224,18 +224,17 @@ export class MicrocenterScraper extends PlatformScraper {
   public async scrape(url: string): Promise<ScrapedProduct> {
     const cleanedUrl = MicrocenterScraper.cleanUrl(url);
 
-    // Micro Center sits behind Cloudflare's JS challenge. Browserless stealth
-    // mode clears it ~2 out of 3 times — retry on a challenge-page response
-    // (detected by the absence of any ProductLink_* span in the HTML).
-    const MAX_ATTEMPTS = 3;
+    // Micro Center sits behind Cloudflare. /chromium/unblock is purpose-built
+    // for bot-protected pages and has a much higher pass rate than stealth /content.
+    // The unblock variant doesn't include the ProductLink_* span or the
+    // BreadcrumbList JSON-LD (so category is often null), but it does include
+    // full JSON-LD Product data (name, image array, brand, price in offers)
+    // which is everything we need to place an order.
+    const MAX_ATTEMPTS = 2;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const result = await this.browserless.scrapeContent({
-        url: cleanedUrl,
-        timeout: 15000,
-        waitForSelector: "[class^='ProductLink_']",
-      });
+      const result = await this.browserless.unblockContent(cleanedUrl, 25000);
 
-      if (result.success && result.html && result.html.includes("ProductLink_")) {
+      if (result.success && result.html && MicrocenterScraper.looksLikeProductPage(result.html)) {
         const $ = cheerio.load(result.html);
         return this.extract($);
       }
@@ -249,6 +248,15 @@ export class MicrocenterScraper extends PlatformScraper {
     }
 
     throw new Error("Failed to fetch Micro Center product page after retries");
+  }
+
+  /** Detect whether a response contains a real product page (not a CF challenge or partial error page). */
+  private static looksLikeProductPage(html: string): boolean {
+    // Product JSON-LD in any formatting (with or without whitespace/newlines)
+    if (/"@type"\s*:\s*"Product"/.test(html)) return true;
+    // Older/alternate layout still uses the ProductLink_* span
+    if (html.includes("ProductLink_")) return true;
+    return false;
   }
 
   public extract($: CheerioAPI): ScrapedProduct {

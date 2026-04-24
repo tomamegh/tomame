@@ -112,6 +112,47 @@ export class BrowserlessClient {
   }
 
   /**
+   * Use browserless's /unblock endpoint — purpose-built for Cloudflare-protected
+   * pages. Higher success rate than /content?stealth for sites that repeatedly
+   * serve the challenge page (e.g. microcenter.com).
+   */
+  public async unblockContent(url: string, timeoutMs: number = 30000): Promise<ScrapeContentResult> {
+    const apiKey = getApiKey();
+    try {
+      const response = await fetch(`${this.apiUrl}/chromium/unblock?token=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url,
+          content: true,
+          cookies: false,
+          screenshot: false,
+          browserWSEndpoint: false,
+          ttl: 0,
+        }),
+        signal: AbortSignal.timeout(timeoutMs + 5000),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "Unknown error");
+        logger.warn("browserless unblock failed", { url, status: response.status, error: errorText });
+        return { success: false, html: null, error: `Browserless unblock ${response.status}: ${errorText}` };
+      }
+
+      const body = await response.json() as { content?: string | null } | null;
+      const html = body?.content ?? null;
+      if (!html) {
+        return { success: false, html: null, error: "Empty unblock content" };
+      }
+      return { success: true, html, error: null };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      logger.error("browserless unblock exception", { url, error: message });
+      return { success: false, html: null, error: message };
+    }
+  }
+
+  /**
    * Fetch the fully-rendered HTML content of a page.
    */
   public async scrapeContent(options: ScrapeContentOptions): Promise<ScrapeContentResult> {
