@@ -6,6 +6,10 @@ import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
+// Microcenter can need multiple Browserless retries; default Vercel timeout
+// (10s Hobby / 60s Pro) is too short for the worst case. Requires Vercel Pro.
+export const maxDuration = 120;
+
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get("x-forwarded-for") ?? "unknown";
