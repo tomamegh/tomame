@@ -176,7 +176,7 @@ export async function extractProductData(url: string, userId: string): Promise<E
 
   const platform = resolvePlatform(resolvedUrl);
   if (!platform) {
-    throw new APIError(400, "Unsupported platform");
+    throw new APIError(400, "Product URL must be from a supported store");
   }
 
   const scraper = getScraperByPlatform(platform);

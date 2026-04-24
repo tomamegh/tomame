@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { extractProductSchema } from "@/features/extraction/schema";
 import { extractProductData } from "@/features/extraction/extraction.service";
-import { resolvePlatform } from "@/features/extraction/scrapers";
 import { getUserSession } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -17,19 +16,16 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json().catch(() => {
       throw new APIError(400, "Invalid JSON");
     });
-    console.log(body)
+
     const parsed = extractProductSchema.safeParse(body);
     if (!parsed.success) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const {user} = await getUserSession();
+    const { user } = await getUserSession();
 
-    const platform = resolvePlatform(parsed.data.product_url);
-    if (!platform) {
-      throw new APIError(400, "Product URL must be from a supported store");
-    }
-
+    // Platform detection is handled inside extractProductData after short-URL
+    // resolution, so pasted bit.ly / ebay.to / a.co links route correctly.
     const data = await extractProductData(parsed.data.product_url, user.id);
     return successResponse(data);
   } catch (error) {
