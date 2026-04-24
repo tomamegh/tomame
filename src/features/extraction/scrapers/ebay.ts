@@ -381,6 +381,24 @@ export class EbayScraper extends PlatformScraper {
   }
 
   /**
+   * Render the page through Browserless when direct fetch is blocked.
+   * Uses stealth mode + waits for the title selector so we only return
+   * once the real item DOM is present.
+   */
+  private async browserlessFetch(url: string): Promise<string | null> {
+    const result = await this.browserless.scrapeContent({
+      url,
+      timeout: 25000,
+      waitForSelector: "h1.x-item-title__mainTitle, #itemTitle",
+    });
+    if (!result.success || !result.html) return null;
+    if (result.html.includes("x-item-title") || result.html.includes("itemTitle")) {
+      return result.html;
+    }
+    return null;
+  }
+
+  /**
    * eBay loads the long description inside an iframe (#desc_ifr).
    * Fetch that URL separately and return the cleaned text.
    */
@@ -426,28 +444,32 @@ export class EbayScraper extends PlatformScraper {
 
     const cleanedUrl = EbayScraper.cleanUrl(productUrl);
 
-    const html = await this.directFetch(cleanedUrl);
-    if (html) {
+    const parseAndEnrich = async (html: string): Promise<ScrapedProduct> => {
       const $ = cheerio.load(html);
       const product = this.extract($);
-      // Attach item id from the URL if extract couldn't find it in meta
       if (!product.metadata.itemId) {
         product.metadata.itemId = extractItemId(cleanedUrl, $);
       }
-      // Enrich description from the #desc_ifr iframe when available
       const iframeDesc = await this.fetchIframeDescription($);
       if (iframeDesc) product.description = iframeDesc;
       return product;
-    }
+    };
 
-    // Fallback to Apify when direct fetch fails (e.g. eBay blocking)
-    logger.warn("ebay direct fetch failed, falling back to Apify", { url: cleanedUrl });
+    // 1) direct HTTP fetch — fastest path when eBay isn't blocking
+    const directHtml = await this.directFetch(cleanedUrl);
+    if (directHtml) return parseAndEnrich(directHtml);
+
+    // 2) Browserless (stealth) — bypasses bot detection / rate limits
+    logger.warn("ebay direct fetch failed, falling back to Browserless", { url: cleanedUrl });
+    const renderedHtml = await this.browserlessFetch(cleanedUrl);
+    if (renderedHtml) return parseAndEnrich(renderedHtml);
+
+    // 3) Apify — only useful if a paid eBay actor is configured
+    logger.warn("ebay browserless failed, falling back to Apify", { url: cleanedUrl });
     const apifyResult = await scrapeEbayWithApify(cleanedUrl);
-    if (apifyResult) {
-      return mapApifyToScrapedProduct(apifyResult);
-    }
+    if (apifyResult) return mapApifyToScrapedProduct(apifyResult);
 
-    throw new Error("Failed to fetch eBay product page (direct fetch and Apify both failed)");
+    throw new Error("Failed to fetch eBay product page (direct, browserless, and Apify all failed)");
   }
 
   public extract($: CheerioAPI): ScrapedProduct {

@@ -90,4 +90,24 @@ describe("resolvePlatform", () => {
       SupportedPlatform.EBAY,
     );
   });
+
+  it("should resolve microcenter.com URLs", () => {
+    expect(
+      resolvePlatform("https://www.microcenter.com/product/683524/fantom-rechargeable-smart-tracker-card"),
+    ).toBe(SupportedPlatform.MICROCENTER);
+  });
+
+  it("should resolve bare microcenter.com without www", () => {
+    expect(resolvePlatform("https://microcenter.com/product/683524/foo")).toBe(
+      SupportedPlatform.MICROCENTER,
+    );
+  });
+
+  it("should resolve microcenter URLs with query params", () => {
+    expect(
+      resolvePlatform(
+        "https://www.microcenter.com/product/683524/foo?utm_source=test&sessionid=abc",
+      ),
+    ).toBe(SupportedPlatform.MICROCENTER);
+  });
 });

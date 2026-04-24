@@ -7,7 +7,12 @@ const nextConfig: NextConfig = {
                 protocol: "https",
                 hostname: "**",
             },
-        ]
+        ],
+        localPatterns: [
+            {
+                pathname: "/api/img-proxy",
+            },
+        ],
     }
 };
 
