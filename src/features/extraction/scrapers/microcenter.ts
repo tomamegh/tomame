@@ -225,14 +225,13 @@ export class MicrocenterScraper extends PlatformScraper {
     const cleanedUrl = MicrocenterScraper.cleanUrl(url);
 
     // Micro Center sits behind Cloudflare. /chromium/unblock is purpose-built
-    // for bot-protected pages and has a much higher pass rate than stealth /content.
-    // The unblock variant doesn't include the ProductLink_* span or the
-    // BreadcrumbList JSON-LD (so category is often null), but it does include
-    // full JSON-LD Product data (name, image array, brand, price in offers)
-    // which is everything we need to place an order.
-    const MAX_ATTEMPTS = 2;
+    // for bot-protected pages and returns a simpler SSR variant with full
+    // JSON-LD Product data (name, image array, brand, price in offers).
+    // Occasionally the response is truncated (~5KB head-only, no body) or
+    // returns a 500, so retry with jitter between attempts.
+    const MAX_ATTEMPTS = 3;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const result = await this.browserless.unblockContent(cleanedUrl, 25000);
+      const result = await this.browserless.unblockContent(cleanedUrl, 30000);
 
       if (result.success && result.html && MicrocenterScraper.looksLikeProductPage(result.html)) {
         const $ = cheerio.load(result.html);
@@ -245,6 +244,12 @@ export class MicrocenterScraper extends PlatformScraper {
         error: result.error,
         htmlLength: result.html?.length ?? 0,
       });
+
+      // Small jitter before retry so parallel callers don't hammer in sync
+      if (attempt < MAX_ATTEMPTS) {
+        const delay = 500 + Math.floor(Math.random() * 1000);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
 
     throw new Error("Failed to fetch Micro Center product page after retries");
