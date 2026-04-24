@@ -138,10 +138,20 @@ async function resolveShortUrl(shortUrl: string): Promise<string> {
   }
 }
 
-const SHORT_URL_HOSTS = new Set(["a.co", "ebay.us", "ebay.to"]);
+const SHORT_URL_HOSTS = new Set([
+  // Platform-branded
+  "a.co",      // Amazon mobile share
+  "ebay.us",   // eBay share
+  "ebay.to",   // eBay Bitly custom domain
+  // Generic (approved by eBay Partner Network, also commonly used for Amazon affiliate links)
+  "bit.ly",    // Bitly
+  "ow.ly",     // Hootsuite
+  "buff.ly",   // Buffer
+]);
 
 export async function extractProductData(url: string, userId: string): Promise<ExtractionResponse> {
-  // Resolve short URLs up-front so country detection uses the real domain
+  // Resolve short URLs up-front so platform detection, country mapping,
+  // and the scraper all see the real destination URL.
   let resolvedUrl = url;
   try {
     if (SHORT_URL_HOSTS.has(new URL(url).hostname.toLowerCase())) {
@@ -154,7 +164,8 @@ export async function extractProductData(url: string, userId: string): Promise<E
 
   const urlHash = hashUrl(url);
 
-  // Check cache first (scoped to user)
+  // Check cache first (scoped to user) — keyed by the original URL so
+  // the same short link re-used by a user reuses the cached result.
   const cached = await getCachedExtraction(userId, urlHash);
   if (cached) {
     logger.info("extraction cache hit", { url, urlHash });
@@ -163,7 +174,7 @@ export async function extractProductData(url: string, userId: string): Promise<E
 
   const errors: string[] = [];
 
-  const platform = resolvePlatform(url);
+  const platform = resolvePlatform(resolvedUrl);
   if (!platform) {
     throw new APIError(400, "Unsupported platform");
   }
@@ -172,7 +183,7 @@ export async function extractProductData(url: string, userId: string): Promise<E
   const country = getCountryFromDomain(resolvedUrl);
 
   try {
-    const product = await scraper.scrape(url);
+    const product = await scraper.scrape(resolvedUrl);
 
     const extractionSuccess = product.title !== null || product.price !== null;
     if (!extractionSuccess) {
