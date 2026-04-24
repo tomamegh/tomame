@@ -105,6 +105,24 @@ function extractImages(product: JsonLdNode | null, $: CheerioAPI): string[] {
   return images;
 }
 
+/**
+ * productimages.microcenter.com is gated by a Cloudflare challenge, so direct
+ * <img src> loads (including Next.js server-side image optimization) get a 403.
+ * Route these URLs through our /api/img-proxy endpoint which uses Browserless
+ * to fetch the bytes with a valid browser session.
+ */
+function proxyMicrocenterImage(url: string): string {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host === "productimages.microcenter.com") {
+      return `/api/img-proxy?src=${encodeURIComponent(url)}`;
+    }
+  } catch {
+    // fall through
+  }
+  return url;
+}
+
 function extractSpecifications($: CheerioAPI): Record<string, string> {
   const specs: Record<string, string> = {};
 
@@ -273,9 +291,11 @@ export class MicrocenterScraper extends PlatformScraper {
     const sku = typeof product?.sku === "string" ? product.sku : null;
     const mpn = typeof product?.mpn === "string" ? product.mpn : null;
 
+    const proxiedImages = images.map(proxyMicrocenterImage);
+
     return {
       title,
-      image: images[0] ?? null,
+      image: proxiedImages[0] ?? null,
       price,
       currency,
       description,
@@ -286,7 +306,7 @@ export class MicrocenterScraper extends PlatformScraper {
       dimensions: extractDimensions(specifications),
       specifications,
       metadata: {
-        images,
+        images: proxiedImages,
         productId: linkData.id,
         sku,
         mpn,
