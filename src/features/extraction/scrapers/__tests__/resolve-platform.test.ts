@@ -52,4 +52,30 @@ describe("resolvePlatform", () => {
       SupportedPlatform.AMAZON,
     );
   });
+
+  it("should resolve ebay.com URLs", () => {
+    expect(resolvePlatform("https://www.ebay.com/itm/123456789012")).toBe(
+      SupportedPlatform.EBAY,
+    );
+  });
+
+  it("should resolve ebay.co.uk URLs", () => {
+    expect(resolvePlatform("https://www.ebay.co.uk/itm/123456789012")).toBe(
+      SupportedPlatform.EBAY,
+    );
+  });
+
+  it("should resolve bare ebay.com without www", () => {
+    expect(resolvePlatform("https://ebay.com/itm/123456789012")).toBe(
+      SupportedPlatform.EBAY,
+    );
+  });
+
+  it("should resolve eBay URLs with slug and query params", () => {
+    expect(
+      resolvePlatform(
+        "https://www.ebay.com/itm/Example-Product-Title/123456789012?hash=item&epid=123",
+      ),
+    ).toBe(SupportedPlatform.EBAY);
+  });
 });
