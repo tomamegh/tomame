@@ -39,9 +39,12 @@ export async function GET(request: NextRequest) {
   }
 
   const result = await browserlessClient.fetchImageViaBrowser(src, origin);
-  if (!result) {
-    logger.warn("img-proxy upstream fetch failed", { src });
-    return NextResponse.json({ error: "Upstream fetch failed" }, { status: 502 });
+  if ("error" in result) {
+    logger.warn("img-proxy upstream fetch failed", { src, error: result.error });
+    return NextResponse.json(
+      { error: "Upstream fetch failed", detail: result.error },
+      { status: 502 },
+    );
   }
 
   return new NextResponse(new Uint8Array(result.bytes), {
