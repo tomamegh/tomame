@@ -14,6 +14,7 @@ const DOMAIN_COUNTRY_MAP: Record<string, "USA" | "UK" | "CHINA"> = {
 
   "ebay.com": "USA",
   "ebay.co.uk": "UK",
+  "microcenter.com": "USA",
   "walmart.com": "USA",
   "target.com": "USA",
   "bestbuy.com": "USA",
@@ -149,7 +150,34 @@ const SHORT_URL_HOSTS = new Set([
   "buff.ly",   // Buffer
 ]);
 
+/**
+ * Coalesce concurrent extractions for the same (user, url). React StrictMode in
+ * dev runs useEffect twice, and generally two quick clicks shouldn't each spin
+ * up a full browserless session. While an extraction is in-flight, subsequent
+ * callers await the same promise.
+ */
+const inflightExtractions = new Map<string, Promise<ExtractionResponse>>();
+
 export async function extractProductData(url: string, userId: string): Promise<ExtractionResponse> {
+  const urlHash = hashUrl(url);
+  const key = `${userId}:${urlHash}`;
+
+  const existing = inflightExtractions.get(key);
+  if (existing) {
+    logger.info("extraction coalesced with in-flight request", { url, urlHash });
+    return existing;
+  }
+
+  const promise = performExtraction(url, userId, urlHash);
+  inflightExtractions.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    inflightExtractions.delete(key);
+  }
+}
+
+async function performExtraction(url: string, userId: string, urlHash: string): Promise<ExtractionResponse> {
   // Resolve short URLs up-front so platform detection, country mapping,
   // and the scraper all see the real destination URL.
   let resolvedUrl = url;
@@ -161,8 +189,6 @@ export async function extractProductData(url: string, userId: string): Promise<E
   } catch {
     // If URL parsing fails, continue with original
   }
-
-  const urlHash = hashUrl(url);
 
   // Check cache first (scoped to user) — keyed by the original URL so
   // the same short link re-used by a user reuses the cached result.

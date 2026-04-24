@@ -30,6 +30,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 const SUPPORTED_STORES = [
   { id: "amazon", name: "Amazon" },
   { id: "ebay", name: "eBay" },
+  { id: "microcenter", name: "Micro Center" },
 ];
 
 interface ExtractionFormProps {
