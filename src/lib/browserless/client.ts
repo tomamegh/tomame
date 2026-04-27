@@ -48,7 +48,7 @@ export class BrowserlessClient {
     imageUrl: string,
     originUrl: string,
     timeoutMs: number = 30000,
-  ): Promise<{ bytes: Buffer; contentType: string } | null> {
+  ): Promise<{ bytes: Buffer; contentType: string } | { error: string }> {
     const apiKey = getApiKey();
 
     // Runs inside browserless's Chromium (ES module form).
@@ -87,17 +87,17 @@ export class BrowserlessClient {
           status: response.status,
           error: errorText,
         });
-        return null;
+        return { error: `browserless ${response.status}: ${errorText.slice(0, 200)}` };
       }
 
       const data = await response.json() as { b64?: string; contentType?: string; error?: string } | null;
       if (data?.error) {
         logger.warn("browserless fetchImageViaBrowser upstream error", { imageUrl, error: data.error });
-        return null;
+        return { error: `upstream ${data.error}` };
       }
       if (!data?.b64 || !data?.contentType) {
         logger.warn("browserless fetchImageViaBrowser returned no data", { imageUrl });
-        return null;
+        return { error: "empty response" };
       }
 
       return {
@@ -107,7 +107,7 @@ export class BrowserlessClient {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       logger.error("browserless fetchImageViaBrowser exception", { imageUrl, error: message });
-      return null;
+      return { error: `exception: ${message}` };
     }
   }
 
