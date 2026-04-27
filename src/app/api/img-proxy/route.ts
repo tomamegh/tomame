@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { browserlessClient } from "@/lib/browserless/client";
 import { logger } from "@/lib/logger";
 
+// First-fetch needs Browserless to navigate to origin (clear CF) + download
+// image — can take 5-10s. Default Vercel timeout is too tight.
+export const maxDuration = 60;
+
 /**
  * Hosts whose images must be proxied because the CDN is bot-protected.
  * Value is the origin to navigate to first so browserless can clear any
@@ -35,9 +39,12 @@ export async function GET(request: NextRequest) {
   }
 
   const result = await browserlessClient.fetchImageViaBrowser(src, origin);
-  if (!result) {
-    logger.warn("img-proxy upstream fetch failed", { src });
-    return NextResponse.json({ error: "Upstream fetch failed" }, { status: 502 });
+  if ("error" in result) {
+    logger.warn("img-proxy upstream fetch failed", { src, error: result.error });
+    return NextResponse.json(
+      { error: "Upstream fetch failed", detail: result.error },
+      { status: 502 },
+    );
   }
 
   return new NextResponse(new Uint8Array(result.bytes), {

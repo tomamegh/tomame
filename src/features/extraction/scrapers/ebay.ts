@@ -7,6 +7,12 @@ import { scrapeEbayWithApify, type ApifyEbayProduct } from "@/lib/apify/client";
 
 import { logger } from "@/lib/logger";
 
+/** Random delay between min..max ms — used to space out retries against bot detection. */
+function jitter(minMs: number, maxMs: number): Promise<void> {
+  const ms = minMs + Math.floor(Math.random() * (maxMs - minMs));
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
   const t = el.text().trim();
@@ -455,14 +461,22 @@ export class EbayScraper extends PlatformScraper {
       return product;
     };
 
-    // 1) direct HTTP fetch — fastest path when eBay isn't blocking
-    const directHtml = await this.directFetch(cleanedUrl);
-    if (directHtml) return parseAndEnrich(directHtml);
+    // 1) Direct HTTP fetch — fast path when eBay isn't blocking. From a
+    //    Vercel datacenter IP eBay rejects ~half the time, so retry with jitter.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const html = await this.directFetch(cleanedUrl);
+      if (html) return parseAndEnrich(html);
+      if (attempt < 2) await jitter(400, 900);
+    }
 
-    // 2) Browserless (stealth) — bypasses bot detection / rate limits
+    // 2) Browserless stealth — same idea but heavier; retry to ride out
+    //    intermittent bot-page responses.
     logger.warn("ebay direct fetch failed, falling back to Browserless", { url: cleanedUrl });
-    const renderedHtml = await this.browserlessFetch(cleanedUrl);
-    if (renderedHtml) return parseAndEnrich(renderedHtml);
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const html = await this.browserlessFetch(cleanedUrl);
+      if (html) return parseAndEnrich(html);
+      if (attempt < 2) await jitter(500, 1500);
+    }
 
     // 3) Apify — only useful if a paid eBay actor is configured
     logger.warn("ebay browserless failed, falling back to Apify", { url: cleanedUrl });
