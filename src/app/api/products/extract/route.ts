@@ -6,9 +6,10 @@ import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
-// Microcenter can need multiple Browserless retries; default Vercel timeout
-// (10s Hobby / 60s Pro) is too short for the worst case. Requires Vercel Pro.
-export const maxDuration = 120;
+// SHEIN's SPA shell + headless-fingerprint check forces ScrapingBee stealth
+// mode (~95s on success) before Apify fallback (~10-100s). Microcenter and
+// eBay also occasionally need ~60s of Browserless retries. Requires Vercel Pro.
+export const maxDuration = 240;
 
 export async function POST(request: NextRequest) {
   try {
