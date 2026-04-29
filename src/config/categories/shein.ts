@@ -1,0 +1,162 @@
+import { TomameCategory } from "./tomame_category";
+
+// SHEIN is fashion/lifestyle-heavy. Map their breadcrumb / cat_name strings
+// (top-level and common sub-categories) to TomameCategory.
+export const SHEIN_CATEGORY_MAP = new Map<string, TomameCategory>([
+  // Women's clothing
+  ["Women", TomameCategory.CLOTHING_WOMEN],
+  ["Women Clothing", TomameCategory.CLOTHING_WOMEN],
+  ["Women's Clothing", TomameCategory.CLOTHING_WOMEN],
+  ["Dresses", TomameCategory.CLOTHING_WOMEN],
+  ["Tops", TomameCategory.CLOTHING_WOMEN],
+  ["Blouses & Shirts", TomameCategory.CLOTHING_WOMEN],
+  ["T-Shirts", TomameCategory.CLOTHING_WOMEN],
+  ["Sweatshirts & Hoodies", TomameCategory.CLOTHING_WOMEN],
+  ["Sweaters", TomameCategory.CLOTHING_WOMEN],
+  ["Bottoms", TomameCategory.CLOTHING_WOMEN],
+  ["Pants", TomameCategory.CLOTHING_WOMEN],
+  ["Jeans", TomameCategory.CLOTHING_WOMEN],
+  ["Skirts", TomameCategory.CLOTHING_WOMEN],
+  ["Shorts", TomameCategory.CLOTHING_WOMEN],
+  ["Jumpsuits & Rompers", TomameCategory.CLOTHING_WOMEN],
+  ["Jumpsuits", TomameCategory.CLOTHING_WOMEN],
+  ["Outerwear", TomameCategory.CLOTHING_WOMEN],
+  ["Coats & Jackets", TomameCategory.CLOTHING_WOMEN],
+  ["Activewear", TomameCategory.CLOTHING_WOMEN],
+  ["Sportswear", TomameCategory.CLOTHING_WOMEN],
+  ["Loungewear", TomameCategory.CLOTHING_WOMEN],
+  ["Lingerie & Sleep", TomameCategory.CLOTHING_WOMEN],
+  ["Lingerie", TomameCategory.CLOTHING_WOMEN],
+  ["Sleepwear", TomameCategory.CLOTHING_WOMEN],
+  ["Swimwear", TomameCategory.CLOTHING_WOMEN],
+  ["Maternity", TomameCategory.CLOTHING_WOMEN],
+  ["Plus Size", TomameCategory.CLOTHING_WOMEN],
+  ["Curve", TomameCategory.CLOTHING_WOMEN],
+
+  // Men's clothing
+  ["Men", TomameCategory.CLOTHING_MEN],
+  ["Men Clothing", TomameCategory.CLOTHING_MEN],
+  ["Men's Clothing", TomameCategory.CLOTHING_MEN],
+  ["Men Tops", TomameCategory.CLOTHING_MEN],
+  ["Men Bottoms", TomameCategory.CLOTHING_MEN],
+  ["Men Outerwear", TomameCategory.CLOTHING_MEN],
+  ["Men Activewear", TomameCategory.CLOTHING_MEN],
+  ["Men Swimwear", TomameCategory.CLOTHING_MEN],
+  ["Men Underwear & Sleepwear", TomameCategory.CLOTHING_MEN],
+
+  // Kids
+  ["Kids", TomameCategory.CLOTHING_KIDS],
+  ["Girls", TomameCategory.CLOTHING_KIDS],
+  ["Boys", TomameCategory.CLOTHING_KIDS],
+  ["Toddler Girls", TomameCategory.CLOTHING_KIDS],
+  ["Toddler Boys", TomameCategory.CLOTHING_KIDS],
+  ["Baby Girls", TomameCategory.BABY],
+  ["Baby Boys", TomameCategory.BABY],
+  ["Baby", TomameCategory.BABY],
+  ["Maternity & Baby", TomameCategory.BABY],
+
+  // Shoes
+  ["Shoes", TomameCategory.SHOES_WOMEN],
+  ["Women Shoes", TomameCategory.SHOES_WOMEN],
+  ["Women's Shoes", TomameCategory.SHOES_WOMEN],
+  ["Men Shoes", TomameCategory.SHOES_MEN],
+  ["Men's Shoes", TomameCategory.SHOES_MEN],
+  ["Kids Shoes", TomameCategory.SHOES_KIDS],
+  ["Girls Shoes", TomameCategory.SHOES_KIDS],
+  ["Boys Shoes", TomameCategory.SHOES_KIDS],
+
+  // Bags & accessories
+  ["Bags", TomameCategory.HANDBAGS],
+  ["Bags & Luggage", TomameCategory.HANDBAGS],
+  ["Women Bags", TomameCategory.HANDBAGS],
+  ["Handbags", TomameCategory.HANDBAGS],
+  ["Backpacks", TomameCategory.HANDBAGS],
+  ["Wallets", TomameCategory.HANDBAGS],
+  ["Luggage", TomameCategory.LUGGAGE],
+  ["Travel Accessories", TomameCategory.LUGGAGE],
+  ["Accessories", TomameCategory.FASHION_ACCESSORIES],
+  ["Women Accessories", TomameCategory.FASHION_ACCESSORIES],
+  ["Men Accessories", TomameCategory.FASHION_ACCESSORIES],
+  ["Belts", TomameCategory.FASHION_ACCESSORIES],
+  ["Hats", TomameCategory.FASHION_ACCESSORIES],
+  ["Scarves", TomameCategory.FASHION_ACCESSORIES],
+  ["Sunglasses", TomameCategory.FASHION_ACCESSORIES],
+  ["Eyewear", TomameCategory.FASHION_ACCESSORIES],
+
+  // Jewelry & watches
+  ["Jewelry", TomameCategory.JEWELRY],
+  ["Jewelry & Accessories", TomameCategory.JEWELRY],
+  ["Fine Jewelry", TomameCategory.JEWELRY],
+  ["Fashion Jewelry", TomameCategory.JEWELRY],
+  ["Watches", TomameCategory.WATCHES],
+  ["Men Watches", TomameCategory.WATCHES],
+  ["Women Watches", TomameCategory.WATCHES],
+
+  // Beauty & personal care
+  ["Beauty", TomameCategory.BEAUTY],
+  ["Beauty & Health", TomameCategory.BEAUTY],
+  ["Makeup", TomameCategory.MAKEUP],
+  ["Skincare", TomameCategory.SKINCARE],
+  ["Skin Care", TomameCategory.SKINCARE],
+  ["Haircare", TomameCategory.HAIRCARE],
+  ["Hair Care", TomameCategory.HAIRCARE],
+  ["Hair Tools", TomameCategory.HAIRCARE],
+  ["Wigs", TomameCategory.HAIRCARE],
+  ["Fragrance", TomameCategory.FRAGRANCE],
+  ["Perfume", TomameCategory.FRAGRANCE],
+  ["Bath & Body", TomameCategory.PERSONAL_CARE],
+  ["Personal Care", TomameCategory.PERSONAL_CARE],
+  ["Nails", TomameCategory.MAKEUP],
+
+  // Home & garden
+  ["Home", TomameCategory.HOME_KITCHEN],
+  ["Home & Kitchen", TomameCategory.HOME_KITCHEN],
+  ["Home & Living", TomameCategory.HOME_KITCHEN],
+  ["Home Decor", TomameCategory.HOME_KITCHEN],
+  ["Home Textiles", TomameCategory.BEDDING],
+  ["Bedding", TomameCategory.BEDDING],
+  ["Bath", TomameCategory.BATH],
+  ["Kitchen & Dining", TomameCategory.KITCHEN_DINING],
+  ["Kitchenware", TomameCategory.KITCHEN_DINING],
+  ["Furniture", TomameCategory.FURNITURE],
+  ["Garden & Outdoor", TomameCategory.GARDEN_OUTDOOR],
+  ["Lighting", TomameCategory.LIGHTING],
+  ["Tools & Home Improvement", TomameCategory.TOOLS],
+  ["Home Improvement", TomameCategory.HOME_IMPROVEMENT],
+
+  // Sports & outdoors
+  ["Sports & Outdoors", TomameCategory.SPORTS_OUTDOORS],
+  ["Sports", TomameCategory.SPORTS_OUTDOORS],
+  ["Sports & Fitness", TomameCategory.EXERCISE_FITNESS],
+  ["Fitness", TomameCategory.EXERCISE_FITNESS],
+  ["Outdoor Recreation", TomameCategory.OUTDOOR_RECREATION],
+  ["Cycling", TomameCategory.CYCLING],
+
+  // Toys, games, hobbies
+  ["Toys & Games", TomameCategory.TOYS_GAMES],
+  ["Toys", TomameCategory.TOYS_GAMES],
+  ["Hobbies", TomameCategory.TOYS_GAMES],
+  ["Arts, Crafts & Sewing", TomameCategory.ARTS_CRAFTS],
+  ["Crafts", TomameCategory.ARTS_CRAFTS],
+  ["Sewing", TomameCategory.CRAFT_SUPPLIES],
+  ["Fabric", TomameCategory.FABRIC],
+
+  // Electronics & office (smaller SHEIN sections)
+  ["Electronics", TomameCategory.ELECTRONICS],
+  ["Phones & Accessories", TomameCategory.CELL_PHONES],
+  ["Cell Phones & Accessories", TomameCategory.CELL_PHONES],
+  ["Headphones", TomameCategory.HEADPHONES],
+  ["Smart Watches", TomameCategory.WEARABLE_TECHNOLOGY],
+  ["Wearable Tech", TomameCategory.WEARABLE_TECHNOLOGY],
+  ["Office & School Supplies", TomameCategory.OFFICE_PRODUCTS],
+  ["Office Supplies", TomameCategory.OFFICE_PRODUCTS],
+  ["School Supplies", TomameCategory.SCHOOL_SUPPLIES],
+
+  // Pet
+  ["Pet Supplies", TomameCategory.PET_SUPPLIES],
+  ["Pet", TomameCategory.PET_SUPPLIES],
+
+  // Automotive
+  ["Automotive", TomameCategory.AUTOMOTIVE],
+  ["Auto Parts & Accessories", TomameCategory.AUTOMOTIVE],
+]);
