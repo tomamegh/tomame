@@ -2,3 +2,4 @@ export { TomameCategory } from "./tomame_category";
 export { AMAZON_CATEGORY_MAP } from "./amazon";
 export { EBAY_CATEGORY_MAP } from "./ebay";
 export { MICROCENTER_CATEGORY_MAP } from "./microcenter";
+export { SHEIN_CATEGORY_MAP } from "./shein";

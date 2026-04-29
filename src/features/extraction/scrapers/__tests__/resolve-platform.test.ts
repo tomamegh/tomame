@@ -110,4 +110,36 @@ describe("resolvePlatform", () => {
       ),
     ).toBe(SupportedPlatform.MICROCENTER);
   });
+
+  it("should resolve shein.com URLs", () => {
+    expect(
+      resolvePlatform("https://www.shein.com/Example-Product-p-12345678.html"),
+    ).toBe(SupportedPlatform.SHEIN);
+  });
+
+  it("should resolve us.shein.com URLs", () => {
+    expect(
+      resolvePlatform("https://us.shein.com/Example-Product-p-12345678-cat-1234.html"),
+    ).toBe(SupportedPlatform.SHEIN);
+  });
+
+  it("should resolve bare shein.com without www", () => {
+    expect(resolvePlatform("https://shein.com/Example-p-12345678.html")).toBe(
+      SupportedPlatform.SHEIN,
+    );
+  });
+
+  it("should resolve m.shein.com URLs", () => {
+    expect(resolvePlatform("https://m.shein.com/Example-p-12345678.html")).toBe(
+      SupportedPlatform.SHEIN,
+    );
+  });
+
+  it("should resolve shein URLs with query params", () => {
+    expect(
+      resolvePlatform(
+        "https://www.shein.com/Example-p-12345678.html?utm_source=test&aff_id=abc",
+      ),
+    ).toBe(SupportedPlatform.SHEIN);
+  });
 });
