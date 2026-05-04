@@ -31,6 +31,7 @@ const SUPPORTED_STORES = [
   { id: "amazon", name: "Amazon" },
   { id: "ebay", name: "eBay" },
   { id: "microcenter", name: "Micro Center" },
+  { id: "shein", name: "SHEIN" },
 ];
 
 interface ExtractionFormProps {
