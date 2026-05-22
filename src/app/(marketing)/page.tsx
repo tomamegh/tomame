@@ -1,4 +1,4 @@
-import { LandingPageBlogSection, LandingPageCTASection, LandingPageFAQSection, LandingPageFeaturesSection, LandingPageHeroSection, LandingPageProcessSteps, LandingPageTestimonialsSection, LandingPageValueSection } from '@/components/landing';
+import { LandingPageBlogSection, LandingPageCTASection, LandingPageFAQSection, LandingPageFeaturesSection, LandingPageNewHeroSection, LandingPageProcessSteps, LandingPageSupportedPlatforms, LandingPageTestimonialsSection, LandingPageValueSection } from '@/components/landing';
 import { getGhsRate } from '@/lib/exchange-rates/service';
 import { DEFAULT_FX_BUFFER_PCT } from '@/config/pricing';
 
@@ -12,7 +12,8 @@ export default async function HomePage() {
 
   return (
     <>
-      <LandingPageHeroSection usdToGhs={usdToGhs} />
+      <LandingPageNewHeroSection usdToGhs={usdToGhs} />
+      <LandingPageSupportedPlatforms />
       <LandingPageFeaturesSection />
       <LandingPageProcessSteps />
       <LandingPageValueSection /> 

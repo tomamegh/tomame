@@ -1,6 +1,6 @@
-"use client";
-import { AnimatePresence, motion, Variants } from "motion/react";
-import { useEffect, useState } from "react";
+'use client';
+
+import { motion, type Variants } from 'motion/react';
 
 type Testimonial = {
   quote: string;
@@ -12,171 +12,150 @@ type Testimonial = {
 const TESTIMONIALS: Testimonial[] = [
   {
     quote:
-      "Tomame cut our sourcing time by 80%. The transparent pricing alone is worth it — no more surprise fees.",
-    name: "Sarah Chen",
-    role: "Founder, Lumina Commerce",
-    initials: "SC",
+      'Tomame cut my sourcing time completely. I paste a link, pay with Mobile Money, and it arrives. No forex stress, no surprises.',
+    name: 'Kwame Asante',
+    role: 'Founder, Kente Boutique — Accra',
+    initials: 'KA',
   },
   {
     quote:
-      "We switched from three different tools to Tomame. The dashboard and real-time tracking are game-changers.",
-    name: "Michael Torres",
-    role: "Head of Ops, ShipFast",
-    initials: "MT",
+      'I used to spend hours trying to buy from Amazon. Now I do it in minutes and pay in cedis. The tracking updates on WhatsApp are a bonus.',
+    name: 'Abena Mensah',
+    role: 'CEO, Accra Imports Ltd.',
+    initials: 'AM',
   },
   {
     quote:
-      "The API integration took us 30 minutes. Now our entire catalog syncs automatically. Incredible product.",
-    name: "Emma Wilson",
-    role: "CTO, NovaBridge",
-    initials: "EW",
+      "The pricing breakdown is incredibly honest. I see exactly what I'm paying before I confirm. That trust is everything.",
+    name: 'Kofi Boateng',
+    role: 'Owner, GoldCoast Trends — Kumasi',
+    initials: 'KB',
   },
 ];
 
+const METRICS = ['Trusted by 5,000+ Ghanaian shoppers', 'Accra-based support team', '14-day average delivery'];
+
 const stagger: Variants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.1, delayChildren: 0.06 } },
+  show: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } },
 };
+
 const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 28 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: "easeOut" } },
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } },
 };
-// const scaleIn: Variants = {
-//     hidden: { opacity: 0, scale: 0.92 },
-//     show: { opacity: 1, scale: 1, transition: { duration: 0.6, ease: 'easeOut' } },
-// };
 
-export default function TestimonialCarousel() {
-  const [active, setActive] = useState<number>(0);
-
-  useEffect(() => {
-    const timer = setInterval(
-      () => setActive((p) => (p + 1) % TESTIMONIALS.length),
-      5000,
-    );
-    return () => clearInterval(timer);
-  }, []);
-
+export default function TestimonialsSection() {
   return (
-    <section className="py-24 sm:py-32">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="relative overflow-hidden bg-stone-50 py-28 sm:py-32 lg:py-36">
+      {/* Fine grid texture */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px)',
+          backgroundSize: '32px 32px',
+        }}
+        aria-hidden="true"
+      />
+
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* Header */}
         <motion.div
           initial="hidden"
           whileInView="show"
-          viewport={{ once: true, amount: 0.3 }}
+          viewport={{ once: true, amount: 0.4 }}
           variants={stagger}
-          className="text-center"
+          className="mx-auto max-w-2xl text-center"
         >
-          <motion.p
+          <motion.span
             variants={fadeUp}
-            className="text-sm font-semibold mb-3 tracking-wide uppercase"
+            className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-stone-500"
           >
-            Testimonials
-          </motion.p>
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" aria-hidden="true" />
+            Customer stories
+          </motion.span>
           <motion.h2
             variants={fadeUp}
-            className="text-3xl sm:text-4xl font-bold text-stone-850 mb-12"
+            className="mt-5 text-3xl font-bold tracking-tight text-stone-900 sm:text-4xl lg:text-5xl"
           >
-            Trusted by thousands
+            What our customers say
           </motion.h2>
+          <motion.p
+            variants={fadeUp}
+            className="mt-4 text-base leading-relaxed text-stone-500 sm:text-lg"
+          >
+            Stories from teams already moving faster with Tomame.
+          </motion.p>
         </motion.div>
 
-        {/* Cards row */}
-        <div className="relative overflow-hidden bg-linear-to-b from-stone-950 via-stone-900 to-stone-950 rounded-2xl">
-          <div className="absolute top-[10%] left-[5%] size-120 rounded-full bg-rose-500/10 blur-[120px]" />
-          <div className="absolute bottom-[10%] right-[5%] size-100 rounded-full bg-amber-500/8 blur-[100px]" />
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={active}
-              initial={{ opacity: 0, x: 60 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -60 }}
-              transition={{ duration: 0.5 }}
-              className="rounded-2xl p-8 sm:p-10 text-center relative overflow-hidden"
+        {/* Cards grid */}
+        <motion.div
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.2 }}
+          variants={stagger}
+          className="mt-16 grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 lg:grid-cols-3"
+        >
+          {TESTIMONIALS.map((t) => (
+            <motion.article
+              key={t.name}
+              variants={fadeUp}
+              className="group relative overflow-hidden rounded-2xl border border-stone-200 bg-white p-7 transition-all duration-300 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-[0_12px_32px_-12px_rgba(0,0,0,0.12)]"
             >
-              <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-primary/40 to-transparent" />
-              <div className="mb-6 flex gap-1 justify-center text-amber-500 text-lg">
-                {"★★★★★".split("").map((s, i) => (
-                  <span key={i}>{s}</span>
-                ))}
-              </div>
-              <p className="text-xl sm:text-2xl text-white/90 leading-relaxed mb-8 max-w-2xl mx-auto">
-                &ldquo;{TESTIMONIALS[active]!.quote}&rdquo;
-              </p>
-              <div className="flex items-center justify-center gap-4">
-                <div className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center text-white text-sm font-bold shadow-[0_0_20px_-4px_rgba(168,85,247,0.4)]">
-                  {TESTIMONIALS[active]!.initials}
-                </div>
-                <div className="text-left">
-                  <p className="font-semibold text-white">
-                    {TESTIMONIALS[active]!.name}
-                  </p>
-                  <p className="text-stone-400 text-sm">
-                    {TESTIMONIALS[active]!.role}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          </AnimatePresence>
-        </div>
+              {/* Top accent line on hover */}
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute top-0 left-6 right-6 h-px bg-linear-to-r from-transparent via-rose-400 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              />
 
-        {/* Nav dots */}
-        <div className="flex justify-center gap-2 mt-8">
-          {TESTIMONIALS.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setActive(i)}
-              className={`w-2.5 h-2.5 rounded-full transition-all duration-300 cursor-pointer ${
-                i === active
-                  ? "gradient-primary w-8"
-                  : "bg-amber-500 hover:bg-amber-600"
-              }`}
-            />
+              {/* Quote mark */}
+              <span
+                aria-hidden="true"
+                className="block select-none font-serif text-5xl leading-none text-stone-200"
+              >
+                &ldquo;
+              </span>
+
+              {/* Quote */}
+              <p className="mt-2 text-base leading-relaxed text-stone-700">
+                {t.quote}
+              </p>
+
+              {/* Author */}
+              <div className="mt-6 flex items-center gap-3 border-t border-stone-100 pt-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-rose-500 to-amber-500 text-xs font-bold text-white shadow-[0_6px_20px_-6px_rgba(244,63,94,0.5)]">
+                  {t.initials}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-stone-900">{t.name}</p>
+                  <p className="text-xs text-stone-500">{t.role}</p>
+                </div>
+              </div>
+            </motion.article>
           ))}
-        </div>
+        </motion.div>
+
+        {/* Social proof metrics row */}
+        <motion.div
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.4 }}
+          variants={fadeUp}
+          className="mt-12 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center text-sm text-stone-500 lg:mt-14"
+        >
+          {METRICS.map((metric, i) => (
+            <span key={metric} className="inline-flex items-center gap-3">
+              <span>{metric}</span>
+              {i < METRICS.length - 1 && (
+                <span aria-hidden="true" className="text-stone-400">
+                  &middot;
+                </span>
+              )}
+            </span>
+          ))}
+        </motion.div>
       </div>
     </section>
   );
 }
-
-// export default function TestimonialsSection() {
-//     return (
-//         <section className="py-20 sm:py-28 lg:py-32 bg-white">
-//             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-//                 <div className="text-center mb-12 sm:mb-16">
-//                     <p className="text-sm font-semibold text-rose-500 mb-3 tracking-wide uppercase">Testimonials</p>
-//                     <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-stone-900 mb-4">
-//                         Loved by teams worldwide
-//                     </h2>
-//                     <p className="text-base sm:text-lg text-stone-500 max-w-2xl mx-auto">
-//                         See how businesses are transforming their sourcing with Tomame.
-//                     </p>
-//                 </div>
-
-//                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-//                     {TESTIMONIALS.map((t) => (
-//                         <div
-//                             key={t.name}
-//                             className="rounded-2xl border border-stone-200/60 bg-white p-6 sm:p-8 flex flex-col justify-between transition-all duration-500 hover:shadow-[0_8px_40px_-6px_rgba(120,113,108,0.12)] hover:-translate-y-1"
-//                         >
-//                             {/* Stars */}
-//                             <div className="mb-4 flex gap-1 text-amber-400 text-sm">
-//                                 {'★★★★★'.split('').map((s, i) => <span key={i}>{s}</span>)}
-//                             </div>
-//                             <p className="text-stone-600 leading-relaxed mb-6 flex-1">&ldquo;{t.quote}&rdquo;</p>
-//                             <div className="flex items-center gap-3 pt-4 border-t border-stone-100">
-//                                 <div className="w-10 h-10 rounded-full bg-linear-to-br from-rose-500 to-amber-500 flex items-center justify-center text-white text-xs font-bold">
-//                                     {t.initials}
-//                                 </div>
-//                                 <div>
-//                                     <p className="font-semibold text-stone-900 text-sm">{t.name}</p>
-//                                     <p className="text-stone-400 text-xs">{t.role}</p>
-//                                 </div>
-//                             </div>
-//                         </div>
-//                     ))}
-//                 </div>
-//             </div>
-//         </section>
-//     );
-// }

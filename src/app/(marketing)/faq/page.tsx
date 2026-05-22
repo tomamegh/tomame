@@ -1,140 +1,333 @@
 'use client';
 
-import { useState } from 'react';
-import { Card } from '@/components/ui/card';
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+import { motion, type Variants } from 'motion/react';
+import { ArrowRight, MessageCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { FAQAccordion, type FAQItem } from '@/components/landing/faq-accordion';
+
+type Category = {
+  slug: string;
+  label: string;
+  questions: FAQItem[];
+};
+
+const CATEGORIES: Category[] = [
+  {
+    slug: 'getting-started',
+    label: 'Getting Started',
+    questions: [
+      {
+        q: 'How do I get started?',
+        a: 'Sign up for free, verify your email, and paste your first product link. No upfront fees.',
+      },
+      {
+        q: 'Which platforms can I shop from?',
+        a: 'Amazon, ASOS, Alibaba, eBay, Apple Store, Walmart, Target, SHEIN, Zara, H&M, Nike, and 100+ global retailers.',
+      },
+      {
+        q: 'Is there a mobile app?',
+        a: 'Our web app is fully responsive and works great on mobile. A native app is on the roadmap.',
+      },
+    ],
+  },
+  {
+    slug: 'pricing-and-payments',
+    label: 'Pricing & Payments',
+    questions: [
+      {
+        q: 'How is the total price calculated?',
+        a: 'We show the item price (in GH₵), international shipping, our service fee, and any applicable import taxes — all before you pay.',
+      },
+      {
+        q: 'What payment methods do you accept?',
+        a: 'MTN Mobile Money, Vodafone Cash, AirtelTigo Money, Visa, and Mastercard. All processed locally through Paystack.',
+      },
+      {
+        q: 'Can I get a refund?',
+        a: 'Yes. If we cannot source your item after payment, you receive a 100% refund within 24 hours — no questions asked.',
+      },
+    ],
+  },
+  {
+    slug: 'orders-and-delivery',
+    label: 'Orders & Delivery',
+    questions: [
+      {
+        q: 'How long does delivery take?',
+        a: 'Most orders arrive within 2–4 weeks. Air freight options are available for urgent items.',
+      },
+      {
+        q: 'Can I track my order?',
+        a: "Yes — real-time tracking is available for every order. You'll get updates at each milestone: processing, purchased, shipped, in transit, delivered.",
+      },
+      {
+        q: 'What if my package is lost?',
+        a: 'All orders are covered. If a package is lost or damaged in transit, we investigate immediately and resolve it within 5–7 business days.',
+      },
+    ],
+  },
+  {
+    slug: 'technical',
+    label: 'Technical',
+    questions: [
+      {
+        q: 'Is my data secure?',
+        a: 'Yes. We use industry-standard encryption and never share your data with third parties.',
+      },
+      {
+        q: 'Do you offer an API?',
+        a: 'API access is available for high-volume users. Contact us to discuss your requirements.',
+      },
+      {
+        q: 'What if extraction fails on a product link?',
+        a: "We have multiple fallback methods. If we still cannot extract data, we'll notify you and issue a full refund of any service fees.",
+      },
+    ],
+  },
+];
+
+const stagger: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
+};
+
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } },
+};
 
 export default function FAQPage() {
-  const [openIndex, setOpenIndex] = useState<number | string | null>(null);
+  const [activeSlug, setActiveSlug] = useState<string>(CATEGORIES[0]!.slug);
+  const sectionsRef = useRef<Map<string, HTMLElement>>(new Map());
 
-  const faqs = [
-    {
-      category: 'Getting Started',
-      questions: [
-        {
-          q: 'How do I get started with Tomame?',
-          a: 'Sign up for free, verify your email, and you\'re ready to start pasting product links. No credit card required for the starter plan.',
-        },
-        {
-          q: 'What ecommerce platforms do you support?',
-          a: 'We support Amazon, eBay, Apple, Walmart, Target, Etsy, Alibaba, and 100+ other ecommerce sites globally.',
-        },
-        {
-          q: 'Is there a mobile app?',
-          a: 'We have a responsive web app that works great on mobile. Native iOS and Android apps are coming soon.',
-        },
-      ],
-    },
-    {
-      category: 'Pricing & Payments',
-      questions: [
-        {
-          q: 'How is shipping calculated?',
-          a: 'Shipping is based on the package weight and destination country using real carrier rates. It\'s calculated automatically when you submit a product link.',
-        },
-        {
-          q: 'Do you accept all payment methods?',
-          a: 'We accept credit cards, bank transfers, and digital wallets. Enterprise customers can arrange custom billing.',
-        },
-        {
-          q: 'Can I get a refund?',
-          a: 'Yes. If we can\'t extract a product\'s data, we refund 100% of service fees within 24 hours.',
-        },
-      ],
-    },
-    {
-      category: 'Orders & Delivery',
-      questions: [
-        {
-          q: 'How long does delivery take?',
-          a: 'Delivery typically takes 2-4 weeks depending on the destination and shipping method chosen. Standard shipping is cheapest, express is faster.',
-        },
-        {
-          q: 'Can I track my order?',
-          a: 'Yes! Real-time tracking is available for all orders. You\'ll get notifications at every stage: processing, shipped, out for delivery, delivered.',
-        },
-        {
-          q: 'What if my order gets lost?',
-          a: 'All orders are insured. If your package is lost or damaged, we file a claim and reimburse you within 5-7 business days.',
-        },
-      ],
-    },
-    {
-      category: 'Technical',
-      questions: [
-        {
-          q: 'Is my data secure?',
-          a: 'We use enterprise-grade encryption, regular security audits, and comply with GDPR and SOC 2 standards. Your data is never shared with third parties.',
-        },
-        {
-          q: 'Do you have an API?',
-          a: 'Yes! Professional and Enterprise plans include API access for programmatic order placement and tracking.',
-        },
-        {
-          q: 'What happens if the website changes or goes down temporarily?',
-          a: 'We continuously monitor data sources and have multiple fallback scraping methods. Our uptime is 99.9%.',
-        },
-      ],
-    },
-  ];
+  // Observe each category section to highlight the active sidebar link.
+  useEffect(() => {
+    const elements = Array.from(sectionsRef.current.values());
+    if (elements.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Pick the entry closest to the top of the viewport that is intersecting.
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+
+        const first = visible[0];
+        if (first) {
+          const slug = first.target.getAttribute('id');
+          if (slug) setActiveSlug(slug);
+        }
+      },
+      {
+        // Account for sticky header — start "active" when section enters the top quarter.
+        rootMargin: '-20% 0px -55% 0px',
+        threshold: [0, 0.25, 0.5, 1],
+      },
+    );
+
+    elements.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  const registerSection = (slug: string) => (el: HTMLElement | null) => {
+    if (el) sectionsRef.current.set(slug, el);
+    else sectionsRef.current.delete(slug);
+  };
+
+  const handleNavClick = (slug: string) => (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    const target = sectionsRef.current.get(slug);
+    if (target) {
+      const top = target.getBoundingClientRect().top + window.scrollY - 96;
+      window.scrollTo({ top, behavior: 'smooth' });
+      setActiveSlug(slug);
+    }
+  };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
-      <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-center mb-4 bg-gradient-to-r from-rose-500 to-amber-500 bg-clip-text text-transparent">
-        Frequently Asked Questions
-      </h1>
-      <p className="text-base sm:text-lg lg:text-xl text-stone-500 text-center mb-10 sm:mb-16">
-        Can't find the answer you're looking for? Contact our support team.
-      </p>
+    <>
+      {/* Dark editorial header */}
+      <section className="relative overflow-hidden bg-stone-950 py-20 sm:py-24">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.04]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
+          }}
+          aria-hidden="true"
+        />
 
-      <div className="space-y-12">
-        {faqs.map((section, sectionIndex) => (
-          <div key={sectionIndex}>
-            <h2 className="text-2xl font-bold text-stone-800 mb-6">{section.category}</h2>
-            <div className="space-y-3">
-              {section.questions.map((item, index) => {
-                const globalIndex = `${sectionIndex}-${index}`;
-                const isOpen = openIndex === globalIndex;
+        <div className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
+          <motion.div initial="hidden" animate="show" variants={stagger}>
+            <motion.span
+              variants={fadeUp}
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 backdrop-blur-md"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-400" aria-hidden="true" />
+              Help center
+            </motion.span>
+            <motion.h1
+              variants={fadeUp}
+              className="mt-6 text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl"
+            >
+              Frequently asked questions
+            </motion.h1>
+            <motion.p
+              variants={fadeUp}
+              className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-white/65 sm:text-lg"
+            >
+              Quick answers to what most customers ask.
+            </motion.p>
+          </motion.div>
+        </div>
+      </section>
 
-                return (
-                  <Card
-                    key={globalIndex}
-                    className="overflow-hidden transition-all duration-300 cursor-pointer"
-                    onClick={() => setOpenIndex(isOpen ? null : globalIndex)}
-                  >
-                    <div className="p-6 flex justify-between items-start gap-4">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-lg text-stone-800 mb-2">{item.q}</h3>
-                        {isOpen && (
-                          <p className="text-stone-500 leading-relaxed mt-4 fade-in">
-                            {item.a}
-                          </p>
-                        )}
-                      </div>
-                      <span className={`text-2xl text-stone-400 transition-transform duration-300 ${isOpen ? 'rotate-45' : ''}`}>
-                        +
-                      </span>
-                    </div>
-                  </Card>
-                );
-              })}
+      {/* FAQ content */}
+      <section className="bg-white py-20 sm:py-24">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-16">
+            {/* Sticky sidebar nav (desktop) */}
+            <aside className="lg:col-span-3">
+              <div className="lg:sticky lg:top-24">
+                <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-stone-400">
+                  Categories
+                </p>
+                <nav aria-label="FAQ categories">
+                  <ul className="hidden flex-col gap-3 border-l border-stone-200 lg:flex">
+                    {CATEGORIES.map((cat) => {
+                      const isActive = activeSlug === cat.slug;
+                      return (
+                        <li key={cat.slug}>
+                          <a
+                            href={`#${cat.slug}`}
+                            onClick={handleNavClick(cat.slug)}
+                            className={`-ml-px block border-l-2 py-1 pl-4 text-sm transition-colors duration-200 ${
+                              isActive
+                                ? 'border-rose-500 font-semibold text-stone-900'
+                                : 'border-transparent font-medium text-stone-500 hover:border-stone-300 hover:text-stone-900'
+                            }`}
+                          >
+                            {cat.label}
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+
+                  {/* Mobile horizontal scroll nav */}
+                  <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden">
+                    {CATEGORIES.map((cat) => {
+                      const isActive = activeSlug === cat.slug;
+                      return (
+                        <li key={cat.slug} className="shrink-0">
+                          <a
+                            href={`#${cat.slug}`}
+                            onClick={handleNavClick(cat.slug)}
+                            className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-semibold transition-colors duration-200 ${
+                              isActive
+                                ? 'border-rose-200 bg-rose-50 text-rose-600'
+                                : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
+                            }`}
+                          >
+                            {cat.label}
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </nav>
+              </div>
+            </aside>
+
+            {/* Accordion sections */}
+            <div className="space-y-14 lg:col-span-9 lg:space-y-16">
+              {CATEGORIES.map((cat) => (
+                <section
+                  key={cat.slug}
+                  id={cat.slug}
+                  ref={registerSection(cat.slug)}
+                  className="scroll-mt-24"
+                  aria-labelledby={`${cat.slug}-heading`}
+                >
+                  <div className="mb-6 flex items-center justify-between gap-4 border-b border-stone-200 pb-4">
+                    <h2
+                      id={`${cat.slug}-heading`}
+                      className="text-lg font-bold tracking-tight text-stone-900 sm:text-xl"
+                    >
+                      {cat.label}
+                    </h2>
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">
+                      {cat.questions.length.toString().padStart(2, '0')} questions
+                    </span>
+                  </div>
+                  <FAQAccordion items={cat.questions} idPrefix={`faq-${cat.slug}`} />
+                </section>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      </section>
 
-      {/* Contact Section */}
-      <Card variant="gradient" className="mt-16 p-8 text-center">
-        <h2 className="text-2xl font-bold text-stone-800 mb-4">Still have questions?</h2>
-        <p className="text-stone-500 mb-6">
-          Our support team is here to help. Hit us up anytime.
-        </p>
-        <a
-          href="/contact"
-          className="inline-block px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white rounded-xl font-semibold shadow-[0_4px_14px_-2px_rgba(244,63,94,0.35)] hover:shadow-[0_6px_20px_-2px_rgba(244,63,94,0.45)] hover:translate-y-[-1px] transition-all duration-300"
-        >
-          Get In Touch
-        </a>
-      </Card>
-    </div>
+      {/* Contact CTA */}
+      <section className="bg-stone-50 py-16 sm:py-20">
+        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, amount: 0.4 }}
+            variants={stagger}
+            className="relative overflow-hidden rounded-3xl border border-stone-900/5 bg-stone-950 px-6 py-12 sm:px-10 sm:py-14"
+          >
+            <div
+              className="pointer-events-none absolute inset-0 opacity-[0.04]"
+              style={{
+                backgroundImage:
+                  'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
+                backgroundSize: '40px 40px',
+              }}
+              aria-hidden="true"
+            />
+
+            <div className="relative">
+              <motion.h2
+                variants={fadeUp}
+                className="text-2xl font-bold tracking-tight text-white sm:text-3xl"
+              >
+                Still have questions?
+              </motion.h2>
+              <motion.p
+                variants={fadeUp}
+                className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-white/65 sm:text-base"
+              >
+                Our team in Accra responds quickly on email and WhatsApp.
+              </motion.p>
+              <motion.div
+                variants={fadeUp}
+                className="mt-7 flex flex-wrap items-center justify-center gap-3 sm:gap-4"
+              >
+                <Link href="/contact">
+                  <Button variant="primary" size="lg" className="h-11 px-6 text-sm sm:text-base">
+                    Contact us
+                    <ArrowRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link
+                  href="https://wa.me/233000000000"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-5 text-sm font-semibold text-white/90 backdrop-blur-md transition-colors hover:bg-white/10 hover:text-white sm:text-base"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
+                </Link>
+              </motion.div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+    </>
   );
 }

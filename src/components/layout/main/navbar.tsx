@@ -16,7 +16,7 @@ export default async function MainNav() {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
   return (
-    <nav className="sticky top-0 z-50 bg-white border-b border-stone-200/40 shadow-[0_1px_12px_-4px_rgba(120,113,108,0.08)]">
+    <nav className="sticky py-2 top-0 z-50 bg-white border-b border-stone-200/40 shadow-[0_1px_12px_-4px_rgba(120,113,108,0.08)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center gap-3 h-16 overflow-hidden">
         {/* Logo */}
         <Link
@@ -26,8 +26,8 @@ export default async function MainNav() {
           Tomame
         </Link>
         <NavLinks links={NAV_LINKS} />
-          <NavbarAuthButton user={user} />
-          <MobileMenu links={NAV_LINKS} isAuthenticated={!!user} />
+        <NavbarAuthButton user={user} />
+        <MobileMenu links={NAV_LINKS} isAuthenticated={!!user} />
       </div>
     </nav>
   );

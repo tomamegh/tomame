@@ -51,12 +51,12 @@ const ExtractionInput: React.FC<ExtractionFormProps> = ({
     resolver: zodResolver(extractProductSchema),
   });
 
-  const isMobile = useIsMobile()
+  const isMobile = useIsMobile();
 
   return (
     <div>
-      <Field orientation={isMobile ?'responsive': 'horizontal'}>
-        <InputGroup className="h-11">
+      <Field orientation={isMobile ? "responsive" : "horizontal"}>
+        <InputGroup className="min-h-11 h-fit md:pl-2">
           <InputGroupInput
             {...register("product_url")}
             type="url"
@@ -68,6 +68,29 @@ const ExtractionInput: React.FC<ExtractionFormProps> = ({
           <InputGroupAddon>
             <LinkIcon className="size-4 text-stone-400" />
           </InputGroupAddon>
+
+          <InputGroupAddon align={'inline-end'} className="hidden md:flex">
+            <Button
+              type="submit"
+              variant="primary"
+              size="default"
+              onClick={handleSubmit((data) => onSubmit(data.product_url))}
+              disabled={isLoading}
+              className="shrink-0 gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <Spinner />
+                  Extracting...
+                </>
+              ) : (
+                <>
+                  <ScanSearchIcon className="size-4" />
+                  Extract
+                </>
+              )}
+            </Button>
+          </InputGroupAddon>
         </InputGroup>
         <Button
           type="submit"
@@ -75,7 +98,7 @@ const ExtractionInput: React.FC<ExtractionFormProps> = ({
           size="lg"
           onClick={handleSubmit((data) => onSubmit(data.product_url))}
           disabled={isLoading}
-          className="shrink-0 gap-2"
+          className="shrink-0 gap-2 md:hidden"
         >
           {isLoading ? (
             <>

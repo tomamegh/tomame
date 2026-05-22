@@ -92,7 +92,7 @@ async function NavbarAuthButton({ user }: { user?: JwtPayload }) {
   ) : (
     <div className="hidden md:flex gap-3">
       <Link href="/auth/login">
-        <Button variant="ghost">Sign In</Button>
+        <Button variant="default">Sign In</Button>
       </Link>
       <Link href="/auth/signup">
         <Button variant="primary">Get Started</Button>

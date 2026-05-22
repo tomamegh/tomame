@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx supabase *)",
+      "Bash(bun x *)",
+      "Bash(npx next *)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "WebFetch(domain:www.gofo.com)",
+      "Bash(command -v node)",
+      "Bash(ls /usr/local/bin/ | grep -i node; ls /home/browny/.nvm/versions/node/ 2>/dev/null; find /home /usr -name \"node\" -type f -executable 2>/dev/null | grep -v node_modules | head -5)",
+      "Read(//home/**)",
+      "Bash(/home/browny/.bun/bin/bun x *)",
+      "Bash(git checkout *)",
+      "WebFetch(domain:unsplash.com)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}\" \"https://images.unsplash.com/photo-1530698060343-ae5da1a26d7f?w=1200&auto=format&fit=crop&q=80\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}\" \"https://images.unsplash.com/photo-1449247666642-264389f5f5b1?w=1200&auto=format&fit=crop&q=80\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}\" \"https://images.unsplash.com/photo-1758876202400-64edbefc2256?w=1200&auto=format&fit=crop&q=80\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}\" \"https://images.unsplash.com/photo-1769355104335-acef3aa4c9b6?w=1200&auto=format&fit=crop&q=80\")",
+      "Bash(curl -s -o public/images/shopping.jpg \"https://images.unsplash.com/photo-1758876202400-64edbefc2256?w=1200&auto=format&fit=crop&q=80\")",
+      "Bash(curl -s -o public/images/boxes.jpg \"https://images.unsplash.com/photo-1769355104335-acef3aa4c9b6?w=1200&auto=format&fit=crop&q=80\")",
+      "Bash(curl -s -o public/images/mobile-pay.jpg \"https://images.unsplash.com/photo-1530698060343-ae5da1a26d7f?w=1200&auto=format&fit=crop&q=80\")",
+      "Bash(curl -s -o public/images/delivery.jpg \"https://images.unsplash.com/photo-1449247666642-264389f5f5b1?w=1200&auto=format&fit=crop&q=80\")"
+    ]
+  }
+}

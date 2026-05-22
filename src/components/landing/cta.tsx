@@ -1,39 +1,79 @@
-import Link from "next/link";
-import { Button } from "../ui/button";
+'use client';
+
+import Image from 'next/image';
+import Link from 'next/link';
+import { motion, type Variants } from 'motion/react';
+import {
+  HiArrowRight,
+} from 'react-icons/hi2';
+import { Button } from '../ui/button';
+
+const stagger: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.1, delayChildren: 0.05 } },
+};
+
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] } },
+};
+
 
 export default function CTASection() {
   return (
-    <section className='py-20 sm:py-28 lg:py-32 px-4 max-w-7xl mx-auto sm:px-6 lg:px-8'>
-      <div className=" relative overflow-hidden bg-linear-to-b from-stone-950 via-stone-900 to-stone-950 text-white py-20 sm:py-20 rounded-3xl">
-      {/* Decorative elements */}
-      <div className="absolute top-[10%] left-[5%] size-120 rounded-full bg-rose-500/10 blur-[120px]" />
-      <div className="absolute bottom-[10%] right-[5%] size-100 rounded-full bg-amber-500/8 blur-[100px]" />
+    <section className="px-4 py-24 sm:px-6 sm:py-32 lg:px-8 lg:py-36">
+      <div className="mx-auto max-w-7xl">
+        <motion.div
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.25 }}
+          variants={stagger}
+          className="relative overflow-hidden rounded-3xl bg-stone-950 px-6 py-20 text-center sm:px-10 sm:py-24 lg:py-28"
+        >
+          {/* Background image */}
+          <div className="absolute inset-0 overflow-hidden rounded-3xl">
+            <Image
+              src="/images/boxes.jpg"
+              alt=""
+              fill
+              sizes="(max-width: 1280px) 100vw, 1280px"
+              className="object-cover object-center opacity-15"
+            />
+          </div>
 
-      {/* Concentric rings */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-160 rounded-full border border-dashed border-white/4" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-md h-112 rounded-full border border-dashed border-white/6" />
 
-      <div className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6 sm:space-y-8">
-        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight">
-          Begin Your Free Trial
-          <br />
-          <span className="bg-linear-to-r from-rose-400 to-amber-400 bg-clip-text text-transparent">Today</span>
-        </h2>
-        <p className="text-base sm:text-lg text-white/50 max-w-xl mx-auto leading-relaxed">
-          Join thousands of businesses already sourcing smarter. No credit card required — start with 5 free product links.
-        </p>
-        <div className="flex gap-3 sm:gap-4 justify-center flex-wrap">
-          <Link href="/auth/signup">
-            <Button variant="primary" size="lg">Get Started Free</Button>
-          </Link>
-          <Link href="/contact">
-            <button className="px-7 py-3 text-base font-semibold rounded-xl border border-white/15 text-white hover:bg-white/5 transition-all duration-300 cursor-pointer">
-              Talk to Sales
-            </button>
-          </Link>
-        </div>
+          {/* Content */}
+          <div className="relative z-10 mx-auto max-w-2xl">
+
+            <motion.h2
+              variants={fadeUp}
+              className="mt-6 text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl bg-linear-to-r from-rose-400 via-orange-400 to-amber-400 bg-clip-text text-transparent"
+            >
+                Ready to shop the world?
+            </motion.h2>
+
+            <motion.p
+              variants={fadeUp}
+              className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-white/65 sm:text-lg"
+            >
+              Join thousands of Ghanaians already shopping globally. No hidden fees, no forex stress.
+            </motion.p>
+
+            {/* CTAs */}
+            <motion.div
+              variants={fadeUp}
+              className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-4"
+            >
+              <Link href="/auth/signup">
+                <Button variant="primary" size="lg" className="h-12 px-7 text-base">
+                  Create Free Account
+                  <HiArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </Link>
+            </motion.div>
+          </div>
+        </motion.div>
       </div>
-    </div>
     </section>
   );
 }

@@ -101,10 +101,10 @@ enabled = true
 # Port to use for the email testing server web interface.
 port = 54324
 # Uncomment to expose additional ports for testing user applications that send emails.
-# smtp_port = 54325
-# pop3_port = 54326
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+smtp_port = 54325
+pop3_port = 54326
+admin_email = "admin@email.com"
+sender_name = "Admin"
 
 [storage]
 enabled = true
@@ -217,14 +217,14 @@ otp_length = 6
 otp_expiry = 3600
 
 # Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.resend.com"
-# port = 465
-# user = "resend"
-# pass = "env(RESEND_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Tomame"
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "env(RESEND_EMAIL_FROM)"
+sender_name = "Tomame"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
