@@ -1,11 +1,21 @@
-import { LandingPageBlogSection, LandingPageCTASection, LandingPageFAQSection, LandingPageFeaturesSection, LandingPageNewHeroSection, LandingPageProcessSteps, LandingPageSupportedPlatforms, LandingPageTestimonialsSection, LandingPageValueSection } from '@/components/landing';
-import { getGhsRate } from '@/lib/exchange-rates/service';
-import { DEFAULT_FX_BUFFER_PCT } from '@/config/pricing';
+import {
+  LandingPageBlogSection,
+  LandingPageCTASection,
+  LandingPageFAQSection,
+  LandingPageFeaturesSection,
+  LandingPageNewHeroSection,
+  LandingPageProcessSteps,
+  LandingPageSupportedPlatforms,
+  LandingPageTestimonialsSection,
+  LandingPageValueSection,
+} from "@/components/marketing";
+import { getGhsRate } from "@/lib/exchange-rates/service";
+import { DEFAULT_FX_BUFFER_PCT } from "@/config/pricing";
 
 export const revalidate = 14400; // 4 hours
 
 export default async function HomePage() {
-  const midMarketRate = await getGhsRate('USD');
+  const midMarketRate = await getGhsRate("USD");
   const usdToGhs = midMarketRate
     ? midMarketRate * (1 + DEFAULT_FX_BUFFER_PCT)
     : 14.5; // Fallback for marketing display only
@@ -16,7 +26,7 @@ export default async function HomePage() {
       <LandingPageSupportedPlatforms />
       <LandingPageFeaturesSection />
       <LandingPageProcessSteps />
-      <LandingPageValueSection /> 
+      <LandingPageValueSection />
       <LandingPageTestimonialsSection />
       <LandingPageBlogSection />
       <LandingPageFAQSection />

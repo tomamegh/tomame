@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, type Variants } from 'motion/react';
 import { ArrowRight, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { FAQAccordion, type FAQItem } from '@/components/landing/faq-accordion';
+import { FAQAccordion, type FAQItem } from '@/components/marketing/faq-accordion';
 
 type Category = {
   slug: string;

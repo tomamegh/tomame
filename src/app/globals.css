@@ -139,7 +139,6 @@
   }
 }
 
-
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -299,6 +298,24 @@
 
   --animate-earth: earth 8s linear infinite;
 
+  --color-invert-foreground: var(--invert-foreground);
+
+  --color-invert: var(--invert);
+
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-warning: var(--warning);
+
+  --color-info-foreground: var(--info-foreground);
+
+  --color-info: var(--info);
+
+  --color-success-foreground: var(--success-foreground);
+
+  --color-success: var(--success);
+
+  --color-destructive-foreground: var(--destructive-foreground);
+
   @keyframes earth {
     0% {
       transform: rotateY(0deg);
@@ -342,6 +359,15 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --destructive-foreground: var(--color-red-800);
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-900);
+  --info: var(--color-violet-500);
+  --info-foreground: var(--color-violet-900);
+  --warning: var(--color-yellow-500);
+  --warning-foreground: var(--color-yellow-900);
+  --invert: var(--color-zinc-900);
+  --invert-foreground: var(--color-zinc-50);
 }
 
 .dark {
@@ -376,4 +402,13 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --destructive-foreground: var(--color-red-600);
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-600);
+  --info: var(--color-violet-500);
+  --info-foreground: var(--color-violet-600);
+  --warning: var(--color-yellow-500);
+  --warning-foreground: var(--color-yellow-600);
+  --invert: var(--color-zinc-700);
+  --invert-foreground: var(--color-zinc-50);
 }
