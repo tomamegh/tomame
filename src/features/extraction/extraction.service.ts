@@ -10,10 +10,13 @@ const CACHE_TTL_MINUTES = 30;
 const DOMAIN_COUNTRY_MAP: Record<string, "USA" | "UK" | "CHINA"> = {
   // Amazon — US only for now
   "amazon.com": "USA",
+  "a.co": "USA",        // Amazon short URL — resolves to amazon.com
   // Future: "amazon.co.uk": "UK", "amazon.ca": "USA", "amazon.de": "UK", etc.
 
   "ebay.com": "USA",
   "ebay.co.uk": "UK",
+  "ebay.us": "USA",     // eBay short URL — resolves to ebay.com
+  "ebay.to": "USA",     // eBay short URL — resolves to ebay.com
   "microcenter.com": "USA",
   "walmart.com": "USA",
   "target.com": "USA",
@@ -108,10 +111,18 @@ async function setCachedExtraction(
       .select("id")
       .single();
 
-    if (error || !data) return null;
+    if (error || !data) {
+      logger.warn("extraction cache write failed", {
+        code: error?.code,
+        message: error?.message,
+        hint: error?.hint,
+        details: error?.details,
+      });
+      return null;
+    }
     return data.id as string;
   } catch (err) {
-    logger.warn("extraction cache write failed", { error: err });
+    logger.warn("extraction cache write exception", { error: err instanceof Error ? err.message : err });
     return null;
   }
 }
@@ -126,14 +137,25 @@ export interface ExtractionResponse extends ExtractionResult {
  * Resolve a short URL (e.g. a.co) to its final destination so we can
  * determine the actual domain for country mapping.
  */
+const BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
 async function resolveShortUrl(shortUrl: string): Promise<string> {
+  const headers = { "User-Agent": BROWSER_UA };
   try {
     const res = await fetch(shortUrl, {
       method: "HEAD",
+      headers,
       redirect: "follow",
       signal: AbortSignal.timeout(10_000),
     });
-    return res.url || shortUrl;
+    if (res.url && res.url !== shortUrl) return res.url;
+    // HEAD blocked — retry with GET
+    const res2 = await fetch(shortUrl, {
+      headers,
+      redirect: "follow",
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res2.url || shortUrl;
   } catch {
     return shortUrl;
   }
@@ -230,11 +252,10 @@ async function performExtraction(url: string, userId: string, urlHash: string): 
       fetched_at: new Date().toISOString(),
     };
 
-    // Only cache successful extractions
-    let cacheId: string | null = null;
-    if (extractionSuccess) {
-      cacheId = await setCachedExtraction(userId, urlHash, url, result);
-    }
+    // Cache all extraction attempts — the review page handles partial/failed data
+    // gracefully. Skipping the cache when extraction_success=false was causing the
+    // Review button to silently do nothing (no cache ID = no navigation target).
+    const cacheId = await setCachedExtraction(userId, urlHash, url, result);
 
     return { ...result, extraction_cache_id: cacheId };
   } catch (err) {

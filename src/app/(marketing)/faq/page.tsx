@@ -318,7 +318,7 @@ export default function FAQPage() {
                   href="https://wa.me/233000000000"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-5 text-sm font-semibold text-white/90 backdrop-blur-md transition-colors hover:bg-white/10 hover:text-white sm:text-base"
+                  className="inline-flex h-11 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 text-sm font-semibold text-white/90 backdrop-blur-md transition-colors hover:bg-white/10 hover:text-white sm:text-base"
                 >
                   <MessageCircle className="h-4 w-4" />
                   WhatsApp

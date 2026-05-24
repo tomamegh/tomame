@@ -19,7 +19,11 @@
       "Bash(curl -s -o public/images/shopping.jpg \"https://images.unsplash.com/photo-1758876202400-64edbefc2256?w=1200&auto=format&fit=crop&q=80\")",
       "Bash(curl -s -o public/images/boxes.jpg \"https://images.unsplash.com/photo-1769355104335-acef3aa4c9b6?w=1200&auto=format&fit=crop&q=80\")",
       "Bash(curl -s -o public/images/mobile-pay.jpg \"https://images.unsplash.com/photo-1530698060343-ae5da1a26d7f?w=1200&auto=format&fit=crop&q=80\")",
-      "Bash(curl -s -o public/images/delivery.jpg \"https://images.unsplash.com/photo-1449247666642-264389f5f5b1?w=1200&auto=format&fit=crop&q=80\")"
+      "Bash(curl -s -o public/images/delivery.jpg \"https://images.unsplash.com/photo-1449247666642-264389f5f5b1?w=1200&auto=format&fit=crop&q=80\")",
+      "Bash(npx shadcn@latest add drawer --yes)",
+      "Bash(npm exec *)",
+      "Bash(which node *)",
+      "Read(//usr/local/lib/**)"
     ]
   }
 }

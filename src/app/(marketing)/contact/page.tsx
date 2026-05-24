@@ -106,33 +106,30 @@ export default function ContactPage() {
 
       {/* B. Contact Methods */}
       <section className="relative bg-white py-16 sm:py-20">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.04]"
-          style={GRID_TEXTURE}
-          aria-hidden="true"
-        />
         <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden"
             whileInView="show"
             viewport={{ once: true, amount: 0.25 }}
             variants={stagger}
-            className="grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-3"
+            className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-3"
           >
             {CONTACT_METHODS.map((method) => (
               <motion.article
                 key={method.title}
                 variants={fadeUp}
-                className="group relative overflow-hidden rounded-3xl border border-stone-200 bg-white p-7 transition-all duration-500 hover:-translate-y-1 hover:border-stone-300 hover:shadow-[0_24px_60px_-24px_rgba(120,113,108,0.25)]"
+                className="group flex items-start gap-4 rounded-2xl border border-stone-100 bg-stone-50 p-6 transition-all duration-300 hover:border-rose-100 hover:bg-rose-50/40"
               >
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700 transition-colors duration-500 group-hover:border-rose-200 group-hover:text-rose-500">
-                  <method.icon className="h-5 w-5" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 shadow-sm transition-colors duration-300 group-hover:border-rose-200 group-hover:text-rose-500">
+                  <method.icon className="h-4.5 w-4.5" />
                 </div>
-                <h3 className="mt-6 text-sm font-semibold uppercase tracking-[0.14em] text-stone-500">
-                  {method.title}
-                </h3>
-                <p className="mt-2 text-lg font-bold text-stone-900">{method.value}</p>
-                <p className="mt-2 text-sm leading-relaxed text-stone-500">{method.desc}</p>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
+                    {method.title}
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-stone-900">{method.value}</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-stone-500">{method.desc}</p>
+                </div>
               </motion.article>
             ))}
           </motion.div>

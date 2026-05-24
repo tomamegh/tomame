@@ -18,6 +18,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { toast } from "@/lib/sonner";
 
 type Step = "extracting" | "error" | "preview";
 
@@ -67,7 +68,6 @@ function ExtractionSkeleton() {
 
 function ExtractionError({
   message,
-  url,
   onRetry,
 }: {
   message: string | null;
@@ -77,24 +77,33 @@ function ExtractionError({
   return (
     <div className="space-y-4 fade-in">
       <Card>
-        <CardContent className="flex flex-col items-center text-center space-y-4 py-10">
+        <CardContent className="flex flex-col items-center text-center space-y-5 py-10">
           <div className="size-14 rounded-full bg-destructive/10 flex items-center justify-center">
             <AlertCircleIcon className="size-7 text-destructive" />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <h3 className="text-lg font-bold text-stone-800">
-              Extraction failed
+              Failed to fetch product information
             </h3>
             <p className="text-sm text-stone-500 max-w-sm">
-              {message ?? "We couldn't read this product page."}
+              We couldn&apos;t read this product page. Check the tips below and try again.
             </p>
-            {url && (
-              <p className="text-xs text-stone-400 mt-1 break-all max-w-xs mx-auto">
-                {url}
-              </p>
-            )}
           </div>
-          <div className="flex items-center gap-3 pt-2">
+          <ul className="text-left text-sm text-stone-500 space-y-1.5 bg-stone-50 rounded-xl px-5 py-4 w-full max-w-sm">
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 size-1.5 rounded-full bg-stone-300 shrink-0 mt-2" />
+              Make sure the link points directly to a product page, not a search or category page.
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="size-1.5 rounded-full bg-stone-300 shrink-0 mt-2" />
+              The product must be from a supported store — Amazon, eBay, SHEIN, or Microcenter.
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="size-1.5 rounded-full bg-stone-300 shrink-0 mt-2" />
+              Copy the link directly from your browser&apos;s address bar for best results.
+            </li>
+          </ul>
+          <div className="flex items-center gap-3 pt-1">
             <Button variant="outline" onClick={onRetry} className="gap-1.5">
               <ArrowLeftIcon className="size-3.5" />
               Try another URL
@@ -109,7 +118,7 @@ function ExtractionError({
 function PageHeader({ step }: { step: Step }) {
   const labels: Record<Step, string> = {
     extracting: "Extracting Product",
-    error: "Extraction Failed",
+    error: "Product Fetch Failed",
     preview: "Product Preview",
   };
 
@@ -189,6 +198,11 @@ function NewOrderContent() {
             const cacheId = extractionResult.extraction_cache_id;
             if (cacheId) {
               router.push(`/app/orders/review/${cacheId}`);
+            } else {
+              toast.error({
+                title: "Could not save product",
+                description: "There was a problem saving the extraction. Please try again.",
+              });
             }
           }}
           onReset={() => router.push("/app")}

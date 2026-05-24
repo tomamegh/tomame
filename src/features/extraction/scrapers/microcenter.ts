@@ -4,6 +4,7 @@ import { PlatformScraper, type ScrapedProduct } from "./types";
 import { browserlessClient } from "@/lib/browserless/client";
 import { TomameCategory, MICROCENTER_CATEGORY_MAP } from "@/config/categories";
 import { logger } from "@/lib/logger";
+import { scrapeMicrocenterWithApify, type ApifyMicrocenterProduct } from "@/lib/apify/client";
 
 type JsonLdNode = Record<string, unknown>;
 
@@ -205,6 +206,50 @@ function mapCategory(
   return null;
 }
 
+function mapApifyToScrapedProduct(item: ApifyMicrocenterProduct): ScrapedProduct {
+  const specs: Record<string, string> = {};
+  if (Array.isArray(item.specifications)) {
+    for (const s of item.specifications) {
+      if (s?.name && s?.value) specs[s.name] = String(s.value);
+    }
+  } else if (item.specifications && typeof item.specifications === "object") {
+    for (const [k, v] of Object.entries(item.specifications)) {
+      if (k && v != null) specs[k] = String(v);
+    }
+  }
+
+  let category: TomameCategory | null = null;
+  if (item.category) {
+    category = MICROCENTER_CATEGORY_MAP.get(item.category) ?? TomameCategory.OTHER;
+  }
+
+  const images = (item.images ?? []).filter((u): u is string => typeof u === "string");
+  const price = typeof item.price === "number" && Number.isFinite(item.price) ? item.price : null;
+
+  return {
+    title: item.product_name ?? null,
+    image: images[0] ?? null,
+    price,
+    currency: price != null ? "USD" : null,
+    description: item.description ?? null,
+    brand: item.brand ?? null,
+    category,
+    size: specs["Size"] ?? null,
+    weight: extractWeight(specs),
+    dimensions: extractDimensions(specs),
+    specifications: specs,
+    metadata: {
+      images,
+      sku: item.sku ?? null,
+      availability: item.availability ?? null,
+      storeLocation: item.store_location ?? null,
+      storeInventory: item.store_inventory ?? null,
+      originalPrice: item.original_price ?? null,
+      source: "apify",
+    },
+  };
+}
+
 export class MicrocenterScraper extends PlatformScraper {
   public readonly domains = ["microcenter.com"];
 
@@ -224,11 +269,11 @@ export class MicrocenterScraper extends PlatformScraper {
   public async scrape(url: string): Promise<ScrapedProduct> {
     const cleanedUrl = MicrocenterScraper.cleanUrl(url);
 
-    // Micro Center sits behind Cloudflare. /chromium/unblock is purpose-built
-    // for bot-protected pages and returns a simpler SSR variant with full
-    // JSON-LD Product data (name, image array, brand, price in offers).
-    // Occasionally the response is truncated (~5KB head-only, no body) or
-    // returns a 500, so retry with jitter between attempts.
+    const apifyResult = await scrapeMicrocenterWithApify(cleanedUrl);
+    if (apifyResult) return mapApifyToScrapedProduct(apifyResult);
+
+    logger.warn("microcenter: apify returned no result, falling back to browserless", { url: cleanedUrl });
+
     const MAX_ATTEMPTS = 3;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       const result = await this.browserless.unblockContent(cleanedUrl, 30000);
@@ -238,28 +283,24 @@ export class MicrocenterScraper extends PlatformScraper {
         return this.extract($);
       }
 
-      logger.warn("microcenter fetch did not return product page", {
+      logger.warn("microcenter: browserless fallback did not return product page", {
         url: cleanedUrl,
         attempt,
         error: result.error,
         htmlLength: result.html?.length ?? 0,
       });
 
-      // Small jitter before retry so parallel callers don't hammer in sync
       if (attempt < MAX_ATTEMPTS) {
         const delay = 500 + Math.floor(Math.random() * 1000);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
 
-    throw new Error("Failed to fetch Micro Center product page after retries");
+    throw new Error("Failed to fetch Micro Center product page via Apify and Browserless");
   }
 
-  /** Detect whether a response contains a real product page (not a CF challenge or partial error page). */
   private static looksLikeProductPage(html: string): boolean {
-    // Product JSON-LD in any formatting (with or without whitespace/newlines)
     if (/"@type"\s*:\s*"Product"/.test(html)) return true;
-    // Older/alternate layout still uses the ProductLink_* span
     if (html.includes("ProductLink_")) return true;
     return false;
   }
