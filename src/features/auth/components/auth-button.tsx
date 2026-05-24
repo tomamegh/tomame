@@ -13,6 +13,7 @@ import {
   ShieldUserIcon,
   UserRoundIcon,
   UserCogIcon,
+  ChevronDownIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -25,11 +26,7 @@ async function NavbarAuthButton({ user }: { user?: JwtPayload }) {
   return user ? (
     <DropdownMenu>
       <DropdownMenuTrigger asChild className="max-md:ml-auto">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="rounded-full border border-neutral-300"
-        >
+        <Button variant="ghost" className="gap-2">
           <Avatar>
             <AvatarImage
               src={user.user_metadata?.avatar_url || undefined}
@@ -39,21 +36,26 @@ async function NavbarAuthButton({ user }: { user?: JwtPayload }) {
               <UserRoundIcon />
             </AvatarFallback>
           </Avatar>
-          {/* <span className="font-normal text-sm">{user.email}</span> */}
           {/* <ChevronDown className="w-4 h-4 opacity-50" /> */}
+          {user?.user_metadata?.name && (
+            <span className="font-normal text-sm">
+              {user.user_metadata?.name?.split(" ")[0]}
+            </span>
+          )}
+          <ChevronDownIcon className=" text-stone-300" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
           {canAccessAdmin(user) && (
             <DropdownMenuGroup>
-            <DropdownMenuItem>
-              <Link href={"/admin"} className="flex items-center gap-2">
-                <ShieldUserIcon className="stroke-stone-800" />
-                Admin
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <Link href={"/admin"} className="flex items-center gap-2">
+                  <ShieldUserIcon className="stroke-stone-800" />
+                  Admin
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
             </DropdownMenuGroup>
           )}
           <DropdownMenuItem>
