@@ -28,9 +28,9 @@ export default async function DashboardNavbar() {
   const user = data?.claims;
   const isAdmin = user ? canAccessAdmin(user) : false;
 
-  const fullName = user?.user_metadata?.name || user?.email?.split("@")[0] || "Samuel";
-  const firstName = fullName.split(" ")[0];
-  const initial = firstName.charAt(0).toUpperCase();
+  const fullName = user?.user_metadata?.name || user?.email?.split("@")[0] || "";
+  const firstName = fullName.split(" ")[0] || "User";
+  const initial = firstName.charAt(0).toUpperCase() || "U";
 
   return (
     <nav className="sticky top-0 z-50 bg-white border-b border-stone-100 shadow-[0_1px_8px_rgba(0,0,0,0.02)] h-16 w-full">

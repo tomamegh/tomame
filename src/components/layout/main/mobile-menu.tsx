@@ -34,8 +34,8 @@ type Props = {
 
 const ACCOUNT_LINKS = [
   { href: "/app", label: "Dashboard", icon: LayoutGridIcon },
-  { href: "/app/account", label: "My Account", icon: UserCogIcon },
   { href: "/app/orders", label: "My Orders", icon: PackageSearchIcon },
+  { href: "/app/account", label: "My Account", icon: UserCogIcon },
 ];
 
 export default function MobileMenu({ links, user, isAdmin }: Props) {

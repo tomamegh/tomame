@@ -1,51 +1,107 @@
 "use client";
 
+import { useRef, useEffect } from "react";
 import Image from "next/image";
-import { motion } from "motion/react";
+import Link from "next/link";
+import { useAnimationFrame, useReducedMotion } from "motion/react";
+import { SUPPORTED_STORES } from "@/config/ui";
 
-const LOGOS = [
-  { src: "/icons/Amazon.svg", alt: "Amazon", className: "h-10 w-auto sm:h-12" },
-  { src: "/icons/ebay.svg", alt: "eBay", className: "h-10 w-auto sm:h-12" },
-];
+const GAP = 24; // px between items
+const SPEED = 55; // px per second
 
 export default function LandingPageSupportedPlatforms() {
-  return (
-    <section className="border-t border-stone-100 bg-white py-12 sm:py-14">
-      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.4 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="flex flex-col items-center gap-10 sm:gap-12"
-        >
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-400">
-            Supported platforms
-          </p>
-          <div className="flex items-center justify-center gap-14 sm:gap-20 lg:gap-24">
-            {LOGOS.map((logo) => (
-              <div
-                key={logo.alt}
-                className="flex items-center justify-center opacity-45 grayscale transition-all duration-300 hover:opacity-100 hover:grayscale-0"
-              >
-                <Image
-                  src={logo.src}
-                  alt={logo.alt}
-                  width={120}
-                  height={48}
-                  className={logo.className}
-                />
-              </div>
-            ))}
+  const prefersReducedMotion = useReducedMotion();
+  const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  const posRef = useRef<number[]>([]);
+  const readyRef = useRef(false);
 
-            {/* SHEIN — no logo file, use styled wordmark */}
-            <div className="flex items-center justify-center opacity-45 grayscale transition-all duration-300 hover:opacity-100 hover:grayscale-0">
-              <span className="text-3xl font-black tracking-[0.12em] text-stone-900 sm:text-4xl">
-                SHEIN
-              </span>
-            </div>
-          </div>
-        </motion.div>
+  useEffect(() => {
+    const items = itemRefs.current.filter(Boolean) as HTMLAnchorElement[];
+    if (!items.length) return;
+
+    // Space items left-to-right with a fixed gap
+    let x = 0;
+    posRef.current = items.map((el) => {
+      const pos = x;
+      el.style.transform = `translateX(${pos}px)`;
+      x += el.offsetWidth + GAP;
+      return pos;
+    });
+
+    readyRef.current = true;
+  }, []);
+
+  useAnimationFrame((_, delta) => {
+    if (!readyRef.current || prefersReducedMotion) return;
+
+    const items = itemRefs.current.filter(Boolean) as HTMLAnchorElement[];
+    const move = (SPEED * delta) / 1000;
+
+    // Capture rightmost right-edge before any recycling this frame
+    let rightEdge = Math.max(
+      ...posRef.current.map((p, i) => p + (items[i]?.offsetWidth ?? 0))
+    );
+
+    posRef.current = posRef.current.map((pos, i) => {
+      const w = items[i]?.offsetWidth ?? 0;
+      const next = pos - move;
+
+      if (next + w < 0) {
+        // Item has fully exited left — place it after the current tail
+        const recycled = rightEdge + GAP;
+        rightEdge = recycled + w; // advance tail for any other exits this frame
+        items[i]!.style.transform = `translateX(${recycled}px)`;
+        return recycled;
+      }
+
+      items[i]!.style.transform = `translateX(${next}px)`;
+      return next;
+    });
+  });
+
+  return (
+    <section className="bg-white py-12 sm:py-14">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <p className="mb-6 text-center text-xs font-semibold uppercase tracking-widest text-stone-400">
+          Supported platforms
+        </p>
+
+        <div className="relative h-12 overflow-hidden">
+          <div
+            className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-linear-to-r from-white to-transparent"
+            aria-hidden="true"
+          />
+          <div
+            className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-linear-to-l from-white to-transparent"
+            aria-hidden="true"
+          />
+
+          {SUPPORTED_STORES.map((store, i) => (
+            <Link
+              key={store.id}
+              ref={(el) => { itemRefs.current[i] = el; }}
+              href={store.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Visit ${store.name}`}
+              className="absolute top-0 flex h-12 items-center justify-center rounded-xl border border-stone-100 bg-white px-5 opacity-50 grayscale shadow-sm transition-[opacity,filter,box-shadow] duration-300 hover:border-stone-200 hover:opacity-100 hover:grayscale-0 hover:shadow-md"
+            >
+              {store.logo ? (
+                <Image
+                  src={store.logo}
+                  alt={store.name}
+                  width={72}
+                  height={24}
+                  className="h-6 w-auto object-contain"
+                />
+              ) : (
+                <span className={`whitespace-nowrap text-sm font-bold ${store.textClassName}`}>
+                  {store.name}
+                </span>
+              )}
+            </Link>
+          ))}
+        </div>
       </div>
     </section>
   );

@@ -1,25 +1,34 @@
 "use client";
-
-import { useRouter } from "next/navigation";
 import { useOrders } from "@/features/orders/hooks";
-import { HeroSection } from "./_components/hero-section";
-import { StatsRow } from "./_components/stats-row";
+import { HeroSection } from "@/features/orders/components/hero-section";
+import { StatsRow } from "@/features/orders/components/stats-row";
 import { OrdersList } from "@/features/orders/components";
+import Link from "next/link";
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const { data: orders=[], isPending, error } = useOrders();
+  const { data: orders = [], isPending, error } = useOrders();
 
   return (
     <div className="space-y-16 pb-16">
       <HeroSection
-        onSubmit={(url) =>
-          router.push(`/app/orders/new?url=${encodeURIComponent(url)}`)
-        }
+
       />
       <StatsRow orders={orders} isLoading={isPending} />
       {/* <RecentOrders orders={orders} isLoading={isPending} error={error} /> */}
+        <div className="space-y-4">
+        <div className="flex items-center justify-between">
+        <h2 className="text-lg font-medium tracking-tight text-stone-800">
+          Recent Orders
+        </h2>
+        <Link
+          href="/app/orders"
+          className="text-sm font-medium text-orange-500 hover:text-orange-600"
+        >
+          View all
+        </Link>
+      </div>
       <OrdersList orders={orders} isLoading={isPending} error={error} />
+        </div>
     </div>
   );
 }

@@ -22,6 +22,7 @@ export default function SiteFooter() {
           <div>
             <h4 className="text-stone-200 font-semibold mb-4">Company</h4>
             <ul className="space-y-2 text-sm">
+              <li><Link href="/" className="hover:text-stone-200 transition-colors duration-200">Home</Link></li>
               <li><Link href="/about" className="hover:text-stone-200 transition-colors duration-200">About</Link></li>
               <li><Link href="/blog" className="hover:text-stone-200 transition-colors duration-200">Blog</Link></li>
               <li><Link href="/careers" className="hover:text-stone-200 transition-colors duration-200">Careers</Link></li>

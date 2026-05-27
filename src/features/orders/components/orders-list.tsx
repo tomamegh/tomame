@@ -1,6 +1,6 @@
 "use client";
 
-import { OrderCard } from "./order-card";
+import { MobileOrderCard, OrderCard } from "./order-card";
 import {
   Empty,
   EmptyContent,
@@ -30,7 +30,6 @@ export function OrdersList({
   error,
   triggerFunction,
 }: OrdersListProps) {
-
   if (isLoading) {
     return (
       <Empty className="w-full">
@@ -91,9 +90,16 @@ export function OrdersList({
   }
 
   return (
-    <div className="divide-y divide-stone-100 space-y-3">
+    <div className="space-y-3">
       {(variant === "all" ? orders : orders.slice(0, 3)).map((order) => (
-        <OrderCard key={order.id} order={order} variant="detailed" />
+        <div key={order.id}>
+          <div className="lg:hidden">
+            <MobileOrderCard order={order} />
+          </div>
+          <div className="hidden lg:block">
+            <OrderCard order={order} variant="detailed" />
+          </div>
+        </div>
       ))}
     </div>
   );

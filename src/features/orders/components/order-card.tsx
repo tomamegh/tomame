@@ -37,6 +37,7 @@ import {
   StepperTitle,
 } from "@/components/reui/stepper";
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
 
 type BrandConfig = {
   pill: string;
@@ -332,60 +333,51 @@ export function DetailedVariant({ order }: OrderRowProps) {
   });
 
   return (
-    <article className="flex flex-col gap-4 rounded-2xl border border-stone-100/60 bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.01)] transition-shadow hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] xl:flex-row xl:items-center">
+    <Card className="flex flex-col gap-4 rounded-2xl border-2 border-neutral-100 bg-white p-5 transition-shadow lg:flex-row md:items-center">
       {/* Product info */}
-      <div className="flex min-w-0 flex-1 items-start gap-4">
-        <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-stone-100 bg-stone-50 p-1">
-          {order.product_image_url ? (
-            <img
-              src={order.product_image_url}
-              alt={order.product_name}
-              className="h-full w-full rounded-lg object-contain"
-            />
-          ) : (
+      <div className="shrink-0 flex items-center justify-center size-20 overflow-hidden">
+        {order?.product_image_url ? (
+          <Image
+            width={64}
+            height={64}
+            src={order.product_image_url}
+            alt={order.product_name}
+            className="h-full w-full rounded-lg object-contain"
+          />
+        ) : (
+          <div className="p-1 size-full flex flex-col items-center justify-center rounded-lg border border-stone-100 bg-stone-50">
             <ShoppingBagIcon
               className="size-6 text-stone-300"
               aria-hidden="true"
             />
-          )}
+          </div>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${brand.pill}`}
+          >
+            {platform}
+          </span>
         </div>
 
-        <div className="min-w-0 space-y-1.5">
-          <div className="flex items-center gap-2">
-            {brand.icon && (
-              <div className="flex size-6 shrink-0 items-center justify-center rounded-full border border-stone-100 bg-white p-1 shadow-xs">
-                <Image
-                  src={brand.icon}
-                  alt={platform}
-                  width={14}
-                  height={14}
-                  className="object-contain"
-                />
-              </div>
-            )}
-            <span
-              className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${brand.pill}`}
-            >
-              {platform}
-            </span>
-          </div>
+        <h3 className="line-clamp-2 text-[13.5px] font-bold leading-tight text-stone-900">
+          {order.product_name}
+        </h3>
 
-          <h3 className="line-clamp-2 text-[13.5px] font-bold leading-tight text-stone-900">
-            {order.product_name}
-          </h3>
-
-          <div className="flex items-center justify-between gap-2 pt-0.5">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-[11px] text-stone-400">{dateStr}</span>
-              <span className="text-[11px] text-stone-300" aria-hidden="true">
-                ·
-              </span>
-              <OrderStatusBadge status={order.status} />
-            </div>
-            <span className="text-[12px] font-bold text-stone-900 xl:hidden">
-              GHS {total}
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-[11px] text-stone-400">{dateStr}</span>
+            <span className="text-[11px] text-stone-300" aria-hidden="true">
+              ·
             </span>
+            <OrderStatusBadge status={order.status} />
           </div>
+          <span className="text-[12px] font-bold text-stone-900 xl:hidden">
+            GHS {total}
+          </span>
         </div>
       </div>
 
@@ -400,7 +392,7 @@ export function DetailedVariant({ order }: OrderRowProps) {
       </div>
 
       {/* Progress stepper */}
-      <div className="min-w-0 flex-1 xl:max-w-sm xl:px-4 hidden md:block">
+      <div className="shrink-0 min-w-0 flex-1 xl:max-w-sm xl:px-4 hidden md:block">
         <ProgressStepper activeStep={activeStep} brand={brand} />
       </div>
 
@@ -442,8 +434,76 @@ export function DetailedVariant({ order }: OrderRowProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </article>
+    </Card>
   );
+}
+
+function MobileVariant({ order }: OrderRowProps) {
+  const platform = getPlatformLabel(order);
+  const brand = getBrandConfig(platform);
+
+  const dateStr = DATE_FORMATTER.format(new Date(order.created_at));
+  const total = (
+    order.admin_total_ghs ??
+    order.pricing?.total_ghs ??
+    0
+  ).toLocaleString("en-GH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  return (
+    <Link
+      href={`/app/orders/${order.id}`}
+      className="flex items-center gap-4 rounded-2xl border border-stone-100 bg-white p-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.04)] transition-all active:scale-[0.985] active:bg-stone-50"
+    >
+      {/* Image */}
+      <div className="shrink-0 flex size-14 h-full items-center justify-center overflow-hidden">
+        {order.product_image_url ? (
+          <Image
+            src={order.product_image_url}
+            alt={order.product_name}
+            width={56}
+            height={56}
+            className="h-full w-full object-contain rounded-lg"
+          />
+        ) : (
+          <div className="p-1 flex-1 size-full flex flex-col items-center justify-center rounded-lg border border-stone-100 bg-stone-50">
+            <ShoppingBagIcon
+              className="size-6 text-stone-300"
+              aria-hidden="true"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${brand.pill}`}>
+            {platform}
+          </span>
+          <span className="shrink-0 text-[12px] font-bold text-stone-900">
+            GHS {total}
+          </span>
+        </div>
+        <p className="line-clamp-1 text-[13px] font-semibold leading-snug text-stone-900">
+          {order.product_name}
+        </p>
+        <div className="flex items-center gap-2">
+          <OrderStatusBadge status={order.status} />
+          <span className="text-[10px] text-stone-400">{dateStr}</span>
+        </div>
+      </div>
+
+      {/* Chevron */}
+      <ArrowRightIcon className="shrink-0 size-4 text-stone-300" aria-hidden="true" />
+    </Link>
+  );
+}
+
+export function MobileOrderCard({ order }: OrderRowProps) {
+  return <MobileVariant order={order} />;
 }
 
 export function OrderCard({ order, variant = "default" }: OrderCardProps) {
