@@ -70,7 +70,7 @@ export default function AboutPage() {
   return (
     <main className="bg-white">
       {/* A. Hero Band */}
-      <section className="relative min-h-[60vh] w-full overflow-hidden bg-stone-950">
+      <section className="relative min-h-[60vh] w-full overflow-hidden bg-stone-950 shadow-[0_4px_24px_rgba(0,0,0,0.18)]">
         <Image
           src="/images/warehouse.jpg"
           alt=""

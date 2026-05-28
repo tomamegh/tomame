@@ -6,25 +6,32 @@ import Link from "next/link";
 import { useAnimationFrame, useReducedMotion } from "motion/react";
 import { SUPPORTED_STORES } from "@/config/ui";
 
-const GAP = 24; // px between items
-const SPEED = 55; // px per second
+const SPEED = 50; // px per second
 
 export default function LandingPageSupportedPlatforms() {
   const prefersReducedMotion = useReducedMotion();
+  const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const posRef = useRef<number[]>([]);
+  const stepRef = useRef(0);
   const readyRef = useRef(false);
 
   useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
     const items = itemRefs.current.filter(Boolean) as HTMLAnchorElement[];
     if (!items.length) return;
 
-    // Space items left-to-right with a fixed gap
-    let x = 0;
-    posRef.current = items.map((el) => {
-      const pos = x;
-      el.style.transform = `translateX(${pos}px)`;
-      x += el.offsetWidth + GAP;
+    // Space items evenly across the full container width.
+    // step == gap between item starts, so items always fill the container
+    // and recycling one item to (maxPos + step) lands it exactly one slot
+    // past the current tail — seamless loop with any number of items.
+    const step = container.offsetWidth / items.length;
+    stepRef.current = step;
+
+    posRef.current = items.map((_, i) => {
+      const pos = i * step;
+      items[i]!.style.transform = `translateX(${pos}px)`;
       return pos;
     });
 
@@ -36,20 +43,19 @@ export default function LandingPageSupportedPlatforms() {
 
     const items = itemRefs.current.filter(Boolean) as HTMLAnchorElement[];
     const move = (SPEED * delta) / 1000;
+    const step = stepRef.current;
 
-    // Capture rightmost right-edge before any recycling this frame
-    let rightEdge = Math.max(
-      ...posRef.current.map((p, i) => p + (items[i]?.offsetWidth ?? 0))
-    );
+    // Snapshot max position before any recycling this frame
+    let maxPos = Math.max(...posRef.current);
 
     posRef.current = posRef.current.map((pos, i) => {
       const w = items[i]?.offsetWidth ?? 0;
       const next = pos - move;
 
       if (next + w < 0) {
-        // Item has fully exited left — place it after the current tail
-        const recycled = rightEdge + GAP;
-        rightEdge = recycled + w; // advance tail for any other exits this frame
+        // Fully exited left — recycle to one step past the current tail
+        const recycled = maxPos + step;
+        maxPos = recycled; // advance tail for any other exits this same frame
         items[i]!.style.transform = `translateX(${recycled}px)`;
         return recycled;
       }
@@ -66,7 +72,7 @@ export default function LandingPageSupportedPlatforms() {
           Supported platforms
         </p>
 
-        <div className="relative h-12 overflow-hidden">
+        <div className="relative h-12 overflow-hidden" ref={containerRef}>
           <div
             className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-linear-to-r from-white to-transparent"
             aria-hidden="true"
@@ -76,7 +82,7 @@ export default function LandingPageSupportedPlatforms() {
             aria-hidden="true"
           />
 
-          {SUPPORTED_STORES.map((store, i) => (
+          {[...SUPPORTED_STORES, ...SUPPORTED_STORES].map((store, i) => (
             <Link
               key={store.id}
               ref={(el) => { itemRefs.current[i] = el; }}

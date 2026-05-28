@@ -115,7 +115,7 @@ export default function HeroGridSection({ usdToGhs }: HeroGridSectionProps) {
                     type="url"
                     inputMode="url"
                     autoComplete="off"
-                    placeholder="Paste a product URL from Amazon, eBay or SHEIN"
+                    placeholder="Paste a product link…"
                     aria-invalid={errors.product_url ? "true" : "false"}
                     aria-describedby={
                       errors.product_url

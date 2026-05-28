@@ -23,7 +23,18 @@
       "Bash(npx shadcn@latest add drawer --yes)",
       "Bash(npm exec *)",
       "Bash(which node *)",
-      "Read(//usr/local/lib/**)"
+      "Read(//usr/local/lib/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(netstat -tlnp)",
+      "Bash(npx --yes playwright --version)",
+      "Bash(mkdir -p /tmp/screenshots)",
+      "Bash(google-chrome --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --screenshot=/tmp/screenshots/home-desktop.png \"http://localhost:3000\")",
+      "Read(//tmp/screenshots/**)",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(curl -sv http://localhost:3000/)",
+      "Bash(pnpm build *)",
+      "Bash(curl -s \"http://localhost:3000/\")",
+      "Bash(google-chrome --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --run-all-compositor-stages-before-draw --virtual-time-budget=3000 --screenshot=/tmp/screenshots/home-desktop.png http://localhost:3000)"
     ]
   }
 }

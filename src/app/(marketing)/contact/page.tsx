@@ -66,7 +66,7 @@ export default function ContactPage() {
   return (
     <main className="bg-white">
       {/* A. Page Header */}
-      <section className="relative overflow-hidden bg-stone-950 py-20 sm:py-28">
+      <section className="relative overflow-hidden bg-stone-950 py-20 sm:py-28 shadow-[0_4px_24px_rgba(0,0,0,0.18)]">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.04]"
           style={DARK_GRID_TEXTURE}

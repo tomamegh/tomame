@@ -149,7 +149,7 @@ export default function FAQPage() {
   return (
     <>
       {/* Dark editorial header */}
-      <section className="relative overflow-hidden bg-stone-950 py-20 sm:py-24">
+      <section className="relative overflow-hidden bg-stone-950 py-20 sm:py-24 shadow-[0_4px_24px_rgba(0,0,0,0.18)]">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.04]"
           style={{
@@ -218,7 +218,7 @@ export default function FAQPage() {
                   </ul>
 
                   {/* Mobile horizontal scroll nav */}
-                  <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden">
+                  <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {CATEGORIES.map((cat) => {
                       const isActive = activeSlug === cat.slug;
                       return (
