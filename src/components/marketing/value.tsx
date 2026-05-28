@@ -30,7 +30,7 @@ const VALUE_PROPS: ValueProp[] = [
       'One-tap order placement with Mobile Money',
     ],
     ctaLabel: 'Start sourcing',
-    ctaHref: '/auth/signup',
+    ctaHref: '/app',
   },
   {
     title: 'Built for the way Ghanaians actually shop',

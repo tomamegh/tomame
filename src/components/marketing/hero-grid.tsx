@@ -79,13 +79,13 @@ export default function HeroGridSection({ usdToGhs }: HeroGridSectionProps) {
             </div>
 
             {/* Headline */}
-            <h1 className="text-4xl font-black leading-[1.05] tracking-tight text-stone-950 sm:text-5xl lg:text-6xl">
-              Shop the world.
+            <motion.h1 className="text-[2.7rem] sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.06] text-stone-900">
+              Shop the World.
               <br />
-              <span className="text-transparent bg-clip-text bg-linear-to-r from-orange-500 to-rose-500 overflow-hidden">
-                Pay in cedis.
+              <span className="bg-linear-to-r from-rose-500 via-orange-400 to-amber-400 bg-clip-text text-transparent">
+                Pay in Ghana.
               </span>
-            </h1>
+            </motion.h1>
 
             {/* Subtext */}
             <p className="max-w-xl text-base leading-relaxed text-stone-600 sm:text-lg">
@@ -132,7 +132,7 @@ export default function HeroGridSection({ usdToGhs }: HeroGridSectionProps) {
                   type="submit"
                   disabled={isSubmitting}
                   aria-busy={isSubmitting}
-                  className="h-12 w-full rounded-full sm:w-auto sm:rounded-full bg-linear-to-br from-amber-500 to-rose-500 px-6 text-sm font-semibold text-white shadow-[0_2px_8px_-1px_rgba(255,92,53,0.35)] hover:opacity-95 active:scale-[0.98] transition-all"
+                  className="h-12 w-full rounded-full sm:w-auto sm:rounded-full bg-linear-to-r from-amber-500 to-rose-500 px-6 text-sm font-semibold text-white shadow-[0_2px_8px_-1px_rgba(255,92,53,0.35)] hover:opacity-95 active:scale-[0.98] transition-all"
                 >
                   {isSubmitting ? (
                     <Spinner className="size-4" />

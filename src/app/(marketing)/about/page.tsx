@@ -350,7 +350,7 @@ export default function AboutPage() {
             />
 
             <motion.div variants={fadeUp} className="mt-10">
-              <Link href="/auth/signup">
+              <Link href="/app">
                 <Button variant="primary" size="lg" className="h-12 px-7 text-base">
                   Start shopping today
                   <ArrowRight className="ml-1 h-4 w-4" />
