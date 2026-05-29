@@ -31,9 +31,11 @@ export default function SiteFooter() {
           <div>
             <h4 className="text-stone-200 font-semibold mb-4">Legal</h4>
             <ul className="space-y-2 text-sm">
-              <li><Link href="/privacy" className="hover:text-stone-200 transition-colors duration-200">Privacy</Link></li>
-              <li><Link href="/terms" className="hover:text-stone-200 transition-colors duration-200">Terms</Link></li>
-              <li><Link href="/contact" className="hover:text-stone-200 transition-colors duration-200">Contact</Link></li>
+              <li><Link href="/policies#privacy" className="hover:text-stone-200 transition-colors duration-200">Privacy Policy</Link></li>
+              <li><Link href="/policies#terms" className="hover:text-stone-200 transition-colors duration-200">Terms of Service</Link></li>
+              <li><Link href="/policies#shipping" className="hover:text-stone-200 transition-colors duration-200">Shipping Policy</Link></li>
+              <li><Link href="/policies#returns" className="hover:text-stone-200 transition-colors duration-200">Returns & Refunds</Link></li>
+              <li><Link href="/policies#payment" className="hover:text-stone-200 transition-colors duration-200">Payment Policy</Link></li>
             </ul>
           </div>
         </div>

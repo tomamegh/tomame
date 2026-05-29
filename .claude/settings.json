@@ -34,7 +34,16 @@
       "Bash(curl -sv http://localhost:3000/)",
       "Bash(pnpm build *)",
       "Bash(curl -s \"http://localhost:3000/\")",
-      "Bash(google-chrome --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --run-all-compositor-stages-before-draw --virtual-time-budget=3000 --screenshot=/tmp/screenshots/home-desktop.png http://localhost:3000)"
+      "Bash(google-chrome --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --run-all-compositor-stages-before-draw --virtual-time-budget=3000 --screenshot=/tmp/screenshots/home-desktop.png http://localhost:3000)",
+      "Bash(mkdir -p /home/browny/Workspace/tomame/src/app/\\\\\\(marketing\\\\\\)/policies)",
+      "Bash(bun add *)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(supabase status *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(bun --version)"
+    ],
+    "additionalDirectories": [
+      "/home/browny/Workspace/tomame/src/app/(marketing)"
     ]
   }
 }

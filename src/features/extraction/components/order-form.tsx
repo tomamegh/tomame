@@ -55,6 +55,18 @@ function buildReviewReasons(data: ExtractionResult): string[] {
   return reasons;
 }
 
+function normalizeImageUrl(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined;
+  // Protocol-relative URL — browsers handle it but z.url() requires a scheme
+  const url = raw.startsWith("//") ? `https:${raw}` : raw;
+  try {
+    new URL(url);
+    return url;
+  } catch {
+    return undefined;
+  }
+}
+
 function parsePriceValue(value: string | number | null): number {
   if (typeof value === "number" && !isNaN(value) && value > 0) return value;
   if (typeof value === "string") {
@@ -81,7 +93,7 @@ export function OrderForm({
     defaultValues: {
       product_url: productUrl,
       product_name: product.title ?? "",
-      product_image_url: product.image ?? undefined,
+      product_image_url: normalizeImageUrl(product.image),
       estimated_price_usd: parsePriceValue(product.price),
       quantity: 1,
       origin_country: "USA",
