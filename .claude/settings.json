@@ -40,10 +40,16 @@
       "Bash(echo \"exit:$?\")",
       "Bash(supabase status *)",
       "Bash(grep -v \"^$\")",
-      "Bash(bun --version)"
+      "Bash(bun --version)",
+      "Bash(git rm *)",
+      "Bash(git filter-branch *)",
+      "Bash(git stash *)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --index-filter 'git rm --cached --ignore-unmatch .vscode/mcp.json' -- a6191841b6d127938d64e039ab4d1478598ac0d4^..HEAD)",
+      "Bash(grep -v *)"
     ],
     "additionalDirectories": [
-      "/home/browny/Workspace/tomame/src/app/(marketing)"
+      "/home/browny/Workspace/tomame/src/app/(marketing)",
+      "/tmp"
     ]
   }
 }
