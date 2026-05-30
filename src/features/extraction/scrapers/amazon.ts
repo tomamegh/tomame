@@ -5,8 +5,6 @@ import { browserlessClient } from "@/lib/browserless/client";
 import { TomameCategory, AMAZON_CATEGORY_MAP } from "@/config/categories";
 import { scrapeAmazonWithApify, type ApifyAmazonProduct } from "@/lib/apify/client";
 
-import { logger } from "@/lib/logger";
-
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
   const t = el.text().trim();
@@ -79,28 +77,23 @@ function extractAllImages($: CheerioAPI): string[] {
 function extractSelectedSize($: CheerioAPI): string | null {
   const selected = text($, "#native_dropdown_selected_size_name option[selected]");
   if (selected && selected !== "Select") return selected;
-
   const swatchSelected = $(".swatchSelect .a-button-text").first().text().trim();
   if (swatchSelected) return swatchSelected;
-
   return null;
 }
 
 function extractAvailableSizes($: CheerioAPI): string[] {
   const sizes: string[] = [];
-
   $("#native_dropdown_selected_size_name option").each((_, el) => {
     const val = $(el).text().trim();
     if (val && val !== "Select") sizes.push(val);
   });
-
   if (sizes.length === 0) {
     $("#variation_size_name .a-button-text").each((_, el) => {
       const val = $(el).text().trim();
       if (val) sizes.push(val);
     });
   }
-
   return sizes;
 }
 
@@ -144,7 +137,6 @@ function extractDescription($: CheerioAPI): string | null {
     if (t) bullets.push(t);
   });
   if (bullets.length > 0) return bullets.join("\n");
-
   return text($, "#productDescription p") ?? text($, "#productDescription");
 }
 
@@ -153,7 +145,6 @@ function extractBrand($: CheerioAPI): string | null {
 }
 
 function extractCategory($: CheerioAPI): TomameCategory | null {
-  // Try multiple breadcrumb selectors — Amazon varies HTML across layouts
   const breadcrumbSelectors = [
     "#wayfinding-breadcrumbs_feature_div ul li:first-child a",
     "#wayfinding-breadcrumbs_feature_div ul li a",
@@ -171,14 +162,12 @@ function extractCategory($: CheerioAPI): TomameCategory | null {
     }
   }
 
-  // Check the department nav dropdown (shows "Automotive Parts & Accessories" etc.)
   const deptText = $("#searchDropdownBox option[selected]").text().trim();
   if (deptText) {
     const mapped = AMAZON_CATEGORY_MAP.get(deptText);
     if (mapped) return mapped;
   }
 
-  // Check any breadcrumb text we found, even if not in the map
   const firstBreadcrumb = $(breadcrumbSelectors[0]!).text().trim();
   if (firstBreadcrumb) return TomameCategory.OTHER;
 
@@ -201,10 +190,8 @@ function extractDimensions(specs: Record<string, string>): string | null {
 
 function mapApifyToScrapedProduct(item: ApifyAmazonProduct): ScrapedProduct {
   const price = item.price ?? null;
-  // axesso actor scrapes via amazon.com domain — always USD
   const currency = "USD";
 
-  // Convert productDetails array [{name, value}] to Record<string, string>
   const specs: Record<string, string> = {};
   if (item.productDetails) {
     for (const detail of item.productDetails) {
@@ -212,14 +199,12 @@ function mapApifyToScrapedProduct(item: ApifyAmazonProduct): ScrapedProduct {
     }
   }
 
-  // Extract brand from manufacturer field (e.g. "Visit the GOOACC Store" → "GOOACC")
   let brand: string | null = specs["Brand"] ?? null;
   if (!brand && item.manufacturer) {
     const match = item.manufacturer.match(/(?:Visit the |Brand:\s*)(.+?)(?:\s+Store)?$/i);
     brand = match?.[1]?.trim() ?? item.manufacturer;
   }
 
-  // Map breadcrumbs to category (if present), otherwise try productDetails
   let category: TomameCategory | null = null;
   if (item.breadcrumbs && item.breadcrumbs.length > 0) {
     for (const crumb of item.breadcrumbs) {
@@ -229,15 +214,14 @@ function mapApifyToScrapedProduct(item: ApifyAmazonProduct): ScrapedProduct {
       }
     }
   }
-  // Fallback: check Best Sellers Rank for category hints
   if (!category) {
     const bsr = specs["Best Sellers Rank"];
     if (bsr) {
       for (const [key, mapped] of AMAZON_CATEGORY_MAP) {
         if (bsr.includes(key)) { category = mapped; break; }
       }
+      if (!category) category = TomameCategory.OTHER;
     }
-    if (!category && bsr) category = TomameCategory.OTHER;
   }
 
   const images = item.imageUrlList ?? [];
@@ -266,88 +250,42 @@ function mapApifyToScrapedProduct(item: ApifyAmazonProduct): ScrapedProduct {
 }
 
 export class AmazonScraper extends PlatformScraper {
-  /**
-   * Strip Amazon search/session params — only the /dp/ASIN path matters.
-   * Keeps the URL clean and avoids anti-bot triggers from tracking params.
-   */
+  public readonly domains = [
+    "amazon.com",
+    "a.co",
+  ];
+
   private static cleanUrl(raw: string): string {
     try {
       const u = new URL(raw);
-      // Short URLs (a.co) must be passed as-is — they redirect
       if (u.hostname === "a.co") return raw;
-
-      // Extract ASIN from /dp/XXXX path segment
       const dpMatch = u.pathname.match(/\/dp\/([A-Z0-9]{10})/i);
-      if (dpMatch) {
-        // Rebuild with just the product path, no query params
-        return `${u.origin}/dp/${dpMatch[1]}`;
-      }
-      // Fallback: keep path, drop query params
+      if (dpMatch) return `${u.origin}/dp/${dpMatch[1]}`;
       return `${u.origin}${u.pathname}`;
     } catch {
       return raw;
     }
   }
-  public readonly domains = [
-    "amazon.com",
-    "a.co", // Amazon short URL (mobile app sharing, resolves to amazon.com)
-    // Future: "amazon.co.uk", "amazon.ca", "amazon.de", etc.
-  ];
 
-  private static readonly FETCH_HEADERS = {
-    "User-Agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Accept":
-      "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Cache-Control": "no-cache",
-    "Pragma": "no-cache",
-  };
+  private static readonly BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-  /**
-   * Resolve a short URL (a.co) to its final destination without downloading the body.
-   */
   private async resolveShortUrl(shortUrl: string): Promise<string | null> {
+    const headers = { "User-Agent": AmazonScraper.BROWSER_UA };
     try {
       const res = await fetch(shortUrl, {
         method: "HEAD",
-        headers: AmazonScraper.FETCH_HEADERS,
+        headers,
         redirect: "follow",
         signal: AbortSignal.timeout(10000),
       });
-      // After redirect, res.url is the final destination
-      return res.url || null;
-    } catch {
-      // HEAD might be blocked — try GET with redirect follow
-      try {
-        const res = await fetch(shortUrl, {
-          headers: AmazonScraper.FETCH_HEADERS,
-          redirect: "follow",
-          signal: AbortSignal.timeout(10000),
-        });
-        return res.url || null;
-      } catch {
-        return null;
-      }
-    }
-  }
-
-  /**
-   * Fetch a product page via direct HTTP with browser-like headers.
-   * Amazon serves SSR HTML — no JS rendering needed for product data.
-   */
-  private async directFetch(url: string): Promise<string | null> {
-    try {
-      const res = await fetch(url, {
-        headers: AmazonScraper.FETCH_HEADERS,
+      if (res.url && res.url !== shortUrl) return res.url;
+      // HEAD blocked — retry with GET
+      const res2 = await fetch(shortUrl, {
+        headers,
         redirect: "follow",
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok) return null;
-      const html = await res.text();
-      if (html.includes("productTitle")) return html;
-      return null;
+      return res2.url || null;
     } catch {
       return null;
     }
@@ -356,33 +294,18 @@ export class AmazonScraper extends PlatformScraper {
   public async scrape(url: string): Promise<ScrapedProduct> {
     let productUrl = url;
 
-    // Step 1: Resolve short URL to full product URL
     if (new URL(url).hostname === "a.co") {
       const resolved = await this.resolveShortUrl(url);
-      if (!resolved) {
-        throw new Error("Failed to resolve short URL");
-      }
+      if (!resolved) throw new Error("Failed to resolve short URL");
       productUrl = resolved;
     }
 
-    // Step 2: Clean the URL (strip tracking params, keep /dp/ASIN)
     const cleanedUrl = AmazonScraper.cleanUrl(productUrl);
 
-    // Step 3: Direct HTTP fetch
-    const html = await this.directFetch(cleanedUrl);
-    if (html) {
-      const $ = cheerio.load(html);
-      return this.extract($);
-    }
+    const result = await scrapeAmazonWithApify(cleanedUrl);
+    if (result) return mapApifyToScrapedProduct(result);
 
-    // Step 4: Fallback to Apify when direct fetch fails (e.g. Amazon blocking)
-    logger.warn("direct fetch failed, falling back to Apify", { url: cleanedUrl });
-    const apifyResult = await scrapeAmazonWithApify(cleanedUrl);
-    if (apifyResult) {
-      return mapApifyToScrapedProduct(apifyResult);
-    }
-
-    throw new Error("Failed to fetch product page (direct fetch and Apify both failed)");
+    throw new Error("Failed to fetch Amazon product page via Apify");
   }
 
   public extract($: CheerioAPI): ScrapedProduct {
@@ -414,5 +337,4 @@ export class AmazonScraper extends PlatformScraper {
   }
 }
 
-/** Singleton instance for direct use / tests */
 export const amazonScraper = new AmazonScraper(browserlessClient);

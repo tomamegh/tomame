@@ -4,6 +4,7 @@
 import {
   Command,
   CreditCardIcon,
+  FileTextIcon,
   LayoutGridIcon,
   LifeBuoy,
   Send,
@@ -61,6 +62,11 @@ const NAV_LIST: Array<{ label?: string; links: LinkItem[] }> = [
         title: "Users",
         url: "/admin/users",
         icon: UsersRoundIcon,
+      },
+      {
+        title: "Policies",
+        url: "/admin/policies",
+        icon: FileTextIcon,
       },
       {
         title: "Settings",

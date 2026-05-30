@@ -2,10 +2,8 @@ import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import { PlatformScraper, type ScrapedProduct } from "./types";
 import { browserlessClient } from "@/lib/browserless/client";
-import { scrapingbeeClient } from "@/lib/scrapingbee/client";
 import { TomameCategory, SHEIN_CATEGORY_MAP } from "@/config/categories";
 import { scrapeSheinWithApify, type ApifySheinProduct } from "@/lib/apify/client";
-import { logger } from "@/lib/logger";
 
 type JsonLdNode = Record<string, unknown>;
 
@@ -15,7 +13,6 @@ function text($: CheerioAPI, selector: string): string | null {
   return t || null;
 }
 
-/** Collect all <script type="application/ld+json"> blocks as parsed objects. */
 function parseJsonLd($: CheerioAPI): JsonLdNode[] {
   const nodes: JsonLdNode[] = [];
   $("script[type='application/ld+json']").each((_, el) => {
@@ -52,7 +49,6 @@ function findByType(nodes: JsonLdNode[], type: string): JsonLdNode | null {
 }
 
 function extractGoodsIdFromUrl(url: string): string | null {
-  // SHEIN URLs: /<slug>-p-<goodsId>-cat-<catId>.html or /<slug>-p-<goodsId>.html
   try {
     const u = new URL(url);
     const m = u.pathname.match(/-p-(\d+)(?:-cat-\d+)?\.html/i);
@@ -64,14 +60,12 @@ function extractGoodsIdFromUrl(url: string): string | null {
 }
 
 function extractGoodsId($: CheerioAPI): string | null {
-  // Try canonical URL / og:url first — they always carry the canonical /-p-<id>.html
   const canonical = $("link[rel='canonical']").attr("href")
     ?? $("meta[property='og:url']").attr("content");
   if (canonical) {
     const fromUrl = extractGoodsIdFromUrl(canonical);
     if (fromUrl) return fromUrl;
   }
-  // <meta itemprop="productID"> / og:product:retailer_item_id fallbacks
   const meta = $("meta[itemprop='productID']").attr("content")
     ?? $("meta[property='og:product:retailer_item_id']").attr("content")
     ?? $("meta[property='product:retailer_item_id']").attr("content");
@@ -87,7 +81,6 @@ function extractPriceFromOffers(product: JsonLdNode | null): { price: number | n
   const offers = product.offers;
   if (!offers || typeof offers !== "object") return { price: null, currency: null };
 
-  // offers can be an Offer or an AggregateOffer
   const node = (Array.isArray(offers) ? offers[0] : offers) as JsonLdNode;
   let price: number | null = null;
   const raw = node.price ?? node.lowPrice;
@@ -113,12 +106,10 @@ function extractImagesFromJsonLd(product: JsonLdNode | null): string[] {
 
 function extractGalleryImages($: CheerioAPI): string[] {
   const images: string[] = [];
-  // SHEIN gallery thumbnails
   $(".product-intro__thumbs img, .product-intro__main-img img, .gallery-img img, [class*='product-intro'] img")
     .each((_, el) => {
       const src = $(el).attr("data-src") ?? $(el).attr("src");
       if (!src) return;
-      // Strip query params that downsize the image; keep the canonical path
       const cleaned = src.split("?")[0] ?? src;
       if (cleaned && !images.includes(cleaned)) images.push(cleaned);
     });
@@ -156,7 +147,6 @@ function extractBrand(product: JsonLdNode | null, specs: Record<string, string>)
 function extractSpecifications($: CheerioAPI): Record<string, string> {
   const specs: Record<string, string> = {};
 
-  // SHEIN renders attributes as labelled rows under product details
   $(".product-intro__description-table-item, .product-intro__description tr, .product-attr-list li")
     .each((_, el) => {
       const $el = $(el);
@@ -167,7 +157,6 @@ function extractSpecifications($: CheerioAPI): Record<string, string> {
       if (label && value) specs[label] = value;
     });
 
-  // Definition list fallback
   $(".product-intro__description dl, .description-content dl").each((_, dl) => {
     $(dl).find("dt").each((_, dt) => {
       const key = $(dt).text().trim().replace(/:$/, "").trim();
@@ -180,7 +169,6 @@ function extractSpecifications($: CheerioAPI): Record<string, string> {
 }
 
 function extractCategoryFromBreadcrumb($: CheerioAPI, jsonLd: JsonLdNode[]): TomameCategory | null {
-  // Prefer JSON-LD BreadcrumbList for stable category names
   const breadcrumb = findByType(jsonLd, "BreadcrumbList");
   if (breadcrumb) {
     const items = breadcrumb.itemListElement;
@@ -193,7 +181,6 @@ function extractCategoryFromBreadcrumb($: CheerioAPI, jsonLd: JsonLdNode[]): Tom
           if (name && name !== "Home" && name !== "SHEIN") names.push(name);
         }
       }
-      // Walk shallowest → deepest; first match wins (top-level categories are most reliable)
       for (const n of names) {
         const mapped = SHEIN_CATEGORY_MAP.get(n);
         if (mapped) return mapped;
@@ -202,7 +189,6 @@ function extractCategoryFromBreadcrumb($: CheerioAPI, jsonLd: JsonLdNode[]): Tom
     }
   }
 
-  // HTML breadcrumb fallback
   const crumbs: string[] = [];
   $(".bread-crumbs a, .breadcrumb a, nav[aria-label='Breadcrumb'] a, [class*='breadcrumb'] a")
     .each((_, el) => {
@@ -246,9 +232,6 @@ function extractSelectedSize($: CheerioAPI): string | null {
   return text($, ".product-intro__size-radio.active, [class*='product-intro__size'].active, .size-list li.active");
 }
 
-/** SHEIN's CDN serves images over both http and https; the https variant works
- *  for every host we've seen. Force it so next/image (which only allows https
- *  hosts in next.config.ts) can render them without per-host whitelisting. */
 function toHttps(url: string | null | undefined): string | null {
   if (!url) return null;
   if (url.startsWith("//")) return `https:${url}`;
@@ -270,14 +253,11 @@ function priceUsd(p: unknown): number | null {
 }
 
 function mapApifyToScrapedProduct(item: ApifySheinProduct): ScrapedProduct {
-  // The seamless_coffer actor returns flat fields plus structured price/sizes.
-  // It does not return a generic specifications dict, so we synthesize one.
   const specs: Record<string, string> = {};
   if (item.brand) specs["Brand"] = item.brand;
   if (item.color) specs["Color"] = item.color;
   if (item.sku) specs["SKU"] = String(item.sku);
 
-  // Collect breadcrumb names from either string[] or {name,...}[]
   const crumbs: string[] = [];
   if (Array.isArray(item.breadcrumbs)) {
     for (const c of item.breadcrumbs) {
@@ -299,16 +279,12 @@ function mapApifyToScrapedProduct(item: ApifySheinProduct): ScrapedProduct {
   const images = (item.images ?? []).map((u) => toHttps(u)).filter((u): u is string => !!u);
   const mainImage = toHttps(item.main_image) ?? images[0] ?? null;
 
-  // Prefer USD-normalized sale price, fall back to retail (also USD-normalized)
   const price = priceUsd(item.sale_price) ?? priceUsd(item.retail_price);
   const currency = (item.sale_price?.currency ?? item.retail_price?.currency)
     ?? (price != null ? "USD" : null);
 
   const goodsId = item.goods_id ?? item.product_id ?? null;
 
-  const description = item.description ?? null;
-
-  // Available sizes — actor returns objects; pick the English name
   const availableSizes: string[] = [];
   if (Array.isArray(item.sizes)) {
     for (const s of item.sizes) {
@@ -316,7 +292,6 @@ function mapApifyToScrapedProduct(item: ApifySheinProduct): ScrapedProduct {
       if (name && !availableSizes.includes(name)) availableSizes.push(name);
     }
   }
-  // If only one size is offered, surface it as the selected size
   const size = availableSizes.length === 1 ? availableSizes[0]! : null;
 
   return {
@@ -324,7 +299,7 @@ function mapApifyToScrapedProduct(item: ApifySheinProduct): ScrapedProduct {
     image: mainImage,
     price,
     currency,
-    description,
+    description: item.description ?? null,
     brand: item.brand ?? null,
     category,
     size,
@@ -351,27 +326,9 @@ export class SheinScraper extends PlatformScraper {
     "shein.com",
     "us.shein.com",
     "m.shein.com",
-    // Future: "shein.co.uk", "uk.shein.com", "ca.shein.com", etc.
   ];
 
-  private static readonly FETCH_HEADERS = {
-    "User-Agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Accept":
-      "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Cache-Control": "no-cache",
-    "Pragma": "no-cache",
-  };
-
-  /**
-   * Keep /<slug>-p-<id>(-cat-<catId>).html — drop tracking/affiliate params.
-   * Pin the host to us.shein.com so locale stays English/USD regardless of
-   * which scraper tier services the request. The bare m.shein.com/www.shein.com
-   * hosts get geo-routed by SHEIN, which means Apify (Israel proxy) returns
-   * Hebrew titles/descriptions. us.shein.com forces the en-US variant.
-   */
+  // Pin to us.shein.com so locale stays English/USD regardless of scraper proxy region.
   private static cleanUrl(raw: string): string {
     try {
       const u = new URL(raw);
@@ -385,95 +342,20 @@ export class SheinScraper extends PlatformScraper {
     }
   }
 
-  /** Detect whether a response contains a real SHEIN product page (not bot challenge). */
-  private static looksLikeProductPage(html: string): boolean {
-    if (/"@type"\s*:\s*"Product"/.test(html)) return true;
-    if (html.includes("product-intro__head") || html.includes("productIntroData")) return true;
-    if (html.includes("og:product") || /property="product:/.test(html)) return true;
-    return false;
-  }
-
-  private async directFetch(url: string): Promise<string | null> {
-    try {
-      const res = await fetch(url, {
-        headers: SheinScraper.FETCH_HEADERS,
-        redirect: "follow",
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!res.ok) return null;
-      const html = await res.text();
-      if (SheinScraper.looksLikeProductPage(html)) return html;
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * ScrapingBee in stealth mode. SHEIN is a fully client-side SPA — every
-   * product URL serves the same homepage shell to non-browser UAs, with the
-   * product DOM rendered via JS after a headless-fingerprint check. stealth_proxy
-   * bypasses both the fingerprint check and the residential-proxy gate; it
-   * costs 75 credits/request and takes ~90-100s but returns the rendered DOM
-   * with JSON-LD Product, og:title, and product-intro markup.
-   *
-   * Returns null when SCRAPINGBEE_API_KEY isn't configured.
-   */
-  private async scrapingbeeFetch(url: string): Promise<string | null> {
-    const result = await scrapingbeeClient.scrapeContent({
-      url,
-      stealthProxy: true,
-      countryCode: "us",
-      timeout: 110000,
-    });
-    if (!result || !result.success || !result.html) return null;
-    if (SheinScraper.looksLikeProductPage(result.html)) return result.html;
-    return null;
-  }
-
   public async scrape(url: string): Promise<ScrapedProduct> {
     const cleanedUrl = SheinScraper.cleanUrl(url);
 
-    const parseAndEnrich = (html: string): ScrapedProduct => {
-      const $ = cheerio.load(html);
-      const product = this.extract($);
-      if (!product.metadata.goodsId) {
-        product.metadata.goodsId = extractGoodsIdFromUrl(cleanedUrl);
-      }
-      return product;
-    };
+    const result = await scrapeSheinWithApify(cleanedUrl);
+    if (result) return mapApifyToScrapedProduct(result);
 
-    // 1) Direct HTTP fetch — SHEIN almost always blocks datacenter IPs, but
-    //    cheap to try and occasionally returns the SSR HTML.
-    {
-      const html = await this.directFetch(cleanedUrl);
-      if (html) return parseAndEnrich(html);
-    }
-
-    // 2) ScrapingBee with residential proxies. Browserless tiers are skipped
-    //    because empirically SHEIN serves bot challenges to both /content
-    //    (stealth) and /chromium/unblock — burning 60-100s of route budget.
-    logger.warn("shein direct fetch failed, falling back to ScrapingBee", { url: cleanedUrl });
-    {
-      const html = await this.scrapingbeeFetch(cleanedUrl);
-      if (html) return parseAndEnrich(html);
-    }
-
-    // 3) Apify (premium proxy) — last resort, costs per result.
-    logger.warn("shein scrapingbee failed, falling back to Apify", { url: cleanedUrl });
-    const apifyResult = await scrapeSheinWithApify(cleanedUrl);
-    if (apifyResult) return mapApifyToScrapedProduct(apifyResult);
-
-    throw new Error("Failed to fetch SHEIN product page (direct, scrapingbee, and Apify all failed)");
+    throw new Error("Failed to fetch SHEIN product page via Apify");
   }
 
   public extract($: CheerioAPI): ScrapedProduct {
     const jsonLd = parseJsonLd($);
     const product = findByType(jsonLd, "Product");
-
     const { price, currency: ldCurrency } = extractPriceFromOffers(product);
 
-    // Currency fallback: og:product:price:currency / meta itemprop
     let currency = ldCurrency;
     if (!currency) {
       currency = $("meta[property='og:price:currency']").attr("content")?.trim()
@@ -482,7 +364,6 @@ export class SheinScraper extends PlatformScraper {
         ?? null;
     }
 
-    // Price fallback when JSON-LD doesn't carry it
     let finalPrice = price;
     if (finalPrice == null) {
       const ogPrice = $("meta[property='og:price:amount']").attr("content")
@@ -532,5 +413,4 @@ export class SheinScraper extends PlatformScraper {
   }
 }
 
-/** Singleton instance for direct use / tests */
 export const sheinScraper = new SheinScraper(browserlessClient);

@@ -1,4 +1,7 @@
 export { default as LandingPageHeroSection } from './hero';
+export { default as LandingPageNewHeroSection } from './new-hero';
+export { default as LandingPageHeroGridSection } from './hero-grid';
+export { default as LandingPageSupportedPlatforms } from './supported-platforms';
 export { default as LandingPageFeaturesSection } from './features';
 export { default as LandingPageValueSection } from './value';
 export { default as LandingPageTestimonialsSection } from './testimonials';

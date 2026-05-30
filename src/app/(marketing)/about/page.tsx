@@ -1,169 +1,366 @@
-"use client";
+'use client';
 
-import { Card, CardContent } from "@/components/ui/card";
-import { BlendIcon, GemIcon, GlobeIcon, RocketIcon, ShieldCheckIcon } from "lucide-react";
+import Image from 'next/image';
+import Link from 'next/link';
+import { motion, type Variants } from 'motion/react';
+import {
+  BlendIcon,
+  ZapIcon,
+  ShieldCheckIcon,
+  ArrowRight,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+const GRID_TEXTURE: React.CSSProperties = {
+  backgroundImage:
+    'linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px)',
+  backgroundSize: '32px 32px',
+};
+
+const DARK_GRID_TEXTURE: React.CSSProperties = {
+  backgroundImage:
+    'linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)',
+  backgroundSize: '32px 32px',
+};
+
+const stagger: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
+};
+
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } },
+};
+
+const HERO_STATS = [
+  { label: '5,000+ orders delivered' },
+  { label: '3 regions sourced' },
+  { label: 'Est. 2023' },
+  { label: 'Ghana-based team' },
+];
+
+const MICRO_STATS = [
+  { value: '5,000+', label: 'Orders' },
+  { value: '3', label: 'Regions (USA · UK · China)' },
+  { value: '14-day', label: 'Average delivery' },
+  { value: '100%', label: 'Transparent pricing' },
+];
+
+const VALUES = [
+  {
+    icon: BlendIcon,
+    title: 'Transparency',
+    description: 'Every fee explained before you pay. No surprises, ever.',
+  },
+  {
+    icon: ZapIcon,
+    title: 'Speed',
+    description: "Instant quotes. Rapid sourcing. We don't make you wait.",
+  },
+  {
+    icon: ShieldCheckIcon,
+    title: 'Trust',
+    description: 'Pre-payment only. Your money is safe before we source a single item.',
+  },
+];
+
 
 export default function AboutPage() {
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
-      <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-center mb-4 bg-linear-to-r from-rose-500 to-amber-500 bg-clip-text text-transparent">
-        About Tomame
-      </h1>
-      <p className="text-base sm:text-lg lg:text-xl text-stone-500 text-center mb-10 sm:mb-20 max-w-2xl mx-auto">
-        We&apos;re simplifying global commerce for businesses and entrepreneurs
-        worldwide.
-      </p>
+    <main className="bg-white">
+      {/* A. Hero Band */}
+      <section className="relative min-h-[60vh] w-full overflow-hidden bg-stone-950 shadow-[0_4px_24px_rgba(0,0,0,0.18)]">
+        <Image
+          src="/images/warehouse.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+        {/* Directional overlay */}
+        <div
+          className="absolute inset-0 bg-linear-to-b from-stone-950/80 via-stone-950/55 to-stone-950/80"
+          aria-hidden="true"
+        />
+        {/* Fine grid texture */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.04]"
+          style={DARK_GRID_TEXTURE}
+          aria-hidden="true"
+        />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-24">
-        <div className="space-y-6">
-          <h2 className="text-3xl font-bold text-stone-800">Our Mission</h2>
-          <p className="text-stone-500 leading-relaxed">
-            At Tomame, we believe that global commerce should be accessible to
-            everyone. We&apos;re removing friction from product sourcing by combining
-            intelligent data extraction, transparent pricing, and reliable
-            logistics.
-          </p>
-          <p className="text-stone-500 leading-relaxed">
-            Our platform connects you directly to millions of products globally,
-            eliminating middlemen and hidden costs.
-          </p>
+        <div className="relative z-10 mx-auto flex min-h-[60vh] w-full max-w-6xl flex-col items-center justify-center px-4 py-24 sm:px-6 lg:px-8">
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={stagger}
+            className="flex w-full flex-col items-center text-center"
+          >
+            <motion.span
+              variants={fadeUp}
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-white/80 backdrop-blur-md"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-400" aria-hidden="true" />
+              Our story
+            </motion.span>
+
+            <motion.h1
+              variants={fadeUp}
+              className="mt-6 max-w-3xl text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl"
+            >
+              Making global shopping accessible in Ghana
+            </motion.h1>
+
+            <motion.p
+              variants={fadeUp}
+              className="mt-5 max-w-xl text-base leading-relaxed text-white/70 sm:text-lg"
+            >
+              We bridge the gap between Ghanaian shoppers and the world&apos;s biggest stores —
+              with fair pricing, local payments, and reliable delivery.
+            </motion.p>
+
+            <motion.div
+              variants={fadeUp}
+              className="mt-10 flex flex-wrap items-center justify-center gap-2 sm:gap-3"
+            >
+              {HERO_STATS.map((stat) => (
+                <span
+                  key={stat.label}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3.5 py-1.5 text-xs font-medium text-white/80 backdrop-blur-md sm:text-sm"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />
+                  {stat.label}
+                </span>
+              ))}
+            </motion.div>
+          </motion.div>
         </div>
-        <Card className="h-fit dark-card">
-          <CardContent className="text-center py-12">
-            <div className="gradient-primary w-fit mx-auto p-2 mb-4 rounded-md"><GlobeIcon className="stroke-stone-200 size-12" /></div>
-            <h3 className="font-bold text-lg text-stone-200 mb-2">
-              Global Reach
-            </h3>
-            <p className="text-stone-500">
-              Supporting sourcing from 50+ countries with real-time pricing.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-16">
-        <Card className="h-fit dark-card">
-          <CardContent className="text-center py-12">
-            <div className="gradient-primary w-fit mx-auto p-2 mb-4 rounded-md hover:from"><GemIcon className="stroke-stone-200 size-12" /></div>
-            <h3 className="font-bold text-lg text-stone-200">
-              Quality First
-            </h3>
-            <p className="text-stone-400">
-              Only verified suppliers with excellent track records.
-            </p>
-          </CardContent>
-        </Card>
-        <div className="space-y-6">
-          <h2 className="text-3xl font-bold text-stone-800">Our Values</h2>
-          <ul className="space-y-4 text-stone-500">
-            <li className="flex gap-3">
-              <span className="text-2xl bg-stone-100 p-2 rounded-md"><BlendIcon /></span>
-              <div>
-                <h4 className="font-bold text-stone-800">Transparency</h4>
-                <p className="text-sm">Every cost itemized and explained</p>
+      {/* B. Mission */}
+      <section className="relative bg-white py-24 sm:py-28">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.04]"
+          style={GRID_TEXTURE}
+          aria-hidden="true"
+        />
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={stagger}
+            className="grid grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-16"
+          >
+            {/* Text + stats */}
+            <motion.div variants={fadeUp} className="space-y-8 lg:col-span-7">
+              <div className="border-l-4 border-rose-500 pl-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+                  Mission
+                </p>
+                <blockquote className="mt-4 text-3xl font-bold leading-tight text-stone-900 sm:text-4xl">
+                  We believe everyone in Ghana deserves access to global products at fair,
+                  transparent prices.
+                </blockquote>
               </div>
-            </li>
-            <li className="flex gap-3">
-              <span className="text-2xl bg-stone-100 p-2 rounded-md"><RocketIcon /></span>
-              <div>
-                <h4 className="font-bold text-stone-800">Speed</h4>
-                <p className="text-sm">
-                  Instant quotes and rapid order processing
+
+              <div className="space-y-5">
+                <p className="text-base leading-relaxed text-stone-600 sm:text-lg">
+                  Tomame removes friction from global shopping by combining instant price
+                  extraction, transparent fees, and reliable last-mile delivery — all paid for
+                  with Mobile Money or card in Ghana Cedis.
+                </p>
+                <p className="text-base leading-relaxed text-stone-600 sm:text-lg">
+                  Whether you&apos;re ordering one item or stocking a boutique, we sit between
+                  you and the global retailer so you never have to navigate forex, foreign
+                  checkout, or international shipping yourself.
                 </p>
               </div>
-            </li>
-            <li className="flex gap-3">
-              <span className="text-2xl bg-stone-100 p-2 rounded-md"><ShieldCheckIcon /></span>
-              <div>
-                <h4 className="font-bold text-stone-800">Security</h4>
-                <p className="text-sm">
-                  Enterprise-grade protection for your data
-                </p>
+
+              <div className="grid grid-cols-2 gap-3">
+                {MICRO_STATS.map((stat) => (
+                  <div
+                    key={stat.label}
+                    className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4"
+                  >
+                    <p className="text-xl font-bold text-stone-900 sm:text-2xl">{stat.value}</p>
+                    <p className="mt-1 text-xs text-stone-500 sm:text-sm">{stat.label}</p>
+                  </div>
+                ))}
               </div>
-            </li>
-          </ul>
+            </motion.div>
+
+            {/* Photo */}
+            <motion.div
+              variants={fadeUp}
+              className="relative hidden h-120 overflow-hidden rounded-3xl lg:col-span-5 lg:block"
+            >
+              <Image
+                src="/images/mobile-pay.jpg"
+                alt="Person shopping on mobile"
+                fill
+                sizes="(max-width: 1280px) 50vw, 400px"
+                className="object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-linear-to-t from-stone-900/30 to-transparent" />
+            </motion.div>
+          </motion.div>
         </div>
-      </div>
+      </section>
 
-      {/* Team Section */}
-      <h2 className="text-3xl font-bold text-center mb-12 text-stone-800">
-        Our Team
-      </h2>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
-        {[
-          {
-            name: "Alex Chen",
-            role: "Founder & CEO",
-            bio: "10+ years in supply chain tech",
-            avatar: "👨‍💼",
-          },
-          {
-            name: "Sofia Rodriguez",
-            role: "CTO",
-            bio: "Ex-Amazon logistics engineer",
-            avatar: "👩‍💻",
-          },
-          {
-            name: "James Park",
-            role: "Head of Operations",
-            bio: "Former Alibaba operations lead",
-            avatar: "👨‍💼",
-          },
-          {
-            name: "Emma Thompson",
-            role: "Customer Success",
-            bio: "Passionate about customer care",
-            avatar: "👩‍💼",
-          },
-        ].map((member) => (
-          <Card key={member.name} className="text-center">
-            <CardContent className="py-8">
-              <div className="text-5xl mb-4">{member.avatar}</div>
-              <h3 className="font-bold text-stone-800">{member.name}</h3>
-              <p className="text-sm font-semibold bg-gradient-to-r from-rose-500 to-amber-500 bg-clip-text text-transparent mb-2">
-                {member.role}
-              </p>
-              <p className="text-sm text-stone-500">{member.bio}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* C. Values */}
+      <section className="relative overflow-hidden bg-stone-50 py-24 sm:py-28">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.04]"
+          style={GRID_TEXTURE}
+          aria-hidden="true"
+        />
 
-      {/* Story Section */}
-      <Card variant="elevated" className="mb-16">
-        <CardContent className="py-12 space-y-6">
-          <h2 className="text-3xl font-bold text-stone-800">Our Story</h2>
-          <p className="text-stone-500 leading-relaxed">
-            Tomame was founded in 2023 when our team realized how cumbersome
-            global product sourcing had become. Entrepreneurs were wasting hours
-            extracting product data, calculating shipping, and managing orders
-            across multiple platforms.
-          </p>
-          <p className="text-stone-500 leading-relaxed">
-            We built Tomame to automate all of that. Now, thousands of
-            businesses use our platform to source products faster and cheaper
-            than ever before.
-          </p>
-        </CardContent>
-      </Card>
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={stagger}
+            className="mx-auto max-w-2xl text-center"
+          >
+            <motion.span
+              variants={fadeUp}
+              className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-stone-500"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" aria-hidden="true" />
+              Principles
+            </motion.span>
+            <motion.h2
+              variants={fadeUp}
+              className="mt-5 text-3xl font-bold tracking-tight text-stone-900 sm:text-4xl lg:text-5xl"
+            >
+              What we stand for
+            </motion.h2>
+            <motion.p
+              variants={fadeUp}
+              className="mt-4 text-base leading-relaxed text-stone-500 sm:text-lg"
+            >
+              Three principles that shape every decision we make — from how we price orders to
+              how we handle a delivery question on WhatsApp.
+            </motion.p>
+          </motion.div>
 
-      {/* Testimonials */}
-      <h2 className="text-3xl font-bold text-center mb-12 text-stone-800">
-        What Our Users Say
-      </h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[
-          '"Tomame saved us 20 hours per week. The data extraction alone is worth it." - Marcus L.',
-          '"Finally, a platform that doesn\'t hide fees. This is exactly what we needed." - Priya S.',
-          '"Customer support is incredible. They actually help solve real problems." - David M.',
-        ].map((testimonial, i) => (
-          <Card key={i} variant="gradient">
-            <CardContent className="py-8">
-              <p className="text-stone-500 italic">{testimonial}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, amount: 0.2 }}
+            variants={stagger}
+            className="mt-14 grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-3"
+          >
+            {VALUES.map((value) => (
+              <motion.article
+                key={value.title}
+                variants={fadeUp}
+                className="group relative overflow-hidden rounded-3xl border border-stone-200 bg-white p-7 transition-all duration-500 hover:-translate-y-1 hover:border-stone-300 hover:shadow-[0_24px_60px_-24px_rgba(120,113,108,0.25)]"
+              >
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700 transition-colors duration-500 group-hover:border-rose-200 group-hover:text-rose-500">
+                  <value.icon className="h-5 w-5" />
+                </div>
+                <h3 className="mt-6 text-lg font-bold text-stone-900">{value.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-stone-500">{value.description}</p>
+              </motion.article>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+
+
+      {/* D. Story */}
+      <section className="relative overflow-hidden py-24 sm:py-32">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.04]"
+          style={DARK_GRID_TEXTURE}
+          aria-hidden="true"
+        />
+
+        <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          {/* Photo strip */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="relative mb-16 h-64 overflow-hidden rounded-3xl sm:h-80"
+          >
+            <Image
+              src="/images/delivery.jpg"
+              alt="Package delivery"
+              fill
+              sizes="(max-width: 1280px) 100vw, 1024px"
+              className="object-cover object-center"
+            />
+            <div className="absolute inset-0 bg-linear-to-r from-stone-900/50 via-stone-900/20 to-stone-900/50" />
+          </motion.div>
+
+        <div className="mx-auto max-w-3xl">
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={stagger}
+            className="flex flex-col items-center text-center"
+          >
+            <motion.span
+              variants={fadeUp}
+              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] backdrop-blur-md"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-400" aria-hidden="true" />
+              Origins
+            </motion.span>
+
+            <motion.h2
+              variants={fadeUp}
+              className="mt-5 text-3xl font-bold tracking-tight text-stone-900 sm:text-4xl lg:text-5xl"
+            >
+              How Tomame started
+            </motion.h2>
+
+            <motion.p
+              variants={fadeUp}
+              className="mt-6 text-base leading-relaxed text-stone-700 sm:text-lg"
+            >
+              Tomame was founded in 2023 when our team kept hitting the same wall: friends and
+              family in Ghana wanted products from Amazon, ASOS, and Alibaba, but had no clean
+              way to pay in cedis, no transparent shipping cost, and no one accountable when an
+              order disappeared.
+            </motion.p>
+
+            <motion.p
+              variants={fadeUp}
+              className="mt-5 text-base leading-relaxed text-stone-700 sm:text-lg"
+            >
+              We built Tomame to be that accountable layer. Paste a link, see a fair price in
+              cedis, pay with Mobile Money, and let our team handle the rest — from purchase to
+              your doorstep.
+            </motion.p>
+
+            <motion.div
+              variants={fadeUp}
+              className="mt-12 h-px w-24 bg-linear-to-r from-transparent via-rose-500 to-transparent"
+              aria-hidden="true"
+            />
+
+            <motion.div variants={fadeUp} className="mt-10">
+              <Link href="/app">
+                <Button variant="primary" size="lg" className="h-12 px-7 text-base">
+                  Start shopping today
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </Link>
+            </motion.div>
+          </motion.div>
+        </div>
+        </div>
+      </section>
+    </main>
   );
 }
