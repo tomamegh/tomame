@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FieldValues, UseFormRegisterReturn } from 'react-hook-form';
+import { FieldValues } from 'react-hook-form';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -21,7 +21,7 @@ export const Input: React.FC<InputProps> = ({
       </label>
     )}
     <input
-      className={`w-full px-4 py-2.5 border rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-rose-400/30 focus:border-rose-300 soft-input ${
+      className={`w-full px-4 py-2.5 border rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-rose-400/30 focus:border-rose-300 soft-input ${
         error
           ? 'border-red-300 focus:ring-red-400/30'
           : 'border-stone-200/60 hover:border-stone-300'

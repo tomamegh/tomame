@@ -1,6 +1,6 @@
 "use client";
 
-import { OrderCard } from "./order-card";
+import { MobileOrderCard, OrderCard } from "./order-card";
 import {
   Empty,
   EmptyContent,
@@ -11,14 +11,26 @@ import {
 } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { Card, CardContent } from "@/components/ui/card";
-import { useOrders } from "../hooks";
 import { HandbagIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Order } from "../types";
 
-export function OrdersList({ variant = "all" }: { variant?: "all" | "recent" }) {
-  const { data, isPending, isFetching, error, refetch } = useOrders();
+interface OrdersListProps {
+  variant?: "all" | "recent";
+  orders: Order[];
+  isLoading?: boolean;
+  error?: Error | null;
+  triggerFunction?: () => void;
+}
 
-  if (isPending) {
+export function OrdersList({
+  variant = "all",
+  orders = [],
+  isLoading,
+  error,
+  triggerFunction,
+}: OrdersListProps) {
+  if (isLoading) {
     return (
       <Empty className="w-full">
         <EmptyHeader>
@@ -47,7 +59,7 @@ export function OrdersList({ variant = "all" }: { variant?: "all" | "recent" }) 
     );
   }
 
-  if (!data?.length) {
+  if (!orders?.length) {
     return (
       <Empty className="bg-white">
         <EmptyHeader>
@@ -65,10 +77,12 @@ export function OrdersList({ variant = "all" }: { variant?: "all" | "recent" }) 
             variant="primary"
             size="sm"
             className="px-5"
-            onClick={() => refetch()}
+            onClick={() => {
+              triggerFunction?.();
+            }}
           >
-            {isFetching && <Spinner />}
-            {isFetching ? "Refreshing..." : "Refresh"}
+            {isLoading && <Spinner />}
+            {isLoading ? "Refreshing..." : "Refresh"}
           </Button>
         </EmptyContent>
       </Empty>
@@ -76,9 +90,16 @@ export function OrdersList({ variant = "all" }: { variant?: "all" | "recent" }) 
   }
 
   return (
-    <div className="divide-y divide-stone-100 space-y-3">
-      {(variant === "all" ? data : data.slice(0, 3)).map((order) => (
-        <OrderCard key={order.id} order={order} />
+    <div className="space-y-3">
+      {(variant === "all" ? orders : orders.slice(0, 3)).map((order) => (
+        <div key={order.id}>
+          <div className="lg:hidden">
+            <MobileOrderCard order={order} />
+          </div>
+          <div className="hidden lg:block">
+            <OrderCard order={order} variant="detailed" />
+          </div>
+        </div>
       ))}
     </div>
   );

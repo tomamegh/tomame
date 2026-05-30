@@ -3,10 +3,9 @@ import { logger } from "@/lib/logger";
 
 const APIFY_BASE_URL = "https://api.apify.com/v2";
 const AMAZON_ACTOR_ID = "axesso_data~amazon-product-details-scraper";
-// Swap to whichever eBay actor you're subscribed to (Apify uses `~` between user and actor name).
 const EBAY_ACTOR_ID = "dtrungtin~ebay-items-scraper";
-// Swap to whichever SHEIN actor you're subscribed to.
 const SHEIN_ACTOR_ID = "seamless_coffer~shein-product-scraper";
+const MICROCENTER_ACTOR_ID = "fortuitous_pirate~microcenter-scraper";
 
 /** Timeout for the sync run (seconds) — Apify max is 300 */
 const RUN_TIMEOUT_SECONDS = 120;
@@ -296,6 +295,107 @@ export async function scrapeSheinWithApify(productUrl: string): Promise<ApifyShe
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     logger.error("apify: SHEIN exception during scrape", { url: productUrl, error: message });
+    return null;
+  }
+}
+
+/** Output shape from fortuitous_pirate/microcenter-scraper. */
+export interface ApifyMicrocenterProduct {
+  sku?: string;
+  product_name?: string;
+  brand?: string;
+  category?: string;
+  price?: number;
+  original_price?: number;
+  availability?: string;
+  store_location?: string;
+  store_inventory?: string;
+  product_url?: string;
+  /** Present when scrapeDetails=true — exact field names may vary */
+  description?: string;
+  images?: string[];
+  specifications?: Record<string, string> | Array<{ name?: string; value?: string }>;
+  [key: string]: unknown;
+}
+
+/**
+ * Run the Apify Microcenter scraper for a single product URL.
+ *
+ * The actor accepts a searchQuery rather than a direct product URL, so we
+ * extract the numeric product ID from the path and use it as the query
+ * (most precise match). Results are filtered by matching the ID back against
+ * each item's product_url.
+ */
+export async function scrapeMicrocenterWithApify(productUrl: string): Promise<ApifyMicrocenterProduct | null> {
+  const token = env.apify.apiToken;
+  const endpoint = `${APIFY_BASE_URL}/acts/${MICROCENTER_ACTOR_ID}/run-sync-get-dataset-items`;
+
+  // Extract numeric product ID from /product/<id>/<slug>
+  let searchQuery: string;
+  let numericId: string | null = null;
+  try {
+    const u = new URL(productUrl);
+    const match = u.pathname.match(/\/product\/(\d+)(?:\/([^/]+))?/);
+    if (match?.[1]) {
+      numericId = match[1];
+      searchQuery = match[1]; // search by ID — most precise
+    } else {
+      // Fallback: convert slug to space-separated words
+      const slug = u.pathname.split("/").filter(Boolean).pop() ?? "";
+      searchQuery = slug.replace(/-/g, " ").trim();
+    }
+  } catch {
+    return null;
+  }
+
+  try {
+    logger.info("apify: starting Microcenter scrape", { url: productUrl, searchQuery });
+
+    const res = await fetch(
+      `${endpoint}?token=${token}&timeout=${RUN_TIMEOUT_SECONDS}&format=json`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          searchQuery,
+          maxProducts: 5,
+          scrapeDetails: true,
+          inStockOnly: false,
+        }),
+        signal: AbortSignal.timeout((RUN_TIMEOUT_SECONDS + 30) * 1000),
+      },
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "Unknown error");
+      logger.error("apify: Microcenter actor run failed", {
+        url: productUrl,
+        status: res.status,
+        error: errorText,
+      });
+      return null;
+    }
+
+    const items: ApifyMicrocenterProduct[] = await res.json();
+    if (!items || items.length === 0) {
+      logger.warn("apify: Microcenter actor returned no items", { url: productUrl });
+      return null;
+    }
+
+    // Prefer the item whose product_url contains the original numeric ID
+    if (numericId) {
+      const exact = items.find((item) => item.product_url?.includes(numericId!));
+      if (exact) {
+        logger.info("apify: Microcenter scrape successful (exact match)", { url: productUrl });
+        return exact;
+      }
+    }
+
+    logger.info("apify: Microcenter scrape successful (first result)", { url: productUrl });
+    return items[0]!;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    logger.error("apify: Microcenter exception during scrape", { url: productUrl, error: message });
     return null;
   }
 }

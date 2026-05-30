@@ -10,7 +10,6 @@ import {
   AlertTriangleIcon,
   MoreHorizontalIcon,
   CopyIcon,
-  EyeIcon,
   PackageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -288,28 +287,25 @@ export const columns: ColumnDef<Order>[] = [
                   asChild
                   className="text-amber-600 focus:text-amber-700 focus:bg-amber-50 font-medium gap-1.5"
                 >
-                  <Link href={`/admin/orders/${order.id}`}>
-                    <AlertTriangleIcon className="size-3.5" />
-                    Review order
-                  </Link>
+                  <Link href={`/admin/orders/${order.id}`}>Review order</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>
             )}
-            <DropdownMenuItem asChild>
-              <Link
-                href={`/admin/orders/${order.id}`}
-                className="inline-flex items-center gap-2 w-full"
-              >
-                View details <EyeIcon className="stroke-neutral-500" />
-              </Link>
-            </DropdownMenuItem>
             <DropdownMenuItem
               className="gap-2"
               onClick={() => navigator.clipboard.writeText(order.id)}
             >
               Copy ID
               <CopyIcon className="stroke-neutral-500" />
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                href={`/admin/orders/${order.id}`}
+                className="inline-flex items-center gap-2 w-full"
+              >
+                View details
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => navigator.clipboard.writeText(order.id)}
@@ -327,7 +323,6 @@ export const columns: ColumnDef<Order>[] = [
             {transitions.length > 0 && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel>Update status</DropdownMenuLabel>
                 {transitions.map((status) => (
                   <DropdownMenuItem
                     key={status}
