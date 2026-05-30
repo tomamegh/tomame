@@ -2,6 +2,7 @@ import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import { PlatformScraper, type ScrapedProduct } from "./types";
 import { browserlessClient } from "@/lib/browserless/client";
+import { scrapingbeeClient } from "@/lib/scrapingbee/client";
 import { TomameCategory, SHEIN_CATEGORY_MAP } from "@/config/categories";
 import { scrapeSheinWithApify, type ApifySheinProduct } from "@/lib/apify/client";
 
