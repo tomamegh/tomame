@@ -2,17 +2,12 @@ import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import { PlatformScraper, type ScrapedProduct } from "./types";
 import { browserlessClient } from "@/lib/browserless/client";
+import { scrapingbeeClient } from "@/lib/scrapingbee/client";
 import { TomameCategory, SHEIN_CATEGORY_MAP } from "@/config/categories";
 import { scrapeSheinWithApify, type ApifySheinProduct } from "@/lib/apify/client";
 import { logger } from "@/lib/logger";
 
 type JsonLdNode = Record<string, unknown>;
-
-/** Random delay between min..max ms — used to space out retries against bot detection. */
-function jitter(minMs: number, maxMs: number): Promise<void> {
-  const ms = minMs + Math.floor(Math.random() * (maxMs - minMs));
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
@@ -372,14 +367,17 @@ export class SheinScraper extends PlatformScraper {
 
   /**
    * Keep /<slug>-p-<id>(-cat-<catId>).html — drop tracking/affiliate params.
-   * Normalize the mobile host (m.shein.com) to www.shein.com so we hit the
-   * desktop SSR variant, which has stable JSON-LD Product data.
+   * Pin the host to us.shein.com so locale stays English/USD regardless of
+   * which scraper tier services the request. The bare m.shein.com/www.shein.com
+   * hosts get geo-routed by SHEIN, which means Apify (Israel proxy) returns
+   * Hebrew titles/descriptions. us.shein.com forces the en-US variant.
    */
   private static cleanUrl(raw: string): string {
     try {
       const u = new URL(raw);
-      if (u.hostname.toLowerCase() === "m.shein.com") {
-        u.hostname = "www.shein.com";
+      const host = u.hostname.toLowerCase();
+      if (host === "m.shein.com" || host === "www.shein.com" || host === "shein.com") {
+        u.hostname = "us.shein.com";
       }
       return `${u.origin}${u.pathname}`;
     } catch {
@@ -412,30 +410,23 @@ export class SheinScraper extends PlatformScraper {
   }
 
   /**
-   * Render the page through Browserless when direct fetch is blocked.
-   * SHEIN's SSR HTML already contains JSON-LD Product data, so we don't
-   * wait on a hydration-only selector — looksLikeProductPage validates the
-   * response. Avoiding waitForSelector prevents the 25s timeout we'd hit
-   * when SHEIN's bot challenge swaps the DOM.
+   * ScrapingBee in stealth mode. SHEIN is a fully client-side SPA — every
+   * product URL serves the same homepage shell to non-browser UAs, with the
+   * product DOM rendered via JS after a headless-fingerprint check. stealth_proxy
+   * bypasses both the fingerprint check and the residential-proxy gate; it
+   * costs 75 credits/request and takes ~90-100s but returns the rendered DOM
+   * with JSON-LD Product, og:title, and product-intro markup.
+   *
+   * Returns null when SCRAPINGBEE_API_KEY isn't configured.
    */
-  private async browserlessFetch(url: string): Promise<string | null> {
-    const result = await this.browserless.scrapeContent({
+  private async scrapingbeeFetch(url: string): Promise<string | null> {
+    const result = await scrapingbeeClient.scrapeContent({
       url,
-      timeout: 35000,
+      stealthProxy: true,
+      countryCode: "us",
+      timeout: 110000,
     });
-    if (!result.success || !result.html) return null;
-    if (SheinScraper.looksLikeProductPage(result.html)) return result.html;
-    return null;
-  }
-
-  /**
-   * Try /chromium/unblock as a heavier fallback. SHEIN uses aggressive bot
-   * detection (Akamai/PerimeterX), so the unblock endpoint sometimes works
-   * when stealth /content does not.
-   */
-  private async unblockFetch(url: string): Promise<string | null> {
-    const result = await this.browserless.unblockContent(url, 30000);
-    if (!result.success || !result.html) return null;
+    if (!result || !result.success || !result.html) return null;
     if (SheinScraper.looksLikeProductPage(result.html)) return result.html;
     return null;
   }
@@ -459,27 +450,21 @@ export class SheinScraper extends PlatformScraper {
       if (html) return parseAndEnrich(html);
     }
 
-    // 2) Browserless stealth — retry to ride out intermittent challenge pages.
-    logger.warn("shein direct fetch failed, falling back to Browserless stealth", { url: cleanedUrl });
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      const html = await this.browserlessFetch(cleanedUrl);
-      if (html) return parseAndEnrich(html);
-      if (attempt < 2) await jitter(500, 1500);
-    }
-
-    // 3) Browserless unblock — purpose-built for bot-protected pages.
-    logger.warn("shein stealth failed, falling back to Browserless unblock", { url: cleanedUrl });
+    // 2) ScrapingBee with residential proxies. Browserless tiers are skipped
+    //    because empirically SHEIN serves bot challenges to both /content
+    //    (stealth) and /chromium/unblock — burning 60-100s of route budget.
+    logger.warn("shein direct fetch failed, falling back to ScrapingBee", { url: cleanedUrl });
     {
-      const html = await this.unblockFetch(cleanedUrl);
+      const html = await this.scrapingbeeFetch(cleanedUrl);
       if (html) return parseAndEnrich(html);
     }
 
-    // 4) Apify — fallback of last resort
-    logger.warn("shein browserless failed, falling back to Apify", { url: cleanedUrl });
+    // 3) Apify (premium proxy) — last resort, costs per result.
+    logger.warn("shein scrapingbee failed, falling back to Apify", { url: cleanedUrl });
     const apifyResult = await scrapeSheinWithApify(cleanedUrl);
     if (apifyResult) return mapApifyToScrapedProduct(apifyResult);
 
-    throw new Error("Failed to fetch SHEIN product page (direct, browserless, and Apify all failed)");
+    throw new Error("Failed to fetch SHEIN product page (direct, scrapingbee, and Apify all failed)");
   }
 
   public extract($: CheerioAPI): ScrapedProduct {
