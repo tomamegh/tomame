@@ -60,7 +60,7 @@ function main() {
 
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=${apiUrl}
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=${anonKey}
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!=${anonKey}
 SUPABASE_SECRET_KEY=${serviceRoleKey}
 
 # Paystack (replace with your test keys)

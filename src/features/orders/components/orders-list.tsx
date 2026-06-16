@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { MobileOrderCard, OrderCard } from "./order-card";
 import {
   Empty,
@@ -92,14 +93,14 @@ export function OrdersList({
   return (
     <div className="space-y-3">
       {(variant === "all" ? orders : orders.slice(0, 3)).map((order) => (
-        <div key={order.id}>
+        <React.Fragment key={order.id}>
           <div className="lg:hidden">
             <MobileOrderCard order={order} />
           </div>
           <div className="hidden lg:block">
             <OrderCard order={order} variant="detailed" />
           </div>
-        </div>
+        </React.Fragment>
       ))}
     </div>
   );

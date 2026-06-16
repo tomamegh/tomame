@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   ShoppingBagIcon,
   FileTextIcon,
-  DollarSignIcon,
+  BanknoteIcon,
   PackageOpenIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -15,6 +15,7 @@ interface StatCardProps {
   value: string;
   compact?: boolean;
   linkLabel: string;
+  linkHref: string;
   linkColor: string;
   Icon: LucideIcon;
   iconBg: string;
@@ -27,6 +28,7 @@ function StatCard({
   value,
   compact,
   linkLabel,
+  linkHref,
   linkColor,
   Icon,
   iconBg,
@@ -44,13 +46,13 @@ function StatCard({
             <Skeleton className="h-8 w-16" />
           ) : (
             <p
-              className={`font-black text-stone-800 ${compact ? "text-xl" : "text-3xl"}`}
+              className={`font-black text-stone-800 ${compact ? "text-lg sm:text-xl" : "text-2xl sm:text-3xl"}`}
             >
               {value}
             </p>
           )}
           <Link
-            href="/app/orders"
+            href={linkHref}
             className={`flex items-center gap-1 pt-1 text-xs font-semibold transition-opacity hover:opacity-90 ${linkColor}`}
           >
             <span>{linkLabel}</span>
@@ -106,6 +108,7 @@ export function StatsRow({ orders, isLoading }: StatsRowProps) {
         label="Total Orders"
         value={String(totalOrders)}
         linkLabel="View all orders"
+        linkHref="/app/orders"
         linkColor="text-[#ff5c35]"
         Icon={ShoppingBagIcon}
         iconBg="bg-orange-50"
@@ -116,6 +119,7 @@ export function StatsRow({ orders, isLoading }: StatsRowProps) {
         label="Active Orders"
         value={String(activeOrders)}
         linkLabel="Track progress"
+        linkHref="/app/orders"
         linkColor="text-purple-600"
         Icon={FileTextIcon}
         iconBg="bg-purple-50"
@@ -126,9 +130,10 @@ export function StatsRow({ orders, isLoading }: StatsRowProps) {
         label="Total Spent"
         value={`GHS ${formattedSpent}`}
         compact
-        linkLabel="View spending"
+        linkLabel="View transactions"
+        linkHref="/app/transactions"
         linkColor="text-emerald-600"
-        Icon={DollarSignIcon}
+        Icon={BanknoteIcon}
         iconBg="bg-emerald-50"
         iconColor="text-emerald-600"
         isLoading={isLoading}
@@ -137,6 +142,7 @@ export function StatsRow({ orders, isLoading }: StatsRowProps) {
         label="Delivered"
         value={String(deliveredOrders)}
         linkLabel="View history"
+        linkHref="/app/orders"
         linkColor="text-blue-600"
         Icon={PackageOpenIcon}
         iconBg="bg-blue-50"

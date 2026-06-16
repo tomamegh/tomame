@@ -43,7 +43,6 @@ export function HeroSection({ isLoading = false }: HeroSectionProps) {
 
   return (
     <section aria-labelledby="dashboard-hero-heading">
-      {/* Right: extraction card */}
       <motion.div
         initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
