@@ -1,11 +1,15 @@
+"use client";
+
 import Link from "next/link";
 import {
   ShoppingBagIcon,
   FileTextIcon,
   BanknoteIcon,
   PackageOpenIcon,
+  ArrowRightIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Order } from "@/features/orders/types";
@@ -36,7 +40,7 @@ function StatCard({
   isLoading,
 }: StatCardProps) {
   return (
-    <Card className="group overflow-hidden rounded-2xl border-2 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.015)] py-0">
+    <Card className="group overflow-hidden rounded-2xl border border-stone-100 bg-white soft-shadow py-0 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
       <CardContent className="flex items-center justify-between p-5">
         <div className="min-w-0 space-y-1.5">
           <span className="block text-[11px] font-semibold uppercase tracking-wider text-stone-400">
@@ -56,9 +60,7 @@ function StatCard({
             className={`flex items-center gap-1 pt-1 text-xs font-semibold transition-opacity hover:opacity-90 ${linkColor}`}
           >
             <span>{linkLabel}</span>
-            <span className="transition-transform group-hover:translate-x-0.5" aria-hidden="true">
-              →
-            </span>
+            <ArrowRightIcon className="size-3 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
           </Link>
         </div>
         <div
@@ -99,56 +101,67 @@ export function StatsRow({ orders, isLoading }: StatsRowProps) {
     maximumFractionDigits: 2,
   });
 
+  const shouldReduceMotion = useReducedMotion();
+
+  const cards = [
+    {
+      label: "Total Orders",
+      value: String(totalOrders),
+      linkLabel: "View all orders",
+      linkHref: "/app/orders",
+      linkColor: "text-orange-500",
+      Icon: ShoppingBagIcon,
+      iconBg: "bg-orange-50",
+      iconColor: "text-orange-500",
+    },
+    {
+      label: "Active Orders",
+      value: String(activeOrders),
+      linkLabel: "Track progress",
+      linkHref: "/app/orders",
+      linkColor: "text-purple-600",
+      Icon: FileTextIcon,
+      iconBg: "bg-purple-50",
+      iconColor: "text-purple-600",
+    },
+    {
+      label: "Total Spent",
+      value: `GHS ${formattedSpent}`,
+      compact: true,
+      linkLabel: "View transactions",
+      linkHref: "/app/transactions",
+      linkColor: "text-emerald-600",
+      Icon: BanknoteIcon,
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-600",
+    },
+    {
+      label: "Delivered",
+      value: String(deliveredOrders),
+      linkLabel: "View history",
+      linkHref: "/app/orders",
+      linkColor: "text-blue-600",
+      Icon: PackageOpenIcon,
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-600",
+    },
+  ];
+
   return (
     <div
       className="grid grid-cols-2 gap-4 lg:grid-cols-4"
       aria-label="Order statistics"
     >
-      <StatCard
-        label="Total Orders"
-        value={String(totalOrders)}
-        linkLabel="View all orders"
-        linkHref="/app/orders"
-        linkColor="text-[#ff5c35]"
-        Icon={ShoppingBagIcon}
-        iconBg="bg-orange-50"
-        iconColor="text-[#ff5c35]"
-        isLoading={isLoading}
-      />
-      <StatCard
-        label="Active Orders"
-        value={String(activeOrders)}
-        linkLabel="Track progress"
-        linkHref="/app/orders"
-        linkColor="text-purple-600"
-        Icon={FileTextIcon}
-        iconBg="bg-purple-50"
-        iconColor="text-purple-600"
-        isLoading={isLoading}
-      />
-      <StatCard
-        label="Total Spent"
-        value={`GHS ${formattedSpent}`}
-        compact
-        linkLabel="View transactions"
-        linkHref="/app/transactions"
-        linkColor="text-emerald-600"
-        Icon={BanknoteIcon}
-        iconBg="bg-emerald-50"
-        iconColor="text-emerald-600"
-        isLoading={isLoading}
-      />
-      <StatCard
-        label="Delivered"
-        value={String(deliveredOrders)}
-        linkLabel="View history"
-        linkHref="/app/orders"
-        linkColor="text-blue-600"
-        Icon={PackageOpenIcon}
-        iconBg="bg-blue-50"
-        iconColor="text-blue-600"
-        isLoading={isLoading}
-      />
+      {cards.map((card, i) => (
+        <motion.div
+          key={card.label}
+          initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: i * 0.07 }}
+        >
+          <StatCard {...card} isLoading={isLoading} />
+        </motion.div>
+      ))}
     </div>
   );
 }
