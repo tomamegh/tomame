@@ -42,7 +42,7 @@ const fadeUp: Variants = {
 
 export default function FAQSection() {
   return (
-    <section className="relative overflow-hidden bg-white py-28 sm:py-32 lg:py-36">
+    <section className="relative overflow-hidden bg-stone-50 py-28 sm:py-32 lg:py-36">
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial="hidden"

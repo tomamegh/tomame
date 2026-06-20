@@ -5,8 +5,6 @@ import Link from "next/link";
 import { SUPPORTED_STORES } from "@/config/ui";
 
 export default function LandingPageSupportedPlatforms() {
-
-
   return (
     <section className="bg-neutral-50 py-12 sm:py-14">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
