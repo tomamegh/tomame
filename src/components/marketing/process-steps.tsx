@@ -60,7 +60,7 @@ export default function ProcessSteps() {
       className="relative overflow-hidden bg-stone-50 py-28 sm:py-32 lg:py-36"
     >
       {/* Fine grid texture */}
-      <div
+      {/* <div
         className="pointer-events-none absolute inset-0 opacity-[0.03]"
         style={{
           backgroundImage:
@@ -68,7 +68,7 @@ export default function ProcessSteps() {
           backgroundSize: '32px 32px',
         }}
         aria-hidden="true"
-      />
+      /> */}
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Header */}
@@ -118,11 +118,11 @@ export default function ProcessSteps() {
                   aria-hidden="true"
                 >
                   <div
-                    className="absolute -inset-full origin-center"
+                    className="absolute -inset-full origin-centers"
                     style={{
                       background:
                         'conic-gradient(from 0deg, transparent, #f43f5e 15%, #fb923c 30%, #fbbf24 45%, transparent 60%)',
-                      animation: 'spin 2s linear infinite',
+                      animation: 'spin 3s linear infinite',
                     }}
                   />
                 </div>

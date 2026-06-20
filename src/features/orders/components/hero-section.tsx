@@ -13,7 +13,6 @@ import {
   type ExtractionSchemaType,
 } from "@/features/extraction/schema";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import {
   InputGroup,
   InputGroupAddon,
@@ -39,11 +38,10 @@ export function HeroSection({ isLoading = false }: HeroSectionProps) {
 
   const onSubmit = (url: string) => {
     router.push(`/app/orders/new?url=${encodeURIComponent(url)}`);
-  }
+  };
 
   return (
     <section aria-labelledby="dashboard-hero-heading">
-      {/* Right: extraction card */}
       <motion.div
         initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -58,7 +56,10 @@ export function HeroSection({ isLoading = false }: HeroSectionProps) {
           >
             <InputGroup className="h-auto min-h-14 border-stone-200 bg-stone-100 shadow-inner pl-3">
               <InputGroupAddon align="inline-start">
-                <LinkIcon className="size-5 text-stone-400" aria-hidden="true" />
+                <LinkIcon
+                  className="size-5 text-stone-400"
+                  aria-hidden="true"
+                />
               </InputGroupAddon>
               <InputGroupInput
                 type="url"
@@ -68,7 +69,9 @@ export function HeroSection({ isLoading = false }: HeroSectionProps) {
                 placeholder="Paste product URL here..."
                 disabled={busy}
                 aria-invalid={!!errors.product_url}
-                aria-describedby={errors.product_url ? "hero-url-error" : undefined}
+                aria-describedby={
+                  errors.product_url ? "hero-url-error" : undefined
+                }
                 className="text-sm font-medium"
                 {...register("product_url")}
               />
@@ -77,19 +80,12 @@ export function HeroSection({ isLoading = false }: HeroSectionProps) {
                   type="submit"
                   disabled={busy}
                   aria-busy={busy}
-                  className="h-full bg-linear-to-r from-amber-500 to-rose-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#ff5c35]/15 hover:opacity-95 active:scale-[0.98]"
+                  className="h-full bg-linear-to-r rounded-lg from-amber-500 to-rose-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#ff5c35]/15 hover:opacity-95 active:scale-[0.98]"
                 >
-                  {busy ? (
-                    <>
-                      <Spinner className="size-4" />
-                      <span>Extracting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <SparklesIcon className="size-4" />
-                      <span>Extract Product</span>
-                    </>
-                  )}
+                  <>
+                    <SparklesIcon className="size-4" />
+                    <span className="hidden md:block">Extract Product</span>
+                  </>
                 </Button>
               </InputGroupAddon>
             </InputGroup>
@@ -104,7 +100,7 @@ export function HeroSection({ isLoading = false }: HeroSectionProps) {
             )}
           </form>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible sm:pb-0">
+          <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-none [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible sm:pb-0">
             {SUPPORTED_STORES.map((store) => (
               <Link
                 key={store.id}

@@ -27,5 +27,5 @@ out/
 .vercel
 .vscode/mcp.json
 *.xlsx
-yarn-debug.log*
-yarn-error.log*
+*.pdf
+.env*

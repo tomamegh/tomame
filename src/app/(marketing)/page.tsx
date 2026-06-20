@@ -3,7 +3,7 @@ import {
   LandingPageCTASection,
   LandingPageFAQSection,
   LandingPageFeaturesSection,
-  LandingPageHeroGridSection,
+  LandingPageHeroSection,
   LandingPageProcessSteps,
   LandingPageSupportedPlatforms,
   LandingPageTestimonialsSection,
@@ -22,7 +22,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <LandingPageHeroGridSection usdToGhs={usdToGhs} />
+      <LandingPageHeroSection usdToGhs={usdToGhs} />
       <LandingPageSupportedPlatforms />
       <LandingPageFeaturesSection />
       <LandingPageProcessSteps />

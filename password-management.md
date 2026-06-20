@@ -375,7 +375,7 @@ export async function POST(request: Request) {
 
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SECRET_KEY!
   )
 
   const { error } = await supabaseAdmin.auth.admin.generateLink({
@@ -526,8 +526,8 @@ Admin Dashboard
 ```env
 # Supabase (already configured)
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-anon-key
+SUPABASE_SECRET_KEY=your-service-role-key
 
 # Email (Supabase handles this by default)
 # Custom SMTP can be configured in Supabase Dashboard

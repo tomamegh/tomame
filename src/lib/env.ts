@@ -9,7 +9,7 @@ function required(key: string): string {
 export const env = {
   supabase: {
     url: required("NEXT_PUBLIC_SUPABASE_URL"),
-    anonKey: required("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"),
+    anonKey: required("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
     serviceRoleKey: required("SUPABASE_SECRET_KEY"),
   },
   paystack: {
