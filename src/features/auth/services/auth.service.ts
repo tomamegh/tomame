@@ -170,7 +170,50 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
   };
 }
 
+export async function getUserSession(): Promise<{
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  session: JwtPayload;
+  user: PlatformUser;
+}> {
+  const supabase = await createClient();
+
+  const { data, error: userError } = await supabase.auth.getUser();
+  const { data: claimsData, error: claimsError } =
+    await supabase.auth.getClaims();
+
+  if (!data.user || userError || !claimsData || claimsError)
+    throw new APIError(401, "Unauthorized to perform this action");
+
+
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", data.user.id)
+    .single();
+
+  if (!profile || error) throw new APIError(401, "Unauthorized to perform this action");
+
+  return {
+    supabase,
+    session: claimsData?.claims,
+    user: {
+      ...data.user,
+    profile: {
+      id: profile.id,
+      role: profile.role,
+      first_name: profile.first_name ?? undefined,
+      last_name: profile.last_name ?? undefined,
+      bio: profile.bio ?? undefined,
+      created_at: new Date(profile.created_at),
+      updated_at: new Date(profile.updated_at),
+    },
+    },
+  };
+}
+
 export function canAccessAdmin(user: JwtPayload): boolean {
   if (!user || !user.email) return false;
-  return user.app_metadata?.role === "admin" && user.email.endsWith("@tomame.ca");
+  return (
+    user.app_metadata?.role === "admin" && user.email.endsWith("@tomame.ca")
+  );
 }

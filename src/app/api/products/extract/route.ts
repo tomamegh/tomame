@@ -1,12 +1,15 @@
 import { NextRequest } from "next/server";
 import { extractProductSchema } from "@/features/extraction/schema";
 import { extractProductData } from "@/features/extraction/extraction.service";
-import { resolvePlatform } from "@/features/extraction/scrapers";
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
-import { requireAuth } from "@/lib/auth/guards";
+import { getUserSession } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
+
+// SHEIN's SPA shell + headless-fingerprint check forces ScrapingBee stealth
+// mode (~95s on success) before Apify fallback (~10-100s). Microcenter and
+// eBay also occasionally need ~60s of Browserless retries. Requires Vercel Pro.
+export const maxDuration = 240;
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,21 +21,17 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json().catch(() => {
       throw new APIError(400, "Invalid JSON");
     });
-    console.log(body)
+
     const parsed = extractProductSchema.safeParse(body);
     if (!parsed.success) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const user = await getAuthenticatedUser();
-    const authUser = requireAuth(user);
+    const { user } = await getUserSession();
 
-    const platform = resolvePlatform(parsed.data.product_url);
-    if (!platform) {
-      throw new APIError(400, "Product URL must be from a supported store");
-    }
-
-    const data = await extractProductData(parsed.data.product_url, authUser.id);
+    // Platform detection is handled inside extractProductData after short-URL
+    // resolution, so pasted bit.ly / ebay.to / a.co links route correctly.
+    const data = await extractProductData(parsed.data.product_url, user.id);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

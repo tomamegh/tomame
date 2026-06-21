@@ -52,4 +52,94 @@ describe("resolvePlatform", () => {
       SupportedPlatform.AMAZON,
     );
   });
+
+  it("should resolve ebay.com URLs", () => {
+    expect(resolvePlatform("https://www.ebay.com/itm/123456789012")).toBe(
+      SupportedPlatform.EBAY,
+    );
+  });
+
+  it("should resolve ebay.co.uk URLs", () => {
+    expect(resolvePlatform("https://www.ebay.co.uk/itm/123456789012")).toBe(
+      SupportedPlatform.EBAY,
+    );
+  });
+
+  it("should resolve bare ebay.com without www", () => {
+    expect(resolvePlatform("https://ebay.com/itm/123456789012")).toBe(
+      SupportedPlatform.EBAY,
+    );
+  });
+
+  it("should resolve eBay URLs with slug and query params", () => {
+    expect(
+      resolvePlatform(
+        "https://www.ebay.com/itm/Example-Product-Title/123456789012?hash=item&epid=123",
+      ),
+    ).toBe(SupportedPlatform.EBAY);
+  });
+
+  it("should resolve ebay.us short URLs (share button)", () => {
+    expect(resolvePlatform("https://ebay.us/abc123")).toBe(
+      SupportedPlatform.EBAY,
+    );
+  });
+
+  it("should resolve ebay.to short URLs", () => {
+    expect(resolvePlatform("https://ebay.to/3XyZ9Ab")).toBe(
+      SupportedPlatform.EBAY,
+    );
+  });
+
+  it("should resolve microcenter.com URLs", () => {
+    expect(
+      resolvePlatform("https://www.microcenter.com/product/683524/fantom-rechargeable-smart-tracker-card"),
+    ).toBe(SupportedPlatform.MICROCENTER);
+  });
+
+  it("should resolve bare microcenter.com without www", () => {
+    expect(resolvePlatform("https://microcenter.com/product/683524/foo")).toBe(
+      SupportedPlatform.MICROCENTER,
+    );
+  });
+
+  it("should resolve microcenter URLs with query params", () => {
+    expect(
+      resolvePlatform(
+        "https://www.microcenter.com/product/683524/foo?utm_source=test&sessionid=abc",
+      ),
+    ).toBe(SupportedPlatform.MICROCENTER);
+  });
+
+  it("should resolve shein.com URLs", () => {
+    expect(
+      resolvePlatform("https://www.shein.com/Example-Product-p-12345678.html"),
+    ).toBe(SupportedPlatform.SHEIN);
+  });
+
+  it("should resolve us.shein.com URLs", () => {
+    expect(
+      resolvePlatform("https://us.shein.com/Example-Product-p-12345678-cat-1234.html"),
+    ).toBe(SupportedPlatform.SHEIN);
+  });
+
+  it("should resolve bare shein.com without www", () => {
+    expect(resolvePlatform("https://shein.com/Example-p-12345678.html")).toBe(
+      SupportedPlatform.SHEIN,
+    );
+  });
+
+  it("should resolve m.shein.com URLs", () => {
+    expect(resolvePlatform("https://m.shein.com/Example-p-12345678.html")).toBe(
+      SupportedPlatform.SHEIN,
+    );
+  });
+
+  it("should resolve shein URLs with query params", () => {
+    expect(
+      resolvePlatform(
+        "https://www.shein.com/Example-p-12345678.html?utm_source=test&aff_id=abc",
+      ),
+    ).toBe(SupportedPlatform.SHEIN);
+  });
 });

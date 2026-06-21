@@ -1,12 +1,10 @@
 import { NextRequest } from "next/server";
 import { reviewOrderSchema } from "@/features/orders/schema";
 import { reviewOrder } from "@/features/orders/services/orders.review.service";
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
-import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
+import { getUserSession } from "@/features/auth/services";
 
 export async function POST(
   request: NextRequest,
@@ -26,12 +24,15 @@ export async function POST(
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const user = await getAuthenticatedUser();
-    const auth = requireAuth(user);
-    const admin = requireAdmin(auth);
+    const {session, supabase, user} = await getUserSession();
+
+    if (session?.app_metadata?.role !== "admin") {
+      throw new APIError(403, "Admin access required");
+    }
+
 
     const { id } = await params;
-    const data = await reviewOrder(createAdminClient(), admin, id, parsed.data);
+    const data = await reviewOrder(supabase, user, id, parsed.data);
     return successResponse(data);
   } catch (error) {
     return errorResponse(error);

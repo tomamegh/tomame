@@ -60,7 +60,7 @@ Create a seed script: `db/seeds/create-admin.ts`
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY! // Service role key
+const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY! // Service role key
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
   // Check if admin already exists
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SECRET_KEY!
   )
 
   const { data: existingAdmin } = await supabase
@@ -369,7 +369,7 @@ export async function POST(request: Request) {
 
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SECRET_KEY!
   )
 
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -440,7 +440,7 @@ export async function POST(request: Request) {
 
 **For Development:**
 1. Use **Option 2** (Seed Script) for quick setup
-2. Add to `.env.local`: `SUPABASE_SERVICE_ROLE_KEY=your-key`
+2. Add to `.env.local`: `SUPABASE_SECRET_KEY=your-key`
 3. Run seed script once
 
 ---

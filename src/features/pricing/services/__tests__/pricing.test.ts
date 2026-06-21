@@ -14,6 +14,7 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import { PricingCalculator } from "@/lib/pricing";
+import type { PricingGroupRow } from "@/db/queries/pricing-groups";
 import { getGhsRate } from "@/lib/exchange-rates/service";
 import { TomameCategory } from "@/config/categories/tomame_category";
 
@@ -21,7 +22,39 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("PricingCalculator", () => {
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function makePricingGroup(overrides: Partial<PricingGroupRow> = {}): PricingGroupRow {
+  return {
+    id: "test-id",
+    slug: "test_group",
+    name: "Test Group",
+    flat_rate_ghs: 500,
+    flat_rate_expression: null,
+    value_percentage: 0.05,
+    value_percentage_high: null,
+    value_threshold_usd: null,
+    default_weight_lbs: null,
+    requires_weight: false,
+    is_active: true,
+    sort_order: 0,
+    ...overrides,
+  };
+}
+
+function buildCategoryMap(
+  entries: [string, Partial<PricingGroupRow>][],
+): Map<string, PricingGroupRow> {
+  const map = new Map<string, PricingGroupRow>();
+  for (const [category, overrides] of entries) {
+    map.set(category, makePricingGroup(overrides));
+  }
+  return map;
+}
+
+// ── Tests: JSON fallback (no setCategoryPricing) ────────────────────────────
+
+describe("PricingCalculator (JSON fallback)", () => {
   describe("Flat Rate (phones)", () => {
     it("Cell phone → flat_rate with phones pricing group", async () => {
       vi.mocked(getGhsRate).mockResolvedValue(15.2);
@@ -113,7 +146,7 @@ describe("PricingCalculator", () => {
       expect(result.pricing_method).toBe("needs_review");
       expect(result.pricing_group).toBe("car_parts");
       expect(result.total_ghs).toBe(0);
-      expect(result.review_reason).toContain("requires weight");
+      expect(result.review_reason).toContain("weight");
     });
   });
 
@@ -145,7 +178,7 @@ describe("PricingCalculator", () => {
       });
 
       expect(result.pricing_method).toBe("needs_review");
-      expect(result.review_reason).toContain("could not be determined");
+      expect(result.review_reason).toContain("determine the product category");
     });
   });
 
@@ -185,6 +218,299 @@ describe("PricingCalculator", () => {
       await calc.calculate({ itemPriceUsd: 200, quantity: 1, category: TomameCategory.HEADPHONES });
 
       expect(getGhsRate).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+// ── Tests: DB-loaded category pricing (setCategoryPricing) ──────────────────
+
+describe("PricingCalculator (DB-loaded)", () => {
+  describe("Flat Rate via DB", () => {
+    it("uses DB-loaded pricing group instead of JSON", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      calc.setCategoryPricing(
+        buildCategoryMap([
+          ["Custom Category", { slug: "custom", name: "Custom", flat_rate_ghs: 800, value_percentage: 0.06 }],
+        ]),
+      );
+
+      const result = await calc.calculate({
+        itemPriceUsd: 100,
+        quantity: 1,
+        category: "Custom Category",
+      });
+
+      expect(result.pricing_method).toBe("flat_rate");
+      expect(result.pricing_group).toBe("custom");
+      expect(result.flat_rate_ghs).toBe(800);
+      expect(result.value_fee_percentage).toBe(0.06);
+      expect(result.total_ghs).toBeGreaterThan(0);
+    });
+
+    it("unmapped category in DB map → needs_review", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      calc.setCategoryPricing(new Map()); // empty map
+
+      const result = await calc.calculate({
+        itemPriceUsd: 100,
+        quantity: 1,
+        category: "Unknown",
+      });
+
+      expect(result.pricing_method).toBe("needs_review");
+    });
+  });
+
+  describe("Tiered Value Percentage", () => {
+    it("uses base percentage when subtotal is under threshold", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      calc.setCategoryPricing(
+        buildCategoryMap([
+          [
+            "Electronics",
+            {
+              slug: "electronics",
+              name: "Electronics",
+              flat_rate_ghs: 500,
+              value_percentage: 0.08,
+              value_percentage_high: 0.05,
+              value_threshold_usd: 100,
+            },
+          ],
+        ]),
+      );
+
+      const result = await calc.calculate({
+        itemPriceUsd: 50,
+        quantity: 1,
+        category: "Electronics",
+      });
+
+      expect(result.value_fee_percentage).toBe(0.08);
+      expect(result.value_fee_usd).toBeCloseTo(4.0, 2);
+    });
+
+    it("uses high percentage when subtotal exceeds threshold", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      calc.setCategoryPricing(
+        buildCategoryMap([
+          [
+            "Electronics",
+            {
+              slug: "electronics",
+              name: "Electronics",
+              flat_rate_ghs: 500,
+              value_percentage: 0.08,
+              value_percentage_high: 0.05,
+              value_threshold_usd: 100,
+            },
+          ],
+        ]),
+      );
+
+      const result = await calc.calculate({
+        itemPriceUsd: 200,
+        quantity: 1,
+        category: "Electronics",
+      });
+
+      expect(result.value_fee_percentage).toBe(0.05);
+      expect(result.value_fee_usd).toBeCloseTo(10.0, 2);
+    });
+
+    it("uses base percentage when no tiering configured", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      calc.setCategoryPricing(
+        buildCategoryMap([
+          [
+            "Electronics",
+            {
+              slug: "electronics",
+              name: "Electronics",
+              flat_rate_ghs: 500,
+              value_percentage: 0.06,
+            },
+          ],
+        ]),
+      );
+
+      const result = await calc.calculate({
+        itemPriceUsd: 500,
+        quantity: 1,
+        category: "Electronics",
+      });
+
+      expect(result.value_fee_percentage).toBe(0.06);
+    });
+  });
+
+  describe("Default Weight Fallback", () => {
+    it("uses default_weight_lbs when input weight is missing", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      calc.setCategoryPricing(
+        buildCategoryMap([
+          [
+            "Speakers",
+            {
+              slug: "speakers",
+              name: "Speakers",
+              flat_rate_ghs: null,
+              flat_rate_expression: "5 + (w / 8)",
+              default_weight_lbs: 10,
+            },
+          ],
+        ]),
+      );
+
+      const result = await calc.calculate({
+        itemPriceUsd: 100,
+        quantity: 1,
+        category: "Speakers",
+      });
+
+      expect(result.pricing_method).toBe("weight_expression");
+      // 5 + (10 / 8) = 6.25
+      expect(result.flat_rate_ghs).toBe(6.25);
+      expect(result.weight_lbs).toBe(10);
+    });
+
+    it("prefers input weight over default weight", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      calc.setCategoryPricing(
+        buildCategoryMap([
+          [
+            "Speakers",
+            {
+              slug: "speakers",
+              name: "Speakers",
+              flat_rate_ghs: null,
+              flat_rate_expression: "5 + (w / 8)",
+              default_weight_lbs: 10,
+            },
+          ],
+        ]),
+      );
+
+      const result = await calc.calculate({
+        itemPriceUsd: 100,
+        quantity: 1,
+        category: "Speakers",
+        weightLbs: 24,
+      });
+
+      expect(result.pricing_method).toBe("weight_expression");
+      // 5 + (24 / 8) = 8
+      expect(result.flat_rate_ghs).toBe(8);
+      expect(result.weight_lbs).toBe(24);
+    });
+
+    it("needs_review when no weight and no default", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      calc.setCategoryPricing(
+        buildCategoryMap([
+          [
+            "Speakers",
+            {
+              slug: "speakers",
+              name: "Speakers",
+              flat_rate_ghs: null,
+              flat_rate_expression: "5 + (w / 8)",
+              default_weight_lbs: null,
+            },
+          ],
+        ]),
+      );
+
+      const result = await calc.calculate({
+        itemPriceUsd: 100,
+        quantity: 1,
+        category: "Speakers",
+      });
+
+      expect(result.pricing_method).toBe("needs_review");
+      expect(result.review_reason).toContain("weight");
+    });
+  });
+
+  describe("Requires Weight", () => {
+    it("returns needs_review with rejection reason when requires_weight and no weight", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      calc.setCategoryPricing(
+        buildCategoryMap([
+          [
+            "Car Parts",
+            {
+              slug: "car_parts",
+              name: "Car Parts",
+              flat_rate_ghs: null,
+              flat_rate_expression: "5 + (w / 8)",
+              requires_weight: true,
+              default_weight_lbs: null,
+            },
+          ],
+        ]),
+      );
+
+      const result = await calc.calculate({
+        itemPriceUsd: 200,
+        quantity: 1,
+        category: "Car Parts",
+      });
+
+      expect(result.pricing_method).toBe("needs_review");
+      expect(result.pricing_group).toBe("car_parts");
+      expect(result.review_reason).toContain("requires weight");
+      expect(result.review_reason).toContain("Car Parts");
+      expect(result.total_ghs).toBe(0);
+    });
+
+    it("calculates normally when requires_weight and weight is provided", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.0);
+
+      const calc = new PricingCalculator();
+      calc.setCategoryPricing(
+        buildCategoryMap([
+          [
+            "Car Parts",
+            {
+              slug: "car_parts",
+              name: "Car Parts",
+              flat_rate_ghs: null,
+              flat_rate_expression: "5 + (w / 8)",
+              requires_weight: true,
+            },
+          ],
+        ]),
+      );
+
+      const result = await calc.calculate({
+        itemPriceUsd: 200,
+        quantity: 1,
+        category: "Car Parts",
+        weightLbs: 16,
+      });
+
+      expect(result.pricing_method).toBe("weight_expression");
+      expect(result.flat_rate_ghs).toBe(7);
+      expect(result.total_ghs).toBeGreaterThan(0);
     });
   });
 });

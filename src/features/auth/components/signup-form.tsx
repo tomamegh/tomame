@@ -24,6 +24,11 @@ export default function SignUpForm() {
 
   const { control, handleSubmit } = useForm<SignupSchemaType>({
     resolver: zodResolver(signupSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
   });
 
   const onSubmit = async (data: SignupSchemaType) => {

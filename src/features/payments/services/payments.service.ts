@@ -6,6 +6,7 @@ import type { Payment } from "@/features/payments/types";
 import {
   getOrderById,
   linkOrderToPayment,
+  sendOrderStatusEmail,
 } from "@/features/orders/services/orders.service";
 import {
   initializeTransaction,
@@ -180,7 +181,12 @@ export async function initializePayment(
     throw new APIError(409, "A payment is already in progress for this order.");
   }
 
-  const totalPesewas = order.pricing.total_pesewas;
+  // Use admin-set price if available, otherwise use calculated pricing
+  const totalGhs = order.admin_total_ghs ?? order.pricing.total_ghs;
+  if (!totalGhs || totalGhs <= 0) {
+    throw new APIError(400, "Order pricing has not been determined yet. Please wait for admin review.");
+  }
+  const totalPesewas = Math.round(totalGhs * 100);
   const reference = generatePaymentReference();
 
   const payment = await insertPayment(admin, {
@@ -293,8 +299,9 @@ export async function handlePaymentCallback(
           payment.user_id,
           orderId,
           order.product_name,
-          order.pricing.total_ghs,
+          order.admin_total_ghs ?? order.pricing.total_ghs,
         );
+        sendOrderStatusEmail(payment.user_id, order, "paid");
       }
     }
 

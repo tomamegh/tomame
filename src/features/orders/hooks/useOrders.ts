@@ -101,7 +101,7 @@ export function useAdminOrder(id: string) {
   });
 }
 
-/** Admin: review a flagged order (approve/reject) */
+/** Admin: review a flagged order (approve/reject/set_price) */
 export function useReviewOrder() {
   const queryClient = useQueryClient();
 
@@ -110,7 +110,7 @@ export function useReviewOrder() {
     Error,
     {
       id: string;
-      action: "approve" | "reject";
+      action: "approve" | "reject" | "set_price";
       updates?: {
         productName?: string;
         estimatedPriceUsd?: number;
@@ -118,6 +118,8 @@ export function useReviewOrder() {
         originCountry?: "USA" | "UK" | "CHINA";
       };
       reason?: string;
+      admin_total_ghs?: number;
+      admin_pricing_note?: string;
     }
   >({
     mutationFn: ({ id, ...body }) =>

@@ -33,7 +33,7 @@ export async function getDashboardData(
 
       client
         .from("orders")
-        .select("pricing")
+        .select("pricing, admin_total_ghs")
         .in("status", ["paid", "processing", "in_transit", "delivered", "completed"]),
 
       client
@@ -43,7 +43,7 @@ export async function getDashboardData(
 
       client
         .from("orders")
-        .select("created_at, user_id, pricing, status")
+        .select("created_at, user_id, pricing, admin_total_ghs, status")
         .gte("created_at", thirtyDaysAgo)
         .neq("status", "cancelled"),
 
@@ -62,7 +62,7 @@ export async function getDashboardData(
 
       client
         .from("orders")
-        .select("id, product_name, status, origin_country, pricing, quantity, needs_review, created_at")
+        .select("id, product_name, status, origin_country, pricing, admin_total_ghs, quantity, needs_review, created_at")
         .order("created_at", { ascending: false })
         .limit(10),
 
@@ -83,7 +83,11 @@ export async function getDashboardData(
     const totalOrders = totalOrdersRes.count ?? 0;
     const ordersNeedingReview = reviewOrdersRes.count ?? 0;
     const totalRevenueGhs = (revenueOrdersRes.data ?? []).reduce(
-      (sum, o) => sum + ((o.pricing as { total_ghs?: number })?.total_ghs ?? 0),
+      (sum, o) =>
+        sum +
+        ((o.admin_total_ghs as number | null) ??
+          (o.pricing as { total_ghs?: number })?.total_ghs ??
+          0),
       0,
     );
     const activeUsers = new Set(
@@ -107,7 +111,9 @@ export async function getDashboardData(
       if (entry) {
         entry.orders++;
         entry.revenueGhs +=
-          (order.pricing as { total_ghs?: number })?.total_ghs ?? 0;
+          (order.admin_total_ghs as number | null) ??
+          (order.pricing as { total_ghs?: number })?.total_ghs ??
+          0;
         entry.userIds.add(order.user_id as string);
       }
     }
@@ -138,7 +144,10 @@ export async function getDashboardData(
       productName: o.product_name as string,
       status: o.status as string,
       originCountry: o.origin_country as string,
-      totalGhs: (o.pricing as { total_ghs?: number })?.total_ghs ?? null,
+      totalGhs:
+        (o.admin_total_ghs as number | null) ??
+        (o.pricing as { total_ghs?: number })?.total_ghs ??
+        null,
       quantity: o.quantity as number,
       needsReview: o.needs_review as boolean,
       createdAt: o.created_at as string,

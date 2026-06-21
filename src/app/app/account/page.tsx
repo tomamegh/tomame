@@ -16,8 +16,8 @@ export default function AccountPage() {
   const isLoading = authLoading || profileLoading;
 
   return (
-    <div className=" bg-stone-50">
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="max-w-4xl mx-auto">
+      <div className="py-2">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-stone-900">

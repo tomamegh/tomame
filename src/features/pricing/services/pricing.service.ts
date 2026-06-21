@@ -1,6 +1,7 @@
 import { PricingCalculator } from "@/lib/pricing";
 import type { PricingInput, PricingBreakdown, PricingConstants } from "@/lib/pricing";
 import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
+import { getCategoryPricingMap } from "@/db/queries/pricing-groups";
 import { logger } from "@/lib/logger";
 
 export type { PricingInput as CalculatePricingInput };
@@ -24,6 +25,15 @@ export async function calculatePricing(
     calculator.setConstants(constants);
   } catch (err) {
     logger.warn("Failed to load pricing constants from DB, using defaults", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  try {
+    const categoryMap = await getCategoryPricingMap();
+    calculator.setCategoryPricing(categoryMap);
+  } catch (err) {
+    logger.warn("Failed to load category pricing from DB, falling back to JSON config", {
       error: err instanceof Error ? err.message : String(err),
     });
   }

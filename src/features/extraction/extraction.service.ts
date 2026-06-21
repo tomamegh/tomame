@@ -3,17 +3,21 @@ import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePlatform, getScraperByPlatform } from "./scrapers";
-import type { ExtractionResult } from "./types";
+import type { CachedExtraction, ExtractionResult } from "./types";
 
 const CACHE_TTL_MINUTES = 30;
 
 const DOMAIN_COUNTRY_MAP: Record<string, "USA" | "UK" | "CHINA"> = {
   // Amazon — US only for now
   "amazon.com": "USA",
+  "a.co": "USA",        // Amazon short URL — resolves to amazon.com
   // Future: "amazon.co.uk": "UK", "amazon.ca": "USA", "amazon.de": "UK", etc.
 
   "ebay.com": "USA",
   "ebay.co.uk": "UK",
+  "ebay.us": "USA",     // eBay short URL — resolves to ebay.com
+  "ebay.to": "USA",     // eBay short URL — resolves to ebay.com
+  "microcenter.com": "USA",
   "walmart.com": "USA",
   "target.com": "USA",
   "bestbuy.com": "USA",
@@ -61,11 +65,6 @@ function hashUrl(url: string): string {
 
 // ── Cache helpers ──────────────────────────────────────────────────────────
 
-interface CachedExtraction {
-  id: string;
-  result: ExtractionResult;
-}
-
 async function getCachedExtraction(userId: string, urlHash: string): Promise<CachedExtraction | null> {
   try {
     const db = createAdminClient();
@@ -112,10 +111,18 @@ async function setCachedExtraction(
       .select("id")
       .single();
 
-    if (error || !data) return null;
+    if (error || !data) {
+      logger.warn("extraction cache write failed", {
+        code: error?.code,
+        message: error?.message,
+        hint: error?.hint,
+        details: error?.details,
+      });
+      return null;
+    }
     return data.id as string;
   } catch (err) {
-    logger.warn("extraction cache write failed", { error: err });
+    logger.warn("extraction cache write exception", { error: err instanceof Error ? err.message : err });
     return null;
   }
 }
@@ -130,23 +137,71 @@ export interface ExtractionResponse extends ExtractionResult {
  * Resolve a short URL (e.g. a.co) to its final destination so we can
  * determine the actual domain for country mapping.
  */
+const BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
 async function resolveShortUrl(shortUrl: string): Promise<string> {
+  const headers = { "User-Agent": BROWSER_UA };
   try {
     const res = await fetch(shortUrl, {
       method: "HEAD",
+      headers,
       redirect: "follow",
       signal: AbortSignal.timeout(10_000),
     });
-    return res.url || shortUrl;
+    if (res.url && res.url !== shortUrl) return res.url;
+    // HEAD blocked — retry with GET
+    const res2 = await fetch(shortUrl, {
+      headers,
+      redirect: "follow",
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res2.url || shortUrl;
   } catch {
     return shortUrl;
   }
 }
 
-const SHORT_URL_HOSTS = new Set(["a.co"]);
+const SHORT_URL_HOSTS = new Set([
+  // Platform-branded
+  "a.co",      // Amazon mobile share
+  "ebay.us",   // eBay share
+  "ebay.to",   // eBay Bitly custom domain
+  // Generic (approved by eBay Partner Network, also commonly used for Amazon affiliate links)
+  "bit.ly",    // Bitly
+  "ow.ly",     // Hootsuite
+  "buff.ly",   // Buffer
+]);
+
+/**
+ * Coalesce concurrent extractions for the same (user, url). React StrictMode in
+ * dev runs useEffect twice, and generally two quick clicks shouldn't each spin
+ * up a full browserless session. While an extraction is in-flight, subsequent
+ * callers await the same promise.
+ */
+const inflightExtractions = new Map<string, Promise<ExtractionResponse>>();
 
 export async function extractProductData(url: string, userId: string): Promise<ExtractionResponse> {
-  // Resolve short URLs up-front so country detection uses the real domain
+  const urlHash = hashUrl(url);
+  const key = `${userId}:${urlHash}`;
+
+  const existing = inflightExtractions.get(key);
+  if (existing) {
+    logger.info("extraction coalesced with in-flight request", { url, urlHash });
+    return existing;
+  }
+
+  const promise = performExtraction(url, userId, urlHash);
+  inflightExtractions.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    inflightExtractions.delete(key);
+  }
+}
+
+async function performExtraction(url: string, userId: string, urlHash: string): Promise<ExtractionResponse> {
+  // Resolve short URLs up-front so platform detection, country mapping,
+  // and the scraper all see the real destination URL.
   let resolvedUrl = url;
   try {
     if (SHORT_URL_HOSTS.has(new URL(url).hostname.toLowerCase())) {
@@ -157,9 +212,8 @@ export async function extractProductData(url: string, userId: string): Promise<E
     // If URL parsing fails, continue with original
   }
 
-  const urlHash = hashUrl(url);
-
-  // Check cache first (scoped to user)
+  // Check cache first (scoped to user) — keyed by the original URL so
+  // the same short link re-used by a user reuses the cached result.
   const cached = await getCachedExtraction(userId, urlHash);
   if (cached) {
     logger.info("extraction cache hit", { url, urlHash });
@@ -168,16 +222,16 @@ export async function extractProductData(url: string, userId: string): Promise<E
 
   const errors: string[] = [];
 
-  const platform = resolvePlatform(url);
+  const platform = resolvePlatform(resolvedUrl);
   if (!platform) {
-    throw new APIError(400, "Unsupported platform");
+    throw new APIError(400, "Product URL must be from a supported store");
   }
 
   const scraper = getScraperByPlatform(platform);
   const country = getCountryFromDomain(resolvedUrl);
 
   try {
-    const product = await scraper.scrape(url);
+    const product = await scraper.scrape(resolvedUrl);
 
     const extractionSuccess = product.title !== null || product.price !== null;
     if (!extractionSuccess) {
@@ -185,7 +239,7 @@ export async function extractProductData(url: string, userId: string): Promise<E
     }
 
     if (!country) {
-      errors.push("This Amazon region is not currently supported. Only amazon.com (US) is available.");
+      errors.push("This region is not currently supported.");
     }
 
     const result: ExtractionResult = {
@@ -198,16 +252,15 @@ export async function extractProductData(url: string, userId: string): Promise<E
       fetched_at: new Date().toISOString(),
     };
 
-    // Only cache successful extractions
-    let cacheId: string | null = null;
-    if (extractionSuccess) {
-      cacheId = await setCachedExtraction(userId, urlHash, url, result);
-    }
+    // Cache all extraction attempts — the review page handles partial/failed data
+    // gracefully. Skipping the cache when extraction_success=false was causing the
+    // Review button to silently do nothing (no cache ID = no navigation target).
+    const cacheId = await setCachedExtraction(userId, urlHash, url, result);
 
     return { ...result, extraction_cache_id: cacheId };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Scrape failed";
-    logger.error("extractProductData failed", { url, platform, error: message });
+    logger.error("extractProductData failed", { url, platform, error: message, _error: err });
     throw new APIError(502, message);
   }
 }

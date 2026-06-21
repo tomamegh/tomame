@@ -76,7 +76,9 @@ export default function CheckoutPage({ params }: Props) {
 
   const alreadyPaid = order.status !== "pending";
   const p = order.pricing;
-  const pricingPendingReview = p.pricing_method === "needs_review";
+  const hasAdminPrice = order.admin_total_ghs != null;
+  const pricingPendingReview = p.pricing_method === "needs_review" && !hasAdminPrice;
+  const effectiveTotalGhs = hasAdminPrice ? order.admin_total_ghs! : p.total_ghs;
 
   return (
     <div className="space-y-6 max-w-lg">
@@ -146,10 +148,25 @@ export default function CheckoutPage({ params }: Props) {
           <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-3">
             Pricing Breakdown
           </p>
-          {p.pricing_method === "needs_review" ? (
+          {pricingPendingReview ? (
             <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
               Pricing is pending admin review. You&apos;ll be notified once confirmed.
             </div>
+          ) : hasAdminPrice ? (
+            <>
+              <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-700 mb-2">
+                Price confirmed by our team.
+                {order.admin_pricing_note && (
+                  <span className="block text-xs text-blue-600 mt-1">{order.admin_pricing_note}</span>
+                )}
+              </div>
+              <div className="flex justify-between items-baseline pt-2">
+                <span className="text-sm font-semibold text-stone-700">Total</span>
+                <span className="text-2xl font-bold text-stone-900 tabular-nums">
+                  {fmtGhs(effectiveTotalGhs)}
+                </span>
+              </div>
+            </>
           ) : (
             <>
               {[
@@ -170,7 +187,7 @@ export default function CheckoutPage({ params }: Props) {
               <div className="flex justify-between items-baseline pt-2 border-t border-stone-200 mt-2">
                 <span className="text-sm font-semibold text-stone-700">Total</span>
                 <span className="text-2xl font-bold text-stone-900 tabular-nums">
-                  {fmtGhs(p.total_ghs)}
+                  {fmtGhs(effectiveTotalGhs)}
                 </span>
               </div>
             </>
@@ -200,7 +217,7 @@ export default function CheckoutPage({ params }: Props) {
                 ) : (
                   <>
                     <CreditCardIcon className="size-4" />
-                    Pay {fmtGhs(p.total_ghs)}
+                    Pay {fmtGhs(effectiveTotalGhs)}
                   </>
                 )}
               </Button>

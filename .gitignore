@@ -35,3 +35,4 @@ next-env.d.ts
 # pricing reference files
 *.xlsx
 *.pdf
+.env*
