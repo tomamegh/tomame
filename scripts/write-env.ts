@@ -63,9 +63,12 @@ NEXT_PUBLIC_SUPABASE_URL=${apiUrl}
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!=${anonKey}
 SUPABASE_SECRET_KEY=${serviceRoleKey}
 
-# Paystack (replace with your test keys)
-PAYSTACK_SECRET_KEY=sk_test_xxxxx
-NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_xxxxx
+# Hubtel (replace with your merchant credentials)
+HUBTEL_API_ID=your-hubtel-api-id
+HUBTEL_API_KEY=your-hubtel-api-key
+HUBTEL_MERCHANT_ACCOUNT_NUMBER=your-merchant-account-number
+# Unguessable secret in the callback URL — regenerate with: openssl rand -hex 32
+HUBTEL_CALLBACK_SECRET=change-me-to-a-random-32-byte-hex-string
 
 # Resend
 RESEND_API_KEY=re_xxxxx

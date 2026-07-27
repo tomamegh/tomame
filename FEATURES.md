@@ -32,7 +32,7 @@
 - [x] Admin-configurable service fee percentage
 - [x] Real-time price breakdown display
 
-### 4. Payment Integration - Paystack (MVP) ✅
+### 4. Payment Integration - Hubtel (MVP) ✅
 - [x] Full pre-payment requirement
 - [x] Mobile Money (MoMo) support
 - [x] Card payment support
@@ -95,7 +95,7 @@
 - [ ] PATCH /api/admin/orders/:id/status (update status)
 - [x] POST /api/payments/initialize
 - [x] GET /api/payments/callback
-- [x] POST /api/webhooks/paystack
+- [x] POST /api/payments/webhook/hubtel/[secret]
 - [x] GET /api/admin/pricing-config
 - [x] PUT /api/admin/pricing-config
 
@@ -210,7 +210,7 @@
 - [x] Admin-configurable pricing (no code changes)
 - [ ] Order lifecycle tracking
 - [ ] Automated notifications (Email + WhatsApp)
-- [x] Paystack integration (MoMo + Card)
+- [x] Hubtel integration (Mobile Money prompt)
 - [ ] Admin dashboard
 - [ ] SSL enabled
 - [x] No card data storage

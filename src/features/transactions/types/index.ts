@@ -12,7 +12,10 @@ export interface Transaction {
   amount_ghs: number;
   currency: string;
   status: TransactionStatus;
+  /** Hubtel channel: "mtn-gh" | "vodafone-gh" | "tigo-gh". */
   channel: string | null;
+  customer_msisdn: string | null;
+  provider_transaction_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
 }
@@ -41,6 +44,6 @@ export interface TransactionDetailOrder {
 export interface TransactionDetail extends Transaction {
   order: TransactionDetailOrder | null;
   customer: PlatformUser | null;
-  /** Raw Paystack verification payload from metadata */
-  paystack_data: Record<string, unknown> | null;
+  /** Raw Hubtel verification payload from metadata */
+  provider_data: Record<string, unknown> | null;
 }

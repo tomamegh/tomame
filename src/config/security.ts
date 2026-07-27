@@ -9,6 +9,8 @@ export const RATE_LIMIT = {
   orders: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
   /** Payment initialization — 10 requests per 15 minutes */
   payments: { windowMs: 15 * 60 * 1000, maxRequests: 10 },
+  /** Payment status polling — the checkout screen polls every few seconds */
+  paymentStatus: { windowMs: 60 * 1000, maxRequests: 40 },
   /** Webhook endpoints — 100 requests per minute */
   webhooks: { windowMs: 60 * 1000, maxRequests: 100 },
   /** Product extraction — 15 requests per 15 minutes */

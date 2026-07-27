@@ -14,7 +14,7 @@ const FAQS: FAQItem[] = [
   },
   {
     q: 'Can I pay with Mobile Money?',
-    a: 'Yes. We support MTN Mobile Money, Vodafone Cash, AirtelTigo Money, and Visa / Mastercard. All payments are processed locally in Ghana through Paystack.',
+    a: 'Yes. We support MTN Mobile Money, Telecel Cash, and AirtelTigo Money. All payments are processed locally in Ghana through Hubtel.',
   },
   {
     q: 'What if my product cannot be sourced?',

@@ -9,10 +9,13 @@ import {
   sendOrderStatusEmail,
 } from "@/features/orders/services/orders.service";
 import {
-  initializeTransaction,
-  verifyTransaction,
+  receiveMobileMoney,
+  getTransactionStatus,
   generatePaymentReference,
-} from "@/lib/paystack/client";
+  normalizeMsisdn,
+  pesewasToGhs,
+  type HubtelChannel,
+} from "@/lib/hubtel/client";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { createOrderNotifications } from "@/features/notifications/services/notifications.service";
 import { env } from "@/lib/env";
@@ -120,11 +123,15 @@ async function updatePaymentStatus(
   paymentId: string,
   status: string,
   metadata?: Record<string, unknown>,
-  channel?: string
+  channel?: string,
+  providerTransactionId?: string | null,
 ): Promise<Payment | null> {
   const update: Record<string, unknown> = { status };
   if (metadata) update.metadata = metadata;
   if (channel) update.channel = channel;
+  if (providerTransactionId) {
+    update.provider_transaction_id = providerTransactionId;
+  }
 
   const { data, error } = await client
     .from("payments")
@@ -145,6 +152,57 @@ async function updatePaymentStatus(
   return data as Payment;
 }
 
+/**
+ * Move a payment out of `pending` atomically.
+ *
+ * The `.eq("status", "pending")` predicate makes this a compare-and-swap: the
+ * database, not the application, decides which caller wins. Hubtel's callback
+ * and the customer's status poll routinely race on the same payment, and only
+ * the winner may link the order, notify and email — otherwise the customer gets
+ * duplicate mail and the audit log double-counts a single payment.
+ *
+ * Returns null when another caller already claimed the transition.
+ */
+async function claimPaymentTransition(
+  client: SupabaseClient,
+  paymentId: string,
+  status: string,
+  metadata: Record<string, unknown>,
+  providerTransactionId?: string | null,
+): Promise<Payment | null> {
+  const update: Record<string, unknown> = { status, metadata };
+  if (providerTransactionId) {
+    update.provider_transaction_id = providerTransactionId;
+  }
+
+  const { data, error } = await client
+    .from("payments")
+    .update(update)
+    .eq("id", paymentId)
+    .eq("status", PAYMENT_STATUSES.PENDING)
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    logger.error("claimPaymentTransition failed", {
+      paymentId,
+      status,
+      code: error.code,
+      message: error.message,
+    });
+    return null;
+  }
+
+  if (!data) {
+    logger.info("Payment transition already claimed by a concurrent settler", {
+      paymentId,
+      status,
+    });
+    return null;
+  }
+  return data as Payment;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function toPaymentResponse(payment: Payment): PaymentResponse {
@@ -155,17 +213,84 @@ function toPaymentResponse(payment: Payment): PaymentResponse {
     currency: payment.currency,
     status: payment.status,
     channel: payment.channel ?? null,
+    customerMsisdn: payment.customer_msisdn ?? null,
     createdAt: payment.created_at,
   };
 }
 
+/**
+ * Merge into the existing metadata rather than overwriting it — `order_id` lives
+ * there and the double-payment guard reads it back via `metadata->>order_id`.
+ */
+function mergeMetadata(
+  payment: Payment,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  return { ...(payment.metadata ?? {}), ...patch };
+}
+
+/**
+ * A mobile money PIN prompt expires on the customer's handset after a few
+ * minutes. Past this, a still-pending payment is treated as abandoned so the
+ * customer can start a fresh attempt.
+ */
+const PROMPT_TTL_MS = 5 * 60 * 1000;
+
+function isPromptExpired(payment: Payment): boolean {
+  return Date.now() - new Date(payment.created_at).getTime() > PROMPT_TTL_MS;
+}
+
 // ── Service functions ─────────────────────────────────────────────────────────
+
+/**
+ * Resolve a stale or already-settled payment attempt so the customer is not
+ * locked out of retrying. Returns a payment only if it still blocks a new one.
+ */
+async function resolveActivePayment(
+  admin: SupabaseClient,
+  orderId: string,
+): Promise<Payment | null> {
+  const existing = await getActivePaymentForOrder(admin, orderId);
+  if (!existing) return null;
+
+  if (existing.status === PAYMENT_STATUSES.SUCCESS) return existing;
+
+  // A pending attempt: ask Hubtel where it actually landed before blocking.
+  const settled = await verifyAndSettlePayment(existing.reference);
+  if (settled.status === PAYMENT_STATUSES.SUCCESS) return settled;
+  if (settled.status === PAYMENT_STATUSES.FAILED) return null;
+
+  // Still pending — block only while the handset prompt could still be live.
+  if (isPromptExpired(existing)) {
+    // Compare-and-swap, not a blind write: Hubtel said "pending" a moment ago,
+    // but the customer may be approving the prompt right now. If a real
+    // settlement lands first it wins and we keep blocking.
+    const abandoned = await claimPaymentTransition(
+      admin,
+      existing.id,
+      PAYMENT_STATUSES.FAILED,
+      mergeMetadata(existing, { failure_reason: "prompt_expired" }),
+    );
+    if (!abandoned) {
+      return (await getPaymentByReference(admin, existing.reference)) ?? existing;
+    }
+    return null;
+  }
+  return settled;
+}
 
 export async function initializePayment(
   user: PlatformUser,
   orderId: string,
+  msisdnInput: string,
+  channel: HubtelChannel,
 ): Promise<InitializePaymentResponse> {
   const admin = createAdminClient();
+
+  const msisdn = normalizeMsisdn(msisdnInput);
+  if (!msisdn) {
+    throw new APIError(400, "Enter a valid Ghanaian mobile money number.");
+  }
 
   const order = await getOrderById(admin, orderId);
   if (!order) throw new APIError(404, "Order not found");
@@ -173,12 +298,15 @@ export async function initializePayment(
   if (order.status !== "pending") throw new APIError(400, "Order is not awaiting payment");
 
   // Guard against double payment: block if a pending or successful payment already exists
-  const existingPayment = await getActivePaymentForOrder(admin, orderId);
-  if (existingPayment) {
-    if (existingPayment.status === PAYMENT_STATUSES.SUCCESS) {
+  const blocking = await resolveActivePayment(admin, orderId);
+  if (blocking) {
+    if (blocking.status === PAYMENT_STATUSES.SUCCESS) {
       throw new APIError(409, "This order has already been paid.");
     }
-    throw new APIError(409, "A payment is already in progress for this order.");
+    throw new APIError(
+      409,
+      "A payment prompt is already awaiting approval on your phone.",
+    );
   }
 
   // Use admin-set price if available, otherwise use calculated pricing
@@ -195,6 +323,8 @@ export async function initializePayment(
     amount: totalPesewas,
     currency: "GHS",
     status: PAYMENT_STATUSES.PENDING,
+    channel,
+    customer_msisdn: msisdn,
     metadata: { order_id: orderId },
   });
 
@@ -202,29 +332,63 @@ export async function initializePayment(
     throw new APIError(500, "Failed to create payment");
   }
 
-  let authorizationUrl: string;
-  try {
-    const callbackUrl = `${env.app.url}/api/payments/callback`;
-    const paystackResponse = await initializeTransaction({
-      //TODO: Fix user email in transaction initialization
-      email: user.email!,
-      amount: totalPesewas,
-      reference,
-      callbackUrl,
-      channels: ["card", "mobile_money"],
-    });
-    authorizationUrl = paystackResponse.data.authorization_url;
-  } catch (error) {
-    await updatePaymentStatus(admin, payment.id, PAYMENT_STATUSES.FAILED, {
-      error: "Paystack initialization failed",
-    });
-    logger.error("Paystack initializeTransaction failed", {
+  // Hubtel bills in GHS decimals, not the pesewas we store.
+  const charge = await receiveMobileMoney({
+    amount: pesewasToGhs(totalPesewas),
+    customerName:
+      [user.profile.first_name, user.profile.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || "Tomame customer",
+    customerEmail: user.email ?? "",
+    customerMsisdn: msisdn,
+    channel,
+    description: `Tomame order ${order.product_name}`.slice(0, 100),
+    clientReference: reference,
+    primaryCallbackUrl: `${env.app.url}/api/payments/webhook/hubtel/${env.hubtel.callbackSecret}`,
+  }).catch((error: unknown) => {
+    logger.error("Hubtel receiveMobileMoney threw", {
       reference,
       orderId,
       error: error instanceof Error ? error.message : String(error),
     });
-    throw new APIError(502, "Payment provider error. Please try again.");
+    return null;
+  });
+
+  if (!charge || charge.state === "failed") {
+    await updatePaymentStatus(
+      admin,
+      payment.id,
+      PAYMENT_STATUSES.FAILED,
+      mergeMetadata(payment, {
+        failure_reason: "hubtel_prompt_rejected",
+        hubtel_initiate: charge?.raw ?? null,
+      }),
+    );
+    logger.error("Hubtel prompt was not accepted", {
+      reference,
+      orderId,
+      responseCode: charge?.responseCode,
+      message: charge?.message,
+    });
+    throw new APIError(
+      502,
+      charge?.message?.trim()
+        ? `Payment provider error: ${charge.message}`
+        : "Payment provider error. Please try again.",
+    );
   }
+
+  // Stays pending either way: an immediate 0000 is still confirmed through the
+  // status API below, never written straight from the initiate response.
+  await updatePaymentStatus(
+    admin,
+    payment.id,
+    PAYMENT_STATUSES.PENDING,
+    mergeMetadata(payment, { hubtel_initiate: charge.raw }),
+    undefined,
+    charge.transactionId,
+  );
 
   await logAuditEvent({
     actorId: user.id,
@@ -232,121 +396,214 @@ export async function initializePayment(
     action: "payment_initialized",
     entityType: "payment",
     entityId: payment.id,
-    metadata: { orderId, reference, amount: totalPesewas },
+    metadata: { orderId, reference, amount: totalPesewas, channel, msisdn },
   });
 
-  return { payment: toPaymentResponse(payment), authorizationUrl };
+  // If Hubtel already reported success, settle it now rather than making the
+  // client poll for a result that is already known.
+  if (charge.state === "success") {
+    const settled = await verifyAndSettlePayment(reference);
+    return {
+      payment: toPaymentResponse(settled),
+      status: settled.status,
+      message: "Payment received.",
+    };
+  }
+
+  return {
+    payment: toPaymentResponse(payment),
+    status: PAYMENT_STATUSES.PENDING,
+    message: `Approve the payment prompt sent to ${msisdn}.`,
+  };
 }
 
-export async function handlePaymentCallback(
-  reference: string,
-): Promise<{ redirectUrl: string }> {
+/**
+ * The single source of truth for settling a payment.
+ *
+ * Asks Hubtel's Transaction Status Check API where the money actually is, then
+ * applies the result idempotently. Both the callback route and the client
+ * polling endpoint go through here — neither is allowed to write a status from
+ * data it was handed, because Hubtel callbacks are unsigned.
+ */
+export async function verifyAndSettlePayment(reference: string): Promise<Payment> {
   const admin = createAdminClient();
 
   const payment = await getPaymentByReference(admin, reference);
   if (!payment) {
-    logger.warn("Payment callback for unknown reference", { reference });
+    logger.warn("Settle requested for unknown payment reference", { reference });
     throw new APIError(404, "Payment not found");
   }
 
-  if (payment.status === PAYMENT_STATUSES.SUCCESS) {
-    return { redirectUrl: `${env.app.url}/orders?payment=success` };
-  }
-  if (payment.status === PAYMENT_STATUSES.FAILED) {
-    return { redirectUrl: `${env.app.url}/orders?payment=failed` };
-  }
+  // Terminal states are final — never re-open a settled payment.
+  if (payment.status !== PAYMENT_STATUSES.PENDING) return payment;
 
-  let paystackStatus: string;
-  let verifyData: Record<string, unknown>;
+  let status: Awaited<ReturnType<typeof getTransactionStatus>>;
   try {
-    const verification = await verifyTransaction(reference);
-    paystackStatus = verification.data.status;
-    verifyData = verification.data as unknown as Record<string, unknown>;
+    status = await getTransactionStatus(reference);
   } catch (error) {
-    logger.error("Paystack verification failed", {
+    logger.error("Hubtel status check failed", {
       reference,
       error: error instanceof Error ? error.message : String(error),
     });
     throw new APIError(502, "Payment verification failed");
   }
 
-  const orderId = (payment.metadata as Record<string, unknown>)?.order_id as string;
+  const orderId = (payment.metadata as Record<string, unknown>)?.order_id as
+    | string
+    | undefined;
 
-  if (paystackStatus === "success") {
-    const paystackChannel = verifyData.channel as string | undefined;
-    await updatePaymentStatus(
+  if (status.state === "pending") return payment;
+
+  if (status.state === "failed") {
+    const failed = await claimPaymentTransition(
       admin,
       payment.id,
-      PAYMENT_STATUSES.SUCCESS,
-      { paystack_verification: verifyData },
-      paystackChannel,
+      PAYMENT_STATUSES.FAILED,
+      mergeMetadata(payment, { hubtel_verification: status.raw }),
+      status.transactionId,
     );
 
-    if (orderId) {
-      const order = await linkOrderToPayment(admin, orderId, payment.id);
-
-      await logAuditEvent({
-        actorId: payment.user_id,
-        actorRole: "system",
-        action: "order_status_changed",
-        entityType: "order",
-        entityId: orderId,
-        metadata: { from: "pending", to: "paid", paymentId: payment.id },
-      });
-
-      if (order) {
-        await createOrderNotifications(
-          payment.user_id,
-          orderId,
-          order.product_name,
-          order.admin_total_ghs ?? order.pricing.total_ghs,
-        );
-        sendOrderStatusEmail(payment.user_id, order, "paid");
-      }
+    // Lost the race — the winner already audited this transition.
+    if (!failed) {
+      return (await getPaymentByReference(admin, reference)) ?? payment;
     }
 
     await logAuditEvent({
       actorId: payment.user_id,
       actorRole: "system",
-      action: "payment_successful",
+      action: "payment_failed",
       entityType: "payment",
       entityId: payment.id,
-      metadata: { reference, orderId },
+      metadata: { reference, orderId, responseCode: status.responseCode },
     });
 
-    return { redirectUrl: `${env.app.url}/app/orders/${orderId}?payment=success` };
+    return failed;
   }
 
-  await updatePaymentStatus(admin, payment.id, PAYMENT_STATUSES.FAILED, {
-    paystack_verification: verifyData,
-  });
+  // ── Success ────────────────────────────────────────────────────────────────
+
+  // Never credit an order for less than it costs, whatever Hubtel reports.
+  if (status.amount != null && Math.round(status.amount * 100) < payment.amount) {
+    logger.error("Hubtel reported an underpayment", {
+      reference,
+      expectedPesewas: payment.amount,
+      reportedGhs: status.amount,
+    });
+    await updatePaymentStatus(
+      admin,
+      payment.id,
+      PAYMENT_STATUSES.FAILED,
+      mergeMetadata(payment, {
+        failure_reason: "amount_mismatch",
+        hubtel_verification: status.raw,
+      }),
+    );
+
+    await logAuditEvent({
+      actorId: payment.user_id,
+      actorRole: "system",
+      action: "payment_failed",
+      entityType: "payment",
+      entityId: payment.id,
+      metadata: { reference, orderId, reason: "amount_mismatch" },
+    });
+
+    throw new APIError(400, "Paid amount does not match the order total.");
+  }
+
+  const succeeded = await claimPaymentTransition(
+    admin,
+    payment.id,
+    PAYMENT_STATUSES.SUCCESS,
+    mergeMetadata(payment, { hubtel_verification: status.raw }),
+    status.transactionId,
+  );
+
+  // Lost the race — the winner is linking the order and sending the mail.
+  // Doing it again here is exactly the duplicate this guard exists to prevent.
+  if (!succeeded) {
+    return (await getPaymentByReference(admin, reference)) ?? payment;
+  }
+
+  if (orderId) {
+    const order = await linkOrderToPayment(admin, orderId, payment.id);
+
+    await logAuditEvent({
+      actorId: payment.user_id,
+      actorRole: "system",
+      action: "order_status_changed",
+      entityType: "order",
+      entityId: orderId,
+      metadata: { from: "pending", to: "paid", paymentId: payment.id },
+    });
+
+    if (order) {
+      await createOrderNotifications(
+        payment.user_id,
+        orderId,
+        order.product_name,
+        order.admin_total_ghs ?? order.pricing.total_ghs,
+      );
+      sendOrderStatusEmail(payment.user_id, order, "paid");
+    }
+  }
 
   await logAuditEvent({
     actorId: payment.user_id,
     actorRole: "system",
-    action: "payment_failed",
+    action: "payment_successful",
     entityType: "payment",
     entityId: payment.id,
-    metadata: { reference, orderId, paystackStatus },
+    metadata: { reference, orderId },
   });
 
-  return { redirectUrl: `${env.app.url}/orders?payment=failed` };
+  return succeeded;
 }
 
-export async function handleWebhookEvent(event: {
-  event: string;
-  data: { reference: string; status: string; amount: number; currency: string };
-}): Promise<{ message: string }> {
-  if (event.event !== "charge.success") {
-    return { message: "Event ignored" };
-  }
-
-  const { reference } = event.data;
+/**
+ * Poll target for the checkout screen while the customer approves the prompt.
+ * Scoped to the caller — a user may only read their own payment.
+ */
+export async function getPaymentStatusForUser(
+  user: PlatformUser,
+  reference: string,
+): Promise<{ payment: PaymentResponse; orderId: string | null }> {
   const admin = createAdminClient();
 
+  const existing = await getPaymentByReference(admin, reference);
+  if (!existing || existing.user_id !== user.id) {
+    throw new APIError(404, "Payment not found");
+  }
+
+  const payment =
+    existing.status === PAYMENT_STATUSES.PENDING
+      ? await verifyAndSettlePayment(reference)
+      : existing;
+
+  const orderId =
+    ((payment.metadata as Record<string, unknown>)?.order_id as string) ?? null;
+
+  return { payment: toPaymentResponse(payment), orderId };
+}
+
+/**
+ * Hubtel callback handler. The body tells us *which* transaction to look at and
+ * nothing more — the status itself is always re-fetched from Hubtel.
+ */
+export async function handleHubtelCallback(payload: {
+  ResponseCode?: string;
+  Data?: { ClientReference?: string } | null;
+}): Promise<{ message: string }> {
+  const reference = payload.Data?.ClientReference;
+  if (!reference) {
+    logger.warn("Hubtel callback without a ClientReference");
+    return { message: "Missing ClientReference, ignored" };
+  }
+
+  const admin = createAdminClient();
   const payment = await getPaymentByReference(admin, reference);
   if (!payment) {
-    logger.warn("Webhook for unknown payment reference", { reference });
+    logger.warn("Hubtel callback for unknown payment reference", { reference });
     return { message: "Payment not found, ignored" };
   }
 
@@ -354,17 +611,32 @@ export async function handleWebhookEvent(event: {
     return { message: "Already processed" };
   }
 
-  try {
-    await handlePaymentCallback(reference);
-  } catch (err) {
-    logger.error("Webhook handlePaymentCallback failed", {
-      reference,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    throw err;
+  // A payment we abandoned as expired can still be approved late on the
+  // handset. Silently ignoring that callback would mean the customer is
+  // charged for an order that never moves to `paid`, so confirm with Hubtel
+  // and raise it for manual reconciliation rather than auto-crediting — by
+  // now the customer may have retried and paid a second time.
+  if (payment.status === PAYMENT_STATUSES.FAILED) {
+    const status = await getTransactionStatus(reference).catch(() => null);
+    if (status?.state === "success") {
+      logger.error(
+        "RECONCILE: Hubtel reports a payment paid that we recorded as failed",
+        {
+          reference,
+          paymentId: payment.id,
+          userId: payment.user_id,
+          orderId: (payment.metadata as Record<string, unknown>)?.order_id,
+          amountPesewas: payment.amount,
+          hubtelTransactionId: status.transactionId,
+        },
+      );
+      return { message: "Late payment flagged for reconciliation" };
+    }
+    return { message: "Already processed" };
   }
 
-  return { message: "Webhook processed" };
+  await verifyAndSettlePayment(reference);
+  return { message: "Callback processed" };
 }
 
 export interface TransactionListResponse {

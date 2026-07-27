@@ -4,8 +4,7 @@ import { APIError } from "@/lib/auth/api-helpers";
 import type { PlatformUser, UserProfile } from "@/features/users/types";
 import type { PlatformRoles } from "@/features/auth/types";
 import type { Payment } from "@/features/payments/types";
-import { verifyTransaction } from "@/lib/paystack/client";
-import { handlePaymentCallback } from "@/features/payments/services/payments.service";
+import { verifyAndSettlePayment } from "@/features/payments/services/payments.service";
 import type {
   Transaction,
   TransactionDetail,
@@ -90,8 +89,10 @@ async function getTransactionById(
     }
   }
 
-  const paystackData =
-    (row.metadata?.paystack_verification as Record<string, unknown>) ?? null;
+  const providerData =
+    (row.metadata?.hubtel_verification as Record<string, unknown>) ??
+    (row.metadata?.hubtel_initiate as Record<string, unknown>) ??
+    null;
 
   return {
     id: row.id,
@@ -102,11 +103,13 @@ async function getTransactionById(
     currency: row.currency,
     status: row.status,
     channel: row.channel ?? null,
+    customer_msisdn: row.customer_msisdn ?? null,
+    provider_transaction_id: row.provider_transaction_id ?? null,
     metadata: row.metadata,
     created_at: row.created_at,
     order: orderRow,
     customer,
-    paystack_data: paystackData,
+    provider_data: providerData,
   };
 }
 
@@ -167,11 +170,16 @@ export async function getTransactionDetail(
 
 export interface SyncResult {
   updated: boolean;
-  paystackStatus: string;
+  providerStatus: string;
   dbStatus: string;
   message: string;
 }
 
+/**
+ * Reconcile one transaction against Hubtel on demand, for when a callback was
+ * missed. Delegates to the same settlement path the customer flow uses, so an
+ * order gets linked, notified and audited exactly once.
+ */
 export async function syncTransactionStatus(
   client: SupabaseClient,
   user: PlatformUser,
@@ -181,7 +189,6 @@ export async function syncTransactionStatus(
     throw new APIError(403, "Admin access required");
   }
 
-  // 1. Fetch the payment from DB
   const { data: payment, error } = await client
     .from("payments")
     .select("id, reference, status")
@@ -194,64 +201,41 @@ export async function syncTransactionStatus(
 
   const dbStatus = payment.status as string;
 
-  // 2. Already finalized — no Paystack call needed
+  // Terminal states are final — nothing to reconcile.
   if (dbStatus === "success" || dbStatus === "failed") {
     return {
       updated: false,
-      paystackStatus: dbStatus,
+      providerStatus: dbStatus,
       dbStatus,
       message: `Transaction is already ${dbStatus}. No update needed.`,
     };
   }
 
-  // 3. Verify with Paystack — always server-side
-  let paystackStatus: string;
+  let settled: Awaited<ReturnType<typeof verifyAndSettlePayment>>;
   try {
-    const verification = await verifyTransaction(payment.reference as string);
-    paystackStatus = verification.data.status; // "success" | "failed" | "abandoned"
+    settled = await verifyAndSettlePayment(payment.reference as string);
   } catch (err) {
-    logger.error("syncTransactionStatus: Paystack verify failed", {
-      id,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    throw new APIError(502, "Could not verify with Paystack. Please try again.");
-  }
-
-  // 4. Paystack still shows pending — nothing to do
-  if (paystackStatus !== "success" && paystackStatus !== "failed" && paystackStatus !== "abandoned") {
-    return {
-      updated: false,
-      paystackStatus,
-      dbStatus,
-      message: "Paystack shows the transaction as still pending. No update made.",
-    };
-  }
-
-  // 5. Status diverges — run the full callback logic (links order, sends notifications, audits)
-  try {
-    await handlePaymentCallback(payment.reference as string);
-  } catch (err) {
-    logger.error("syncTransactionStatus: handlePaymentCallback failed", {
+    logger.error("syncTransactionStatus: Hubtel verification failed", {
       id,
       reference: payment.reference,
       error: err instanceof Error ? err.message : String(err),
     });
-    throw new APIError(500, "Sync failed while updating transaction. Please try again.");
+    throw new APIError(502, "Could not verify with Hubtel. Please try again.");
   }
 
-  // 6. Read final DB status after update
-  const { data: refreshed } = await client
-    .from("payments")
-    .select("status")
-    .eq("id", id)
-    .single();
-
-  const finalStatus = (refreshed?.status as string | undefined) ?? paystackStatus;
+  if (settled.status === dbStatus) {
+    return {
+      updated: false,
+      providerStatus: settled.status,
+      dbStatus,
+      message: "Hubtel still shows the transaction as pending. No update made.",
+    };
+  }
 
   return {
     updated: true,
-    paystackStatus,
-    dbStatus: finalStatus,
-    message: `Transaction synced. Status updated to "${finalStatus}".`,
+    providerStatus: settled.status,
+    dbStatus: settled.status,
+    message: `Transaction synced. Status updated to "${settled.status}".`,
   };
 }

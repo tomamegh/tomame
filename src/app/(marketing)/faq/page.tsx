@@ -42,7 +42,7 @@ const CATEGORIES: Category[] = [
       },
       {
         q: 'What payment methods do you accept?',
-        a: 'MTN Mobile Money, Vodafone Cash, AirtelTigo Money, Visa, and Mastercard. All processed locally through Paystack.',
+        a: 'MTN Mobile Money, Telecel Cash, and AirtelTigo Money. All processed locally through Hubtel.',
       },
       {
         q: 'Can I get a refund?',

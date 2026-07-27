@@ -28,7 +28,7 @@ values
 
 We do not sell your personal data. We share information only with:
 
-- **Payment processors** (Paystack) solely to complete transactions.
+- **Payment processors** (Hubtel) solely to complete transactions.
 - **Logistics partners** as needed to deliver your package.
 - **Legal authorities** when required by Ghanaian law.
 
@@ -38,7 +38,7 @@ Order and payment records are retained for seven (7) years for tax and legal com
 
 ### Security
 
-All data is stored on Supabase infrastructure with row-level security. Passwords are never stored in plain text. Payment details are handled exclusively by Paystack and never stored on our servers.
+All data is stored on Supabase infrastructure with row-level security. Passwords are never stored in plain text. Payment details are handled exclusively by Hubtel and never stored on our servers.
 
 ### Contact
 
@@ -259,15 +259,15 @@ _This policy applies to all orders placed through tomame.ca and our customer ser
   (
     'payment',
     'Payment Policy',
-    $md$All payments on Tomame are processed securely through **Paystack**, a PCI-DSS compliant payment gateway trusted across Africa.
+    $md$All payments on Tomame are processed securely through **Hubtel**, a licensed Ghanaian payment service provider.
 
 ### Accepted Payment Methods
 
 - **MTN Mobile Money**
-- **Vodafone Cash**
+- **Telecel Cash**
 - **AirtelTigo Money**
-- **Visa** (debit and credit)
-- **Mastercard** (debit and credit)
+
+You pay by approving a PIN prompt sent directly to your mobile money wallet — you are never asked to enter your PIN on our website.
 
 ### Currency
 
@@ -275,13 +275,13 @@ All transactions are in **Ghana Cedis (GH₵)**. Exchange rates are sourced from
 
 ### Payment Security
 
-- Card details are never stored on Tomame servers — they are handled exclusively by Paystack.
+- Your mobile money PIN is never entered on, seen by, or stored on Tomame servers — you enter it only on your own handset.
 - All payment pages are served over HTTPS.
-- We verify every transaction server-side via the Paystack API before confirming an order.
+- We verify every transaction server-side against Hubtel before confirming an order — a payment is never confirmed from a notification alone.
 
 ### Failed Payments
 
-If a payment attempt fails, no charge is made. You may retry immediately using the same or a different payment method. If you believe you were charged for a failed transaction, contact us at [support@tomame.ca](mailto:support@tomame.ca) with the date and approximate amount — we will investigate within 24 hours.
+If a payment attempt fails, no charge is made. You may retry immediately using the same or a different mobile money wallet. If you believe you were charged for a failed transaction, contact us at [support@tomame.ca](mailto:support@tomame.ca) with the date and approximate amount — we will investigate within 24 hours.
 
 ### Receipts
 

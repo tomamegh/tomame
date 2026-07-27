@@ -73,7 +73,7 @@ Agent: [Implements email verification]
 - **Runtime**: Node.js (Server-only APIs)
 - **Database**: Supabase (PostgreSQL)
 - **Auth**: Supabase Auth
-- **Payments**: Paystack (server-side only)
+- **Payments**: Hubtel (server-side only)
 - **Email**: SendGrid (transactional emails)
 - **Hosting**: Serverless or containerized (assume stateless execution)
 
@@ -145,12 +145,13 @@ Agent: [Implements email verification]
 
 ---
 
-## Payments (Paystack)
+## Payments (Hubtel)
 
 ### 9. Payment Security
 - Payment initialization and verification MUST be server-side
 - Never trust payment status from the client
-- Always verify transactions using Paystack's API
+- Always verify transactions using Hubtel's Transaction Status Check API — never trust the
+  unsigned callback body or the initiate response
 - Never store card or sensitive payment data
 - Persist only:
   - Transaction reference
@@ -293,7 +294,7 @@ src/
 │   │   ├── orders.queries.ts
 │   │   └── orders.validators.ts
 │   │
-│   ├── payments/                   # Paystack payment processing
+│   ├── payments/                   # Hubtel payment processing
 │   │   ├── payments.service.ts
 │   │   ├── payments.queries.ts
 │   │   └── payments.validators.ts
@@ -375,7 +376,7 @@ All tables MUST have Row Level Security (RLS) enabled.
 
 ### payments
 
-Purpose: Stores Paystack payment intents and verified transactions. Payment status is **server-controlled only**.
+Purpose: Stores Hubtel payment intents and verified transactions. Payment status is **server-controlled only**.
 
 ```sql
 CREATE TABLE payments (
@@ -500,7 +501,7 @@ pending → success
 pending → failed
 ```
 
-1. `pending` is created before redirect to Paystack
+1. `pending` is created before the Hubtel prompt is sent to the customer's handset
 2. `success` ONLY after server-side verification
 3. `failed` ONLY after verification failure or timeout
 
@@ -849,7 +850,7 @@ The system is built with **Next.js (App Router)** and **Supabase** and follows s
 - **Async Jobs**: Cron-based workers (Next.js API routes)
 - **Email**: SendGrid (transactional emails)
 - **Notifications**: Email (SendGrid) + WhatsApp (optional)
-- **Payments**: Paystack
+- **Payments**: Hubtel
 - **Scraping**: Server-side only
 
 ---
@@ -890,7 +891,7 @@ src/
     users/                        # User CRUD + admin management
     audit/                        # Audit logging
     orders/                       # Order lifecycle
-    payments/                     # Paystack integration
+    payments/                     # Hubtel integration
     pricing/                      # Admin pricing config
     notifications/                # Email/WhatsApp delivery
 
@@ -1028,7 +1029,7 @@ Calculation:
 > **Contract Requirement**: Full pre-payment is mandatory before order processing
 
 - User sees total price breakdown
-- User initiates payment via Paystack (MoMo or Card)
+- User enters their mobile money number and network; Hubtel sends a PIN prompt
 - Payment is verified server-side
 - On successful payment:
   - Order status → `paid`
@@ -1226,7 +1227,7 @@ All admin actions **must** create audit logs.
 - ❌ Allow order processing without confirmed payment
 - ❌ Skip audit logging
 - ❌ Trust client-provided totals
-- ❌ Store card data (Paystack handles this)
+- ❌ Store card or wallet credentials (Hubtel handles this)
 - ❌ Process orders before full pre-payment
 
 ---
@@ -1253,7 +1254,7 @@ This flow is **secure, auditable, scalable, and contract-compliant**.
 2. ✅ Pricing configurable by admin without code changes
 3. ✅ Order lifecycle tracking from submission to delivery
 4. ✅ Automated notifications (Email + WhatsApp)
-5. ✅ Paystack integration (MoMo + Card)
+5. ✅ Hubtel integration (Mobile Money prompt)
 6. ✅ Admin dashboard for order management
 7. ✅ No automated scraping in Phase 1 (excluded per contract)
 8. ✅ SSL enabled, no card data storage

@@ -3,7 +3,10 @@
         "browserless",
         "colour",
         "Microcenter",
-        "paystack",
+        "hubtel",
+    "msisdn",
+    "payproxyapi",
+    "txnstatus",
         "SUPABASE",
         "Tomame"
     ]

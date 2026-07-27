@@ -41,7 +41,7 @@
        ┌───────┴───────┐
        ▼               ▼
 ┌─────────────┐  ┌─────────────┐
-│   Paystack  │  │Email/WhatsApp│
+│   Hubtel    │  │Email/WhatsApp│
 │   Payment   │  │   Services   │
 └─────────────┘  └─────────────┘
 ```
@@ -240,96 +240,109 @@
 └───────────────────────────────────────────────────────────┘
                            ↓
 ┌─ API: POST /api/payments/initialize ──────────────────────┐
+│ Body: { orderId, msisdn, channel }                        │
 │ 1. Authenticate user                                      │
-│ 2. Verify order exists and status = 'pending_payment'     │
-│ 3. Recalculate total (server-side verification)           │
-│ 4. Create payment record:                                 │
+│ 2. Normalise msisdn (+233…/233…/0… → 0XXXXXXXXX)          │
+│ 3. Verify order exists, is owned by user, status='pending'│
+│ 4. Resolve any active attempt (see "Retries" below)       │
+│ 5. Recalculate total (server-side verification)           │
+│ 6. Create payment record:                                 │
 │    {                                                      │
 │      id: uuid,                                            │
-│      order_id: order_id,                                  │
 │      user_id: user_id,                                    │
-│      amount_ghs: 1240.00,                                 │
+│      amount: 124000,      // pesewas (GHS × 100)          │
 │      currency: "GHS",                                     │
 │      status: "pending",                                   │
 │      reference: "TOM_" + timestamp + "_" + random,        │
-│      provider: "paystack",                                │
+│      channel: "mtn-gh",                                   │
+│      customer_msisdn: "0244000000",                       │
+│      metadata: { order_id },                              │
 │      created_at: timestamp                                │
 │    }                                                      │
-│ 5. Initialize Paystack transaction:                       │
-│    POST https://api.paystack.co/transaction/initialize    │
+│ 7. Send the Hubtel Receive Money Prompt:                  │
+│    POST https://rmp.hubtel.com/merchantaccount/           │
+│         merchants/:merchantAccountNumber/receive/mobilemoney │
+│    Authorization: Basic base64(API_ID:API_KEY)            │
+│    Idempotency-Key: TOM_1234567890_ABC                    │
 │    {                                                      │
-│      amount: 124000,  // in pesewas (GHS × 100)          │
-│      email: "customer@example.com",                       │
-│      reference: "TOM_1234567890_ABC",                     │
-│      callback_url: "https://tomame.com/api/payments/callback", │
-│      channels: ["mobile_money", "card"]                   │
+│      Amount: 1240.00,   // GHS decimal, NOT pesewas       │
+│      Channel: "mtn-gh",                                   │
+│      CustomerMsisdn: "0244000000",                        │
+│      CustomerName: "Ama Mensah",                          │
+│      CustomerEmail: "customer@example.com",               │
+│      Description: "Tomame order …",                       │
+│      ClientReference: "TOM_1234567890_ABC",               │
+│      PrimaryCallbackUrl:                                  │
+│        "https://tomame.com/api/payments/webhook/hubtel/<SECRET>" │
 │    }                                                      │
-│ 6. Receive Paystack response:                             │
-│    {                                                      │
-│      status: true,                                        │
-│      data: {                                              │
-│        authorization_url: "https://checkout.paystack.com/xyz", │
-│        access_code: "xyz123",                             │
-│        reference: "TOM_1234567890_ABC"                    │
-│      }                                                    │
-│    }                                                      │
-│ 7. Return authorization_url to frontend                   │
+│ 8. Hubtel responds:                                       │
+│    { ResponseCode: "0001",  // ACCEPTED — not yet paid    │
+│      Data: { TransactionId: "…" } }                       │
+│    ResponseCode 0001/0005 → pending, 0000 → settled,      │
+│    anything else → failed (payment marked failed, 502)    │
+│ 9. Return { payment, status: "pending", message }         │
+│    NOTE: there is no redirect and no authorization_url.   │
 └───────────────────────────────────────────────────────────┘
                            ↓
 ┌─ Customer Action ─────────────────────────────────────────┐
-│ 1. Redirected to Paystack checkout page                   │
-│ 2. Select payment method:                                 │
-│    - Mobile Money (MTN, Vodafone, AirtelTigo)            │
-│    - Card (Visa, Mastercard)                             │
-│ 3. Enter payment details                                  │
-│ 4. Authorize payment                                      │
+│ 1. A PIN prompt appears on the customer's handset         │
+│ 2. Customer enters their mobile money PIN to approve      │
+│    (MTN MoMo, Telecel Cash, or AirtelTigo Money)          │
+│ 3. Meanwhile the checkout screen polls                    │
+│    GET /api/payments/status?reference=TOM_XXX every 4s    │
+│ 4. Prompt expires on the handset after ~5 minutes         │
 └───────────────────────────────────────────────────────────┘
                            ↓
-┌─ Paystack Processing ─────────────────────────────────────┐
-│ 1. Process payment with selected method                   │
-│ 2. Verify transaction                                     │
-│ 3. Redirect to callback_url with reference                │
-└───────────────────────────────────────────────────────────┘
-                           ↓
-┌─ API: GET /api/payments/callback?reference=TOM_XXX ───────┐
-│ 1. Extract reference from query params                    │
-│ 2. Verify transaction with Paystack:                      │
-│    GET https://api.paystack.co/transaction/verify/:ref    │
-│    Headers: { Authorization: "Bearer SECRET_KEY" }        │
+┌─ Settlement: verifyAndSettlePayment(reference) ───────────┐
+│ THE ONLY place a payment status may be written.           │
+│ Reached from three callers — the Hubtel callback, the     │
+│ customer's status poll, and the admin "Sync with Hubtel"  │
+│ button — all of which go through this same function.      │
 │                                                           │
-│ 3. Paystack response:                                     │
+│ 1. Load payment by reference                              │
+│ 2. If already success/failed → return unchanged (final)   │
+│ 3. Ask Hubtel where the money actually is:                │
+│    GET https://api-txnstatus.hubtel.com/transactions/     │
+│        :merchantAccountNumber/status?clientReference=:ref │
+│    Authorization: Basic base64(API_ID:API_KEY)            │
+│                                                           │
+│ 4. Hubtel response:                                       │
 │    {                                                      │
-│      status: true,                                        │
+│      responseCode: "0000",                                │
 │      data: {                                              │
-│        status: "success",                                 │
-│        reference: "TOM_1234567890_ABC",                   │
-│        amount: 124000,                                    │
-│        paid_at: "2024-01-15T10:30:00Z"                   │
+│        status: "Paid",       // ONLY "Paid" is success    │
+│        transactionId: "…",                                │
+│        amount: 1240.00,                                   │
+│        date: "2024-01-15T10:30:00Z"                       │
 │      }                                                    │
 │    }                                                      │
+│    "Pending"/code 0001/0005 → stay pending, no write      │
+│    "Unpaid"/"Refunded"/unknown → failed                   │
 │                                                           │
-│ 4. IF status = "success":                                 │
-│    a. Update payment record:                              │
-│       - status = "success"                                │
-│       - paid_at = timestamp                               │
-│    b. Update order record:                                │
-│       - status = "paid"                                   │
-│       - paid_at = timestamp                               │
-│    c. Create audit log: "payment_successful"              │
-│    d. Queue notifications:                                │
-│       - Email to customer (payment confirmation)          │
-│       - WhatsApp to customer (optional)                   │
-│       - Email to admin (new paid order alert)             │
-│    e. Redirect to success page                            │
+│ 5. IF Paid:                                               │
+│    a. Reject underpayment (reported < order total → fail) │
+│    b. COMPARE-AND-SWAP the status:                        │
+│         UPDATE payments SET status='success'              │
+│          WHERE id=:id AND status='pending'                │
+│       Zero rows matched → another caller already won;     │
+│       return without side effects. This is what keeps a   │
+│       racing callback + poll from double-emailing.        │
+│    c. Link order → status = "paid"                        │
+│    d. Create audit log: "payment_successful" +            │
+│       "order_status_changed"                              │
+│    e. Queue notifications + order status email            │
 │                                                           │
-│ 5. IF status = "failed":                                  │
-│    a. Update payment record: status = "failed"            │
-│    b. Keep order status: "pending_payment"                │
+│ 6. IF failed:                                             │
+│    a. Same compare-and-swap to status = "failed"          │
+│    b. Keep order status: "pending"                        │
 │    c. Create audit log: "payment_failed"                  │
-│    d. Queue notification: Email to customer               │
-│    e. Redirect to failure page                            │
 └───────────────────────────────────────────────────────────┘
 ```
+
+**Retries:** a customer who declines or ignores the prompt is not locked out.
+`initializePayment` re-verifies any active attempt first: a still-live prompt
+(< 5 min) returns 409, an expired or failed one is closed out so a fresh
+attempt can start, and an already-paid order returns 409.
 
 **Database Changes:**
 - ✅ New record in `payments` table (status: `success` or `failed`)
@@ -342,31 +355,33 @@
 ### **PHASE 5: Webhook Verification (Backup)**
 
 ```
-┌─ Paystack Webhook: POST /api/webhooks/paystack ───────────┐
-│ 1. Receive webhook event from Paystack                    │
-│ 2. Verify webhook signature:                              │
-│    hash = crypto                                          │
-│      .createHmac('sha512', PAYSTACK_SECRET_KEY)           │
-│      .update(JSON.stringify(req.body))                    │
-│      .digest('hex')                                       │
-│    if (hash !== req.headers['x-paystack-signature']) {    │
-│      return 401 Unauthorized                              │
-│    }                                                      │
-│                                                           │
-│ 3. Extract event data:                                    │
-│    {                                                      │
-│      event: "charge.success",                             │
-│      data: {                                              │
-│        reference: "TOM_1234567890_ABC",                   │
-│        status: "success",                                 │
-│        amount: 124000                                     │
-│      }                                                    │
-│    }                                                      │
-│                                                           │
-│ 4. Check if payment already processed (idempotency)       │
-│ 5. If not processed, update records (same as callback)    │
-│ 6. Return 200 OK to Paystack                              │
-└───────────────────────────────────────────────────────────┘
+┌─ Hubtel Callback: POST /api/payments/webhook/hubtel/<SECRET> ─┐
+│ 1. Receive the callback Hubtel sends to PrimaryCallbackUrl    │
+│                                                               │
+│ 2. Authenticate it. Hubtel does NOT sign its callbacks —      │
+│    there is no HMAC to verify. Authenticity rests on:         │
+│    a. The unguessable HUBTEL_CALLBACK_SECRET in the URL path, │
+│       compared in constant time; a mismatch returns 404 so a  │
+│       prober cannot confirm the route exists.                 │
+│    b. Never trusting the body for the status.                 │
+│                                                               │
+│ 3. Payload (used ONLY to learn which transaction changed):    │
+│    {                                                          │
+│      ResponseCode: "0000",                                    │
+│      Data: {                                                  │
+│        ClientReference: "TOM_1234567890_ABC",                 │
+│        TransactionId: "…",                                    │
+│        Amount: 1240.00                                        │
+│      }                                                        │
+│    }                                                          │
+│                                                               │
+│ 4. Look up the payment by ClientReference                     │
+│ 5. Already settled → return "Already processed" (idempotent)  │
+│ 6. Otherwise call verifyAndSettlePayment(), which re-fetches  │
+│    the real status from Hubtel. A forged callback claiming    │
+│    success therefore settles nothing.                         │
+│ 7. Return 200 OK to Hubtel                                    │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 **Purpose**: Backup verification in case callback fails or user closes browser.

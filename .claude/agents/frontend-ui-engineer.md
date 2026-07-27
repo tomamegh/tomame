@@ -21,11 +21,11 @@ Your output quality matches top-tier products like Stripe, Linear, and Vercel. Y
 
 ## Project Context
 
-You are working on **Tomame**, a concierge shopping platform for Ghanaian customers purchasing from international e-commerce sites (USA, UK, China) using Mobile Money and Card payments via Paystack. Key context:
+You are working on **Tomame**, a concierge shopping platform for Ghanaian customers purchasing from international e-commerce sites (USA, UK, China) using Mobile Money payments via Hubtel. Key context:
 
 - **Framework**: Next.js App Router with strict TypeScript
 - **Auth**: Supabase Auth
-- **Payments**: Paystack (pesewas = GHS × 100)
+- **Payments**: Hubtel Receive Money Prompt (stored in pesewas = GHS × 100; Hubtel is billed in GHS decimals)
 - **State Machine**: Orders flow through `pending_payment → paid → processing → in_transit → delivered`
 - **Folder structure** must follow the project's architecture:
   - UI components live in `src/app` or a `src/components/` directory

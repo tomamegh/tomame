@@ -1,34 +1,65 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowLeftIcon,
   PackageIcon,
-  CreditCardIcon,
+  SmartphoneIcon,
   CheckCircle2Icon,
   ShieldCheckIcon,
+  XCircleIcon,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import { useOrder } from "@/features/orders/hooks/useOrders";
-import { useInitializePayment } from "@/features/payments/hooks/usePayment";
+import { useQueryClient } from "@tanstack/react-query";
+import { useOrder, orderKeys } from "@/features/orders/hooks/useOrders";
+import {
+  useInitializePayment,
+  usePaymentStatus,
+} from "@/features/payments/hooks/usePayment";
+import {
+  HUBTEL_CHANNELS,
+  HUBTEL_CHANNEL_LABELS,
+  type HubtelChannel,
+} from "@/lib/hubtel/client";
 import { toast } from "@/lib/sonner";
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
+const NETWORKS: { value: HubtelChannel; label: string; short: string }[] = [
+  { value: HUBTEL_CHANNELS.MTN, label: HUBTEL_CHANNEL_LABELS["mtn-gh"], short: "MTN" },
+  { value: HUBTEL_CHANNELS.TELECEL, label: HUBTEL_CHANNEL_LABELS["vodafone-gh"], short: "Telecel" },
+  { value: HUBTEL_CHANNELS.AIRTELTIGO, label: HUBTEL_CHANNEL_LABELS["tigo-gh"], short: "AirtelTigo" },
+];
+
 export default function CheckoutPage({ params }: Props) {
   const { id } = use(params);
   const searchParams = useSearchParams();
   const paymentStatus = searchParams.get("payment");
 
+  const [msisdn, setMsisdn] = useState("");
+  const [channel, setChannel] = useState<HubtelChannel>(HUBTEL_CHANNELS.MTN);
+  const [reference, setReference] = useState<string | null>(null);
+
+  const queryClient = useQueryClient();
   const { data: order, isLoading } = useOrder(id);
   const { mutate: initializePayment, isPending } = useInitializePayment();
+  const { data: statusData } = usePaymentStatus(reference);
+
+  const livePaymentStatus = statusData?.payment.status;
+  const awaitingApproval = reference !== null && livePaymentStatus !== "failed"
+    && livePaymentStatus !== "success";
+
+  // Mirrors the server-side schema so the button disables before a round-trip.
+  const isMsisdnValid = /^(?:\+?233|0)\d{9}$/.test(msisdn.trim());
 
   const fmtGhs = (n: number) =>
     new Intl.NumberFormat("en-GH", {
@@ -37,12 +68,32 @@ export default function CheckoutPage({ params }: Props) {
       minimumFractionDigits: 2,
     }).format(n);
 
+  // The prompt resolves out-of-band on the customer's handset, so react to the
+  // polled status rather than to the mutation result.
+  useEffect(() => {
+    if (livePaymentStatus === "success") {
+      // The order moved pending → paid server-side; refresh what we show.
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      toast.success({
+        title: "Payment received",
+        description: "Your order is now being processed.",
+      });
+    } else if (livePaymentStatus === "failed") {
+      toast.error({
+        title: "Payment not completed",
+        description: "The prompt was declined or expired. You can try again.",
+      });
+      setReference(null);
+    }
+  }, [livePaymentStatus]);
+
   const handlePay = () => {
     initializePayment(
-      { orderId: id },
+      { orderId: id, msisdn: msisdn.trim(), channel },
       {
         onSuccess: (data) => {
-          window.location.href = data.authorizationUrl;
+          setReference(data.payment.reference);
+          toast.success({ title: "Check your phone", description: data.message });
         },
         onError: (err) => {
           toast.error({ title: "Payment failed", description: err.message });
@@ -105,11 +156,14 @@ export default function CheckoutPage({ params }: Props) {
         </div>
       )}
 
-      {!alreadyPaid && paymentStatus === "failed" && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          Payment was not completed. Please try again.
-        </div>
-      )}
+      {!alreadyPaid &&
+        (paymentStatus === "failed" || livePaymentStatus === "failed") && (
+          <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <XCircleIcon className="size-4 shrink-0" />
+            Payment was not completed. The prompt may have been declined or
+            timed out — please try again.
+          </div>
+        )}
 
       <Card className="overflow-hidden p-0 gap-0">
         {/* Product summary */}
@@ -194,43 +248,115 @@ export default function CheckoutPage({ params }: Props) {
           )}
         </div>
 
-        {/* Pay button */}
-        <div className="px-5 py-4 space-y-3">
-          {alreadyPaid ? (
+        {/* Mobile money payment */}
+        <div className="px-5 py-4 space-y-4">
+          {alreadyPaid || livePaymentStatus === "success" ? (
             <Link href={`/app/orders/${id}`} className="block">
               <Button variant="outline" className="w-full gap-2" size="lg">
                 View Order
               </Button>
             </Link>
+          ) : awaitingApproval ? (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-center space-y-2">
+                <div className="flex items-center justify-center gap-2 text-amber-700">
+                  <Spinner />
+                  <span className="text-sm font-semibold">
+                    Waiting for approval
+                  </span>
+                </div>
+                <p className="text-sm text-amber-700">
+                  A payment prompt for{" "}
+                  <span className="font-semibold">{fmtGhs(effectiveTotalGhs)}</span>{" "}
+                  was sent to <span className="font-semibold">{msisdn}</span>.
+                  Enter your mobile money PIN to approve it.
+                </p>
+                <p className="text-xs text-amber-600">
+                  No prompt? Dial your network&apos;s approvals menu
+                  (MTN: *170# → 6 → 3) to find pending requests.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setReference(null)}
+              >
+                Cancel and start over
+              </Button>
+            </div>
           ) : (
             <>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+                  Mobile Money Network
+                </Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {NETWORKS.map((n) => (
+                    <button
+                      key={n.value}
+                      type="button"
+                      onClick={() => setChannel(n.value)}
+                      aria-pressed={channel === n.value}
+                      className={`rounded-lg border px-2 py-2.5 text-xs font-semibold transition-colors ${
+                        channel === n.value
+                          ? "border-stone-800 bg-stone-800 text-white"
+                          : "border-stone-200 text-stone-600 hover:border-stone-400"
+                      }`}
+                    >
+                      {n.short}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label
+                  htmlFor="msisdn"
+                  className="text-xs font-semibold uppercase tracking-wide text-stone-400"
+                >
+                  Mobile Money Number
+                </Label>
+                <Input
+                  id="msisdn"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="0244000000"
+                  value={msisdn}
+                  onChange={(e) => setMsisdn(e.target.value)}
+                />
+                <p className="text-xs text-stone-400">
+                  We&apos;ll send a payment prompt to this{" "}
+                  {NETWORKS.find((n) => n.value === channel)?.label} wallet.
+                </p>
+              </div>
+
               <Button
                 className="w-full gap-2"
                 size="lg"
                 onClick={handlePay}
-                disabled={isPending || pricingPendingReview}
+                disabled={isPending || pricingPendingReview || !isMsisdnValid}
               >
                 {isPending ? (
                   <>
-                    Redirecting <Spinner />
+                    Sending prompt <Spinner />
                   </>
                 ) : (
                   <>
-                    <CreditCardIcon className="size-4" />
+                    <SmartphoneIcon className="size-4" />
                     Pay {fmtGhs(effectiveTotalGhs)}
                   </>
                 )}
               </Button>
               <div className="flex items-center justify-center gap-1.5 text-xs text-stone-400">
                 <ShieldCheckIcon className="size-3.5" />
-                Secured by Paystack · Mobile Money &amp; Card accepted
+                Secured by Hubtel · MTN, Telecel &amp; AirtelTigo
               </div>
             </>
           )}
         </div>
       </Card>
 
-      {paymentStatus === "success" && (
+      {(paymentStatus === "success" || livePaymentStatus === "success") && (
         <Card>
           <CardContent className="flex items-center gap-3 py-4">
             <CheckCircle2Icon className="size-5 text-emerald-500 shrink-0" />

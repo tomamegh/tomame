@@ -18,7 +18,7 @@ This repository currently contains **design specifications only** — no source 
 - **Framework**: Next.js (App Router) with strict TypeScript
 - **Auth**: Supabase Auth
 - **Database**: Supabase PostgreSQL with Row Level Security (RLS)
-- **Payments**: Paystack (Mobile Money + Card), server-side only
+- **Payments**: Hubtel Receive Money Prompt (Mobile Money: MTN, Telecel, AirtelTigo), server-side only
 - **Email**: Resend (transactional, default notification channel)
 - **Notifications**: Email (default) + WhatsApp (optional)
 
@@ -40,8 +40,10 @@ npx tsx src/db/seeds/create-admin.ts  # Seed first admin user
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SECRET_KEY
-PAYSTACK_SECRET_KEY
-NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
+HUBTEL_API_ID
+HUBTEL_API_KEY
+HUBTEL_MERCHANT_ACCOUNT_NUMBER
+HUBTEL_CALLBACK_SECRET
 RESEND_API_KEY
 RESEND_FROM_EMAIL
 NEXT_PUBLIC_APP_URL
@@ -101,8 +103,15 @@ All state transitions must be server-side, explicit, validated against current s
 - **Server-only sensitive logic** — secrets, payment verification, money calculations must run in route handlers or server actions
 - **Never trust the client** — no client-provided user_id, role, payment status, or price totals
 - **Audit everything** — all mutations to payment status, order status, user roles, and job state must write to `audit_logs`
-- **Paystack verification server-side only** — verify via `GET https://api.paystack.co/transaction/verify/:ref`
-- **Webhook signature validation** — HMAC-SHA512 with `PAYSTACK_SECRET_KEY`
+- **Hubtel verification server-side only** — a payment may only be marked `success` from
+  `GET https://api-txnstatus.hubtel.com/transactions/:merchant/status?clientReference=:ref`.
+  Never from a callback body, and never from the initiate response.
+- **Hubtel callbacks are unsigned** — authenticity rests on the unguessable
+  `HUBTEL_CALLBACK_SECRET` in the callback URL path, and the payload is treated as a
+  hint about *which* transaction to re-verify, never as the status itself.
+- **Idempotent settlement** — the `pending → success|failed` transition is a compare-and-swap
+  (`.eq("status", "pending")`); only the winning caller links the order, notifies and emails.
+  Outbound charges carry the payment reference as an idempotency key.
 - Payment amounts are in **pesewas** (GHS × 100)
 - `audit_logs` table is **append-only** — no UPDATE or DELETE operations ever
 

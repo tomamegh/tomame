@@ -282,7 +282,7 @@ export const columns: ColumnDef<Transaction>[] = [
                   className="gap-1.5"
                 >
                   <RefreshCwIcon className={`size-3.5 ${isSyncing ? "animate-spin" : ""}`} />
-                  {isSyncing ? "Syncing…" : "Sync with Paystack"}
+                  {isSyncing ? "Syncing…" : "Sync with Hubtel"}
                 </DropdownMenuItem>
               </>
             )}

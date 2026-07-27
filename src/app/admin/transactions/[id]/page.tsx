@@ -98,9 +98,15 @@ export default function TransactionDetailPage({ params }: Props) {
     );
   }
 
-  const paidAt = txn?.paystack_data?.paid_at as string | null | undefined;
-  const paystackEmail = (txn?.paystack_data?.customer as { email?: string } | null)?.email;
-  const paystackId = txn?.paystack_data?.id as number | null | undefined;
+  // Hubtel's status check returns a camelCase `data` envelope.
+  const hubtelData = txn?.provider_data?.data as
+    | Record<string, unknown>
+    | undefined;
+  const paidAt = hubtelData?.date as string | null | undefined;
+  const providerTransactionId =
+    txn?.provider_transaction_id ??
+    (hubtelData?.transactionId as string | null | undefined);
+  const payerMsisdn = txn?.customer_msisdn;
 
   return (
     <div className="space-y-6">
@@ -161,7 +167,7 @@ export default function TransactionDetailPage({ params }: Props) {
                       {isSyncing ? (
                         <>Syncing <Spinner className="size-3" /></>
                       ) : (
-                        "Sync with Paystack"
+                        "Sync with Hubtel"
                       )}
                     </Button>
                   )}
@@ -218,9 +224,16 @@ export default function TransactionDetailPage({ params }: Props) {
                 {paidAt && (
                   <DetailRow label="Paid at">{fmtDate(paidAt)}</DetailRow>
                 )}
-                {paystackId && (
-                  <DetailRow label="Paystack ID">
-                    <span className="font-mono text-xs">{paystackId}</span>
+                {payerMsisdn && (
+                  <DetailRow label="MoMo number">
+                    <span className="font-mono text-xs">{payerMsisdn}</span>
+                    <CopyButton value={payerMsisdn} />
+                  </DetailRow>
+                )}
+                {providerTransactionId && (
+                  <DetailRow label="Hubtel transaction ID">
+                    <span className="font-mono text-xs">{providerTransactionId}</span>
+                    <CopyButton value={providerTransactionId} />
                   </DetailRow>
                 )}
               </>
@@ -271,9 +284,9 @@ export default function TransactionDetailPage({ params }: Props) {
                   <span className="font-mono text-xs">{txn!.customer.id.slice(0, 16)}…</span>
                   <CopyButton value={txn!.customer.id} />
                 </DetailRow>
-                {paystackEmail && paystackEmail !== txn!.customer.email && (
-                  <DetailRow label="Paystack email">
-                    <span className="text-xs">{paystackEmail}</span>
+                {payerMsisdn && (
+                  <DetailRow label="Paid from">
+                    <span className="text-xs font-mono">{payerMsisdn}</span>
                   </DetailRow>
                 )}
                 <DetailRow label="View profile">
@@ -348,10 +361,10 @@ export default function TransactionDetailPage({ params }: Props) {
         </CardContent>
       </Card>
 
-      {/* ── Paystack verification data ────────────────────────────── */}
+      {/* ── Hubtel verification data ──────────────────────────────── */}
       <Card>
         <CardHeader>
-          <h2 className="text-sm font-semibold text-stone-700">Paystack Verification Data</h2>
+          <h2 className="text-sm font-semibold text-stone-700">Hubtel Verification Data</h2>
         </CardHeader>
         <CardContent className="pt-0">
           {isLoading ? (
@@ -360,9 +373,9 @@ export default function TransactionDetailPage({ params }: Props) {
                 <Skeleton key={i} className={`h-3 ${i % 3 === 0 ? "w-1/2" : i % 3 === 1 ? "w-3/4" : "w-2/3"}`} />
               ))}
             </div>
-          ) : txn!.paystack_data ? (
+          ) : txn!.provider_data ? (
             <pre className="text-xs bg-stone-50 rounded-lg border border-stone-200 p-4 overflow-x-auto text-stone-600 leading-relaxed">
-              {JSON.stringify(txn!.paystack_data, null, 2)}
+              {JSON.stringify(txn!.provider_data, null, 2)}
             </pre>
           ) : (
             <p className="text-sm text-stone-400">No verification data available.</p>

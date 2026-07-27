@@ -23,7 +23,12 @@ export async function POST(request: NextRequest) {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
 
-    const data = await initializePayment(auth, parsed.data.orderId);
+    const data = await initializePayment(
+      auth,
+      parsed.data.orderId,
+      parsed.data.msisdn,
+      parsed.data.channel,
+    );
     return successResponse(data, 201);
   } catch (error) {
     return errorResponse(error);

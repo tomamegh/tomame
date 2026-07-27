@@ -6,10 +6,29 @@ import {
   HelpCircleIcon,
 } from "lucide-react";
 
+/**
+ * Keyed by the Hubtel `Channel` value stored on payments. The Paystack-era
+ * keys are kept so historical rows still render a sensible badge.
+ */
 const CHANNEL_CONFIG: Record<
   string,
   { label: string; icon: React.ElementType; className: string }
 > = {
+  "mtn-gh": {
+    label: "MTN MoMo",
+    icon: SmartphoneIcon,
+    className: "bg-amber-50 text-amber-700 border-amber-100",
+  },
+  "vodafone-gh": {
+    label: "Telecel Cash",
+    icon: SmartphoneIcon,
+    className: "bg-rose-50 text-rose-700 border-rose-100",
+  },
+  "tigo-gh": {
+    label: "AirtelTigo Money",
+    icon: SmartphoneIcon,
+    className: "bg-sky-50 text-sky-700 border-sky-100",
+  },
   card: {
     label: "Card",
     icon: CreditCardIcon,
