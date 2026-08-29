@@ -115,14 +115,30 @@ async function getAllPayments(
   return (data ?? []) as Payment[];
 }
 
-async function updatePaymentStatus(
+/**
+ * Move a payment from one status to another, atomically.
+ *
+ * The `.eq("status", fromStatus)` guard is what makes the money path idempotent.
+ * Paystack reports the same charge twice — once when it redirects the customer's
+ * browser back, once over the webhook — and the two arrive concurrently. Both can
+ * read a pending payment and both can verify it successfully; only the update that
+ * actually matches a still-pending row comes back with data. The loser gets null
+ * and must skip the follow-on effects rather than repeat them.
+ *
+ * Returns null ONLY when no row matched, i.e. this caller lost the race. A real
+ * database failure throws instead: the two are not interchangeable, because
+ * treating a failed write as "someone else won" would report the payment as
+ * settled to the customer while the order silently stayed unpaid.
+ */
+async function transitionPaymentStatus(
   client: SupabaseClient,
   paymentId: string,
-  status: string,
+  fromStatus: string,
+  toStatus: string,
   metadata?: Record<string, unknown>,
   channel?: string
 ): Promise<Payment | null> {
-  const update: Record<string, unknown> = { status };
+  const update: Record<string, unknown> = { status: toStatus };
   if (metadata) update.metadata = metadata;
   if (channel) update.channel = channel;
 
@@ -130,19 +146,21 @@ async function updatePaymentStatus(
     .from("payments")
     .update(update)
     .eq("id", paymentId)
+    .eq("status", fromStatus)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
-    logger.error("updatePaymentStatus failed", {
+    logger.error("transitionPaymentStatus failed", {
       paymentId,
-      status,
+      fromStatus,
+      toStatus,
       code: error.code,
       message: error.message,
     });
-    return null;
+    throw new APIError(502, "Could not record the payment result");
   }
-  return data as Payment;
+  return data as Payment | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -159,6 +177,42 @@ function toPaymentResponse(payment: Payment): PaymentResponse {
   };
 }
 
+function orderIdOf(payment: Payment): string | null {
+  const orderId = (payment.metadata as Record<string, unknown> | null)?.order_id;
+  return typeof orderId === "string" ? orderId : null;
+}
+
+/**
+ * Where to send the customer back to after Paystack.
+ *
+ * These must resolve to routes that actually exist — the customer's orders live
+ * under /app/orders, and a redirect to a non-existent path turns a declined card
+ * into a 404 with no explanation of what happened to their money.
+ */
+function successUrl(orderId: string | null): string {
+  return orderId
+    ? `${env.app.url}/app/orders/${orderId}?payment=success`
+    : `${env.app.url}/app/orders?payment=success`;
+}
+
+function failureUrl(
+  orderId: string | null,
+  reason: "failed" | "error" = "failed"
+): string {
+  return orderId
+    ? `${env.app.url}/app/orders/${orderId}/checkout?payment=${reason}`
+    : `${env.app.url}/app/orders?payment=${reason}`;
+}
+
+/**
+ * Where to send a customer whose return from Paystack could not be resolved to a
+ * payment at all — an unparseable reference, or a failure before we knew which
+ * order they were paying for.
+ */
+export function unresolvedPaymentUrl(): string {
+  return failureUrl(null, "error");
+}
+
 // ── Service functions ─────────────────────────────────────────────────────────
 
 export async function initializePayment(
@@ -166,6 +220,13 @@ export async function initializePayment(
   orderId: string,
 ): Promise<InitializePaymentResponse> {
   const admin = createAdminClient();
+
+  // Paystack keys the transaction on the customer's email, and PlatformUser
+  // inherits an optional email from Supabase's User. Refuse explicitly rather
+  // than failing inside the Paystack call with a payment row already written.
+  if (!user.email) {
+    throw new APIError(400, "Your account has no email address. Please contact support.");
+  }
 
   const order = await getOrderById(admin, orderId);
   if (!order) throw new APIError(404, "Order not found");
@@ -206,8 +267,7 @@ export async function initializePayment(
   try {
     const callbackUrl = `${env.app.url}/api/payments/callback`;
     const paystackResponse = await initializeTransaction({
-      //TODO: Fix user email in transaction initialization
-      email: user.email!,
+      email: user.email,
       amount: totalPesewas,
       reference,
       callbackUrl,
@@ -215,9 +275,24 @@ export async function initializePayment(
     });
     authorizationUrl = paystackResponse.data.authorization_url;
   } catch (error) {
-    await updatePaymentStatus(admin, payment.id, PAYMENT_STATUSES.FAILED, {
-      error: "Paystack initialization failed",
+    // Best effort: if this write also fails, the Paystack error below is the
+    // more useful thing to report, so swallow rather than mask it. The payment
+    // is left pending and the customer's retry is blocked by R2 until it is
+    // reconciled — logged loudly for that reason.
+    await transitionPaymentStatus(
+      admin,
+      payment.id,
+      PAYMENT_STATUSES.PENDING,
+      PAYMENT_STATUSES.FAILED,
+      { order_id: orderId, error: "Paystack initialization failed" },
+    ).catch((markError: unknown) => {
+      logger.error("Could not mark payment failed after Paystack error", {
+        paymentId: payment.id,
+        reference,
+        error: markError instanceof Error ? markError.message : String(markError),
+      });
     });
+
     logger.error("Paystack initializeTransaction failed", {
       reference,
       orderId,
@@ -249,38 +324,67 @@ export async function handlePaymentCallback(
     throw new APIError(404, "Payment not found");
   }
 
+  const orderId = orderIdOf(payment);
+
+  // Already finalized — by the other delivery channel, or by an earlier attempt.
+  // Report the outcome; never re-run the effects.
   if (payment.status === PAYMENT_STATUSES.SUCCESS) {
-    return { redirectUrl: `${env.app.url}/orders?payment=success` };
+    return { redirectUrl: successUrl(orderId) };
   }
   if (payment.status === PAYMENT_STATUSES.FAILED) {
-    return { redirectUrl: `${env.app.url}/orders?payment=failed` };
+    return { redirectUrl: failureUrl(orderId) };
   }
 
-  let paystackStatus: string;
-  let verifyData: Record<string, unknown>;
+  let verification: Awaited<ReturnType<typeof verifyTransaction>>;
   try {
-    const verification = await verifyTransaction(reference);
-    paystackStatus = verification.data.status;
-    verifyData = verification.data as unknown as Record<string, unknown>;
+    verification = await verifyTransaction(reference);
   } catch (error) {
     logger.error("Paystack verification failed", {
       reference,
       error: error instanceof Error ? error.message : String(error),
     });
+    // Transient: leave the payment pending so the webhook retry can finish it.
     throw new APIError(502, "Payment verification failed");
   }
 
-  const orderId = (payment.metadata as Record<string, unknown>)?.order_id as string;
+  const paystackStatus = verification.data.status;
+  const verifyData = verification.data as unknown as Record<string, unknown>;
+  // Merge rather than replace — the order_id written at initialization is the
+  // only link from a payment back to its order.
+  const baseMetadata = (payment.metadata as Record<string, unknown> | null) ?? {};
 
-  if (paystackStatus === "success") {
-    const paystackChannel = verifyData.channel as string | undefined;
-    await updatePaymentStatus(
+  // A charge only counts if Paystack says it succeeded AND it is the charge we
+  // asked for. Without the amount and currency comparison, an underpaid or
+  // wrong-currency charge would silently promote the order to paid.
+  const amountMatches = verification.data.amount === payment.amount;
+  const currencyMatches = verification.data.currency === payment.currency;
+  const isSuccess = paystackStatus === "success" && amountMatches && currencyMatches;
+
+  if (paystackStatus === "success" && !isSuccess) {
+    logger.error("Paystack verification mismatch — refusing to mark paid", {
+      reference,
+      orderId,
+      expectedAmount: payment.amount,
+      actualAmount: verification.data.amount,
+      expectedCurrency: payment.currency,
+      actualCurrency: verification.data.currency,
+    });
+  }
+
+  if (isSuccess) {
+    const claimed = await transitionPaymentStatus(
       admin,
       payment.id,
+      PAYMENT_STATUSES.PENDING,
       PAYMENT_STATUSES.SUCCESS,
-      { paystack_verification: verifyData },
-      paystackChannel,
+      { ...baseMetadata, paystack_verification: verifyData },
+      verification.data.channel,
     );
+
+    // Lost the race to the other delivery channel — it owns the side effects.
+    if (!claimed) {
+      return { redirectUrl: successUrl(orderId) };
+    }
 
     if (orderId) {
       const order = await linkOrderToPayment(admin, orderId, payment.id);
@@ -314,12 +418,21 @@ export async function handlePaymentCallback(
       metadata: { reference, orderId },
     });
 
-    return { redirectUrl: `${env.app.url}/app/orders/${orderId}?payment=success` };
+    return { redirectUrl: successUrl(orderId) };
   }
 
-  await updatePaymentStatus(admin, payment.id, PAYMENT_STATUSES.FAILED, {
-    paystack_verification: verifyData,
-  });
+  const failed = await transitionPaymentStatus(
+    admin,
+    payment.id,
+    PAYMENT_STATUSES.PENDING,
+    PAYMENT_STATUSES.FAILED,
+    { ...baseMetadata, paystack_verification: verifyData },
+  );
+
+  // Lost the race to the other delivery channel — it owns the audit trail.
+  if (!failed) {
+    return { redirectUrl: failureUrl(orderId) };
+  }
 
   await logAuditEvent({
     actorId: payment.user_id,
@@ -327,12 +440,23 @@ export async function handlePaymentCallback(
     action: "payment_failed",
     entityType: "payment",
     entityId: payment.id,
-    metadata: { reference, orderId, paystackStatus },
+    metadata: { reference, orderId, paystackStatus, amountMatches, currencyMatches },
   });
 
-  return { redirectUrl: `${env.app.url}/orders?payment=failed` };
+  return { redirectUrl: failureUrl(orderId) };
 }
 
+/**
+ * Handle a verified Paystack webhook delivery.
+ *
+ * Retry contract: returning normally tells the route to answer 2xx and Paystack
+ * stops redelivering. That is what we want for anything we have deliberately
+ * declined — an event type we do not handle, a reference we do not recognize,
+ * a charge already finalized — since redelivering those can never change the
+ * outcome. Throwing propagates to the route as a non-2xx so Paystack retries,
+ * and is reserved for transient faults (a failed verification call) where a
+ * later attempt can still succeed.
+ */
 export async function handleWebhookEvent(event: {
   event: string;
   data: { reference: string; status: string; amount: number; currency: string };
