@@ -1,0 +1,21 @@
+# Terraform state holds the Supabase database password, the service-role key and
+# the Resend API key in cleartext. It must never be committed. backend.tf keeps
+# it in an encrypted bucket; these entries catch the case where someone ran
+# without a backend.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.tfstate.lock.info
+
+# Credentials passed as variables.
+*.auto.tfvars
+secrets.tfvars
+*.tfvars.json
+
+# envs/*.tfvars ARE committed on purpose — they hold no secrets, only shape.
+!envs/*.tfvars
+
+crash.log
+crash.*.log
+tfplan
+*.tfplan
