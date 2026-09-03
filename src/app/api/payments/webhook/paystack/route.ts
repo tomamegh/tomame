@@ -56,17 +56,13 @@ export async function POST(request: NextRequest) {
       throw new APIError(400, "Invalid payload");
     }
 
-    // Process the event
+    // Process the event.
+    //
+    // Anything handleWebhookEvent declines to action returns normally and is
+    // answered 200, so Paystack stops redelivering it. Transient faults throw
+    // and fall through to errorResponse as a non-2xx, which is exactly the set
+    // of deliveries a retry can still complete. See handleWebhookEvent.
     const result = await handleWebhookEvent(parsed.data);
-
-    // if (!result.success) {
-    //   logger.error("Webhook processing failed", {
-    //     event: parsed.data.event,
-    //     error: result.error,
-    //   });
-    //   // Still return 200 to prevent Paystack from retrying
-    //   return successResponse({ message: "Processing error" });
-    // }
 
     return successResponse(result);
   } catch (error) {

@@ -107,7 +107,14 @@ export default function CheckoutPage({ params }: Props) {
 
       {!alreadyPaid && paymentStatus === "failed" && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          Payment was not completed. Please try again.
+          Payment was not completed. You have not been charged — please try again.
+        </div>
+      )}
+
+      {!alreadyPaid && paymentStatus === "error" && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          We could not confirm your payment. If you were charged, this order will
+          update shortly — contact support if it does not.
         </div>
       )}
 

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { paymentCallbackSchema } from "@/features/payments/schema";
-import { handlePaymentCallback } from "@/features/payments/services/payments.service";
-import { env } from "@/lib/env";
+import {
+  handlePaymentCallback,
+  unresolvedPaymentUrl,
+} from "@/features/payments/services/payments.service";
 import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
@@ -10,7 +12,7 @@ export async function GET(request: NextRequest) {
   const parsed = paymentCallbackSchema.safeParse({ reference });
   if (!parsed.success) {
     logger.warn("Invalid payment callback reference", { reference });
-    return NextResponse.redirect(`${env.app.url}/orders?payment=error`);
+    return NextResponse.redirect(unresolvedPaymentUrl());
   }
 
   try {
@@ -21,6 +23,6 @@ export async function GET(request: NextRequest) {
       reference: parsed.data.reference,
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.redirect(`${env.app.url}/orders?payment=error`);
+    return NextResponse.redirect(unresolvedPaymentUrl());
   }
 }
