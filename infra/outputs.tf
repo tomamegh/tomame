@@ -62,21 +62,12 @@ output "managed_env_keys" {
     src/lib/env.ts after changing either: a name present in one and not the
     other is a boot failure on every route, and it will not show up in a plan.
   EOT
-  # The names come from a sensitive map, so Terraform marks them sensitive by
-  # association and would otherwise refuse to output them. Names are not secret
-  # — they are literals in src/lib/env.ts — and the whole point of this output is
-  # to be readable next to that file. Only the keys are unwrapped; no value is.
+  # Names are literals in src/lib/env.ts; only the keys are unwrapped.
   value = nonsensitive(sort(keys(local.app_env)))
 }
 
-# ---------------------------------------------------------------------------
-# Credentials, for bootstrapping a local .env. Read one at a time:
-#
+# Credentials. Read one at a time, e.g.
 #     terraform output -raw supabase_service_role_key
-#
-# Read one at a time. Nothing here should be pasted into a file that is not
-# already gitignored.
-# ---------------------------------------------------------------------------
 
 output "supabase_publishable_key" {
   description = "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY."

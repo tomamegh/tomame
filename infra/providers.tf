@@ -7,10 +7,8 @@ provider "supabase" {
   access_token = var.supabase_access_token
 }
 
-# Resend has no provider of its own; this is a generic REST client pointed at
-# their API. The bearer token is a full-access Resend key used only by Terraform
-# — the application's key is created by modules/resend-domain and is scoped to
-# sending only.
+# Resend has no provider; this is a generic REST client. The token is
+# full-access and used only by Terraform — the app's key is scoped to sending.
 provider "restful" {
   base_url = "https://api.resend.com"
 

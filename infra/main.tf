@@ -62,8 +62,8 @@ locals {
     module.supabase.database_host,
   )
 
-  # Resend names records against the registered domain; Vercel wants them
-  # relative to the zone. Identical when mail_subdomain is "".
+  # Resend names records against the registered domain; Vercel wants them zone
+  # relative. Identical when mail_subdomain is "".
   resend_records_raw = local.has_domain ? module.resend[0].dns_records : []
 
   resend_records_for_vercel = [
