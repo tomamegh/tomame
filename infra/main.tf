@@ -85,11 +85,8 @@ locals {
     }
   ]
 
-  # Only NEXT_PUBLIC_* reaches the browser. Everything else is server-side and
-  # is written to Vercel as sensitive, so it cannot be read back out of the
-  # dashboard by anyone who gains view access to the project.
-  # Secrets skip `development`: Vercel rejects a sensitive variable there,
-  # because `vercel env pull` writes that target into a local .env file.
+  # Only NEXT_PUBLIC_* reaches the browser; the rest is sensitive. Secrets skip
+  # `development` because `vercel env pull` writes that target to a local .env.
   vercel_env = {
     for key, value in local.app_env :
     key => {
