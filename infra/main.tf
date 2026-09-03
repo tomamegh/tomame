@@ -155,12 +155,21 @@ locals {
   # Only NEXT_PUBLIC_* reaches the browser. Everything else is server-side and
   # is written to Vercel as sensitive, so it cannot be read back out of the
   # dashboard by anyone who gains view access to the project.
+  # Secrets do not target `development`. Vercel rejects a sensitive variable on
+  # that target outright — `vercel env pull` writes development variables into a
+  # local .env file, so they have to stay readable, and a sensitive one could
+  # not be. The rule is the platform enforcing what we would want anyway: a
+  # service-role key has no business being pulled onto a laptop by a command
+  # whose job is convenience.
+  #
+  # Local development reads .env instead, which is what src/lib/env.ts already
+  # expects.
   vercel_env = {
     for key, value in local.app_env :
     key => {
       value     = value
       sensitive = !startswith(key, "NEXT_PUBLIC_")
-      targets   = ["production", "preview", "development"]
+      targets   = startswith(key, "NEXT_PUBLIC_") ? ["production", "preview", "development"] : ["production", "preview"]
     }
   }
 }
@@ -251,7 +260,7 @@ module "vercel" {
 
   # Match the Supabase region: every request makes several Postgres round trips
   # and a cross-continent hop is paid on each one.
-  serverless_function_region = var.supabase_region == "eu-west-2" ? "lhr1" : "iad1"
+  function_regions = var.supabase_region == "eu-west-2" ? ["lhr1"] : ["iad1"]
 
   # The apex serves production; every other environment gets its own subdomain.
   custom_domains = local.has_domain ? (

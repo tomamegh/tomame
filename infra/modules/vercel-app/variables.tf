@@ -19,14 +19,17 @@ variable "framework" {
   default     = "nextjs"
 }
 
-variable "serverless_function_region" {
+variable "function_regions" {
   description = <<-EOT
-    Region functions execute in. It should match the Supabase region: every
-    request in this app makes several round trips to Postgres, and a
-    cross-continent hop multiplies against each one.
+    Regions functions execute in. Should match the Supabase region: every request
+    in this app makes several round trips to Postgres, and a cross-continent hop
+    is paid on each one.
+
+    Set through resource_config, not the older serverless_function_region, which
+    the provider now reports as deprecated.
   EOT
-  type        = string
-  default     = "lhr1"
+  type        = set(string)
+  default     = ["lhr1"]
 }
 
 variable "custom_domains" {
@@ -79,6 +82,19 @@ variable "environment_variables" {
       length(setsubtract(v.targets, ["production", "preview", "development"])) == 0
     ])
     error_message = "targets may only contain production, preview or development."
+  }
+
+  validation {
+    condition = alltrue([
+      for k, v in var.environment_variables :
+      !contains(v.targets, "development") if v.sensitive
+    ])
+    error_message = <<-EOT
+      A sensitive variable cannot target `development`. Vercel rejects it —
+      `vercel env pull` writes development variables to a local .env file, so
+      they must stay readable. Target production and preview only; local
+      development reads .env.
+    EOT
   }
 }
 

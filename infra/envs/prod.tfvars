@@ -10,6 +10,7 @@ product     = "tomame"
 # publishing `v=spf1 -all` and a null MX. It cannot be verified.
 root_domain = null
 
+vercel_team       = "albertahadjie-6953s-projects"
 github_repo       = "tomamegh/tomame"
 production_branch = "main"
 
@@ -21,5 +22,11 @@ supabase_instance_size = "small"
 
 resend_region = "eu-west-1"
 
-# supabase_organization_id and every credential arrive as TF_VAR_*, from your
-# shell or a *.auto.tfvars file that .gitignore excludes. See README.md.
+supabase_organization_id = "wlefnkvgdjuyksgibxyf"
+
+# ⚠️ Free tier is two projects per organization, and the hand-made "Tomame"
+# project plus tomame-dev already fill it. Applying this one needs that manual
+# project removed, or a paid plan on the org.
+
+# Every credential arrives as TF_VAR_*, from your shell or a *.auto.tfvars file
+# that .gitignore excludes. See README.md.

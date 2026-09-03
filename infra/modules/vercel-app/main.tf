@@ -17,7 +17,9 @@ resource "vercel_project" "this" {
     production_branch = var.production_branch
   }
 
-  serverless_function_region = var.serverless_function_region
+  resource_config = {
+    function_default_regions = var.function_regions
+  }
 
   # Off by default. Vercel injects VERCEL_URL, VERCEL_ENV and friends when this
   # is on, and src/lib/env.ts reads none of them — it wants NEXT_PUBLIC_APP_URL,
