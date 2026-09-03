@@ -1,10 +1,27 @@
 environment = "dev"
 product     = "tomame"
 
-# No domain yet. The app is served on https://tomame-dev.vercel.app and mail
-# goes out over Resend's shared onboarding domain. Set this once you own a
-# domain — NOT tomame.com, which is parked at Afternic and not yours.
-root_domain = null
+# dev serves on dev.tomame.ca and sends from send.tomame.ca.
+root_domain = "tomame.ca"
+
+# Register the apex with Resend, not send.tomame.ca. Resend names its bounce MX
+# send.<registered domain>, so a subdomain yields send.send.tomame.ca.
+mail_subdomain = ""
+
+# Nameservers are delegated to Vercel, so Terraform publishes Resend's DKIM,
+# SPF and DMARC records into the zone itself.
+#
+# ⚠️ Two applies, the first targeted — the record set does not exist until the
+# Resend domain does, and Terraform needs for_each keys at plan time:
+#
+#     terraform apply -target=module.resend
+#     terraform apply
+#
+# ⚠️ tomame.ca carried LIVE GOOGLE WORKSPACE MAIL (MX at aspmx.l.google.com) on
+# GoDaddy's nameservers. Those MX records and the SPF do not follow a
+# delegation — they must be recreated in Vercel DNS or mail to every
+# @tomame.ca address bounces. This stack does not manage them.
+dns_managed_by_vercel = true
 
 vercel_team       = "albertahadjie-6953s-projects"
 github_repo       = "tomamegh/tomame"

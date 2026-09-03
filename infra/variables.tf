@@ -68,6 +68,21 @@ variable "dns_managed_by_vercel" {
     resource that registers a domain or takes over a zone, so adding the domain
     to the Vercel account and delegating to its nameservers is a one-time manual
     step. Setting this true beforehand creates records in a zone nobody queries.
+
+    ⚠️ SETTING THIS TRUE NEEDS TWO APPLIES, the first one targeted:
+
+        terraform apply -target=module.resend
+        terraform apply
+
+    The records come from Resend's create response, so neither their contents nor
+    HOW MANY there are is known until that resource exists. Terraform requires
+    for_each keys at plan time, and there is no way to satisfy that from a value
+    a provider has not returned yet — the first plan fails with "Invalid for_each
+    argument", not with anything that explains itself.
+
+    This is the same constraint thor-v2 hit: platform_infra keeps Resend and its
+    DNS in SEPARATE workspaces and reads across with terraform_remote_state,
+    which is the same two-phase ordering expressed as topology instead of a flag.
   EOT
   type        = bool
   default     = false

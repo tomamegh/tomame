@@ -8,7 +8,13 @@ product     = "tomame"
 #
 # NOT tomame.com — parked at Afternic, registered 2005, clientTransferProhibited,
 # publishing `v=spf1 -all` and a null MX. It cannot be verified.
-root_domain = null
+root_domain = "tomame.ca"
+
+# See dev.tfvars: a subdomain here yields send.send.tomame.ca.
+mail_subdomain = ""
+
+# See dev.tfvars — two applies, and Google Workspace MX must exist in Vercel DNS.
+dns_managed_by_vercel = true
 
 vercel_team       = "albertahadjie-6953s-projects"
 github_repo       = "tomamegh/tomame"
