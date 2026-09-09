@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import * as cheerio from "cheerio";
 
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
-vi.mock("@/lib/env", () => ({ env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null, rainforestApiKey: null } } }));
+vi.mock("@/lib/env", () => ({ env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null, rainforestApiKey: null, scraperApiKey: null } } }));
 
 import { extractFromJsonLd, extractFromMeta, parseJsonLd, structuredDataResolver } from "../resolvers/structured-data.resolver";
 import { pageToText } from "../resolvers/llm.resolver";
@@ -56,6 +56,7 @@ describe("structured data parsing", () => {
       region: "UK",
       deadline: Date.now() + 10_000,
       getHtml: async () => ({ html: PAGE, source: "direct" }),
+      htmlState: () => "ready" as const,
       current: emptyProduct(),
     });
     expect(result.product.price).toBe(47.5);

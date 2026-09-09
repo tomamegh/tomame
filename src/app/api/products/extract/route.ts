@@ -3,7 +3,7 @@ import { extractProductSchema } from "@/features/extraction/schema";
 import { extractPrepared, prepareProductUrl } from "@/features/extraction/extraction.service";
 import { buildQuote } from "@/features/extraction/quote.service";
 import { getCachedExtractionByHash } from "@/db/queries/extraction-cache";
-import { getUserSession } from "@/features/auth/services/auth.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
@@ -16,6 +16,10 @@ export const maxDuration = 120;
  * Paste a link → get the product AND a price in one response (a Quote).
  * Never 5xx on a bad page: a partial product with `messages` comes back
  * instead, and the customer can still proceed to admin review.
+ *
+ * Public: no login needed to get a quote. Sign-in is required at order
+ * submission. Abuse is bounded by the per-IP rate limit and the product-keyed
+ * cache (a repeat paste costs nothing).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -28,7 +32,7 @@ export async function POST(request: NextRequest) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const { user } = await getUserSession();
+    const user = await getAuthenticatedUser();
 
     // Validate + canonicalize before spending anything — a bad link is a 400,
     // and a cached product costs no rate-limit budget.
@@ -43,7 +47,7 @@ export async function POST(request: NextRequest) {
       throw new APIError(429, "Too many requests. Please wait a few minutes and try again.");
     }
 
-    const { enrich, ...extraction } = await extractPrepared(prepared, user.id);
+    const { enrich, ...extraction } = await extractPrepared(prepared, user?.id ?? null);
     // Weight lookup etc. finishes after the response and updates the cache row;
     // the review page reads the row, so it sees the enriched product.
     if (enrich) after(enrich);

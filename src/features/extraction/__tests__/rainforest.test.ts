@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/env", () => ({
-  env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null, rainforestApiKey: "rf-test-key" } },
+  env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null, rainforestApiKey: "rf-test-key", scraperApiKey: null } },
 }));
 
 import { mapRainforestProduct, rainforestResolver } from "../resolvers/rainforest.resolver";
@@ -74,6 +74,7 @@ describe("rainforestResolver", () => {
     region: "USA" as const,
     deadline: Date.now() + 30_000,
     getHtml: async () => null,
+    htmlState: () => "unfetched" as const,
     current: emptyProduct(),
   });
 

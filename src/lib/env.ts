@@ -28,7 +28,9 @@ export const env = {
   /** Extraction tiers. Each is skipped (not fatal) when its key is absent. */
   extraction: {
     browserlessApiKey: optional("BROWSERLESS_API_KEY"),
-    /** Amazon structured product data (Rainforest API). Fast path; browser tiers remain the fallback. */
+    /** Amazon + eBay structured product data (ScraperAPI). The fast path; browser tiers remain the fallback. */
+    scraperApiKey: optional("SCRAPERAPI_API_KEY"),
+    /** Amazon structured product data (Rainforest API). Optional second source. */
     rainforestApiKey: optional("RAINFOREST_API_KEY"),
     anthropicApiKey: optional("ANTHROPIC_API_KEY"),
     apifyApiToken: optional("APIFY_API_TOKEN"),

@@ -22,6 +22,7 @@ import type { ExtractionResolver, ResolveContext, ResolverResult } from "./types
 export const apifyResolver: ExtractionResolver = {
   name: "apify",
   defaultConfidence: 0.85,
+  needsHtml: false,
   available: () => isApifyConfigured(),
   shouldRun: (ctx) => !hasRequiredFields(ctx.current),
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {

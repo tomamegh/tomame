@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
-vi.mock("@/lib/env", () => ({ env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null, rainforestApiKey: null } } }));
+vi.mock("@/lib/env", () => ({ env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null, rainforestApiKey: null, scraperApiKey: null } } }));
 
 import { resolveProduct, continueResolve } from "../resolvers/chain";
 import { hasRequiredFields, mergeResult, type MergeState } from "../resolvers/merge";
@@ -11,12 +11,13 @@ import type { ExtractionResolver } from "../resolvers/types";
 function resolver(
   name: ExtractionResolver["name"],
   product: Record<string, unknown>,
-  opts: Partial<Pick<ExtractionResolver, "defaultConfidence" | "shouldRun" | "available">> & { throws?: boolean } = {},
+  opts: Partial<Pick<ExtractionResolver, "defaultConfidence" | "shouldRun" | "available" | "needsHtml">> & { throws?: boolean } = {},
 ): ExtractionResolver & { calls: number } {
   const r = {
     name,
     calls: 0,
     defaultConfidence: opts.defaultConfidence ?? 0.8,
+    needsHtml: opts.needsHtml ?? false,
     available: opts.available ?? (() => true),
     shouldRun: opts.shouldRun ?? (() => true),
     async resolve() {
@@ -87,11 +88,11 @@ describe("resolveProduct", () => {
   it("fetches HTML once and shares it between resolvers", async () => {
     const fetchHtml = vi.fn(async () => ({ html: "<html><body>x</body></html>", source: "direct" as const }));
     const a: ExtractionResolver = {
-      name: "platform-html", defaultConfidence: 0.9, available: () => true, shouldRun: () => true,
+      name: "platform-html", defaultConfidence: 0.9, needsHtml: true, available: () => true, shouldRun: () => true,
       resolve: async (ctx) => { await ctx.getHtml(); return { product: { title: "T" } }; },
     };
     const b: ExtractionResolver = {
-      name: "structured-data", defaultConfidence: 0.8, available: () => true, shouldRun: () => true,
+      name: "structured-data", defaultConfidence: 0.8, needsHtml: true, available: () => true, shouldRun: () => true,
       resolve: async (ctx) => { await ctx.getHtml(); return { product: { price: 5, currency: "USD", weight_lbs: 1 } }; },
     };
     const out = await resolveProduct({ ...base, resolvers: [a, b], fetchHtml });
@@ -99,9 +100,9 @@ describe("resolveProduct", () => {
     expect(out.htmlSource).toBe("direct");
   });
 
-  it("fast mode stops once required fields are known and reports what it skipped", async () => {
-    const cheap = resolver("platform-html", { title: "Desk", price: 99.5, currency: "USD" });
-    const llm = resolver("llm", { weight_lbs: 3.2 });
+  it("fast mode stops once price and category are known and reports what it skipped", async () => {
+    const cheap = resolver("platform-html", { title: "Desk", price: 99.5, currency: "USD", category: "Home & Kitchen" });
+    const llm = resolver("llm", { weight_lbs: 3.2 }, { shouldRun: (c) => !c.current.weight_lbs });
     const out = await resolveProduct({ ...base, resolvers: [cheap, llm], fetchHtml: async () => null, stopWhenRequired: true });
     expect(llm.calls).toBe(0);
     expect(out.skipped).toEqual(["llm"]);
@@ -119,7 +120,7 @@ describe("resolveProduct", () => {
     const fetchHtml = vi.fn(async (_u: string, opts?: { skipDirect?: boolean }) =>
       opts?.skipDirect ? { html: "<html>full</html>", source: "browserless" as const } : { html: "<html>stripped</html>", source: "direct" as const });
     const parser: ExtractionResolver = {
-      name: "platform-html", defaultConfidence: 0.9, available: () => true, shouldRun: () => true,
+      name: "platform-html", defaultConfidence: 0.9, needsHtml: true, available: () => true, shouldRun: () => true,
       resolve: async (ctx) => {
         const page = await ctx.getHtml();
         return page?.html.includes("full") ? { product: { title: "Desk", price: 10, currency: "USD", weight_lbs: 1 } } : { product: { title: "Desk" } };
@@ -138,7 +139,7 @@ describe("resolveProduct", () => {
     const api = resolver("rainforest", { title: "Desk", price: 99.5, currency: "USD" });
     const fetchHtml = vi.fn(async () => ({ html: "<html>page</html>", source: "browserless" as const }));
     const parser: ExtractionResolver = {
-      name: "platform-html", defaultConfidence: 0.9, available: () => true, shouldRun: () => true,
+      name: "platform-html", defaultConfidence: 0.9, needsHtml: true, available: () => true, shouldRun: () => true,
       resolve: async (ctx) => ((await ctx.getHtml()) ? { product: { weight_lbs: 4 } } : { product: {} }),
     };
     const fast = await resolveProduct({ ...base, resolvers: [api, parser], fetchHtml, stopWhenRequired: true });

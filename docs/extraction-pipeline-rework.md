@@ -35,7 +35,7 @@ path → falls to manual entry. The Apify eBay actor requires a paid rental; the
 **Speed (2026-09-09 tuning):** the quote responds as soon as title + price + currency are known (fast mode);
 the Claude weight lookup runs after the response via `after()` and updates the cache row. Per-store HTML attempt
 order skips paths known to fail. Measured: Amazon 10–15 s, eBay ~18 s, SHEIN ~18 s, repeat pastes instant (cache).
-Amazon tier 0 is now the **Rainforest API** (`RAINFOREST_API_KEY`, optional): structured data by ASIN in 1–6 s, no browser; the browser tiers remain the fallback and cover every other store.
+Tier 0 is now **ScraperAPI structured endpoints** (`SCRAPERAPI_API_KEY`) for Amazon (with weight + category) and eBay: 2–5 s, no browser. Rainforest stays as an optional second Amazon source. Fast mode returns once price + category are known; the LLM classifies category from the listing text when the structured record lacks one (eBay), and browser+LLM weight enrichment runs in the background only for weight-priced categories. The quote flow no longer requires login; sign-in happens at order submission.
 
 **Keys to create:** `BROWSERLESS_API_KEY`, `ANTHROPIC_API_KEY`, `EXCHANGE_RATE_API_KEY` (required).
 `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY` optional. `SERPAPI_API_KEY` and ScrapingBee removed.

@@ -191,6 +191,7 @@ export function extractFromMeta($: CheerioAPI): PartialProduct {
 export const structuredDataResolver: ExtractionResolver = {
   name: "structured-data",
   defaultConfidence: 0.8,
+  needsHtml: true,
   available: () => true,
   shouldRun: () => true,
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {

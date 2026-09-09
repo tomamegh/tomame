@@ -1,7 +1,5 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
-import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { getValidExtractionById } from "@/db/queries/extraction-cache";
 import { priceExtraction } from "@/features/extraction/quote.service";
@@ -19,6 +17,7 @@ import { PRICING_TO_REGION } from "@/features/extraction/url";
  *    for orders placed without an extraction. Informational only.
  *
  * Nothing returned here is trusted at order time — createOrder recomputes.
+ * Public: part of the no-login quote flow.
  */
 const previewSchema = z.object({
   extraction_cache_id: z.string().uuid().optional(),
@@ -31,9 +30,6 @@ const previewSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser();
-    requireAuth(user);
-
     const sp = request.nextUrl.searchParams;
     const parsed = previewSchema.safeParse({
       extraction_cache_id: sp.get("extraction_cache_id") || undefined,

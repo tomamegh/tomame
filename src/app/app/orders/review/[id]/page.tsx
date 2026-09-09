@@ -31,7 +31,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useCreateOrder } from "@/features/orders/hooks/useCreateOrder";
 import type { Quote } from "@/features/extraction/types";
 import { Input } from "@/components/ui/input";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch, ApiFetchError } from "@/lib/auth/api-helpers";
 import type { ApiSuccessResponse } from "@/types/api";
 import { toast } from "@/lib/sonner";
 
@@ -752,7 +752,14 @@ export default function ReviewOrderPage() {
           pricing: result.pricing,
         });
       },
-      onError: (err) => setOrderError(err.message),
+      onError: (err) => {
+        // Quoting is public; placing the order needs an account. Come back here after sign-in.
+        if (err instanceof ApiFetchError && err.status === 401) {
+          router.push(`/auth/login?next=${encodeURIComponent(`/app/orders/review/${id}`)}`);
+          return;
+        }
+        setOrderError(err.message);
+      },
     });
   };
 

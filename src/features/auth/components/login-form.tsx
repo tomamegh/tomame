@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginSchemaType } from "@/features/auth/schema";
@@ -21,7 +21,11 @@ import SocialAuthButtons from "./social-auth-button";
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { mutateAsync, error, isPending } = useLogin();
+  // Only same-origin paths; anything else falls back to the dashboard.
+  const rawNext = searchParams.get("next");
+  const nextPath = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/app";
 
   const { control, handleSubmit } = useForm<LoginSchemaType>({
     resolver: zodResolver(loginSchema),
@@ -33,8 +37,8 @@ export default function LoginForm() {
 
   const onSubmit = async (data: LoginSchemaType) => {
     const { error } = await mutateAsync(data);
-    console.log(error);
-    router.push("/app");
+    if (error) return;
+    router.push(nextPath);
   };
 
   return (

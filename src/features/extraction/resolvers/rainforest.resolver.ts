@@ -63,6 +63,7 @@ export function mapRainforestProduct(item: RainforestProduct): PartialProduct {
 export const rainforestResolver: ExtractionResolver = {
   name: "rainforest",
   defaultConfidence: 0.95,
+  needsHtml: false,
   available: (ctx) => ctx.platform === SupportedPlatform.AMAZON && isRainforestConfigured(),
   shouldRun: () => true,
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {

@@ -9,10 +9,12 @@ import { structuredDataResolver } from "./structured-data.resolver";
 import { llmResolver } from "./llm.resolver";
 import { apifyResolver } from "./apify.resolver";
 import { rainforestResolver } from "./rainforest.resolver";
+import { scraperApiResolver } from "./scraperapi.resolver";
 import type { ChainOutcome, ExtractionResolver, HtmlFetch, ResolveContext } from "./types";
 
 /** Cheapest → costliest. */
 export const DEFAULT_RESOLVERS: ExtractionResolver[] = [
+  scraperApiResolver,
   rainforestResolver,
   platformHtmlResolver,
   structuredDataResolver,
@@ -94,6 +96,7 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     region: input.region,
     deadline,
     getHtml,
+    htmlState: () => (!html.attempted ? "unfetched" : html.result ? "ready" : "none"),
     current: state.product,
   };
 
@@ -118,7 +121,11 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     }
   };
 
-  const done = () => hasRequiredFields(state.product) && (input.stopWhenRequired || hasWeight(state.product));
+  // Fast mode ends once pricing can be shown: title, price, currency and a
+  // category (or the LLM has had its say on the category). Weight is deferred.
+  const done = () =>
+    hasRequiredFields(state.product) &&
+    (input.stopWhenRequired ? state.product.category != null || ran.includes("llm") : hasWeight(state.product));
 
   let refetchedDirect = false;
   for (let i = 0; i < resolvers.length; i++) {
@@ -130,6 +137,13 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     }
     if (!resolver.available(ctx)) continue;
     if (!resolver.shouldRun(ctx)) continue;
+
+    // Fast mode: once the listing is known, do not launch a browser for the
+    // nice-to-haves — those tiers run in background enrichment instead.
+    if (input.stopWhenRequired && hasRequiredFields(state.product) && resolver.needsHtml && html.attempted === false) {
+      skipped.push(resolver.name);
+      continue;
+    }
 
     // Before spending on a paid tier: if the free parsers read a directly
     // fetched page and still have no price, the page was a stripped variant

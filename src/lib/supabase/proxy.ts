@@ -51,14 +51,19 @@ export async function updateSession(request: NextRequest) {
   // Add any new protected prefixes here. No other code needs to change.
   const authRoutes = ["/app", "/admin"]; // requires login
   const adminRoutes = ["/admin"];        // requires admin role
+  // The quote flow (paste link → preview → review) is open to visitors; the
+  // order submit API and everything after it still require a session.
+  const publicRoutes = ["/app/orders/new", "/app/orders/review"];
 
-  const isProtected = authRoutes.some((p) => pathname.startsWith(p));
+  const isPublic = publicRoutes.some((p) => pathname.startsWith(p));
+  const isProtected = !isPublic && authRoutes.some((p) => pathname.startsWith(p));
   const isAdminRoute = adminRoutes.some((p) => pathname.startsWith(p));
 
   // Unauthenticated users → login
   if (isProtected && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
+    url.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
     return NextResponse.redirect(url);
   }
 

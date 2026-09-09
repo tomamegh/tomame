@@ -1,20 +1,18 @@
 import { NextRequest } from "next/server";
-import { getUserSession } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { getValidExtractionById } from "@/db/queries/extraction-cache";
 import { buildQuote } from "@/features/extraction/quote.service";
 
 /**
  * GET /api/extractions/:id?quantity=N
- * A stored extraction as a Quote. Product data is store-public, so any
- * signed-in user may read any valid entry; pricing is recomputed live.
+ * A stored extraction as a Quote. Product data is store-public and the quote
+ * flow is open to visitors, so no login is needed; pricing is recomputed live.
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await getUserSession();
     const { id } = await params;
 
     const qtyRaw = request.nextUrl.searchParams.get("quantity");

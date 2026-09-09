@@ -3,6 +3,7 @@ import type { HtmlAttemptName, PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, EBAY_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyEbayProduct } from "@/lib/apify/client";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { ebayItemIdOf } from "../url";
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
@@ -238,24 +239,14 @@ export class EbayScraper implements PlatformScraper {
   // Observed live: every datacenter path returns an error page / empty shell for this store.
   public readonly htmlAttempts: HtmlAttemptName[] = ["unblock+residential", "content+residential", "unblock"];
 
-  private static itemIdOf(raw: string): string | null {
-    try {
-      const u = new URL(raw);
-      const m = u.pathname.match(/\/itm\/(?:[^/]+\/)?(\d{9,})/);
-      return m?.[1] ?? null;
-    } catch {
-      return null;
-    }
-  }
-
   public isProductUrl(url: string): boolean {
-    return EbayScraper.itemIdOf(url) !== null;
+    return ebayItemIdOf(url) !== null;
   }
 
   public canonicalUrl(raw: string): string {
     try {
       const u = new URL(raw);
-      const id = EbayScraper.itemIdOf(raw);
+      const id = ebayItemIdOf(raw);
       if (id) return `${u.origin}/itm/${id}`;
       return `${u.origin}${u.pathname}`;
     } catch {

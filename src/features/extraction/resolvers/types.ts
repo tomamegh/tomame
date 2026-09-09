@@ -25,6 +25,8 @@ export interface ResolveContext {
   /** Absolute epoch ms after which resolvers should not start new network work. */
   deadline: number;
   getHtml(): Promise<HtmlFetch | null>;
+  /** Whether the page has been fetched yet — lets a tier choose a text-only mode instead of triggering a browser fetch. */
+  htmlState(): "unfetched" | "none" | "ready";
   /** What earlier resolvers already found; lets later tiers target the gaps. */
   current: ScrapedProduct;
 }
@@ -41,6 +43,8 @@ export interface ExtractionResolver {
   readonly name: ExtractionSource;
   /** Default confidence for fields this resolver reports without a per-field score. */
   readonly defaultConfidence: number;
+  /** True when the tier can only work from the fetched page. In fast mode these are deferred to enrichment once price is known. */
+  readonly needsHtml: boolean;
   /** Whether this tier can run right now (key present, platform supported). */
   available(ctx: ResolveContext): boolean;
   /** Should this tier run given what is still missing? Cheap tiers say yes always. */

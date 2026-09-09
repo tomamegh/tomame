@@ -9,6 +9,7 @@ import type { ExtractionResolver, ResolveContext, ResolverResult } from "./types
 export const platformHtmlResolver: ExtractionResolver = {
   name: "platform-html",
   defaultConfidence: 0.9,
+  needsHtml: true,
   available: () => true,
   shouldRun: () => true,
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {

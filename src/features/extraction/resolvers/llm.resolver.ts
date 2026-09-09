@@ -70,16 +70,33 @@ export function pageToText(html: string, maxChars: number = EXTRACTION.llmMaxInp
 export const llmResolver: ExtractionResolver = {
   name: "llm",
   defaultConfidence: 0.6,
+  needsHtml: false,
   available: () => env.extraction.anthropicApiKey !== null,
-  shouldRun: (ctx) => !hasRequiredFields(ctx.current) || !hasWeight(ctx.current),
+  shouldRun: (ctx) => !hasRequiredFields(ctx.current) || !hasWeight(ctx.current) || !ctx.current.category,
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {
     const anthropic = getClient();
     if (!anthropic) return { product: {} };
-    const page = await ctx.getHtml();
-    if (!page) return { product: {} };
     if (ctx.deadline - Date.now() < 8_000) return { product: {} };
 
-    const text = pageToText(page.html);
+    // Text-only mode: a structured tier already gave us the listing but not the
+    // category/weight, and the page has not been fetched. Classify from what we
+    // have rather than launching a browser for it.
+    const textOnly = ctx.htmlState() === "unfetched" && hasRequiredFields(ctx.current);
+    let text: string;
+    if (textOnly) {
+      const c = ctx.current;
+      text = [
+        `Title: ${c.title}`,
+        c.brand ? `Brand: ${c.brand}` : "",
+        c.price != null ? `Price: ${c.price} ${c.currency ?? ""}` : "",
+        c.description ? `Description: ${c.description.slice(0, 2_000)}` : "",
+        Object.keys(c.specifications).length ? `Specifications:\n${Object.entries(c.specifications).map(([k, v]) => `${k}: ${v}`).join("\n")}` : "",
+      ].filter(Boolean).join("\n");
+    } else {
+      const page = await ctx.getHtml();
+      if (!page) return { product: {} };
+      text = pageToText(page.html);
+    }
     const gaps = missingFields(ctx.current);
     const known = Object.entries(ctx.current)
       .filter(([k, v]) => v != null && !["specifications", "metadata", "description"].includes(k))
@@ -132,6 +149,7 @@ export const llmResolver: ExtractionResolver = {
       };
       logger.info("llm resolver: extracted", {
         url: ctx.url,
+        mode: textOnly ? "text-only" : "page",
         filled: Object.entries(product).filter(([, v]) => v != null).map(([k]) => k),
         input_tokens: response.usage.input_tokens,
       });

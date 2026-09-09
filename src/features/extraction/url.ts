@@ -138,3 +138,10 @@ export function amazonDomainOf(url: string): string {
   const host = parseUrl(url)?.hostname.toLowerCase() ?? "";
   return host.match(/amazon\.[a-z.]+$/)?.[0] ?? "amazon.com";
 }
+
+/** Numeric item id from any eBay listing URL shape (/itm/<id>, /itm/<slug>/<id>). */
+export function ebayItemIdOf(url: string): string | null {
+  const u = parseUrl(url);
+  if (!u) return null;
+  return u.pathname.match(/\/itm\/(?:[^/]+\/)?(\d{9,})/)?.[1] ?? null;
+}

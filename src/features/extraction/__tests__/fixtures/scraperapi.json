@@ -1,0 +1,75 @@
+{
+ "amazon": {
+  "name": "Homall Gaming Chair, Ergonomic Faux Leather High Back Office Chair, White",
+  "pricing": "$80.74",
+  "list_price": "$129.99",
+  "brand": "Visit the Homall Store",
+  "availability_status": "In Stock",
+  "images": [
+   "https://m.media-amazon.com/images/I/41eBv4NHyWL._AC_.jpg",
+   "https://m.media-amazon.com/images/I/5193+0TKuHL._AC_.jpg"
+  ],
+  "high_res_images": [
+   "https://m.media-amazon.com/images/I/61toXmoxOrL._AC_SL1500_.jpg",
+   "https://m.media-amazon.com/images/I/712KPnl9KPL._AC_SL1500_.jpg"
+  ],
+  "product_category": "Home & Kitchen\u203aFurniture\u203aGame & Recreation Room Furniture\u203aGaming Chairs\u203aComputer Gaming Chairs",
+  "feature_bullets": [
+   "COMFORT THAT HOLDS UP IN LONG SESSIONS: High-density shaping foam keeps its loft instead of flattening out, so the cushion still supports you after a full workday or an all-evening gaming streak. The contoured backrest, removable headrest, and adjustable lumbar pillow line up your neck and lower back instead of letting you slump.",
+   "BUILT WITH THE MONEY WHERE IT COUNTS: A 1.8 mm thick steel frame and a Class 3 gas lift carry the load, rather than the light-duty plastic bases common at this price. The upholstery is wear-resistant PU leather over high-density foam, and the rubber casters were run through a 1,000-mile rolling test on the hard floors this chair is built for."
+  ],
+  "product_information": {
+   "brand_name": "Homall",
+   "asin": "B01MRZ02TL",
+   "material_type": "Faux Leather",
+   "color": "White",
+   "item_dimensions_d_x_w_x_h": "19.8\"D x 20.5\"W x 47.8\"H",
+   "size": "Oversized",
+   "item_weight": "36.2 pounds",
+   "item_dimensions": "19.8 x 20.5 x 47.8 inches"
+  },
+  "average_rating": 4.4,
+  "total_reviews": 77891,
+  "sold_by": "FlamakerDirect"
+ },
+ "ebay": {
+  "product_id_epid": "407064013193",
+  "title": "Apple iPhone 17 Pro, US Version, 256GB, eSIM, 6.3\" - Fully Unlocked - Excellent",
+  "price": {
+   "value": 949.99,
+   "currency": "USD"
+  },
+  "images": [
+   "https://i.ebayimg.com/images/g/mjAAAeSwC~ZqUow2/s-l1600.jpg",
+   "https://api.getquipt.com/v2/image/035a4251-7c32-4b21-9c9e-ea982582377d/3000/0.jpg"
+  ],
+  "available": true,
+  "condition": "Excellent - Refurbished",
+  "brand": "Apple",
+  "model": "iPhone\u00a017 Pro",
+  "item_specifics": [
+   {
+    "label": "Seller Notes",
+    "value": "\u201c\ud83d\udcaf Reliable Quality \u2013 Ready to use, right out of the box Buy with Confidence \u2013 Fully Tested & Guaranteed Performance Every device undergoes rigorous multi-point testing to ensure 100% functionality and reliability.\u201dRead Less"
+   },
+   {
+    "label": "Model Number",
+    "value": "A3256"
+   },
+   {
+    "label": "Item Height",
+    "value": "5.91"
+   },
+   {
+    "label": "Storage Capacity",
+    "value": "256GB"
+   }
+  ],
+  "seller": {
+   "name": "T4C LLC"
+  },
+  "shipping_costs": {
+   "value": 0
+  }
+ }
+}

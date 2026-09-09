@@ -2,6 +2,7 @@ import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { EXTRACTION } from "@/config/extraction";
 import { getCachedExtractionByHash, getExtractionById, upsertExtractionCache } from "@/db/queries/extraction-cache";
+import { getCategoryPricingMap } from "@/db/queries/pricing-groups";
 import { resolvePlatform, getScraperByPlatform, SUPPORTED_STORE_NAMES, type SupportedPlatform } from "./scrapers";
 import { resolveProduct, continueResolve, type ChainOutcome } from "./resolvers";
 import { hasRequiredFields, hasWeight } from "./resolvers/merge";
@@ -61,12 +62,12 @@ export async function prepareProductUrl(rawUrl: string): Promise<PreparedUrl> {
  */
 const inflight = new Map<string, Promise<FreshExtraction>>();
 
-export async function extractProductData(url: string, userId: string): Promise<FreshExtraction> {
+export async function extractProductData(url: string, userId: string | null): Promise<FreshExtraction> {
   return extractPrepared(await prepareProductUrl(url), userId);
 }
 
 /** Same as extractProductData for a URL the caller has already prepared (avoids a second short-link resolution). */
-export async function extractPrepared(prepared: PreparedUrl, userId: string): Promise<FreshExtraction> {
+export async function extractPrepared(prepared: PreparedUrl, userId: string | null): Promise<FreshExtraction> {
   const cached = await getCachedExtractionByHash(prepared.urlHash);
   if (cached) {
     logger.info("extraction: cache hit", { url: prepared.canonicalUrl });
@@ -85,6 +86,22 @@ export async function extractPrepared(prepared: PreparedUrl, userId: string): Pr
     return await run;
   } finally {
     inflight.delete(prepared.urlHash);
+  }
+}
+
+/**
+ * Weight only changes the price for weight-based pricing groups. Skip the
+ * background browser+LLM pass when the category is flat-rate (or unmapped —
+ * those go to admin review regardless).
+ */
+async function weightMattersFor(category: string | null): Promise<boolean> {
+  if (!category) return false;
+  try {
+    const group = (await getCategoryPricingMap()).get(category);
+    return !!group && (group.flat_rate_expression != null || group.requires_weight);
+  } catch (err) {
+    logger.warn("extraction: could not load pricing groups for enrichment gate", { error: err instanceof Error ? err.message : String(err) });
+    return true;
   }
 }
 
@@ -107,7 +124,7 @@ function toResult(prepared: PreparedUrl, outcome: ChainOutcome, sourcesRan: Chai
   };
 }
 
-async function performExtraction(prepared: PreparedUrl, userId: string): Promise<FreshExtraction> {
+async function performExtraction(prepared: PreparedUrl, userId: string | null): Promise<FreshExtraction> {
   const { canonicalUrl, urlHash, platform, region } = prepared;
   const chainInput = { url: canonicalUrl, platform, region };
 
@@ -141,7 +158,7 @@ async function performExtraction(prepared: PreparedUrl, userId: string): Promise
   });
 
   const enrich =
-    complete && outcome.skipped.length > 0 && !hasWeight(outcome.product)
+    complete && outcome.skipped.length > 0 && !hasWeight(outcome.product) && (await weightMattersFor(outcome.product.category))
       ? async () => {
           const t0 = Date.now();
           const enriched = await continueResolve(chainInput, outcome);
