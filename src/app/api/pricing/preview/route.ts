@@ -5,6 +5,8 @@ import { getValidExtractionById } from "@/db/queries/extraction-cache";
 import { priceExtraction } from "@/features/extraction/quote.service";
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
 import { PRICING_TO_REGION } from "@/features/extraction/url";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { RATE_LIMIT } from "@/config/security";
 
 /**
  * GET /api/pricing/preview
@@ -30,6 +32,11 @@ const previewSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+    if (!checkRateLimit(`pricing-preview:${ip}`, RATE_LIMIT.general).allowed) {
+      throw new APIError(429, "Too many requests");
+    }
+
     const sp = request.nextUrl.searchParams;
     const parsed = previewSchema.safeParse({
       extraction_cache_id: sp.get("extraction_cache_id") || undefined,

@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { defaultCurrencyForUrl, hashUrl, isShortUrl, normalizeUrl, regionForUrl } from "../url";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { defaultCurrencyForUrl, hashUrl, isShortUrl, normalizeUrl, regionForUrl, resolveShortUrl } from "../url";
 import { amazonScraper } from "../scrapers/amazon";
 import { ebayScraper } from "../scrapers/ebay";
 import { sheinScraper } from "../scrapers/shein";
@@ -65,5 +65,30 @@ describe("product URL validation (no spend on non-product links)", () => {
   it("microcenter: accepts /product/<id>", () => {
     expect(microcenterScraper.isProductUrl("https://www.microcenter.com/product/683524/foo")).toBe(true);
     expect(microcenterScraper.isProductUrl("https://www.microcenter.com/search/search_results.aspx?Ntt=gpu")).toBe(false);
+  });
+});
+
+describe("resolveShortUrl (public endpoint — no open redirect follow)", () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("follows a shortener onto a supported store", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ headers: new Headers({ location: "https://www.amazon.com/dp/B01MRZ02TL" }) });
+    expect(await resolveShortUrl("https://a.co/d/abc")).toBe("https://www.amazon.com/dp/B01MRZ02TL");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses to follow a shortener onto an arbitrary host", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ headers: new Headers({ location: "http://169.254.169.254/latest/meta-data" }) });
+    expect(await resolveShortUrl("https://bit.ly/evil")).toBe("https://bit.ly/evil");
+    expect(global.fetch).toHaveBeenCalledTimes(1); // never requested the internal host
+  });
+
+  it("does not request non-shortener hosts at all", async () => {
+    global.fetch = vi.fn();
+    expect(await resolveShortUrl("https://www.example.com/x")).toBe("https://www.example.com/x");
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

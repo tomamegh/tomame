@@ -99,30 +99,40 @@ export function hashUrl(url: string): string {
   return createHash("sha256").update(normalizeUrl(url)).digest("hex");
 }
 
+/** Hosts a short link may land on: the stores we support, or another shortener. */
+function isAllowedRedirectHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (SHORT_URL_HOSTS.has(host)) return true;
+  return Object.keys(DOMAIN_REGION).some((domain) => hostMatches(host, domain));
+}
+
 /**
- * Follow a short link (a.co, ebay.us, bit.ly, …) to its destination.
- * Returns the input unchanged if resolution fails — the caller still gets a
- * usable URL, just possibly one we can't classify.
+ * Follow a short link (a.co, ebay.us, bit.ly, …) to its destination, one hop at
+ * a time, and only onto hosts we would scrape anyway. This endpoint is public,
+ * so a shortener must not be able to make the server request arbitrary URLs.
+ * Returns the input unchanged if resolution fails.
  */
-export async function resolveShortUrl(shortUrl: string): Promise<string> {
-  const headers = { "User-Agent": BROWSER_UA };
-  try {
-    const res = await fetch(shortUrl, {
-      method: "HEAD",
-      headers,
-      redirect: "follow",
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (res.url && res.url !== shortUrl) return res.url;
-    const res2 = await fetch(shortUrl, {
-      headers,
-      redirect: "follow",
-      signal: AbortSignal.timeout(10_000),
-    });
-    return res2.url || shortUrl;
-  } catch {
-    return shortUrl;
+export async function resolveShortUrl(shortUrl: string, maxHops = 5): Promise<string> {
+  let current = shortUrl;
+  for (let hop = 0; hop < maxHops; hop++) {
+    const u = parseUrl(current);
+    if (!u || !isAllowedRedirectHost(u.hostname)) return shortUrl;
+    if (!SHORT_URL_HOSTS.has(u.hostname.toLowerCase())) return current; // landed on a store
+    try {
+      const res = await fetch(current, {
+        method: "HEAD",
+        headers: { "User-Agent": BROWSER_UA },
+        redirect: "manual",
+        signal: AbortSignal.timeout(8_000),
+      });
+      const location = res.headers.get("location");
+      if (!location) return current;
+      current = new URL(location, current).toString();
+    } catch {
+      return shortUrl;
+    }
   }
+  return current;
 }
 
 /** ASIN from any Amazon product URL shape (/dp/, /gp/product/, /gp/aw/d/, /product/). */

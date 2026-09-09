@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { getValidExtractionById } from "@/db/queries/extraction-cache";
 import { buildQuote } from "@/features/extraction/quote.service";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { RATE_LIMIT } from "@/config/security";
 
 /**
  * GET /api/extractions/:id?quantity=N
@@ -13,6 +15,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+    if (!checkRateLimit(`extractions-read:${ip}`, RATE_LIMIT.general).allowed) {
+      throw new APIError(429, "Too many requests");
+    }
     const { id } = await params;
 
     const qtyRaw = request.nextUrl.searchParams.get("quantity");
