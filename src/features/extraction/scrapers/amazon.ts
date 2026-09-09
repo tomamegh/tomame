@@ -3,7 +3,7 @@ import type { PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, AMAZON_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyAmazonProduct } from "@/lib/apify/client";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
-import { defaultCurrencyForUrl } from "../url";
+import { amazonAsinOf, defaultCurrencyForUrl } from "../url";
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
@@ -255,24 +255,14 @@ export class AmazonScraper implements PlatformScraper {
   public readonly defaultCurrency = "USD";
   public readonly renderWaitSelector = "#productTitle, #ASIN";
 
-  private static asinOf(raw: string): string | null {
-    try {
-      const u = new URL(raw);
-      const m = u.pathname.match(/\/(?:dp|gp\/product|gp\/aw\/d|product)\/([A-Z0-9]{10})(?:[/?]|$)/i);
-      return m?.[1]?.toUpperCase() ?? null;
-    } catch {
-      return null;
-    }
-  }
-
   public isProductUrl(url: string): boolean {
-    return AmazonScraper.asinOf(url) !== null;
+    return amazonAsinOf(url) !== null;
   }
 
   public canonicalUrl(raw: string): string {
     try {
       const u = new URL(raw);
-      const asin = AmazonScraper.asinOf(raw);
+      const asin = amazonAsinOf(raw);
       if (asin) return `${u.origin}/dp/${asin}`;
       return `${u.origin}${u.pathname}`;
     } catch {

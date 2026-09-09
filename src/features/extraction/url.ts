@@ -124,3 +124,17 @@ export async function resolveShortUrl(shortUrl: string): Promise<string> {
     return shortUrl;
   }
 }
+
+/** ASIN from any Amazon product URL shape (/dp/, /gp/product/, /gp/aw/d/, /product/). */
+export function amazonAsinOf(url: string): string | null {
+  const u = parseUrl(url);
+  if (!u) return null;
+  const m = u.pathname.match(/\/(?:dp|gp\/product|gp\/aw\/d|product)\/([A-Z0-9]{10})(?:[/?]|$)/i);
+  return m?.[1]?.toUpperCase() ?? null;
+}
+
+/** "amazon.com", "amazon.co.uk", … — the marketplace the URL points at. */
+export function amazonDomainOf(url: string): string {
+  const host = parseUrl(url)?.hostname.toLowerCase() ?? "";
+  return host.match(/amazon\.[a-z.]+$/)?.[0] ?? "amazon.com";
+}

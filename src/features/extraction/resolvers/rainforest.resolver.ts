@@ -3,26 +3,8 @@ import { fetchAmazonProduct, isRainforestConfigured, type RainforestProduct } fr
 import { TomameCategory, AMAZON_CATEGORY_MAP } from "@/config/categories";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
 import { SupportedPlatform } from "../scrapers/registry";
+import { amazonAsinOf, amazonDomainOf } from "../url";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
-
-function asinOf(url: string): string | null {
-  try {
-    const m = new URL(url).pathname.match(/\/(?:dp|gp\/product|gp\/aw\/d|product)\/([A-Z0-9]{10})(?:[/?]|$)/i);
-    return m?.[1]?.toUpperCase() ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function amazonDomainOf(url: string): string {
-  try {
-    const host = new URL(url).hostname.toLowerCase();
-    const m = host.match(/amazon\.[a-z.]+$/);
-    return m?.[0] ?? "amazon.com";
-  } catch {
-    return "amazon.com";
-  }
-}
 
 /** Rainforest product record → partial product. Exported for tests. */
 export function mapRainforestProduct(item: RainforestProduct): PartialProduct {
@@ -84,7 +66,7 @@ export const rainforestResolver: ExtractionResolver = {
   available: (ctx) => ctx.platform === SupportedPlatform.AMAZON && isRainforestConfigured(),
   shouldRun: () => true,
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {
-    const asin = asinOf(ctx.url);
+    const asin = amazonAsinOf(ctx.url);
     if (!asin) return { product: {} };
     if (ctx.deadline - Date.now() < 3_000) return { product: {} };
     try {

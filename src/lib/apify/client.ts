@@ -1,6 +1,7 @@
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { EXTRACTION } from "@/config/extraction";
+import { amazonDomainOf } from "@/features/extraction/url";
 
 /**
  * Apify community actors — an OPTIONAL last-resort tier. Skipped entirely when
@@ -178,14 +179,7 @@ async function runActor<T>(actorId: string, input: Record<string, unknown>, labe
 }
 
 export async function scrapeAmazonWithApify(productUrl: string): Promise<ApifyAmazonProduct | null> {
-  let countryDomain = "amazon.com";
-  try {
-    const host = new URL(productUrl).hostname;
-    const m = host.match(/amazon\.([a-z.]+)$/);
-    if (m?.[1]) countryDomain = `amazon.${m[1]}`;
-  } catch {
-    // keep default
-  }
+  const countryDomain = amazonDomainOf(productUrl);
   const items = await runActor<ApifyAmazonProduct>(ACTORS.amazon, { urls: [productUrl], countryDomain }, productUrl);
   const item = items?.[0];
   if (!item) return null;
