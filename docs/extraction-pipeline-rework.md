@@ -32,6 +32,11 @@ eBay 24 s and SHEIN 27 s (both need Browserless **residential proxy** — datace
 empty shell; billed per GB). Micro Center did not clear Cloudflare within the 120 s plan maximum on any
 path → falls to manual entry. The Apify eBay actor requires a paid rental; the SHEIN actor timed out at 90 s.
 
+**Speed (2026-09-09 tuning):** the quote responds as soon as title + price + currency are known (fast mode);
+the Claude weight lookup runs after the response via `after()` and updates the cache row. Per-store HTML attempt
+order skips paths known to fail. Measured: Amazon 10–15 s, eBay ~18 s, SHEIN ~18 s, repeat pastes instant (cache).
+Sub-second like Wolevo needs a product data API (e.g. Rainforest/Keepa for Amazon) as a tier ahead of the browser.
+
 **Keys to create:** `BROWSERLESS_API_KEY`, `ANTHROPIC_API_KEY`, `EXCHANGE_RATE_API_KEY` (required).
 `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY` optional. `SERPAPI_API_KEY` and ScrapingBee removed.
 

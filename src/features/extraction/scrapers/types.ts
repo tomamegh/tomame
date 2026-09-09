@@ -1,6 +1,8 @@
 import type { CheerioAPI } from "cheerio";
 import type { TomameCategory } from "@/config/categories";
 
+export type HtmlAttemptName = "direct" | "unblock" | "unblock+residential" | "content+residential" | "content";
+
 export interface ScrapedProduct {
   /** Product title */
   title: string | null;
@@ -66,6 +68,12 @@ export interface PlatformScraper {
   looksLikeProductPage(html: string): boolean;
   /** CSS selector headless Chrome should wait for before returning HTML (SPAs hydrate late). */
   readonly renderWaitSelector: string;
+  /**
+   * Which HTML sources to try, in order. Omit for the default (direct fetch,
+   * datacenter unblock, residential unblock, residential rendered content).
+   * Set it once a store is known to reject a path, so we stop paying for it.
+   */
+  readonly htmlAttempts?: HtmlAttemptName[];
   /** Extract product data from parsed HTML. */
   extract($: CheerioAPI): ScrapedProduct;
 }

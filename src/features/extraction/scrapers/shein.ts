@@ -1,5 +1,5 @@
 import type { CheerioAPI } from "cheerio";
-import type { PlatformScraper, ScrapedProduct } from "./types";
+import type { HtmlAttemptName, PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, SHEIN_CATEGORY_MAP } from "@/config/categories";
 import type { ApifySheinProduct } from "@/lib/apify/client";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
@@ -325,6 +325,8 @@ export class SheinScraper implements PlatformScraper {
   public readonly domains = ["shein.com", "us.shein.com", "m.shein.com"];
   public readonly defaultCurrency = "USD";
   public readonly renderWaitSelector = "h1, .product-intro__head-name, [class*='product-intro__head']";
+  // Observed live: every datacenter path returns an error page / empty shell for this store.
+  public readonly htmlAttempts: HtmlAttemptName[] = ["content+residential", "unblock+residential"];
 
   public isProductUrl(url: string): boolean {
     return extractGoodsIdFromUrl(url) !== null;

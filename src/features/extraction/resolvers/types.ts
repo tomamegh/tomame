@@ -57,9 +57,13 @@ export interface ChainOutcome {
   fieldSources: Partial<Record<keyof ScrapedProduct, ExtractionSource>>;
   /** Resolvers that ran, in order. */
   ran: ExtractionSource[];
+  /** Available resolvers that did not run because the chain stopped early (fast mode / budget). */
+  skipped: ExtractionSource[];
   /** Resolver that supplied the title (or the first that supplied anything). */
   primarySource: ExtractionSource | null;
   htmlSource: HtmlSource | null;
+  /** The fetched page, so a later enrichment pass does not pay for it again. Not persisted. */
+  html: HtmlFetch | null;
   messages: string[];
   durationMs: number;
 }

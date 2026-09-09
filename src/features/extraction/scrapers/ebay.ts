@@ -1,5 +1,5 @@
 import type { CheerioAPI } from "cheerio";
-import type { PlatformScraper, ScrapedProduct } from "./types";
+import type { HtmlAttemptName, PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, EBAY_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyEbayProduct } from "@/lib/apify/client";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
@@ -235,6 +235,8 @@ export class EbayScraper implements PlatformScraper {
   public readonly domains = ["ebay.com", "ebay.co.uk", "ebay.us", "ebay.to"];
   public readonly defaultCurrency = "USD";
   public readonly renderWaitSelector = ".x-item-title, .x-price-primary, #itemTitle";
+  // Observed live: every datacenter path returns an error page / empty shell for this store.
+  public readonly htmlAttempts: HtmlAttemptName[] = ["unblock+residential", "content+residential", "unblock"];
 
   private static itemIdOf(raw: string): string | null {
     try {

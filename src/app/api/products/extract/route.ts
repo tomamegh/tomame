@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { extractProductSchema } from "@/features/extraction/schema";
 import { extractPrepared, prepareProductUrl } from "@/features/extraction/extraction.service";
 import { buildQuote } from "@/features/extraction/quote.service";
@@ -43,7 +43,10 @@ export async function POST(request: NextRequest) {
       throw new APIError(429, "Too many requests. Please wait a few minutes and try again.");
     }
 
-    const extraction = await extractPrepared(prepared, user.id);
+    const { enrich, ...extraction } = await extractPrepared(prepared, user.id);
+    // Weight lookup etc. finishes after the response and updates the cache row;
+    // the review page reads the row, so it sees the enriched product.
+    if (enrich) after(enrich);
     return successResponse(await buildQuote(extraction));
   } catch (error) {
     return errorResponse(error);

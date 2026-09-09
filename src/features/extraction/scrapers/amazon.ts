@@ -284,7 +284,9 @@ export class AmazonScraper implements PlatformScraper {
     if (/api-services-support@amazon\.com|Robot Check|captcha/i.test(html) && !html.includes("productTitle")) {
       return false;
     }
-    return html.includes("productTitle") || /"ASIN"|id="ASIN"/.test(html);
+    // Amazon serves datacenter IPs a page with the title but no offer block.
+    // Without a price marker, treat it as not rendered so the chain refetches.
+    return html.includes("productTitle") && /a-offscreen|a-price|priceToPay|priceblock_/.test(html);
   }
 
   public extract($: CheerioAPI): ScrapedProduct {

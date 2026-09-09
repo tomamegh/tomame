@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/env", () => ({ env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null } } }));
 
-import { resolveProduct } from "../resolvers/chain";
+import { resolveProduct, continueResolve } from "../resolvers/chain";
 import { hasRequiredFields, mergeResult, type MergeState } from "../resolvers/merge";
 import { emptyProduct, SupportedPlatform } from "../scrapers";
 import type { ExtractionResolver } from "../resolvers/types";
@@ -97,5 +97,40 @@ describe("resolveProduct", () => {
     const out = await resolveProduct({ ...base, resolvers: [a, b], fetchHtml });
     expect(fetchHtml).toHaveBeenCalledTimes(1);
     expect(out.htmlSource).toBe("direct");
+  });
+
+  it("fast mode stops once required fields are known and reports what it skipped", async () => {
+    const cheap = resolver("platform-html", { title: "Desk", price: 99.5, currency: "USD" });
+    const llm = resolver("llm", { weight_lbs: 3.2 });
+    const out = await resolveProduct({ ...base, resolvers: [cheap, llm], fetchHtml: async () => null, stopWhenRequired: true });
+    expect(llm.calls).toBe(0);
+    expect(out.skipped).toEqual(["llm"]);
+    expect(out.messages).toEqual([]); // no "weight not listed" while enrichment is still pending
+
+    const enriched = await continueResolve({ ...base, resolvers: [cheap, llm], fetchHtml: async () => null }, out);
+    expect(llm.calls).toBe(1);
+    expect(cheap.calls).toBe(1); // not re-run
+    expect(enriched.product.title).toBe("Desk");
+    expect(enriched.product.weight_lbs).toBe(3.2);
+    expect(enriched.skipped).toEqual([]);
+  });
+
+  it("refetches through the browser when a direct page parsed to no price", async () => {
+    const fetchHtml = vi.fn(async (_u: string, opts?: { skipDirect?: boolean }) =>
+      opts?.skipDirect ? { html: "<html>full</html>", source: "browserless" as const } : { html: "<html>stripped</html>", source: "direct" as const });
+    const parser: ExtractionResolver = {
+      name: "platform-html", defaultConfidence: 0.9, available: () => true, shouldRun: () => true,
+      resolve: async (ctx) => {
+        const page = await ctx.getHtml();
+        return page?.html.includes("full") ? { product: { title: "Desk", price: 10, currency: "USD", weight_lbs: 1 } } : { product: { title: "Desk" } };
+      },
+    };
+    const llm = resolver("llm", { price: 999 });
+    const out = await resolveProduct({ ...base, resolvers: [parser, llm], fetchHtml });
+    expect(fetchHtml).toHaveBeenCalledTimes(2);
+    expect(fetchHtml.mock.calls[1]?.[1]).toEqual({ skipDirect: true });
+    expect(out.product.price).toBe(10);
+    expect(llm.calls).toBe(0);
+    expect(out.htmlSource).toBe("browserless");
   });
 });

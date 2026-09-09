@@ -2,6 +2,7 @@ import { logger } from "@/lib/logger";
 import { EXTRACTION } from "@/config/extraction";
 import { browserlessClient, isBrowserlessConfigured } from "@/lib/browserless/client";
 import type { PlatformScraper } from "../scrapers";
+import type { HtmlAttemptName } from "../scrapers/types";
 import type { HtmlFetch } from "./types";
 
 const BROWSER_HEADERS = {
@@ -33,7 +34,7 @@ async function directFetch(url: string, timeoutMs: number): Promise<string | nul
 }
 
 type Attempt = {
-  name: string;
+  name: HtmlAttemptName;
   /** Minimum time that must remain in the budget for this attempt to start. */
   minRemainingMs: number;
   /** Extra runs when the first returns a blocked/shell page. */
@@ -51,14 +52,22 @@ type Attempt = {
  * residential proxy (eBay via unblock, SHEIN via rendered content with a wait
  * selector); Micro Center's Cloudflare challenge did not clear within budget.
  */
+export interface FetchHtmlOptions {
+  /** Skip the plain GET — used when a direct page passed the shape check but parsed to nothing. */
+  skipDirect?: boolean;
+}
+
 export async function fetchProductHtml(
   url: string,
   scraper: PlatformScraper,
   deadline: number,
+  opts: FetchHtmlOptions = {},
 ): Promise<HtmlFetch | null> {
   const remaining = () => deadline - Date.now();
 
-  if (remaining() > 2_000) {
+  const order: HtmlAttemptName[] = scraper.htmlAttempts ?? ["direct", "unblock", "unblock+residential", "content+residential"];
+
+  if (order.includes("direct") && !opts.skipDirect && remaining() > 2_000) {
     const html = await directFetch(url, Math.min(EXTRACTION.directFetchTimeoutMs, remaining()));
     if (html && scraper.looksLikeProductPage(html)) return { html, source: "direct" };
   }
@@ -68,36 +77,34 @@ export async function fetchProductHtml(
     return null;
   }
 
-  // Order is by observed hit rate per cost, not by list price: the datacenter
-  // rendered-content attempt is last because on a blocked page it burns the
-  // whole selector wait (~25 s) for nothing.
-  const attempts: Attempt[] = [
-    {
+  const catalogue: Record<Exclude<HtmlAttemptName, "direct">, Attempt> = {
+    unblock: {
       name: "unblock",
       minRemainingMs: 8_000,
       retries: 0,
       run: (t) => browserlessClient.unblockContent(url, t),
     },
-    {
+    "unblock+residential": {
       name: "unblock+residential",
       minRemainingMs: 15_000,
       // Residential exits are per-request; eBay blocks roughly one in three.
       retries: 1,
       run: (t) => browserlessClient.unblockContent(url, t, { proxy: "residential", waitForTimeout: 3_000 }),
     },
-    {
+    "content+residential": {
       name: "content+residential",
       minRemainingMs: 15_000,
       retries: 0,
       run: (t) => browserlessClient.scrapeContent({ url, timeout: t, waitForSelector: scraper.renderWaitSelector, proxy: "residential" }),
     },
-    {
+    content: {
       name: "content",
       minRemainingMs: 15_000,
       retries: 0,
       run: (t) => browserlessClient.scrapeContent({ url, timeout: t, waitForSelector: scraper.renderWaitSelector }),
     },
-  ];
+  };
+  const attempts = order.filter((n): n is Exclude<HtmlAttemptName, "direct"> => n !== "direct").map((n) => catalogue[n]);
 
   for (const attempt of attempts) {
     for (let run = 0; run <= attempt.retries; run++) {
