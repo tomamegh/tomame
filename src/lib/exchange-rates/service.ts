@@ -1,13 +1,14 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import type { ExchangeRate, ExchangeRateProvider } from "./types";
+import { exchangeRateApiProvider } from "./exchange-rate-api";
 import { freeCurrencyProvider } from "./freecurrency";
+
+/** Currencies the stores we support list prices in. */
+export const RATE_CURRENCIES = ["USD", "GBP", "CNY"] as const;
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
-/**
- * Get exchange rate from DB by base currency.
- */
 export async function getRate(baseCurrency: string): Promise<ExchangeRate | null> {
   const client = createAdminClient();
 
@@ -26,9 +27,6 @@ export async function getRate(baseCurrency: string): Promise<ExchangeRate | null
   return data as ExchangeRate;
 }
 
-/**
- * Get all exchange rates from DB.
- */
 export async function getAllRates(): Promise<ExchangeRate[]> {
   const client = createAdminClient();
 
@@ -46,14 +44,7 @@ export async function getAllRates(): Promise<ExchangeRate[]> {
   return (data ?? []) as ExchangeRate[];
 }
 
-/**
- * Upsert an exchange rate in the DB.
- */
-async function upsertRate(
-  baseCurrency: string,
-  rate: number,
-  provider: string
-): Promise<ExchangeRate | null> {
+async function upsertRate(baseCurrency: string, rate: number, provider: string): Promise<ExchangeRate | null> {
   const client = createAdminClient();
   const now = new Date().toISOString();
 
@@ -68,7 +59,7 @@ async function upsertRate(
         fetched_at: now,
         updated_at: now,
       },
-      { onConflict: "base_currency,target_currency" }
+      { onConflict: "base_currency,target_currency" },
     )
     .select()
     .single();
@@ -84,64 +75,76 @@ async function upsertRate(
 // ── Service functions ─────────────────────────────────────────────────────────
 
 /**
- * Fetch rates from provider and store them in the DB.
- * Call this from cron job.
+ * Providers in priority order. exchangerate-api.com is primary; FreeCurrencyAPI
+ * is a fallback that only participates when its key is configured.
  */
-export async function fetchAndStoreRates(
-  provider: ExchangeRateProvider = freeCurrencyProvider
-): Promise<{ success: boolean; updated: string[]; errors: string[] }> {
-  const currencies = ["USD", "GBP", "CNY"];
-  const updated: string[] = [];
-  const errors: string[] = [];
-
-  for (const currency of currencies) {
-    try {
-      const rate = await provider.getRate(currency);
-      const result = await upsertRate(currency, rate, provider.name);
-
-      if (result) {
-        updated.push(currency);
-        logger.info("Exchange rate updated", { currency, rate, provider: provider.name });
-      } else {
-        errors.push(`${currency}: DB upsert failed`);
-      }
-    } catch (err) {
-      console.log('Exchange Rate Error',err)
-      const message = err instanceof Error ? err.message : String(err);
-      errors.push(`${currency}: ${message}`);
-      logger.error("Failed to fetch/store rate", { currency, error: message });
-    }
-  }
-
-  return {
-    success: errors.length === 0,
-    updated,
-    errors,
-  };
+export function defaultProviders(): ExchangeRateProvider[] {
+  const providers: ExchangeRateProvider[] = [];
+  if (process.env.EXCHANGE_RATE_API_KEY) providers.push(exchangeRateApiProvider);
+  if (process.env.FREECURRENCY_API_KEY) providers.push(freeCurrencyProvider);
+  return providers;
 }
 
 /**
- * Get the GHS rate for a currency from DB.
- * Returns null if not found.
+ * Fetch rates and store them. For each currency the providers are tried in
+ * order; the first that answers wins. A currency fails only when every
+ * provider fails for it — and the others are still stored.
  */
+export async function fetchAndStoreRates(
+  providers: ExchangeRateProvider | ExchangeRateProvider[] = defaultProviders(),
+): Promise<{ success: boolean; updated: string[]; errors: string[] }> {
+  const chain = Array.isArray(providers) ? providers : [providers];
+  const updated: string[] = [];
+  const errors: string[] = [];
+
+  if (chain.length === 0) {
+    return { success: false, updated, errors: ["No exchange-rate provider configured (EXCHANGE_RATE_API_KEY / FREECURRENCY_API_KEY)"] };
+  }
+
+  for (const currency of RATE_CURRENCIES) {
+    const attempts: string[] = [];
+    let stored = false;
+
+    for (const provider of chain) {
+      try {
+        const rate = await provider.getRate(currency);
+        const result = await upsertRate(currency, rate, provider.name);
+        if (!result) {
+          attempts.push(`${provider.name}: DB upsert failed`);
+          continue;
+        }
+        updated.push(currency);
+        logger.info("Exchange rate updated", { currency, rate, provider: provider.name });
+        stored = true;
+        break;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        attempts.push(`${provider.name}: ${message}`);
+        logger.warn("Exchange rate provider failed, trying next", { currency, provider: provider.name, error: message });
+      }
+    }
+
+    if (!stored) {
+      errors.push(`${currency}: ${attempts.join("; ")}`);
+      logger.error("Failed to fetch/store rate from every provider", { currency, attempts });
+    }
+  }
+
+  return { success: errors.length === 0, updated, errors };
+}
+
 export async function getGhsRate(baseCurrency: string): Promise<number | null> {
   const rate = await getRate(baseCurrency);
   return rate?.rate ?? null;
 }
 
-/**
- * Get all pricing rates from DB.
- * Returns null values for missing rates.
- */
 export async function getPricingRates(): Promise<{
   USD_GHS: number | null;
   GBP_GHS: number | null;
   CNY_GHS: number | null;
 }> {
   const rates = await getAllRates();
-
   const rateMap = new Map(rates.map((r) => [r.base_currency, r.rate]));
-
   return {
     USD_GHS: rateMap.get("USD") ?? null,
     GBP_GHS: rateMap.get("GBP") ?? null,

@@ -1,9 +1,8 @@
-import { PlatformScraper } from "./types";
-import { AmazonScraper } from "./amazon";
-import { EbayScraper } from "./ebay";
-import { MicrocenterScraper } from "./microcenter";
-import { SheinScraper } from "./shein";
-import { browserlessClient, type BrowserlessClient } from "@/lib/browserless/client";
+import type { PlatformScraper } from "./types";
+import { amazonScraper } from "./amazon";
+import { ebayScraper } from "./ebay";
+import { microcenterScraper } from "./microcenter";
+import { sheinScraper } from "./shein";
 
 export enum SupportedPlatform {
   AMAZON = "amazon",
@@ -12,28 +11,21 @@ export enum SupportedPlatform {
   SHEIN = "shein",
 }
 
-/** Platform → scraper class mapping. Add new platforms here. */
-const scraperClasses: Record<SupportedPlatform, new (b: BrowserlessClient) => PlatformScraper> = {
-  [SupportedPlatform.AMAZON]: AmazonScraper,
-  [SupportedPlatform.EBAY]: EbayScraper,
-  [SupportedPlatform.MICROCENTER]: MicrocenterScraper,
-  [SupportedPlatform.SHEIN]: SheinScraper,
+/** Platform → scraper. Add new platforms here. */
+const scrapers: Record<SupportedPlatform, PlatformScraper> = {
+  [SupportedPlatform.AMAZON]: amazonScraper,
+  [SupportedPlatform.EBAY]: ebayScraper,
+  [SupportedPlatform.MICROCENTER]: microcenterScraper,
+  [SupportedPlatform.SHEIN]: sheinScraper,
 };
 
-/** Instantiated scrapers keyed by platform (lazy singleton per platform). */
-const instances = new Map<SupportedPlatform, PlatformScraper>();
-
 export function getScraperByPlatform(platform: SupportedPlatform): PlatformScraper {
-  let scraper = instances.get(platform);
-  if (!scraper) {
-    const Ctor = scraperClasses[platform];
-    scraper = new Ctor(browserlessClient);
-    instances.set(platform, scraper);
-  }
-  return scraper;
+  return scrapers[platform];
 }
 
 /** Get the domains array for a given platform (used by resolvePlatform). */
 export function getDomainsForPlatform(platform: SupportedPlatform): string[] {
-  return getScraperByPlatform(platform).domains;
+  return scrapers[platform].domains;
 }
+
+export const SUPPORTED_STORE_NAMES = ["Amazon", "eBay", "SHEIN", "Micro Center"] as const;

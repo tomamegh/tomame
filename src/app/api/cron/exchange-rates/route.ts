@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exchangeRateApiProvider, fetchAndStoreRates } from "@/lib/exchange-rates";
+import { fetchAndStoreRates } from "@/lib/exchange-rates";
 import { logger } from "@/lib/logger";
 
 /**
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     logger.info("Starting exchange rates cron job");
 
-    const result = await fetchAndStoreRates(exchangeRateApiProvider);
+    const result = await fetchAndStoreRates();
 
     if (result.success) {
       logger.info("Exchange rates cron job completed", { updated: result.updated });

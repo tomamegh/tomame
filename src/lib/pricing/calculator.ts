@@ -1,13 +1,9 @@
 import { APIError } from "@/lib/auth/api-helpers";
 import { getGhsRate } from "@/lib/exchange-rates/service";
 import { TAX_PERCENTAGE, DEFAULT_FX_BUFFER_PCT } from "@/config/pricing";
-import {
-  getCategoryPricing,
-  isWeightExpression,
-  resolveFlatRate,
-  evaluateFlatRate,
-} from "@/config/pricing-categories";
+import { getCategoryPricing, evaluateFlatRate } from "@/config/pricing-categories";
 import type { PricingGroupRow } from "@/db/queries/pricing-groups";
+import type { FixedFreightItemRow } from "@/db/queries/fixed-freight-items";
 import { logger } from "@/lib/logger";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -20,20 +16,38 @@ export interface PricingConstants {
   tax_pct_usa: number;
   tax_pct_uk: number;
   tax_pct_china: number;
+  /** Floor applied to any listed weight before a weight expression runs. */
+  minimum_chargeable_weight_lbs: number;
+  /** Service fee when a fixed-freight item matches but no pricing group does. */
+  default_value_fee_pct: number;
 }
 
+export type PricingRegion = "usa" | "uk" | "china";
+
 export interface PricingInput {
-  itemPriceUsd: number;
+  /** Item price already in USD. Use this OR itemPrice + itemCurrency. */
+  itemPriceUsd?: number;
+  /** Item price in the store's currency; converted server-side via stored rates. */
+  itemPrice?: number;
+  itemCurrency?: string;
   quantity: number;
   category?: string | null;
   weightLbs?: number | null;
+  /** Used to match pre-negotiated fixed-freight items (keywords). */
+  productTitle?: string | null;
   /** Region for tax tier lookup. Defaults to "usa". */
-  region?: "usa" | "uk" | "china";
+  region?: PricingRegion;
 }
 
+export type PricingMethod = "flat_rate" | "weight_expression" | "fixed_freight" | "needs_review";
+
 export interface PricingBreakdown {
-  pricing_method: "flat_rate" | "weight_expression" | "needs_review";
+  pricing_method: PricingMethod;
   pricing_group: string | null;
+  /** Price as listed by the store, in item_currency. */
+  item_price: number;
+  item_currency: string;
+  /** Listed price converted to USD (identity when item_currency is USD). */
   item_price_usd: number;
   quantity: number;
   subtotal_usd: number;
@@ -46,8 +60,12 @@ export interface PricingBreakdown {
   flat_rate_ghs: number;
   total_ghs: number;
   total_pesewas: number;
+  /** Human-readable "show the work" line: "1.8 lb × formula", "fixed: iPhone 15 Pro", … */
+  fee_calculation_note: string;
   flat_rate_expression?: string;
   weight_lbs?: number;
+  weight_source?: "listed" | "default" | "minimum";
+  fixed_freight_item?: string;
   review_reason?: string;
 }
 
@@ -56,8 +74,10 @@ export interface PricingBreakdown {
 export class PricingCalculator {
   private midMarketRate: number | null = null;
   private appliedRate: number | null = null;
+  private crossRates = new Map<string, number>();
   private constants: PricingConstants | null = null;
   private categoryPricingMap: Map<string, PricingGroupRow> | null = null;
+  private fixedFreightItems: FixedFreightItemRow[] | null = null;
 
   private static roundTo2(n: number): number {
     return Math.round(n * 100) / 100;
@@ -73,11 +93,16 @@ export class PricingCalculator {
     this.categoryPricingMap = map;
   }
 
+  /** Inject DB-loaded fixed freight items. Without them, only group pricing applies. */
+  setFixedFreightItems(items: FixedFreightItemRow[]): void {
+    this.fixedFreightItems = items;
+  }
+
   private get fxBufferPct(): number {
     return this.constants?.fx_buffer_pct ?? DEFAULT_FX_BUFFER_PCT;
   }
 
-  private getTaxPercentage(region?: "usa" | "uk" | "china"): number {
+  private getTaxPercentage(region?: PricingRegion): number {
     if (!this.constants) return TAX_PERCENTAGE;
     switch (region) {
       case "uk":
@@ -90,24 +115,35 @@ export class PricingCalculator {
     }
   }
 
-  /** Fetch and cache the FX rate. Throws 503 if unavailable. */
+  /** Fetch and cache the USD→GHS rate. Throws 503 if unavailable. */
   async loadFxRate(): Promise<void> {
     const midMarket = await getGhsRate("USD");
     if (midMarket == null) {
-      throw new APIError(
-        503,
-        "Exchange rate for USD/GHS not available. Please try again later.",
-      );
+      throw new APIError(503, "Exchange rate for USD/GHS not available. Please try again later.");
     }
     this.midMarketRate = midMarket;
-    this.appliedRate = PricingCalculator.roundTo2(
-      midMarket * (1 + this.fxBufferPct),
-    );
+    this.appliedRate = PricingCalculator.roundTo2(midMarket * (1 + this.fxBufferPct));
   }
 
   /**
-   * Look up pricing for a category. Uses DB map if available, else falls back to JSON config.
+   * Convert a store-currency price to USD via the stored X→GHS and USD→GHS
+   * mid-market rates. Throws 503 when the store currency has no stored rate.
    */
+  private async toUsd(price: number, currency: string): Promise<number> {
+    const cur = currency.toUpperCase();
+    if (cur === "USD") return price;
+    let rate = this.crossRates.get(cur);
+    if (rate == null) {
+      const ghs = await getGhsRate(cur);
+      if (ghs == null) {
+        throw new APIError(503, `Exchange rate for ${cur}/GHS not available. Please try again later.`);
+      }
+      rate = ghs;
+      this.crossRates.set(cur, rate);
+    }
+    return PricingCalculator.roundTo2((price * rate) / this.midMarketRate!);
+  }
+
   private lookupCategoryPricing(category: string | null | undefined): {
     group: string;
     flat_rate_ghs: number | null;
@@ -121,7 +157,6 @@ export class PricingCalculator {
   } | null {
     if (!category) return null;
 
-    // DB-loaded map takes priority
     if (this.categoryPricingMap) {
       const pg = this.categoryPricingMap.get(category);
       if (!pg) return null;
@@ -138,20 +173,13 @@ export class PricingCalculator {
       };
     }
 
-    // Fallback to JSON config
     const jsonPricing = getCategoryPricing(category);
     if (!jsonPricing) return null;
     const { group, pricing } = jsonPricing;
     return {
       group,
-      flat_rate_ghs:
-        typeof pricing.flat_rate_ghs === "number"
-          ? pricing.flat_rate_ghs
-          : null,
-      flat_rate_expression:
-        typeof pricing.flat_rate_ghs === "string"
-          ? pricing.flat_rate_ghs
-          : null,
+      flat_rate_ghs: typeof pricing.flat_rate_ghs === "number" ? pricing.flat_rate_ghs : null,
+      flat_rate_expression: typeof pricing.flat_rate_ghs === "string" ? pricing.flat_rate_ghs : null,
       value_percentage: pricing.value_percentage,
       value_percentage_high: null,
       value_threshold_usd: null,
@@ -161,194 +189,177 @@ export class PricingCalculator {
     };
   }
 
+  /** Longest keyword contained in the title wins. */
+  private matchFixedFreight(title: string | null | undefined): FixedFreightItemRow | null {
+    if (!title || !this.fixedFreightItems?.length) return null;
+    const haystack = title.toLowerCase();
+    let best: { item: FixedFreightItemRow; len: number } | null = null;
+    for (const item of this.fixedFreightItems) {
+      for (const kw of item.keywords) {
+        const k = kw.toLowerCase().trim();
+        if (k && haystack.includes(k) && (!best || k.length > best.len)) best = { item, len: k.length };
+      }
+    }
+    return best?.item ?? null;
+  }
+
   /** Calculate the full pricing breakdown for an order. */
   async calculate(input: PricingInput): Promise<PricingBreakdown> {
-    if (this.appliedRate == null) {
-      await this.loadFxRate();
-    }
+    if (this.appliedRate == null) await this.loadFxRate();
 
     const r2 = PricingCalculator.roundTo2;
     const fxRate = this.appliedRate!;
     const midRate = this.midMarketRate!;
 
-    const { itemPriceUsd, quantity, category, region } = input;
+    const { quantity, category, region } = input;
+    const itemCurrency = (input.itemCurrency ?? "USD").toUpperCase();
+    const itemPrice = input.itemPrice ?? input.itemPriceUsd;
+    if (itemPrice == null || !(itemPrice > 0)) {
+      throw new APIError(400, "An item price is required to calculate pricing.");
+    }
+    const itemPriceUsd = input.itemPriceUsd ?? (await this.toUsd(itemPrice, itemCurrency));
+
     const subtotalUsd = r2(itemPriceUsd * quantity);
     const taxPct = this.getTaxPercentage(region);
     const rawTax = r2(subtotalUsd * taxPct);
     const minimumTax = this.constants?.minimum_tax_usd ?? 0;
     const taxUsd = Math.max(rawTax, minimumTax);
 
+    const base = {
+      item_price: itemPrice,
+      item_currency: itemCurrency,
+      item_price_usd: itemPriceUsd,
+      quantity,
+      subtotal_usd: subtotalUsd,
+      exchange_rate: fxRate,
+      mid_market_rate: midRate,
+      tax_percentage: taxPct,
+      tax_usd: taxUsd,
+    };
+
     const catPricing = this.lookupCategoryPricing(category);
+    const fixed = this.matchFixedFreight(input.productTitle);
 
-    // No pricing group → needs_review
+    const tieredFee = (basePct: number, highPct: number | null, threshold: number | null) =>
+      threshold != null && highPct != null && subtotalUsd > threshold ? highPct : basePct;
+
+    const finish = (
+      method: Exclude<PricingMethod, "needs_review">,
+      group: string | null,
+      valueFeePct: number,
+      flatRateGhs: number,
+      note: string,
+      extra: Partial<PricingBreakdown> = {},
+    ): PricingBreakdown => {
+      const valueFeeUsd = r2(subtotalUsd * valueFeePct);
+      const usdComponentGhs = r2((subtotalUsd + taxUsd + valueFeeUsd) * fxRate);
+      const totalGhs = r2(usdComponentGhs + flatRateGhs);
+      return {
+        pricing_method: method,
+        pricing_group: group,
+        ...base,
+        value_fee_percentage: valueFeePct,
+        value_fee_usd: valueFeeUsd,
+        flat_rate_ghs: r2(flatRateGhs),
+        total_ghs: totalGhs,
+        total_pesewas: Math.round(totalGhs * 100),
+        fee_calculation_note: note,
+        ...extra,
+      };
+    };
+
+    // 1. Pre-negotiated freight for a recognised product (iPhone 15 Pro, PS5, …).
+    if (fixed) {
+      const feePct = catPricing
+        ? tieredFee(catPricing.value_percentage, catPricing.value_percentage_high, catPricing.value_threshold_usd)
+        : this.constants?.default_value_fee_pct ?? 0.05;
+      return finish(
+        "fixed_freight",
+        catPricing?.group ?? null,
+        feePct,
+        fixed.freight_rate_ghs,
+        `fixed freight: ${fixed.product_name}`,
+        { fixed_freight_item: fixed.product_name },
+      );
+    }
+
+    // 2. No pricing group → admin decides.
     if (!catPricing) {
-      logger.info("No pricing group for category, flagging for review", {
-        category,
-      });
-      return this.buildReview({
-        input,
-        subtotalUsd,
-        taxPct,
-        taxUsd,
-        fxRate,
-        midRate,
-        group: null,
-        valueFeePercentage: 0,
-        valueFeeUsd: 0,
-        reason: category
-          ? `We don't have pricing set up for "${category}" products yet.`
-          : "We couldn't determine the product category.",
-      });
+      logger.info("No pricing group for category, flagging for review", { category });
+      return this.buildReview(base, null, 0, category
+        ? `We don't have pricing set up for "${category}" products yet.`
+        : "We couldn't determine the product category.");
     }
 
-    // Resolve value fee percentage (tiered if configured)
-    let valueFeePercentage = catPricing.value_percentage;
-    if (
-      catPricing.value_threshold_usd != null &&
-      catPricing.value_percentage_high != null &&
-      subtotalUsd > catPricing.value_threshold_usd
-    ) {
-      valueFeePercentage = catPricing.value_percentage_high;
-    }
+    const valueFeePct = tieredFee(catPricing.value_percentage, catPricing.value_percentage_high, catPricing.value_threshold_usd);
 
-    const valueFeeUsd = r2(subtotalUsd * valueFeePercentage);
+    // 3. Weight-based group.
+    if (catPricing.flat_rate_expression != null) {
+      const minWeight = this.constants?.minimum_chargeable_weight_lbs ?? 0;
+      let weight: number | null = null;
+      let weightSource: PricingBreakdown["weight_source"];
 
-    // Determine if this is a weight-expression pricing group
-    const hasExpression = catPricing.flat_rate_expression != null;
-    const hasFlatRate = catPricing.flat_rate_ghs != null;
-
-    if (hasExpression) {
-      // Weight-based pricing: try input weight → default weight → needs_review
-      const effectiveWeight =
-        input.weightLbs ?? catPricing.default_weight_lbs ?? null;
-
-      if (effectiveWeight == null) {
-        // requires_weight: reject with specific reason
-        if (catPricing.requires_weight) {
-          return this.buildReview({
-            input,
-            subtotalUsd,
-            taxPct,
-            taxUsd,
-            fxRate,
-            midRate,
-            group: catPricing.group,
-            valueFeePercentage,
-            valueFeeUsd,
-            reason: `This product requires weight information for shipping. ${catPricing.name} orders cannot be processed without weight.`,
-          });
+      if (input.weightLbs != null && input.weightLbs > 0) {
+        weight = input.weightLbs;
+        weightSource = "listed";
+        if (weight < minWeight) {
+          weight = minWeight;
+          weightSource = "minimum";
         }
-
-        return this.buildReview({
-          input,
-          subtotalUsd,
-          taxPct,
-          taxUsd,
-          fxRate,
-          midRate,
-          group: catPricing.group,
-          valueFeePercentage,
-          valueFeeUsd,
-          reason: `We couldn't determine the weight of this product, which is needed to calculate shipping for ${catPricing.name.toLowerCase()}.`,
-        });
+      } else if (catPricing.default_weight_lbs != null) {
+        weight = catPricing.default_weight_lbs;
+        weightSource = "default";
       }
 
-      const flatRateGhs = r2(
-        evaluateFlatRate(catPricing.flat_rate_expression!, effectiveWeight),
-      );
-      const usdComponentGhs = r2(
-        (subtotalUsd + taxUsd + valueFeeUsd) * fxRate,
-      );
-      const totalGhs = r2(usdComponentGhs + flatRateGhs);
+      if (weight == null) {
+        return this.buildReview(base, catPricing.group, valueFeePct, catPricing.requires_weight
+          ? `This product requires weight information for shipping. ${catPricing.name} orders cannot be processed without weight.`
+          : `We couldn't determine the weight of this product, which is needed to calculate shipping for ${catPricing.name.toLowerCase()}.`);
+      }
 
-      return {
-        pricing_method: "weight_expression",
-        pricing_group: catPricing.group,
-        item_price_usd: itemPriceUsd,
-        quantity,
-        subtotal_usd: subtotalUsd,
-        exchange_rate: fxRate,
-        mid_market_rate: midRate,
-        tax_percentage: taxPct,
-        tax_usd: taxUsd,
-        value_fee_percentage: valueFeePercentage,
-        value_fee_usd: valueFeeUsd,
-        flat_rate_ghs: flatRateGhs,
-        total_ghs: totalGhs,
-        total_pesewas: Math.round(totalGhs * 100),
-        flat_rate_expression: catPricing.flat_rate_expression!,
-        weight_lbs: effectiveWeight,
-      };
+      // Freight is charged once per order line, matching the original calculator; quantity scales the USD side.
+      const perUnit = evaluateFlatRate(catPricing.flat_rate_expression, weight);
+      return finish(
+        "weight_expression",
+        catPricing.group,
+        valueFeePct,
+        perUnit,
+        `${weight} lb${weightSource === "listed" ? "" : ` (${weightSource})`} → ${catPricing.flat_rate_expression}`,
+        { flat_rate_expression: catPricing.flat_rate_expression, weight_lbs: weight, weight_source: weightSource },
+      );
     }
 
-    if (hasFlatRate) {
-      const flatRateGhs = r2(catPricing.flat_rate_ghs!);
-      const usdComponentGhs = r2(
-        (subtotalUsd + taxUsd + valueFeeUsd) * fxRate,
+    // 4. Flat-rate group.
+    if (catPricing.flat_rate_ghs != null) {
+      return finish(
+        "flat_rate",
+        catPricing.group,
+        valueFeePct,
+        catPricing.flat_rate_ghs,
+        `flat rate: ${catPricing.name}`,
       );
-      const totalGhs = r2(usdComponentGhs + flatRateGhs);
-
-      return {
-        pricing_method: "flat_rate",
-        pricing_group: catPricing.group,
-        item_price_usd: itemPriceUsd,
-        quantity,
-        subtotal_usd: subtotalUsd,
-        exchange_rate: fxRate,
-        mid_market_rate: midRate,
-        tax_percentage: taxPct,
-        tax_usd: taxUsd,
-        value_fee_percentage: valueFeePercentage,
-        value_fee_usd: valueFeeUsd,
-        flat_rate_ghs: flatRateGhs,
-        total_ghs: totalGhs,
-        total_pesewas: Math.round(totalGhs * 100),
-      };
     }
 
-    // Should not reach here due to DB CHECK constraint, but handle gracefully
-    return this.buildReview({
-      input,
-      subtotalUsd,
-      taxPct,
-      taxUsd,
-      fxRate,
-      midRate,
-      group: catPricing.group,
-      valueFeePercentage,
-      valueFeeUsd,
-      reason: `We couldn't calculate shipping for ${catPricing.name.toLowerCase()}.`,
-    });
+    return this.buildReview(base, catPricing.group, valueFeePct, `We couldn't calculate shipping for ${catPricing.name.toLowerCase()}.`);
   }
 
-  private buildReview(opts: {
-    input: PricingInput;
-    subtotalUsd: number;
-    taxPct: number;
-    taxUsd: number;
-    fxRate: number;
-    midRate: number;
-    group: string | null;
-    valueFeePercentage: number;
-    valueFeeUsd: number;
-    reason: string;
-  }): PricingBreakdown {
+  private buildReview(
+    base: Pick<PricingBreakdown, "item_price" | "item_currency" | "item_price_usd" | "quantity" | "subtotal_usd" | "exchange_rate" | "mid_market_rate" | "tax_percentage" | "tax_usd">,
+    group: string | null,
+    valueFeePct: number,
+    reason: string,
+  ): PricingBreakdown {
     return {
       pricing_method: "needs_review",
-      pricing_group: opts.group,
-      item_price_usd: opts.input.itemPriceUsd,
-      quantity: opts.input.quantity,
-      subtotal_usd: opts.subtotalUsd,
-      exchange_rate: opts.fxRate,
-      mid_market_rate: opts.midRate,
-      tax_percentage: opts.taxPct,
-      tax_usd: opts.taxUsd,
-      value_fee_percentage: opts.valueFeePercentage,
-      value_fee_usd: opts.valueFeeUsd,
+      pricing_group: group,
+      ...base,
+      value_fee_percentage: valueFeePct,
+      value_fee_usd: PricingCalculator.roundTo2(base.subtotal_usd * valueFeePct),
       flat_rate_ghs: 0,
       total_ghs: 0,
       total_pesewas: 0,
-      review_reason: opts.reason,
+      fee_calculation_note: "needs admin review",
+      review_reason: reason,
     };
   }
 }

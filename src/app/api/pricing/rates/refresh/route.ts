@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  exchangeRateApiProvider,
-  fetchAndStoreRates,
-} from "@/lib/exchange-rates";
+import { fetchAndStoreRates } from "@/lib/exchange-rates";
 import { logger } from "@/lib/logger";
 import { RATE_LIMIT } from "@/config/security";
 import { getAuthenticatedUser } from "@/features/auth/services";
@@ -21,7 +18,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const auth = requireAuth(user);
     requireAdmin(auth);
 
-    const result = await fetchAndStoreRates(exchangeRateApiProvider);
+    const result = await fetchAndStoreRates();
 
     if (result.success) {
       logger.info("Exchange rates cron job completed", {

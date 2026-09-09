@@ -217,14 +217,18 @@ variable "browserless_api_url" {
 variable "third_party_secrets" {
   description = <<-EOT
     Credentials issued by vendors that have no API for minting them, so they are
-    inputs rather than resources: Paystack, Apify, Browserless, SerpAPI and the
-    two exchange-rate providers. Supply them as TF_VAR_third_party_secrets, or in
-    a *.auto.tfvars file — which .gitignore already excludes, and which must
-    never be committed.
+    inputs rather than resources: Paystack, Browserless, Anthropic and the
+    primary exchange-rate provider. Supply them as TF_VAR_third_party_secrets,
+    or in a *.auto.tfvars file — which .gitignore already excludes, and which
+    must never be committed.
 
     The validation below is deliberately strict. Every key here is read by
     src/lib/env.ts or a service that fails at runtime without it, and a missing
     one surfaces as a 500 on a live checkout rather than a failed plan.
+
+    Extraction pipeline (src/features/extraction/resolvers):
+      BROWSERLESS_API_KEY — headless Chrome for pages that block a plain fetch.
+      ANTHROPIC_API_KEY   — Claude structured extraction; fills what parsers miss.
   EOT
   type        = map(string)
   sensitive   = true
@@ -233,17 +237,14 @@ variable "third_party_secrets" {
     condition = length(setsubtract([
       "PAYSTACK_SECRET_KEY",
       "NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY",
-      "APIFY_API_TOKEN",
       "BROWSERLESS_API_KEY",
-      "SERPAPI_API_KEY",
-      "FREECURRENCY_API_KEY",
+      "ANTHROPIC_API_KEY",
       "EXCHANGE_RATE_API_KEY",
     ], keys(var.third_party_secrets))) == 0
     error_message = <<-EOT
       third_party_secrets is missing one or more required keys. All of these must
       be present: PAYSTACK_SECRET_KEY, NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
-      APIFY_API_TOKEN, BROWSERLESS_API_KEY, SERPAPI_API_KEY,
-      FREECURRENCY_API_KEY, EXCHANGE_RATE_API_KEY.
+      BROWSERLESS_API_KEY, ANTHROPIC_API_KEY, EXCHANGE_RATE_API_KEY.
     EOT
   }
 
@@ -256,12 +257,14 @@ variable "third_party_secrets" {
 variable "optional_third_party_secrets" {
   description = <<-EOT
     Vendor keys for tiers the app treats as optional — it degrades rather than
-    fails when they are absent. ScrapingBee is one: its client returns null when
-    unconfigured so the extraction pipeline falls through to another scraper.
+    fails when they are absent.
+
+      APIFY_API_TOKEN      — last-resort extraction tier (community actors).
+      FREECURRENCY_API_KEY — fallback exchange-rate provider.
 
     Kept separate from third_party_secrets so the distinction is visible. A key
     missing from that map is an outage; a key missing from this one is a
-    fallback path being used. The allowlist below stops a genuinely required
+    fallback path being skipped. The allowlist below stops a genuinely required
     credential from being filed here by mistake, where its absence would be
     silent.
   EOT
@@ -271,8 +274,9 @@ variable "optional_third_party_secrets" {
 
   validation {
     condition = length(setsubtract(keys(var.optional_third_party_secrets), [
-      "SCRAPINGBEE_API_KEY",
+      "APIFY_API_TOKEN",
+      "FREECURRENCY_API_KEY",
     ])) == 0
-    error_message = "optional_third_party_secrets accepts only SCRAPINGBEE_API_KEY. Anything else the app cannot run without belongs in third_party_secrets."
+    error_message = "optional_third_party_secrets accepts only APIFY_API_TOKEN and FREECURRENCY_API_KEY. Anything else the app cannot run without belongs in third_party_secrets."
   }
 }

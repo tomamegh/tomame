@@ -1,10 +1,8 @@
-import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
-import { PlatformScraper, type ScrapedProduct } from "./types";
-import { browserlessClient } from "@/lib/browserless/client";
-import { scrapingbeeClient } from "@/lib/scrapingbee/client";
+import type { PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, SHEIN_CATEGORY_MAP } from "@/config/categories";
-import { scrapeSheinWithApify, type ApifySheinProduct } from "@/lib/apify/client";
+import type { ApifySheinProduct } from "@/lib/apify/client";
+import { parseWeight } from "@/features/pricing/services/weight-parser";
 
 type JsonLdNode = Record<string, unknown>;
 
@@ -253,7 +251,7 @@ function priceUsd(p: unknown): number | null {
   return null;
 }
 
-function mapApifyToScrapedProduct(item: ApifySheinProduct): ScrapedProduct {
+export function mapApifySheinProduct(item: ApifySheinProduct): ScrapedProduct {
   const specs: Record<string, string> = {};
   if (item.brand) specs["Brand"] = item.brand;
   if (item.color) specs["Color"] = item.color;
@@ -305,6 +303,7 @@ function mapApifyToScrapedProduct(item: ApifySheinProduct): ScrapedProduct {
     category,
     size,
     weight: null,
+    weight_lbs: null,
     dimensions: null,
     specifications: specs,
     metadata: {
@@ -322,15 +321,16 @@ function mapApifyToScrapedProduct(item: ApifySheinProduct): ScrapedProduct {
   };
 }
 
-export class SheinScraper extends PlatformScraper {
-  public readonly domains = [
-    "shein.com",
-    "us.shein.com",
-    "m.shein.com",
-  ];
+export class SheinScraper implements PlatformScraper {
+  public readonly domains = ["shein.com", "us.shein.com", "m.shein.com"];
+  public readonly defaultCurrency = "USD";
 
-  // Pin to us.shein.com so locale stays English/USD regardless of scraper proxy region.
-  private static cleanUrl(raw: string): string {
+  public isProductUrl(url: string): boolean {
+    return extractGoodsIdFromUrl(url) !== null;
+  }
+
+  // Pin to us.shein.com so locale stays English/USD regardless of fetch region.
+  public canonicalUrl(raw: string): string {
     try {
       const u = new URL(raw);
       const host = u.hostname.toLowerCase();
@@ -343,13 +343,8 @@ export class SheinScraper extends PlatformScraper {
     }
   }
 
-  public async scrape(url: string): Promise<ScrapedProduct> {
-    const cleanedUrl = SheinScraper.cleanUrl(url);
-
-    const result = await scrapeSheinWithApify(cleanedUrl);
-    if (result) return mapApifyToScrapedProduct(result);
-
-    throw new Error("Failed to fetch SHEIN product page via Apify");
+  public looksLikeProductPage(html: string): boolean {
+    return /"@type"\s*:\s*"Product"|product-intro__head-name|og:price:amount|productIntroData/.test(html);
   }
 
   public extract($: CheerioAPI): ScrapedProduct {
@@ -399,6 +394,7 @@ export class SheinScraper extends PlatformScraper {
       category: extractCategoryFromBreadcrumb($, jsonLd),
       size: extractSelectedSize($) ?? specifications["Size"] ?? null,
       weight: extractWeight(specifications),
+      weight_lbs: parseWeight(extractWeight(specifications)),
       dimensions: extractDimensions(specifications),
       specifications,
       metadata: {
@@ -414,4 +410,4 @@ export class SheinScraper extends PlatformScraper {
   }
 }
 
-export const sheinScraper = new SheinScraper(browserlessClient);
+export const sheinScraper = new SheinScraper();

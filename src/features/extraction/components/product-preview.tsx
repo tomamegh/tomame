@@ -20,8 +20,11 @@ export function ProductPreview({
   onOrder,
   onReset,
 }: ProductPreviewProps) {
-  const { product, extraction_success, platform, country, errors, fetched_at } =
+  const { product, extraction_success, platform, country, messages, fetched_at, pricing, pricing_unavailable_reason, cached } =
     data;
+  const notes = messages ?? data.errors ?? [];
+  const fmtGhs = (n: number) =>
+    new Intl.NumberFormat("en-GH", { style: "currency", currency: "GHS", minimumFractionDigits: 2 }).format(n);
 
   const name = product.title;
   const price = product.price;
@@ -230,6 +233,26 @@ export function ProductPreview({
             </dl>
           </div>
         )}
+        {/* Quote — computed server-side for quantity 1 */}
+        <div className="px-6 pb-4 border-t pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-stone-400 mb-2">
+            Estimated total (1 item)
+          </p>
+          {pricing && pricing.pricing_method !== "needs_review" ? (
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-xl font-bold text-stone-900 tabular-nums">{fmtGhs(pricing.total_ghs)}</span>
+              <span className="text-xs text-stone-500">
+                item ${pricing.item_price_usd.toFixed(2)} · tax ${pricing.tax_usd.toFixed(2)} · fee ${pricing.value_fee_usd.toFixed(2)} · freight GH₵ {pricing.flat_rate_ghs.toFixed(2)} · rate {pricing.exchange_rate}
+              </span>
+              <span className="w-full text-xs text-stone-400">Freight basis: {pricing.fee_calculation_note}</span>
+            </div>
+          ) : (
+            <p className="text-sm text-stone-500">
+              {pricing?.review_reason ?? pricing_unavailable_reason ?? "Our team will price this order after review."}
+            </p>
+          )}
+        </div>
+
         {/* Extraction metadata */}
         <div className="px-6 pb-3 border-t pt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
           <span className="flex items-center gap-1 text-xs text-stone-400">
@@ -240,11 +263,12 @@ export function ProductPreview({
               timeStyle: "short",
             })}
           </span>
-          {errors.length > 0 && (
+          {cached && (
+            <span className="text-xs text-stone-400">· from cache</span>
+          )}
+          {notes.length > 0 && (
             <span className="text-xs text-amber-600">
-              {errors.length} extraction warning
-              {errors.length > 1 ? "s" : ""}:{" "}
-              {errors.join(" · ")}
+              {notes.join(" · ")}
             </span>
           )}
         </div>

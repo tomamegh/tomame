@@ -7,4 +7,6 @@ export {
   getGhsRate,
   getPricingRates,
   fetchAndStoreRates,
+  defaultProviders,
+  RATE_CURRENCIES,
 } from "./service";

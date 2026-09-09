@@ -1,10 +1,8 @@
-import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
-import { PlatformScraper, type ScrapedProduct } from "./types";
-import { browserlessClient } from "@/lib/browserless/client";
+import type { PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, MICROCENTER_CATEGORY_MAP } from "@/config/categories";
-import { logger } from "@/lib/logger";
-import { scrapeMicrocenterWithApify, type ApifyMicrocenterProduct } from "@/lib/apify/client";
+import type { ApifyMicrocenterProduct } from "@/lib/apify/client";
+import { parseWeight } from "@/features/pricing/services/weight-parser";
 
 type JsonLdNode = Record<string, unknown>;
 
@@ -206,7 +204,7 @@ function mapCategory(
   return null;
 }
 
-function mapApifyToScrapedProduct(item: ApifyMicrocenterProduct): ScrapedProduct {
+export function mapApifyMicrocenterProduct(item: ApifyMicrocenterProduct): ScrapedProduct {
   const specs: Record<string, string> = {};
   if (Array.isArray(item.specifications)) {
     for (const s of item.specifications) {
@@ -236,6 +234,7 @@ function mapApifyToScrapedProduct(item: ApifyMicrocenterProduct): ScrapedProduct
     category,
     size: specs["Size"] ?? null,
     weight: extractWeight(specs),
+    weight_lbs: parseWeight(extractWeight(specs)),
     dimensions: extractDimensions(specs),
     specifications: specs,
     metadata: {
@@ -250,14 +249,20 @@ function mapApifyToScrapedProduct(item: ApifyMicrocenterProduct): ScrapedProduct
   };
 }
 
-export class MicrocenterScraper extends PlatformScraper {
+export class MicrocenterScraper implements PlatformScraper {
   public readonly domains = ["microcenter.com"];
+  public readonly defaultCurrency = "USD";
 
-  /**
-   * Keep /product/<id>/<slug> — drop query strings and tracking params.
-   * The slug is part of the canonical URL so we preserve it if present.
-   */
-  private static cleanUrl(raw: string): string {
+  public isProductUrl(url: string): boolean {
+    try {
+      return /\/product\/\d+/.test(new URL(url).pathname);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Keep /product/<id>/<slug> — drop query strings and tracking params. */
+  public canonicalUrl(raw: string): string {
     try {
       const u = new URL(raw);
       return `${u.origin}${u.pathname}`;
@@ -266,43 +271,9 @@ export class MicrocenterScraper extends PlatformScraper {
     }
   }
 
-  public async scrape(url: string): Promise<ScrapedProduct> {
-    const cleanedUrl = MicrocenterScraper.cleanUrl(url);
-
-    const apifyResult = await scrapeMicrocenterWithApify(cleanedUrl);
-    if (apifyResult) return mapApifyToScrapedProduct(apifyResult);
-
-    logger.warn("microcenter: apify returned no result, falling back to browserless", { url: cleanedUrl });
-
-    const MAX_ATTEMPTS = 3;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const result = await this.browserless.unblockContent(cleanedUrl, 30000);
-
-      if (result.success && result.html && MicrocenterScraper.looksLikeProductPage(result.html)) {
-        const $ = cheerio.load(result.html);
-        return this.extract($);
-      }
-
-      logger.warn("microcenter: browserless fallback did not return product page", {
-        url: cleanedUrl,
-        attempt,
-        error: result.error,
-        htmlLength: result.html?.length ?? 0,
-      });
-
-      if (attempt < MAX_ATTEMPTS) {
-        const delay = 500 + Math.floor(Math.random() * 1000);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-
-    throw new Error("Failed to fetch Micro Center product page via Apify and Browserless");
-  }
-
-  private static looksLikeProductPage(html: string): boolean {
+  public looksLikeProductPage(html: string): boolean {
     if (/"@type"\s*:\s*"Product"/.test(html)) return true;
-    if (html.includes("ProductLink_")) return true;
-    return false;
+    return html.includes("ProductLink_");
   }
 
   public extract($: CheerioAPI): ScrapedProduct {
@@ -367,6 +338,7 @@ export class MicrocenterScraper extends PlatformScraper {
       category: mapCategory(breadcrumb, linkData.category),
       size: specifications["Size"] ?? null,
       weight: extractWeight(specifications),
+      weight_lbs: parseWeight(extractWeight(specifications)),
       dimensions: extractDimensions(specifications),
       specifications,
       metadata: {
@@ -381,4 +353,4 @@ export class MicrocenterScraper extends PlatformScraper {
 }
 
 /** Singleton instance for direct use / tests */
-export const microcenterScraper = new MicrocenterScraper(browserlessClient);
+export const microcenterScraper = new MicrocenterScraper();

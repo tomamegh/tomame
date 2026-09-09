@@ -1,38 +1,30 @@
 import { NextRequest } from "next/server";
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
-import { requireAuth } from "@/lib/auth/guards";
+import { getUserSession } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getValidExtractionById } from "@/db/queries/extraction-cache";
+import { buildQuote } from "@/features/extraction/quote.service";
 
+/**
+ * GET /api/extractions/:id?quantity=N
+ * A stored extraction as a Quote. Product data is store-public, so any
+ * signed-in user may read any valid entry; pricing is recomputed live.
+ */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await getAuthenticatedUser();
-    const authUser = requireAuth(user);
-
+    await getUserSession();
     const { id } = await params;
 
-    const db = createAdminClient();
-    const { data, error } = await db
-      .from("extraction_cache")
-      .select("id, product_url, result, is_valid, expires_at")
-      .eq("id", id)
-      .eq("user_id", authUser.id)
-      .eq("is_valid", true)
-      .gt("expires_at", new Date().toISOString())
-      .single();
+    const qtyRaw = request.nextUrl.searchParams.get("quantity");
+    const quantity = qtyRaw ? Math.min(100, Math.max(1, parseInt(qtyRaw, 10) || 1)) : 1;
 
-    if (error || !data) {
-      throw new APIError(404, "Extraction not found or expired");
-    }
+    const row = await getValidExtractionById(id);
+    if (!row) throw new APIError(404, "Extraction not found or expired");
 
-    return successResponse({
-      extraction_cache_id: data.id,
-      product_url: data.product_url,
-      ...data.result,
-    });
+    const quote = await buildQuote({ ...row.result, extraction_cache_id: row.id, cached: true }, quantity);
+    return successResponse({ ...quote, product_url: row.product_url });
   } catch (error) {
     return errorResponse(error);
   }

@@ -1,8 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { calculatePricing } from "@/features/pricing/services/pricing.service";
-import { parseWeight } from "@/features/pricing/services/weight-parser";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
-import { resolvePlatform } from "@/features/extraction/scrapers";
+import { buildOrderIntake } from "./order-intake.service";
 import { sendEmail } from "@/lib/email/transport";
 import {
   orderPlacedTemplate,
@@ -22,7 +20,6 @@ import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CreateOrderSchemaType } from "../schema";
-import type { OrderPricingBreakdown } from "../types";
 
 export async function getOrderById(
   client: SupabaseClient,
@@ -247,44 +244,26 @@ export async function createOrder(
   user: PlatformUser,
   input: CreateOrderSchemaType,
 ): Promise<Order> {
-  const platform = resolvePlatform(input.product_url);
-  if (!platform) {
-    throw new APIError(
-      400,
-      "We currently do not support this store. Please try again",
-    );
-  }
-
-  const pricing: OrderPricingBreakdown = (input.pricing as OrderPricingBreakdown | undefined) ?? await calculatePricing({
-    itemPriceUsd: input.estimated_price_usd,
-    quantity: input.quantity,
-    category: input.extraction_metadata?.product?.category ?? null,
-    weightLbs:
-      parseWeight(input.extraction_metadata?.product?.weight) ?? undefined,
-  });
-
-  // If pricing needs review, auto-flag the order for admin review
-  const pricingNeedsReview = pricing.pricing_method === "needs_review";
-  const needsReview = pricingNeedsReview || (input.needs_review ?? false);
-  const reviewReasons = [
-    ...(input.review_reasons ?? []),
-    ...(pricingNeedsReview ? [pricing.review_reason ?? "Pricing could not be determined"] : []),
-  ];
+  // Every money-relevant field is decided server-side from the extraction
+  // snapshot. See order-intake.service.ts — the client never sets pricing.
+  const intake = await buildOrderIntake(input);
+  const { pricing, needs_review: needsReview, review_reasons: reviewReasons } = intake;
 
   const orderToCreate = {
     user_id: user.id,
-    ...input,
+    product_url: input.product_url,
+    product_name: intake.product_name,
+    product_image_url: intake.product_image_url,
+    estimated_price_usd: intake.estimated_price_usd,
+    quantity: input.quantity,
+    origin_country: intake.origin_country,
+    special_instructions: input.special_instructions ?? null,
     pricing,
     status: "pending",
     needs_review: needsReview,
     review_reasons: reviewReasons,
-    extraction_metadata: (input.extraction_metadata ?? null) as Record<
-      string,
-      unknown
-    > | null,
-    ...(input.extraction_data != null
-      ? { extraction_data: input.extraction_data }
-      : {}),
+    extraction_metadata: (intake.extraction_metadata ?? null) as Record<string, unknown> | null,
+    extraction_cache_id: intake.extraction_cache_id,
   };
 
   const { data: order, error } = await client
@@ -315,8 +294,11 @@ export async function createOrder(
     entityId: order.id,
     metadata: {
       product_url: input.product_url,
-      origin_country: input.origin_country,
+      origin_country: intake.origin_country,
       total_ghs: pricing.total_ghs,
+      pricing_method: pricing.pricing_method,
+      extraction_cache_id: intake.extraction_cache_id,
+      review_reasons: reviewReasons,
     },
   });
 

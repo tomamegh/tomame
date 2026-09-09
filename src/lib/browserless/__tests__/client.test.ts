@@ -64,7 +64,7 @@ describe("BrowserlessClient", () => {
 
       const body = JSON.parse(calledOptions.body);
       expect(body.url).toBe("https://www.amazon.com/dp/B0DSVMVYPH");
-      expect(body.gotoOptions.waitUntil).toBe("networkidle2");
+      expect(body.gotoOptions.waitUntil).toBe("domcontentloaded");
       expect(body.gotoOptions.timeout).toBe(10000);
       expect(body.waitForSelector.selector).toBe("#productTitle");
     });

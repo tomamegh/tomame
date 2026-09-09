@@ -1,34 +1,15 @@
 import * as z from "zod";
 
-// ── Extraction metadata schema ────────────────────────────────────────────────
-
-const scrapedProductSchema = z.object({
-  title: z.string().nullable(),
-  image: z.string().nullable(),
-  price: z.number().nullable(),
-  currency: z.string().nullable(),
-  description: z.string().nullable(),
-  brand: z.string().nullable(),
-  category: z.string().nullable().optional(),
-  size: z.string().nullable(),
-  weight: z.string().nullable(),
-  dimensions: z.string().nullable(),
-  specifications: z.record(z.string(), z.string()),
-  metadata: z.record(z.string(), z.unknown()),
-});
-
-const extractionMetadataSchema = z.object({
-  extraction_attempted: z.boolean(),
-  extraction_success: z.boolean(),
-  platform: z.string().nullable(),
-  country: z.enum(["USA", "UK", "CHINA"]).nullable(),
-  product: scrapedProductSchema,
-  errors: z.array(z.string()),
-  fetched_at: z.string(),
-});
-
 // ── Order schemas ─────────────────────────────────────────────────────────────
 
+/**
+ * What the CLIENT may say about a new order. Everything about money — price
+ * used for pricing, currency, weight, category, pricing breakdown, review
+ * flags — comes from the server-side extraction snapshot referenced by
+ * `extraction_cache_id`. The client's `estimated_price_usd` is used only when
+ * the snapshot has no price (or there is no snapshot), and such orders are
+ * always flagged for admin review.
+ */
 export const createOrderSchema = z.object({
   product_url: z.url("Must be a valid URL"),
   product_name: z
@@ -37,29 +18,25 @@ export const createOrderSchema = z.object({
     .max(500, "Product name must be under 500 characters")
     .trim(),
   product_image_url: z.url("Must be a valid URL").optional(),
+  /** Customer's estimate — only used when extraction found no price. */
   estimated_price_usd: z.coerce
-    .number<number>({ error: "Estimated price is required" })
+    .number<number>()
     .positive("Price must be positive")
-    .max(50_000, "Price exceeds maximum allowed"),
+    .max(50_000, "Price exceeds maximum allowed")
+    .optional(),
   quantity: z
     .int("Quantity must be a whole number")
     .positive("Quantity must be at least 1")
     .max(100, "Quantity exceeds maximum allowed")
     .default(1),
-  origin_country: z.enum(["USA", "UK", "CHINA"], {
-    error: "Origin country must be USA, UK, or CHINA",
-  }),
+  /** Only used when the store region could not be determined. */
+  origin_country: z.enum(["USA", "UK", "CHINA"], { error: "Origin country must be USA, UK, or CHINA" }).optional(),
   special_instructions: z
     .string()
     .max(2000, "Special instructions must be under 2000 characters")
     .trim()
     .optional(),
-  needs_review: z.boolean().optional(),
-  review_reasons: z.array(z.string()).optional(),
-  extraction_metadata: extractionMetadataSchema.optional(),
-  extraction_data: z.record(z.string(), z.unknown()).optional(),
   extraction_cache_id: z.string().uuid().optional(),
-  pricing: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const reviewOrderSchema = z.object({
@@ -85,7 +62,6 @@ export const updateOrderStatusSchema = z.object({
   tracking_url: z.url("Must be a valid URL").optional(),
   notes: z.string().max(2000).optional(),
 });
-
 
 export type CreateOrderSchemaType = z.infer<typeof createOrderSchema>;
 export type ReviewOrderSchemaType = z.infer<typeof reviewOrderSchema>;

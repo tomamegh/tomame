@@ -6,6 +6,12 @@ function required(key: string): string {
   return value;
 }
 
+/** Returns null when unset or blank. Use for tiers the app degrades without. */
+function optional(key: string): string | null {
+  const value = process.env[key];
+  return value && value.trim() ? value : null;
+}
+
 export const env = {
   supabase: {
     url: required("NEXT_PUBLIC_SUPABASE_URL"),
@@ -16,10 +22,13 @@ export const env = {
     secretKey: required("PAYSTACK_SECRET_KEY"),
     publicKey: required("NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY"),
   },
-  apify: {
-    apiToken: required("APIFY_API_TOKEN"),
-  },
   app: {
     url: required("NEXT_PUBLIC_APP_URL"),
+  },
+  /** Extraction tiers. Each is skipped (not fatal) when its key is absent. */
+  extraction: {
+    browserlessApiKey: optional("BROWSERLESS_API_KEY"),
+    anthropicApiKey: optional("ANTHROPIC_API_KEY"),
+    apifyApiToken: optional("APIFY_API_TOKEN"),
   },
 } as const;

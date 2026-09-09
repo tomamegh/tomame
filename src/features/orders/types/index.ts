@@ -1,34 +1,15 @@
 // ── Pricing breakdown ────────────────────────────────────────────────────────
 
 import type { PricingBreakdown } from "@/lib/pricing";
+import type { ExtractionResult } from "@/features/extraction/types";
 
 /** Re-export from lib/pricing — this is the JSONB pricing column on each order */
 export type OrderPricingBreakdown = PricingBreakdown;
 
 // ── Extraction metadata ───────────────────────────────────────────────────────
 
-export interface OrderExtractionMetadata {
-  extractionAttempted: boolean;
-  extractionSuccess: boolean;
-  platform: string | null;
-  country: "USA" | "UK" | "CHINA" | null;
-  product: {
-    title: string | null;
-    image: string | null;
-    price: number | null;
-    currency: string | null;
-    description: string | null;
-    brand: string | null;
-    category?: string | null;
-    size: string | null;
-    weight: string | null;
-    dimensions: string | null;
-    specifications: Record<string, string>;
-    metadata: Record<string, unknown>;
-  };
-  errors: string[];
-  fetchedAt: string;
-}
+/** The server-side extraction snapshot stored on the order (same shape as the cache row). */
+export type OrderExtractionMetadata = ExtractionResult;
 
 // ── Domain types ─────────────────────────────────────────────────────────────
 

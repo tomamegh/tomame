@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Tomame** is a concierge shopping platform for Ghanaian customers to purchase products from international e-commerce sites (USA, UK, China) using local payment methods (Mobile Money/Card) with managed delivery. Full pre-payment is required before any order processing begins.
 
-This repository currently contains **design specifications only** — no source code has been implemented yet. All specs live in the root markdown files:
+The application is implemented under `src/` (Next.js App Router) with migrations under `supabase/migrations/`. The root markdown files are the design specs and remain authoritative for rules:
 - `agent.md` — Authoritative architecture rules, security requirements, database schema, and folder structure
 - `FEATURES.md` — Feature list organized by MVP Phase 1 vs Future Enhancements
 - `system-flow.md` — Complete end-to-end system flow with visual diagrams
@@ -21,6 +21,7 @@ This repository currently contains **design specifications only** — no source 
 - **Payments**: Paystack (Mobile Money + Card), server-side only
 - **Email**: Resend (transactional, default notification channel)
 - **Notifications**: Email (default) + WhatsApp (optional)
+- **Extraction**: resolver chain in `src/features/extraction/resolvers` — direct fetch → Browserless for HTML; platform Cheerio → generic JSON-LD/OpenGraph → Claude (`@anthropic-ai/sdk`, structured output) → Apify (optional). Never throws; partial products carry `messages`. See `docs/extraction-pipeline-rework.md`.
 
 ## Expected Build Commands
 
@@ -45,7 +46,11 @@ NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
 RESEND_API_KEY
 RESEND_FROM_EMAIL
 NEXT_PUBLIC_APP_URL
+BROWSERLESS_API_KEY        # extraction: headless Chrome tier
+ANTHROPIC_API_KEY          # extraction: Claude structured-extraction tier
+EXCHANGE_RATE_API_KEY      # currency: primary provider
 ```
+Optional (tier skipped when absent): `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY`.
 
 ## Development Workflow (Mandatory)
 
@@ -99,7 +104,7 @@ All state transitions must be server-side, explicit, validated against current s
 
 - **RLS on every table** — never disable to "make things work"
 - **Server-only sensitive logic** — secrets, payment verification, money calculations must run in route handlers or server actions
-- **Never trust the client** — no client-provided user_id, role, payment status, or price totals
+- **Never trust the client** — no client-provided user_id, role, payment status, or price totals. Order creation prices from the server-side `extraction_cache` snapshot (`order-intake.service.ts`); the browser only sends identity, quantity and gap-fillers
 - **Audit everything** — all mutations to payment status, order status, user roles, and job state must write to `audit_logs`
 - **Paystack verification server-side only** — verify via `GET https://api.paystack.co/transaction/verify/:ref`
 - **Webhook signature validation** — HMAC-SHA512 with `PAYSTACK_SECRET_KEY`
@@ -127,7 +132,6 @@ All pricing components except item price are **admin-controlled** via `pricing_c
 ## MVP Phase 1 Exclusions
 
 These are explicitly **out of scope** for Phase 1:
-- Automated product price scraping
 - Volumetric weight calculations
 - Customer wallet functionality
 - Mobile applications

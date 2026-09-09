@@ -18,6 +18,7 @@
     "supabase:setup": "npm run supabase:start && npm run supabase:env"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
     "@base-ui/react": "^1.2.0",
     "@hookform/resolvers": "^5.2.2",
     "@supabase/ssr": "^0.8.0",

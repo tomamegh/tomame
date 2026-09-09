@@ -1,5 +1,4 @@
 import type { CheerioAPI } from "cheerio";
-import type { BrowserlessClient } from "@/lib/browserless/client";
 import type { TomameCategory } from "@/config/categories";
 
 export interface ScrapedProduct {
@@ -7,9 +6,9 @@ export interface ScrapedProduct {
   title: string | null;
   /** Main product image URL */
   image: string | null;
-  /** Price as a number */
+  /** Price as a number, in `currency` */
   price: number | null;
-  /** Currency code (e.g. "USD", "GBP") */
+  /** ISO currency code (e.g. "USD", "GBP") */
   currency: string | null;
   /** Product description / about text */
   description: string | null;
@@ -19,8 +18,10 @@ export interface ScrapedProduct {
   category: TomameCategory | null;
   /** Selected size (the one shown / default on the page) */
   size: string | null;
-  /** Weight as listed on the page */
+  /** Weight as listed on the page (raw string) */
   weight: string | null;
+  /** Weight parsed to pounds — the unit the pricing engine uses */
+  weight_lbs: number | null;
   /** Product dimensions / measurements */
   dimensions: string | null;
   /** Structured specifications (key-value pairs like material, color, etc.) */
@@ -29,19 +30,40 @@ export interface ScrapedProduct {
   metadata: Record<string, unknown>;
 }
 
-export abstract class PlatformScraper {
-  protected browserless: BrowserlessClient;
+export function emptyProduct(): ScrapedProduct {
+  return {
+    title: null,
+    image: null,
+    price: null,
+    currency: null,
+    description: null,
+    brand: null,
+    category: null,
+    size: null,
+    weight: null,
+    weight_lbs: null,
+    dimensions: null,
+    specifications: {},
+    metadata: {},
+  };
+}
 
-  /** Domains this scraper handles */
-  public abstract readonly domains: string[];
-
-  constructor(browserless: BrowserlessClient) {
-    this.browserless = browserless;
-  }
-
-  /** Fetch the page via browserless and extract product data */
-  public abstract scrape(url: string): Promise<ScrapedProduct>;
-
-  /** Extract product data from already-parsed HTML (useful for tests) */
-  public abstract extract($: CheerioAPI): ScrapedProduct;
+/**
+ * A platform scraper knows the store's URL shapes and how to read its HTML.
+ * It never fetches — fetching is the resolver chain's job — so it is pure and
+ * fully testable against fixtures.
+ */
+export interface PlatformScraper {
+  /** Domains this scraper handles (subdomains match). */
+  readonly domains: string[];
+  /** Currency the store lists in when the page doesn't say. */
+  readonly defaultCurrency: string;
+  /** Is this a product page URL (vs. search, category, home)? Cheap check, no network. */
+  isProductUrl(url: string): boolean;
+  /** Canonical product URL — drops tracking, pins locale where it matters. */
+  canonicalUrl(url: string): string;
+  /** Does this HTML look like a rendered product page (not a captcha / empty shell)? */
+  looksLikeProductPage(html: string): boolean;
+  /** Extract product data from parsed HTML. */
+  extract($: CheerioAPI): ScrapedProduct;
 }

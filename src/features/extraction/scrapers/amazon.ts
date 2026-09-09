@@ -1,9 +1,9 @@
-import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
-import { PlatformScraper, type ScrapedProduct } from "./types";
-import { browserlessClient } from "@/lib/browserless/client";
+import type { PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, AMAZON_CATEGORY_MAP } from "@/config/categories";
-import { scrapeAmazonWithApify, type ApifyAmazonProduct } from "@/lib/apify/client";
+import type { ApifyAmazonProduct } from "@/lib/apify/client";
+import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { defaultCurrencyForUrl } from "../url";
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
@@ -188,9 +188,9 @@ function extractDimensions(specs: Record<string, string>): string | null {
   return null;
 }
 
-function mapApifyToScrapedProduct(item: ApifyAmazonProduct): ScrapedProduct {
+export function mapApifyAmazonProduct(item: ApifyAmazonProduct, sourceUrl: string): ScrapedProduct {
   const price = item.price ?? null;
-  const currency = "USD";
+  const currency = defaultCurrencyForUrl(sourceUrl);
 
   const specs: Record<string, string> = {};
   if (item.productDetails) {
@@ -236,6 +236,7 @@ function mapApifyToScrapedProduct(item: ApifyAmazonProduct): ScrapedProduct {
     category,
     size: specs["Size Name"] ?? null,
     weight: extractWeight(specs),
+    weight_lbs: parseWeight(extractWeight(specs)),
     dimensions: extractDimensions(specs),
     specifications: specs,
     metadata: {
@@ -249,63 +250,40 @@ function mapApifyToScrapedProduct(item: ApifyAmazonProduct): ScrapedProduct {
   };
 }
 
-export class AmazonScraper extends PlatformScraper {
-  public readonly domains = [
-    "amazon.com",
-    "a.co",
-  ];
+export class AmazonScraper implements PlatformScraper {
+  public readonly domains = ["amazon.com", "amazon.co.uk", "a.co", "amzn.to", "amzn.eu"];
+  public readonly defaultCurrency = "USD";
 
-  private static cleanUrl(raw: string): string {
+  private static asinOf(raw: string): string | null {
     try {
       const u = new URL(raw);
-      if (u.hostname === "a.co") return raw;
-      const dpMatch = u.pathname.match(/\/dp\/([A-Z0-9]{10})/i);
-      if (dpMatch) return `${u.origin}/dp/${dpMatch[1]}`;
+      const m = u.pathname.match(/\/(?:dp|gp\/product|gp\/aw\/d|product)\/([A-Z0-9]{10})(?:[/?]|$)/i);
+      return m?.[1]?.toUpperCase() ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  public isProductUrl(url: string): boolean {
+    return AmazonScraper.asinOf(url) !== null;
+  }
+
+  public canonicalUrl(raw: string): string {
+    try {
+      const u = new URL(raw);
+      const asin = AmazonScraper.asinOf(raw);
+      if (asin) return `${u.origin}/dp/${asin}`;
       return `${u.origin}${u.pathname}`;
     } catch {
       return raw;
     }
   }
 
-  private static readonly BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
-  private async resolveShortUrl(shortUrl: string): Promise<string | null> {
-    const headers = { "User-Agent": AmazonScraper.BROWSER_UA };
-    try {
-      const res = await fetch(shortUrl, {
-        method: "HEAD",
-        headers,
-        redirect: "follow",
-        signal: AbortSignal.timeout(10000),
-      });
-      if (res.url && res.url !== shortUrl) return res.url;
-      // HEAD blocked — retry with GET
-      const res2 = await fetch(shortUrl, {
-        headers,
-        redirect: "follow",
-        signal: AbortSignal.timeout(10000),
-      });
-      return res2.url || null;
-    } catch {
-      return null;
+  public looksLikeProductPage(html: string): boolean {
+    if (/api-services-support@amazon\.com|Robot Check|captcha/i.test(html) && !html.includes("productTitle")) {
+      return false;
     }
-  }
-
-  public async scrape(url: string): Promise<ScrapedProduct> {
-    let productUrl = url;
-
-    if (new URL(url).hostname === "a.co") {
-      const resolved = await this.resolveShortUrl(url);
-      if (!resolved) throw new Error("Failed to resolve short URL");
-      productUrl = resolved;
-    }
-
-    const cleanedUrl = AmazonScraper.cleanUrl(productUrl);
-
-    const result = await scrapeAmazonWithApify(cleanedUrl);
-    if (result) return mapApifyToScrapedProduct(result);
-
-    throw new Error("Failed to fetch Amazon product page via Apify");
+    return html.includes("productTitle") || /"ASIN"|id="ASIN"/.test(html);
   }
 
   public extract($: CheerioAPI): ScrapedProduct {
@@ -324,6 +302,7 @@ export class AmazonScraper extends PlatformScraper {
       category: extractCategory($),
       size: extractSelectedSize($),
       weight: extractWeight(specifications),
+      weight_lbs: parseWeight(extractWeight(specifications)),
       dimensions: extractDimensions(specifications),
       specifications,
       metadata: {
@@ -337,4 +316,4 @@ export class AmazonScraper extends PlatformScraper {
   }
 }
 
-export const amazonScraper = new AmazonScraper(browserlessClient);
+export const amazonScraper = new AmazonScraper();

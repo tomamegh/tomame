@@ -1,9 +1,8 @@
-import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
-import { PlatformScraper, type ScrapedProduct } from "./types";
-import { browserlessClient } from "@/lib/browserless/client";
+import type { PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, EBAY_CATEGORY_MAP } from "@/config/categories";
-import { scrapeEbayWithApify, type ApifyEbayProduct } from "@/lib/apify/client";
+import type { ApifyEbayProduct } from "@/lib/apify/client";
+import { parseWeight } from "@/features/pricing/services/weight-parser";
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
@@ -162,7 +161,7 @@ function extractDimensions(specs: Record<string, string>): string | null {
   return null;
 }
 
-function mapApifyToScrapedProduct(item: ApifyEbayProduct): ScrapedProduct {
+export function mapApifyEbayProduct(item: ApifyEbayProduct): ScrapedProduct {
   const specs: Record<string, string> = {};
   if (Array.isArray(item.itemSpecifics)) {
     for (const d of item.itemSpecifics) {
@@ -219,6 +218,7 @@ function mapApifyToScrapedProduct(item: ApifyEbayProduct): ScrapedProduct {
     category,
     size: specs["Size"] ?? null,
     weight: extractWeight(specs),
+    weight_lbs: parseWeight(extractWeight(specs)),
     dimensions: extractDimensions(specs),
     specifications: specs,
     metadata: {
@@ -231,70 +231,38 @@ function mapApifyToScrapedProduct(item: ApifyEbayProduct): ScrapedProduct {
   };
 }
 
-export class EbayScraper extends PlatformScraper {
-  public readonly domains = [
-    "ebay.com",
-    "ebay.co.uk",
-    "ebay.us",
-    "ebay.to",
-  ];
+export class EbayScraper implements PlatformScraper {
+  public readonly domains = ["ebay.com", "ebay.co.uk", "ebay.us", "ebay.to"];
+  public readonly defaultCurrency = "USD";
 
-  private static readonly SHORT_URL_HOSTS = new Set(["ebay.us", "ebay.to"]);
-
-  private static cleanUrl(raw: string): string {
+  private static itemIdOf(raw: string): string | null {
     try {
       const u = new URL(raw);
-      const match = u.pathname.match(/\/itm\/(?:[^/]+\/)?(\d{9,})/);
-      if (match?.[1]) return `${u.origin}/itm/${match[1]}`;
+      const m = u.pathname.match(/\/itm\/(?:[^/]+\/)?(\d{9,})/);
+      return m?.[1] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  public isProductUrl(url: string): boolean {
+    return EbayScraper.itemIdOf(url) !== null;
+  }
+
+  public canonicalUrl(raw: string): string {
+    try {
+      const u = new URL(raw);
+      const id = EbayScraper.itemIdOf(raw);
+      if (id) return `${u.origin}/itm/${id}`;
       return `${u.origin}${u.pathname}`;
     } catch {
       return raw;
     }
   }
 
-  private static readonly BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
-  private async resolveShortUrl(shortUrl: string): Promise<string | null> {
-    const headers = { "User-Agent": EbayScraper.BROWSER_UA };
-    try {
-      const res = await fetch(shortUrl, {
-        method: "HEAD",
-        headers,
-        redirect: "follow",
-        signal: AbortSignal.timeout(10000),
-      });
-      if (res.url && res.url !== shortUrl) return res.url;
-      // HEAD blocked — retry with GET
-      const res2 = await fetch(shortUrl, {
-        headers,
-        redirect: "follow",
-        signal: AbortSignal.timeout(10000),
-      });
-      return res2.url || null;
-    } catch {
-      return null;
-    }
-  }
-
-  public async scrape(url: string): Promise<ScrapedProduct> {
-    let productUrl = url;
-
-    try {
-      if (EbayScraper.SHORT_URL_HOSTS.has(new URL(url).hostname.toLowerCase())) {
-        const resolved = await this.resolveShortUrl(url);
-        if (!resolved) throw new Error("Failed to resolve eBay short URL");
-        productUrl = resolved;
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("Failed to resolve")) throw err;
-    }
-
-    const cleanedUrl = EbayScraper.cleanUrl(productUrl);
-
-    const result = await scrapeEbayWithApify(cleanedUrl);
-    if (result) return mapApifyToScrapedProduct(result);
-
-    throw new Error("Failed to fetch eBay product page via Apify");
+  public looksLikeProductPage(html: string): boolean {
+    if (/Pardon Our Interruption|checking your browser/i.test(html)) return false;
+    return /x-item-title|itemTitle|x-price-primary|"@type"\s*:\s*"Product"/.test(html);
   }
 
   public extract($: CheerioAPI): ScrapedProduct {
@@ -312,6 +280,7 @@ export class EbayScraper extends PlatformScraper {
       category: extractCategory($),
       size: specifications["Size"] ?? null,
       weight: extractWeight(specifications),
+      weight_lbs: parseWeight(extractWeight(specifications)),
       dimensions: extractDimensions(specifications),
       specifications,
       metadata: {
@@ -324,4 +293,4 @@ export class EbayScraper extends PlatformScraper {
   }
 }
 
-export const ebayScraper = new EbayScraper(browserlessClient);
+export const ebayScraper = new EbayScraper();

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
+import { REGION_TO_PRICING } from "@/features/extraction/url";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { getOrderById } from "@/features/orders/services/orders.service";
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
@@ -120,7 +121,6 @@ async function sendReviewEmail(
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
-const REGION_MAP = { USA: "usa", UK: "uk", CHINA: "china" } as const;
 
 export async function reviewOrder(
   client: SupabaseClient,
@@ -169,8 +169,9 @@ export async function reviewOrder(
       itemPriceUsd: newPrice,
       quantity: order.quantity,
       category: order.extraction_metadata?.product?.category ?? null,
-      weightLbs: order.pricing.weight_lbs ?? undefined,
-      region: REGION_MAP[newCountry],
+      weightLbs: order.extraction_metadata?.product?.weight_lbs ?? order.pricing.weight_lbs ?? undefined,
+      productTitle: input.updates?.product_name ?? order.product_name,
+      region: REGION_TO_PRICING[newCountry],
     });
     updates.pricing = newPricing as unknown as Record<string, unknown>;
 

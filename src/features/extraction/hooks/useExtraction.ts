@@ -2,14 +2,14 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
-import type { ExtractionResult } from "@/features/extraction/types";
+import type { Quote } from "@/features/extraction/types";
 import type { ApiSuccessResponse } from "@/types/api";
 
-/** Extract product data from a URL */
+/** Extract product data from a URL and get a server-priced quote */
 export function useExtractProduct() {
-  return useMutation<ExtractionResult, Error, { product_url: string }>({
+  return useMutation<Quote, Error, { product_url: string }>({
     mutationFn: async (data) => {
-      const response = await apiFetch<ApiSuccessResponse<ExtractionResult>>(
+      const response = await apiFetch<ApiSuccessResponse<Quote>>(
         "/api/products/extract",
         {
           method: "POST",

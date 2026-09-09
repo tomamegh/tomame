@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ProductPreview } from "@/features/extraction/components/product-preview";
 import { useExtractProduct } from "@/features/extraction/hooks/useExtraction";
-import type { ExtractionResult } from "@/features/extraction/types";
+import type { Quote } from "@/features/extraction/types";
 import {
   Empty,
   EmptyDescription,
@@ -67,7 +67,6 @@ function ExtractionSkeleton() {
 }
 
 function ExtractionError({
-  message,
   onRetry,
 }: {
   message: string | null;
@@ -150,7 +149,7 @@ function NewOrderContent() {
 
   const [step, setStep] = useState<Step>("extracting");
   const [extractionResult, setExtractionResult] =
-    useState<ExtractionResult | null>(null);
+    useState<Quote | null>(null);
   const [extractionError, setExtractionError] = useState<string | null>(null);
 
   const { mutateAsync: extractProduct } = useExtractProduct();

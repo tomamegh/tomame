@@ -29,17 +29,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useCreateOrder } from "@/features/orders/hooks/useCreateOrder";
-import type { ExtractionResult } from "@/features/extraction/types";
+import type { Quote } from "@/features/extraction/types";
+import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import type { ApiSuccessResponse } from "@/types/api";
 import { toast } from "@/lib/sonner";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface ExtractionCacheResponse extends ExtractionResult {
+interface ExtractionCacheResponse extends Quote {
   extraction_cache_id: string;
   product_url: string;
 }
+
+type Country = "USA" | "UK" | "CHINA";
+const COUNTRY_OPTIONS: Country[] = ["USA", "UK", "CHINA"];
 
 interface CreatedOrder {
   id: string;
@@ -223,10 +227,11 @@ function ReviewForm({
   onSubmit: (data: {
     quantity: number;
     specialInstructions: string;
-    pricing: OrderPricingBreakdown | null;
+    manualPriceUsd: number | null;
+    manualCountry: Country | null;
   }) => void;
 }) {
-  const { product, country, platform, extraction_success } = extraction;
+  const { product, country, platform, extraction_success, messages } = extraction;
   const name = product.title;
   const price = product.price;
   const currency = product.currency;
@@ -238,16 +243,23 @@ function ReviewForm({
 
   const [quantity, setQuantity] = useState(1);
   const [specialInstructions, setSpecialInstructions] = useState("");
-  const [pricing, setPricing] = useState<OrderPricingBreakdown | null>(null);
+  const [manualPrice, setManualPrice] = useState<string>("");
+  const [manualCountry, setManualCountry] = useState<Country | null>(null);
+  // Quantity-1 pricing arrives with the quote; re-price on the server when inputs change.
+  const [pricing, setPricing] = useState<OrderPricingBreakdown | null>(extraction.pricing);
   const [pricingLoading, setPricingLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const unsupportedRegion = !country;
-  const needsReview = !extraction_success || !name || price === null;
+  const priceMissing = price === null;
+  const countryMissing = !country;
+  const manualPriceUsd = priceMissing ? parseFloat(manualPrice) : null;
+  const manualPriceValid = !priceMissing || (manualPriceUsd !== null && manualPriceUsd > 0);
+  const countryValid = !countryMissing || manualCountry !== null;
+  const needsReview = !extraction_success || !name || priceMissing || countryMissing;
 
-  // Fetch pricing preview
+  // Server-side pricing from the stored snapshot. The client never computes money.
   useEffect(() => {
-    if (unsupportedRegion || !price || price <= 0) {
+    if (!manualPriceValid || !countryValid) {
       setPricing(null);
       return;
     }
@@ -256,10 +268,11 @@ function ReviewForm({
       setPricingLoading(true);
       try {
         const params = new URLSearchParams({
-          itemPriceUsd: String(price),
+          extraction_cache_id: extraction.extraction_cache_id,
           quantity: String(quantity),
         });
-        if (category) params.set("category", category);
+        if (priceMissing && manualPriceUsd) params.set("itemPriceUsd", String(manualPriceUsd));
+        if (countryMissing && manualCountry) params.set("region", manualCountry.toLowerCase());
         const res = await fetch(`/api/pricing/preview?${params}`);
         if (res.ok) {
           const json = await res.json();
@@ -272,38 +285,29 @@ function ReviewForm({
       } finally {
         setPricingLoading(false);
       }
-    }, 400);
+    }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [price, quantity, category]);
+  }, [quantity, manualPriceUsd, manualCountry, extraction.extraction_cache_id]);
 
   return (
     <div className="space-y-4 fade-in">
-      {/* Unsupported region notice */}
-      {unsupportedRegion && (
-        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          <AlertCircleIcon className="mt-0.5 size-4 shrink-0 text-red-500" />
-          <div>
-            <p className="font-semibold">Region not supported</p>
-            <p className="text-red-700/80 text-xs mt-0.5">
-              This product is from an Amazon region we don&apos;t currently support.
-              Only Amazon US (amazon.com) orders are available at this time.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Needs review notice */}
-      {!unsupportedRegion && needsReview && (
+      {needsReview && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-amber-500" />
           <div>
             <p className="font-semibold">Admin review required</p>
             <p className="text-amber-700/80 text-xs mt-0.5">
-              Some product details couldn&apos;t be extracted. Our team will review
-              and confirm before processing.
+              Some product details couldn&apos;t be read automatically. Fill in what&apos;s
+              missing below — our team will verify before processing.
             </p>
+            {messages?.length > 0 && (
+              <ul className="mt-1.5 space-y-0.5 text-xs text-amber-700/80 list-disc pl-4">
+                {messages.map((m) => <li key={m}>{m}</li>)}
+              </ul>
+            )}
           </div>
         </div>
       )}
@@ -409,6 +413,51 @@ function ReviewForm({
       {/* Order options card */}
       <Card>
         <CardContent className="pt-6 space-y-5">
+          {/* Gap fillers — only shown when extraction could not read the field */}
+          {priceMissing && (
+            <div>
+              <p className="text-sm font-medium text-stone-700 mb-2">
+                Item price (USD) <span className="text-destructive">*</span>
+              </p>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0.01"
+                step="0.01"
+                value={manualPrice}
+                onChange={(e) => setManualPrice(e.target.value)}
+                placeholder="e.g. 129.99"
+                className="soft-input max-w-xs"
+                disabled={isLoading}
+                aria-invalid={manualPrice !== "" && !manualPriceValid}
+              />
+              <p className="text-xs text-stone-400 mt-1">
+                We couldn&apos;t read the price from the store. Enter it as shown on the listing; our team verifies it.
+              </p>
+            </div>
+          )}
+          {countryMissing && (
+            <div>
+              <p className="text-sm font-medium text-stone-700 mb-2">
+                Ships from <span className="text-destructive">*</span>
+              </p>
+              <div className="flex gap-2">
+                {COUNTRY_OPTIONS.map((c) => (
+                  <Button
+                    key={c}
+                    type="button"
+                    size="sm"
+                    variant={manualCountry === c ? "primary" : "outline"}
+                    onClick={() => setManualCountry(c)}
+                    disabled={isLoading}
+                  >
+                    {c}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Quantity */}
           <div>
             <p className="text-sm font-medium text-stone-700 mb-2">
@@ -460,19 +509,15 @@ function ReviewForm({
         </CardContent>
       </Card>
 
-      {/* Pricing preview */}
-      {unsupportedRegion ? (
+      {/* Pricing preview — computed server-side from the stored snapshot */}
+      {(!manualPriceValid || !countryValid) ? (
         <Card>
           <CardContent className="pt-4 space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
               Pricing
             </p>
-            <div className="flex justify-between text-sm text-stone-400">
-              <span>Total</span>
-              <span className="italic">Cannot be determined</span>
-            </div>
-            <p className="text-xs text-stone-400 pt-1">
-              Pricing is unavailable for unsupported regions.
+            <p className="text-sm text-stone-500">
+              Fill in the missing details above to see an estimated total.
             </p>
           </CardContent>
         </Card>
@@ -502,6 +547,9 @@ function ReviewForm({
                 ) : (
                   <>
                     {[
+                      ...(pricing.item_currency && pricing.item_currency !== "USD"
+                        ? [{ label: `Listed price (${pricing.item_currency})`, value: `${pricing.item_currency} ${pricing.item_price.toFixed(2)}` }]
+                        : []),
                       { label: "Item price", value: `$${pricing.item_price_usd.toFixed(2)}` },
                       { label: `Subtotal (×${pricing.quantity})`, value: `$${pricing.subtotal_usd.toFixed(2)}` },
                       { label: `Tax (${(pricing.tax_percentage * 100).toFixed(0)}%)`, value: `$${pricing.tax_usd.toFixed(2)}` },
@@ -526,12 +574,21 @@ function ReviewForm({
                     </div>
                   </>
                 )}
+                {pricing.fee_calculation_note && pricing.pricing_method !== "needs_review" && (
+                  <p className="text-xs text-stone-400">Freight basis: {pricing.fee_calculation_note}</p>
+                )}
                 <p className="text-xs text-stone-400 pt-1">
                   Estimate only — final total confirmed after admin review. Full
                   payment required before processing.
                 </p>
               </CardContent>
             </Card>
+          )}
+          {!pricingLoading && !pricing && extraction.pricing_unavailable_reason && (
+            <div className="flex items-start gap-2 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
+              <AlertCircleIcon className="mt-0.5 size-4 shrink-0 text-stone-400" />
+              <p>{extraction.pricing_unavailable_reason} Our team will price this order manually.</p>
+            </div>
           )}
         </>
       )}
@@ -551,13 +608,14 @@ function ReviewForm({
         <Button
           type="button"
           variant="primary"
-          disabled={isLoading || unsupportedRegion}
+          disabled={isLoading || !manualPriceValid || !countryValid}
           className="gap-1.5"
           onClick={() =>
             onSubmit({
               quantity,
               specialInstructions,
-              pricing,
+              manualPriceUsd: priceMissing ? manualPriceUsd : null,
+              manualCountry: countryMissing ? manualCountry : null,
             })
           }
         >
@@ -656,32 +714,26 @@ export default function ReviewOrderPage() {
   const handleSubmit = async (data: {
     quantity: number;
     specialInstructions: string;
-    pricing: OrderPricingBreakdown | null;
+    manualPriceUsd: number | null;
+    manualCountry: Country | null;
   }) => {
     if (!extraction) return;
     setOrderError(null);
 
     const product = extraction.product;
-    const reviewReasons: string[] = [];
-    if (!extraction.extraction_success) reviewReasons.push("Automatic extraction failed");
-    if (!product.title) reviewReasons.push("Product name could not be detected");
-    if (product.price === null) reviewReasons.push("Price could not be detected");
-    if (!extraction.country) reviewReasons.push("Origin country could not be determined");
-    const needsReview = reviewReasons.length > 0;
 
+    // Only identity + intent go up. Price, currency, weight, category, region
+    // and the pricing breakdown are decided server-side from the stored snapshot;
+    // the manual fields are honoured only where the snapshot has a gap.
     const orderPayload = {
       product_url: extraction.product_url,
-      product_name: product.title ?? "",
+      product_name: product.title ?? "Product from link",
       product_image_url: product.image ?? undefined,
-      estimated_price_usd: product.price ?? 0,
       quantity: data.quantity,
-      origin_country: extraction.country ?? "USA",
       special_instructions: data.specialInstructions || undefined,
-      needs_review: needsReview,
-      review_reasons: reviewReasons,
-      extraction_metadata: extraction,
       extraction_cache_id: extraction.extraction_cache_id,
-      pricing: data.pricing ?? undefined,
+      ...(data.manualPriceUsd ? { estimated_price_usd: data.manualPriceUsd } : {}),
+      ...(data.manualCountry ? { origin_country: data.manualCountry } : {}),
     };
 
     createOrder(orderPayload, {

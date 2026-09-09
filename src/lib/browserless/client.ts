@@ -3,6 +3,11 @@ import { logger } from "@/lib/logger";
 const BROWSERLESS_API_URL =
   process.env.BROWSERLESS_API_URL ?? "https://production-sfo.browserless.io";
 
+/** True when the Browserless tier can run. Read lazily so tests can set the env. */
+export function isBrowserlessConfigured(): boolean {
+  return !!process.env.BROWSERLESS_API_KEY;
+}
+
 function getApiKey(): string {
   const key = process.env.BROWSERLESS_API_KEY;
   if (!key) {
