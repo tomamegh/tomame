@@ -1,7 +1,7 @@
 import { APIError } from "@/lib/auth/api-helpers";
 import { getGhsRate } from "@/lib/exchange-rates/service";
-import { TAX_PERCENTAGE, DEFAULT_FX_BUFFER_PCT } from "@/config/pricing";
-import { getCategoryPricing, evaluateFlatRate } from "@/config/pricing-categories";
+import { TAX_PERCENTAGE, DEFAULT_FX_BUFFER_PCT, DEFAULT_FREIGHT_RATE_PER_LB, DEFAULT_HANDLING_FEE_USD } from "@/config/pricing";
+import { getCategoryPricing } from "@/config/pricing-categories";
 import type { PricingGroupRow } from "@/db/queries/pricing-groups";
 import type { FixedFreightItemRow } from "@/db/queries/fixed-freight-items";
 import { logger } from "@/lib/logger";
@@ -9,7 +9,9 @@ import { logger } from "@/lib/logger";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface PricingConstants {
+  /** USD per pound for weight-based groups. The single freight knob for those groups. */
   freight_rate_per_lb: number;
+  /** USD added once per order line for weight-based groups. */
   handling_fee_usd: number;
   minimum_tax_usd: number;
   fx_buffer_pct: number;
@@ -60,9 +62,12 @@ export interface PricingBreakdown {
   flat_rate_ghs: number;
   total_ghs: number;
   total_pesewas: number;
-  /** Human-readable "show the work" line: "1.8 lb × formula", "fixed: iPhone 15 Pro", … */
+  /** Human-readable "show the work" line: "36.2 lb × $5/lb + $3 handling", "fixed: iPhone 15 Pro", … */
   fee_calculation_note: string;
-  flat_rate_expression?: string;
+  /** Weight-based groups: the USD freight before conversion, and the knobs that produced it. */
+  freight_usd?: number;
+  freight_rate_per_lb?: number;
+  handling_fee_usd?: number;
   weight_lbs?: number;
   weight_source?: "listed" | "default" | "minimum";
   fixed_freight_item?: string;
@@ -293,7 +298,10 @@ export class PricingCalculator {
 
     const valueFeePct = tieredFee(catPricing.value_percentage, catPricing.value_percentage_high, catPricing.value_threshold_usd);
 
-    // 3. Weight-based group.
+    // 3. Weight-based group: freight = chargeable weight × $/lb + handling, in
+    //    USD, converted at the buffered rate. The group's `flat_rate_expression`
+    //    only marks the group as weight-based; the rate and handling fee are the
+    //    admin constants, so there are two knobs instead of one formula per group.
     if (catPricing.flat_rate_expression != null) {
       const minWeight = this.constants?.minimum_chargeable_weight_lbs ?? 0;
       let weight: number | null = null;
@@ -317,15 +325,20 @@ export class PricingCalculator {
           : `We couldn't determine the weight of this product, which is needed to calculate shipping for ${catPricing.name.toLowerCase()}.`);
       }
 
-      // Freight is charged once per order line, matching the original calculator; quantity scales the USD side.
-      const perUnit = evaluateFlatRate(catPricing.flat_rate_expression, weight);
+      const ratePerLb = this.constants?.freight_rate_per_lb ?? DEFAULT_FREIGHT_RATE_PER_LB;
+      const handlingUsd = this.constants?.handling_fee_usd ?? DEFAULT_HANDLING_FEE_USD;
+      // Weight is per item, so freight scales with quantity; handling is once per line.
+      const chargeableLbs = r2(weight * quantity);
+      const freightUsd = r2(chargeableLbs * ratePerLb + handlingUsd);
+      const sourceNote = weightSource === "listed" ? "" : ` (${weightSource})`;
+      const qtyNote = quantity > 1 ? ` × ${quantity}` : "";
       return finish(
         "weight_expression",
         catPricing.group,
         valueFeePct,
-        perUnit,
-        `${weight} lb${weightSource === "listed" ? "" : ` (${weightSource})`} → ${catPricing.flat_rate_expression}`,
-        { flat_rate_expression: catPricing.flat_rate_expression, weight_lbs: weight, weight_source: weightSource },
+        freightUsd * fxRate,
+        `${weight} lb${sourceNote}${qtyNote} × $${ratePerLb}/lb + $${handlingUsd} handling = $${freightUsd.toFixed(2)}`,
+        { weight_lbs: weight, weight_source: weightSource, freight_usd: freightUsd, freight_rate_per_lb: ratePerLb, handling_fee_usd: handlingUsd },
       );
     }
 

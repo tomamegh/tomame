@@ -126,10 +126,11 @@ describe("PricingCalculator (JSON fallback)", () => {
       expect(result.pricing_method).toBe("weight_expression");
       expect(result.pricing_group).toBe("car_parts");
       expect(result.value_fee_percentage).toBe(0.08);
-      // formula: 5 + (w / 8) = 5 + 2 = 7
-      expect(result.flat_rate_ghs).toBe(7);
+      // weight-based: 16 lb × $5/lb + $3 handling = $83, converted at the applied rate
+      expect(result.freight_usd).toBe(83);
+      expect(result.flat_rate_ghs).toBeCloseTo(83 * result.exchange_rate, 1);
       expect(result.weight_lbs).toBe(16);
-      expect(result.flat_rate_expression).toBe("5 + (w / 8)");
+      expect(result.fee_calculation_note).toContain("16 lb × $5/lb + $3 handling");
       expect(result.total_ghs).toBeGreaterThan(0);
     });
 
@@ -381,9 +382,11 @@ describe("PricingCalculator (DB-loaded)", () => {
       });
 
       expect(result.pricing_method).toBe("weight_expression");
-      // 5 + (10 / 8) = 6.25
-      expect(result.flat_rate_ghs).toBe(6.25);
+      // default 10 lb × $5/lb + $3 = $53
+      expect(result.freight_usd).toBe(53);
+      expect(result.flat_rate_ghs).toBeCloseTo(53 * result.exchange_rate, 1);
       expect(result.weight_lbs).toBe(10);
+      expect(result.weight_source).toBe("default");
     });
 
     it("prefers input weight over default weight", async () => {
@@ -413,9 +416,11 @@ describe("PricingCalculator (DB-loaded)", () => {
       });
 
       expect(result.pricing_method).toBe("weight_expression");
-      // 5 + (24 / 8) = 8
-      expect(result.flat_rate_ghs).toBe(8);
+      // 24 lb × $5/lb + $3 = $123
+      expect(result.freight_usd).toBe(123);
+      expect(result.flat_rate_ghs).toBeCloseTo(123 * result.exchange_rate, 1);
       expect(result.weight_lbs).toBe(24);
+      expect(result.weight_source).toBe("listed");
     });
 
     it("needs_review when no weight and no default", async () => {
@@ -509,7 +514,7 @@ describe("PricingCalculator (DB-loaded)", () => {
       });
 
       expect(result.pricing_method).toBe("weight_expression");
-      expect(result.flat_rate_ghs).toBe(7);
+      expect(result.freight_usd).toBe(83);
       expect(result.total_ghs).toBeGreaterThan(0);
     });
   });

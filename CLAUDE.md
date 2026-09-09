@@ -121,7 +121,7 @@ Key relationships:
 - `users.id` references `auth.users(id)`
 - `orders.payment_id` references `payments(id)`
 - `pricing_config` is admin-only (controls shipping fees, exchange rates, service fee %)
-- Pricing formula: `total_ghs = (item_price_usd + shipping_fee_usd + (item_price_usd × service_fee_pct)) × exchange_rate`
+- Pricing formula: `total_ghs = (item_price_usd + tax_usd + item_price_usd × service_fee_pct) × exchange_rate + freight_ghs`, where freight is the group's flat GHS rate, a fixed-freight item, or for weight-based groups `(weight_lbs × quantity × freight_rate_per_lb + handling_fee_usd) × exchange_rate` using `pricing_constants`
 
 ## Pricing Calculation (Server-Side Only)
 

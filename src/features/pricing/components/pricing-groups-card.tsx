@@ -199,7 +199,7 @@ function GroupFormDialog({
                   checked={form.rateType === "expression"}
                   onChange={() => set("rateType", "expression")}
                 />
-                Weight Expression
+                Weight-based
               </label>
             </div>
           </div>
@@ -220,14 +220,17 @@ function GroupFormDialog({
           ) : (
             <div>
               <Label className="text-xs">
-                Weight Expression (use &quot;w&quot; for weight in lbs)
+                Weight-based freight = weight (lb) × Freight Rate + Handling Fee, from Pricing Constants, converted to GHS
               </Label>
               <Input
-                value={form.flat_rate_expression}
+                value={form.flat_rate_expression || "weight"}
                 onChange={(e) => set("flat_rate_expression", e.target.value)}
-                placeholder='e.g. 5 + (w / 8)'
+                placeholder="weight"
                 className="mt-1 font-mono"
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                This label only marks the group as weight-based. Change the per-pound rate and handling fee under Pricing Constants.
+              </p>
             </div>
           )}
 

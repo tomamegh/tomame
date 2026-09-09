@@ -37,6 +37,8 @@ the Claude weight lookup runs after the response via `after()` and updates the c
 order skips paths known to fail. Measured: Amazon 10–15 s, eBay ~18 s, SHEIN ~18 s, repeat pastes instant (cache).
 Tier 0 is now **ScraperAPI structured endpoints** (`SCRAPERAPI_API_KEY`) for Amazon (with weight + category) and eBay: 2–5 s, no browser. Rainforest stays as an optional second Amazon source. Fast mode returns once price + category are known; the LLM classifies category from the listing text when the structured record lacks one (eBay), and browser+LLM weight enrichment runs in the background only for weight-priced categories. The quote flow no longer requires login; sign-in happens at order submission.
 
+**Freight (2026-09-09):** weight-based groups no longer evaluate their seeded formula (`5 + (w / 6)` → GH₵ 11 for a 36 lb chair). They charge `weight × freight_rate_per_lb + handling_fee_usd` in USD from `pricing_constants`, converted at the buffered rate; the expression column now only marks a group as weight-based.
+
 **Keys to create:** `BROWSERLESS_API_KEY`, `ANTHROPIC_API_KEY`, `EXCHANGE_RATE_API_KEY` (required).
 `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY` optional. `SERPAPI_API_KEY` and ScrapingBee removed.
 

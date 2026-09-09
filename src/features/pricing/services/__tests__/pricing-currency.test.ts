@@ -105,7 +105,19 @@ describe("minimum chargeable weight", () => {
     expect(r.pricing_method).toBe("weight_expression");
     expect(r.weight_lbs).toBe(2);
     expect(r.weight_source).toBe("minimum");
-    expect(r.flat_rate_ghs).toBeCloseTo(5.25, 2);
+    expect(r.freight_usd).toBe(13); // 2 lb × $5 + $3
+    expect(r.flat_rate_ghs).toBeCloseTo(13 * 15, 2); // fx buffer 0 in this test
     expect(r.fee_calculation_note).toContain("2 lb (minimum)");
+  });
+
+  it("scales freight with quantity but charges handling once", async () => {
+    const calc = new PricingCalculator();
+    calc.setConstants(constants({ freight_rate_per_lb: 6, handling_fee_usd: 4 }));
+    calc.setCategoryPricing(new Map([[TomameCategory.HOME_KITCHEN, group({ slug: "home_kitchen", name: "Home & Kitchen", flat_rate_ghs: null, flat_rate_expression: "legacy" })]]));
+    const r = await calc.calculate({ itemPriceUsd: 80, quantity: 2, category: TomameCategory.HOME_KITCHEN, weightLbs: 36.2 });
+    expect(r.freight_usd).toBeCloseTo(36.2 * 2 * 6 + 4, 2);
+    expect(r.flat_rate_ghs).toBeCloseTo((36.2 * 2 * 6 + 4) * 15, 1);
+    expect(r.freight_rate_per_lb).toBe(6);
+    expect(r.handling_fee_usd).toBe(4);
   });
 });
