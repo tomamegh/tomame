@@ -16,6 +16,13 @@ function getApiKey(): string {
   return key;
 }
 
+/**
+ * Browserless proxy mode. "residential" routes through a residential exit
+ * (billed per GB) — eBay and SHEIN reject Browserless's datacenter range
+ * outright, so the chain tries datacenter first and residential second.
+ */
+export type BrowserlessProxy = "residential";
+
 interface ScrapeContentOptions {
   /** URL to scrape */
   url: string;
@@ -23,6 +30,19 @@ interface ScrapeContentOptions {
   timeout?: number;
   /** Wait for a specific selector before returning (e.g. "#productTitle") */
   waitForSelector?: string;
+  /** Extra settle time after load, ms (for SPAs that hydrate late). */
+  waitForTimeout?: number;
+  proxy?: BrowserlessProxy;
+}
+
+interface UnblockOptions {
+  proxy?: BrowserlessProxy;
+  /** Settle time after the challenge clears, ms. */
+  waitForTimeout?: number;
+}
+
+function proxyQuery(proxy?: BrowserlessProxy): string {
+  return proxy ? `&proxy=${proxy}&proxyCountry=us` : "";
 }
 
 interface ScrapeContentResult {
@@ -122,10 +142,10 @@ export class BrowserlessClient {
    * pages. Higher success rate than /content?stealth for sites that repeatedly
    * serve the challenge page (e.g. microcenter.com).
    */
-  public async unblockContent(url: string, timeoutMs: number = 30000): Promise<ScrapeContentResult> {
+  public async unblockContent(url: string, timeoutMs: number = 30000, opts: UnblockOptions = {}): Promise<ScrapeContentResult> {
     const apiKey = getApiKey();
     try {
-      const response = await fetch(`${this.apiUrl}/chromium/unblock?token=${apiKey}`, {
+      const response = await fetch(`${this.apiUrl}/chromium/unblock?token=${apiKey}&timeout=${timeoutMs}${proxyQuery(opts.proxy)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -135,13 +155,14 @@ export class BrowserlessClient {
           screenshot: false,
           browserWSEndpoint: false,
           ttl: 0,
+          ...(opts.waitForTimeout ? { waitForTimeout: opts.waitForTimeout } : {}),
         }),
         signal: AbortSignal.timeout(timeoutMs + 5000),
       });
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "Unknown error");
-        logger.warn("browserless unblock failed", { url, status: response.status, error: errorText });
+        logger.warn("browserless unblock failed", { url, proxy: opts.proxy ?? "datacenter", status: response.status, error: errorText.slice(0, 300) });
         return { success: false, html: null, error: `Browserless unblock ${response.status}: ${errorText}` };
       }
 
@@ -162,7 +183,7 @@ export class BrowserlessClient {
    * Fetch the fully-rendered HTML content of a page.
    */
   public async scrapeContent(options: ScrapeContentOptions): Promise<ScrapeContentResult> {
-    const { url, timeout = 20000, waitForSelector } = options;
+    const { url, timeout = 20000, waitForSelector, waitForTimeout, proxy } = options;
     const apiKey = getApiKey();
 
     try {
@@ -184,11 +205,12 @@ export class BrowserlessClient {
       if (waitForSelector) {
         body.waitForSelector = {
           selector: waitForSelector,
-          timeout,
+          timeout: Math.min(timeout, 25_000),
         };
       }
+      if (waitForTimeout) body.waitForTimeout = waitForTimeout;
 
-      const response = await fetch(`${this.apiUrl}/content?token=${apiKey}&stealth`, {
+      const response = await fetch(`${this.apiUrl}/content?token=${apiKey}&stealth${proxyQuery(proxy)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -199,8 +221,9 @@ export class BrowserlessClient {
         const errorText = await response.text().catch(() => "Unknown error");
         logger.error("browserless scrapeContent failed", {
           url,
+          proxy: proxy ?? "datacenter",
           status: response.status,
-          error: errorText,
+          error: errorText.slice(0, 300),
         });
         return {
           success: false,

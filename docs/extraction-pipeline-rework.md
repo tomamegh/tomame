@@ -27,6 +27,11 @@ proposal:
 | Move to `jobs` table for long extractions | **Deferred.** Chain has a 90 s budget with per-tier deadlines; route `maxDuration` 120 s | Direct fetch + Browserless + Claude typically finish in <40 s. Revisit if p95 says otherwise. |
 | kg vs lb | **lb everywhere**, converted at the edge (`weight_lbs` on the product) | Matches `pricing_groups.default_weight_lbs` and the formula `w`. |
 
+**Live verification (2026-09-09, real keys):** Amazon 14 s (datacenter Browserless; Claude filled the weight),
+eBay 24 s and SHEIN 27 s (both need Browserless **residential proxy** — datacenter IPs get an error page /
+empty shell; billed per GB). Micro Center did not clear Cloudflare within the 120 s plan maximum on any
+path → falls to manual entry. The Apify eBay actor requires a paid rental; the SHEIN actor timed out at 90 s.
+
 **Keys to create:** `BROWSERLESS_API_KEY`, `ANTHROPIC_API_KEY`, `EXCHANGE_RATE_API_KEY` (required).
 `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY` optional. `SERPAPI_API_KEY` and ScrapingBee removed.
 

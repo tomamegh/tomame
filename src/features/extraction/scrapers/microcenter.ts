@@ -252,6 +252,7 @@ export function mapApifyMicrocenterProduct(item: ApifyMicrocenterProduct): Scrap
 export class MicrocenterScraper implements PlatformScraper {
   public readonly domains = ["microcenter.com"];
   public readonly defaultCurrency = "USD";
+  public readonly renderWaitSelector = "[class^='ProductLink_'], h2.productTi, h1";
 
   public isProductUrl(url: string): boolean {
     try {

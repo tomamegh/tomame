@@ -64,6 +64,8 @@ export interface PlatformScraper {
   canonicalUrl(url: string): string;
   /** Does this HTML look like a rendered product page (not a captcha / empty shell)? */
   looksLikeProductPage(html: string): boolean;
+  /** CSS selector headless Chrome should wait for before returning HTML (SPAs hydrate late). */
+  readonly renderWaitSelector: string;
   /** Extract product data from parsed HTML. */
   extract($: CheerioAPI): ScrapedProduct;
 }

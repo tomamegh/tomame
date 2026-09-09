@@ -253,6 +253,7 @@ export function mapApifyAmazonProduct(item: ApifyAmazonProduct, sourceUrl: strin
 export class AmazonScraper implements PlatformScraper {
   public readonly domains = ["amazon.com", "amazon.co.uk", "a.co", "amzn.to", "amzn.eu"];
   public readonly defaultCurrency = "USD";
+  public readonly renderWaitSelector = "#productTitle, #ASIN";
 
   private static asinOf(raw: string): string | null {
     try {

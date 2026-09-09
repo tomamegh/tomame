@@ -234,6 +234,7 @@ export function mapApifyEbayProduct(item: ApifyEbayProduct): ScrapedProduct {
 export class EbayScraper implements PlatformScraper {
   public readonly domains = ["ebay.com", "ebay.co.uk", "ebay.us", "ebay.to"];
   public readonly defaultCurrency = "USD";
+  public readonly renderWaitSelector = ".x-item-title, .x-price-primary, #itemTitle";
 
   private static itemIdOf(raw: string): string | null {
     try {

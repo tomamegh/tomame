@@ -324,6 +324,7 @@ export function mapApifySheinProduct(item: ApifySheinProduct): ScrapedProduct {
 export class SheinScraper implements PlatformScraper {
   public readonly domains = ["shein.com", "us.shein.com", "m.shein.com"];
   public readonly defaultCurrency = "USD";
+  public readonly renderWaitSelector = "h1, .product-intro__head-name, [class*='product-intro__head']";
 
   public isProductUrl(url: string): boolean {
     return extractGoodsIdFromUrl(url) !== null;

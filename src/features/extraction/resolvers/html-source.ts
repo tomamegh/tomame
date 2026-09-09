@@ -12,7 +12,7 @@ const BROWSER_HEADERS = {
   "Upgrade-Insecure-Requests": "1",
 };
 
-/** Plain HTTPS GET. Free, fast, and enough for stores that server-render (eBay, Micro Center often). */
+/** Plain HTTPS GET. Free, fast, and enough for stores that server-render. */
 async function directFetch(url: string, timeoutMs: number): Promise<string | null> {
   try {
     const res = await fetch(url, {
@@ -32,10 +32,24 @@ async function directFetch(url: string, timeoutMs: number): Promise<string | nul
   }
 }
 
+type Attempt = {
+  name: string;
+  /** Minimum time that must remain in the budget for this attempt to start. */
+  minRemainingMs: number;
+  /** Extra runs when the first returns a blocked/shell page. */
+  retries: number;
+  run: (timeoutMs: number) => Promise<{ success: boolean; html: string | null; error: string | null }>;
+};
+
 /**
- * Get a rendered product page, cheapest source first. Each source's output is
+ * Get a rendered product page, cheapest source first. Every source's output is
  * checked with the platform's `looksLikeProductPage` so a captcha page or an
  * empty SPA shell does not get parsed as "product not found".
+ *
+ * Observed live (2026-09-09): Amazon answers the datacenter unblock; eBay and
+ * SHEIN return error/shell pages from any datacenter IP and need the
+ * residential proxy (eBay via unblock, SHEIN via rendered content with a wait
+ * selector); Micro Center's Cloudflare challenge did not clear within budget.
  */
 export async function fetchProductHtml(
   url: string,
@@ -54,22 +68,59 @@ export async function fetchProductHtml(
     return null;
   }
 
-  if (remaining() > 5_000) {
-    const timeout = Math.min(EXTRACTION.browserlessTimeoutMs, remaining() - 2_000);
-    const unblock = await browserlessClient.unblockContent(url, timeout);
-    if (unblock.success && unblock.html && scraper.looksLikeProductPage(unblock.html)) {
-      return { html: unblock.html, source: "browserless" };
-    }
-    logger.warn("html-source: browserless unblock did not yield a product page", { url, error: unblock.error });
-  }
+  // Order is by observed hit rate per cost, not by list price: the datacenter
+  // rendered-content attempt is last because on a blocked page it burns the
+  // whole selector wait (~25 s) for nothing.
+  const attempts: Attempt[] = [
+    {
+      name: "unblock",
+      minRemainingMs: 8_000,
+      retries: 0,
+      run: (t) => browserlessClient.unblockContent(url, t),
+    },
+    {
+      name: "unblock+residential",
+      minRemainingMs: 15_000,
+      // Residential exits are per-request; eBay blocks roughly one in three.
+      retries: 1,
+      run: (t) => browserlessClient.unblockContent(url, t, { proxy: "residential", waitForTimeout: 3_000 }),
+    },
+    {
+      name: "content+residential",
+      minRemainingMs: 15_000,
+      retries: 0,
+      run: (t) => browserlessClient.scrapeContent({ url, timeout: t, waitForSelector: scraper.renderWaitSelector, proxy: "residential" }),
+    },
+    {
+      name: "content",
+      minRemainingMs: 15_000,
+      retries: 0,
+      run: (t) => browserlessClient.scrapeContent({ url, timeout: t, waitForSelector: scraper.renderWaitSelector }),
+    },
+  ];
 
-  if (remaining() > 5_000) {
-    const timeout = Math.min(EXTRACTION.browserlessTimeoutMs, remaining() - 2_000);
-    const content = await browserlessClient.scrapeContent({ url, timeout });
-    if (content.success && content.html && scraper.looksLikeProductPage(content.html)) {
-      return { html: content.html, source: "browserless" };
+  for (const attempt of attempts) {
+    for (let run = 0; run <= attempt.retries; run++) {
+      if (remaining() < attempt.minRemainingMs) {
+        logger.info("html-source: out of budget", { url, skipped: attempt.name, remainingMs: remaining() });
+        return null;
+      }
+      const timeout = Math.min(EXTRACTION.browserlessTimeoutMs, remaining() - 3_000);
+      const t0 = Date.now();
+      const result = await attempt.run(timeout);
+      if (result.success && result.html && scraper.looksLikeProductPage(result.html)) {
+        logger.info("html-source: page obtained", { url, via: attempt.name, run, ms: Date.now() - t0, bytes: result.html.length });
+        return { html: result.html, source: "browserless" };
+      }
+      logger.warn("html-source: attempt did not yield a product page", {
+        url,
+        via: attempt.name,
+        run,
+        ms: Date.now() - t0,
+        error: result.error,
+        bytes: result.html?.length ?? 0,
+      });
     }
-    logger.warn("html-source: browserless content did not yield a product page", { url, error: content.error });
   }
 
   return null;
