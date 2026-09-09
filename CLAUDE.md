@@ -21,7 +21,7 @@ The application is implemented under `src/` (Next.js App Router) with migrations
 - **Payments**: Paystack (Mobile Money + Card), server-side only
 - **Email**: Resend (transactional, default notification channel)
 - **Notifications**: Email (default) + WhatsApp (optional)
-- **Extraction**: resolver chain in `src/features/extraction/resolvers` — direct fetch → Browserless for HTML; platform Cheerio → generic JSON-LD/OpenGraph → Claude (`@anthropic-ai/sdk`, structured output) → Apify (optional). Never throws; partial products carry `messages`. See `docs/extraction-pipeline-rework.md`.
+- **Extraction**: resolver chain in `src/features/extraction/resolvers` — Rainforest API for Amazon (optional, no browser) → direct fetch → Browserless for HTML; platform Cheerio → generic JSON-LD/OpenGraph → Claude (`@anthropic-ai/sdk`, structured output) → Apify (optional). Never throws; partial products carry `messages`. See `docs/extraction-pipeline-rework.md`.
 
 ## Expected Build Commands
 
@@ -50,7 +50,7 @@ BROWSERLESS_API_KEY        # extraction: headless Chrome tier
 ANTHROPIC_API_KEY          # extraction: Claude structured-extraction tier
 EXCHANGE_RATE_API_KEY      # currency: primary provider
 ```
-Optional (tier skipped when absent): `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY`.
+Optional (tier skipped when absent): `RAINFOREST_API_KEY` (fast Amazon path), `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY`.
 
 ## Development Workflow (Mandatory)
 

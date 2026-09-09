@@ -8,10 +8,12 @@ import { platformHtmlResolver } from "./platform-html.resolver";
 import { structuredDataResolver } from "./structured-data.resolver";
 import { llmResolver } from "./llm.resolver";
 import { apifyResolver } from "./apify.resolver";
+import { rainforestResolver } from "./rainforest.resolver";
 import type { ChainOutcome, ExtractionResolver, HtmlFetch, ResolveContext } from "./types";
 
 /** Cheapest → costliest. */
 export const DEFAULT_RESOLVERS: ExtractionResolver[] = [
+  rainforestResolver,
   platformHtmlResolver,
   structuredDataResolver,
   llmResolver,
@@ -63,10 +65,12 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
   const ran: ExtractionSource[] = [];
   const skipped: ExtractionSource[] = [];
 
+  // A previous run's page is reused; a previous run that never fetched (e.g.
+  // Rainforest answered without the browser) leaves fetching available.
   const html: { attempted: boolean; result: HtmlFetch | null; promise: Promise<HtmlFetch | null> | null } = {
-    attempted: input.initialHtml !== undefined,
+    attempted: !!input.initialHtml,
     result: input.initialHtml ?? null,
-    promise: input.initialHtml !== undefined ? Promise.resolve(input.initialHtml ?? null) : null,
+    promise: input.initialHtml ? Promise.resolve(input.initialHtml) : null,
   };
   const startFetch = (opts?: FetchHtmlOptions) => {
     html.attempted = true;

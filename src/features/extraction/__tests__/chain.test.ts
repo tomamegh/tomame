@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
-vi.mock("@/lib/env", () => ({ env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null } } }));
+vi.mock("@/lib/env", () => ({ env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null, rainforestApiKey: null } } }));
 
 import { resolveProduct, continueResolve } from "../resolvers/chain";
 import { hasRequiredFields, mergeResult, type MergeState } from "../resolvers/merge";
@@ -132,5 +132,21 @@ describe("resolveProduct", () => {
     expect(out.product.price).toBe(10);
     expect(llm.calls).toBe(0);
     expect(out.htmlSource).toBe("browserless");
+  });
+
+  it("enrichment fetches the page when the fast run answered without one", async () => {
+    const api = resolver("rainforest", { title: "Desk", price: 99.5, currency: "USD" });
+    const fetchHtml = vi.fn(async () => ({ html: "<html>page</html>", source: "browserless" as const }));
+    const parser: ExtractionResolver = {
+      name: "platform-html", defaultConfidence: 0.9, available: () => true, shouldRun: () => true,
+      resolve: async (ctx) => ((await ctx.getHtml()) ? { product: { weight_lbs: 4 } } : { product: {} }),
+    };
+    const fast = await resolveProduct({ ...base, resolvers: [api, parser], fetchHtml, stopWhenRequired: true });
+    expect(fetchHtml).not.toHaveBeenCalled();
+    expect(fast.skipped).toEqual(["platform-html"]);
+
+    const enriched = await continueResolve({ ...base, resolvers: [api, parser], fetchHtml }, fast);
+    expect(fetchHtml).toHaveBeenCalledTimes(1);
+    expect(enriched.product.weight_lbs).toBe(4);
   });
 });

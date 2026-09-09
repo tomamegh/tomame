@@ -4,7 +4,7 @@ import { EXTRACTION } from "@/config/extraction";
 import { getCachedExtractionByHash, getExtractionById, upsertExtractionCache } from "@/db/queries/extraction-cache";
 import { resolvePlatform, getScraperByPlatform, SUPPORTED_STORE_NAMES, type SupportedPlatform } from "./scrapers";
 import { resolveProduct, continueResolve, type ChainOutcome } from "./resolvers";
-import { hasRequiredFields } from "./resolvers/merge";
+import { hasRequiredFields, hasWeight } from "./resolvers/merge";
 import { hashUrl, isShortUrl, parseUrl, regionForUrl, resolveShortUrl, type Region } from "./url";
 import type { ExtractionResult } from "./types";
 
@@ -141,7 +141,7 @@ async function performExtraction(prepared: PreparedUrl, userId: string): Promise
   });
 
   const enrich =
-    complete && outcome.skipped.length > 0
+    complete && outcome.skipped.length > 0 && !hasWeight(outcome.product)
       ? async () => {
           const t0 = Date.now();
           const enriched = await continueResolve(chainInput, outcome);

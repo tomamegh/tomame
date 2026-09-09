@@ -35,7 +35,7 @@ path → falls to manual entry. The Apify eBay actor requires a paid rental; the
 **Speed (2026-09-09 tuning):** the quote responds as soon as title + price + currency are known (fast mode);
 the Claude weight lookup runs after the response via `after()` and updates the cache row. Per-store HTML attempt
 order skips paths known to fail. Measured: Amazon 10–15 s, eBay ~18 s, SHEIN ~18 s, repeat pastes instant (cache).
-Sub-second like Wolevo needs a product data API (e.g. Rainforest/Keepa for Amazon) as a tier ahead of the browser.
+Amazon tier 0 is now the **Rainforest API** (`RAINFOREST_API_KEY`, optional): structured data by ASIN in 1–6 s, no browser; the browser tiers remain the fallback and cover every other store.
 
 **Keys to create:** `BROWSERLESS_API_KEY`, `ANTHROPIC_API_KEY`, `EXCHANGE_RATE_API_KEY` (required).
 `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY` optional. `SERPAPI_API_KEY` and ScrapingBee removed.

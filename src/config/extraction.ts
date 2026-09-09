@@ -4,6 +4,7 @@
  * The chain runs cheapest → costliest and stops as soon as the required
  * fields (title, price, currency) and weight are known:
  *
+ *   0. Rainforest product API for Amazon (1 credit, 1–6 s, no browser — optional)
  *   1. direct fetch of the page (free)          ┐ HTML sources — first one that
  *   2. Browserless /unblock (headless Chrome)    ┘ returns a real product page wins
  *   → platform Cheerio parser + generic JSON-LD/OpenGraph parser (free)
@@ -21,6 +22,8 @@ export const EXTRACTION = {
   llmTimeoutMs: 45_000,
   /** Apify sync actor run (seconds, Apify-side). */
   apifyRunTimeoutSeconds: 90,
+  /** Rainforest product request. Documented 1–6 s; leave room for a slow one. */
+  rainforestTimeoutMs: 15_000,
 
   /** Model used for the LLM tier. Structured output over stripped page text. */
   llmModel: "claude-opus-5",
@@ -33,4 +36,4 @@ export const EXTRACTION = {
   cacheTtlPartialMs: 15 * 60 * 1000,
 } as const;
 
-export type ExtractionSource = "platform-html" | "structured-data" | "llm" | "apify";
+export type ExtractionSource = "rainforest" | "platform-html" | "structured-data" | "llm" | "apify";

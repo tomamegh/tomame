@@ -259,6 +259,9 @@ variable "optional_third_party_secrets" {
     Vendor keys for tiers the app treats as optional — it degrades rather than
     fails when they are absent.
 
+      RAINFOREST_API_KEY   — Amazon product-data API; makes Amazon quotes answer in
+                             seconds instead of a browser render. Falls back to
+                             Browserless when absent.
       APIFY_API_TOKEN      — last-resort extraction tier (community actors).
       FREECURRENCY_API_KEY — fallback exchange-rate provider.
 
@@ -274,9 +277,10 @@ variable "optional_third_party_secrets" {
 
   validation {
     condition = length(setsubtract(keys(var.optional_third_party_secrets), [
+      "RAINFOREST_API_KEY",
       "APIFY_API_TOKEN",
       "FREECURRENCY_API_KEY",
     ])) == 0
-    error_message = "optional_third_party_secrets accepts only APIFY_API_TOKEN and FREECURRENCY_API_KEY. Anything else the app cannot run without belongs in third_party_secrets."
+    error_message = "optional_third_party_secrets accepts only RAINFOREST_API_KEY, APIFY_API_TOKEN and FREECURRENCY_API_KEY. Anything else the app cannot run without belongs in third_party_secrets."
   }
 }

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import * as cheerio from "cheerio";
 
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
-vi.mock("@/lib/env", () => ({ env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null } } }));
+vi.mock("@/lib/env", () => ({ env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null, rainforestApiKey: null } } }));
 
 import { extractFromJsonLd, extractFromMeta, parseJsonLd, structuredDataResolver } from "../resolvers/structured-data.resolver";
 import { pageToText } from "../resolvers/llm.resolver";
