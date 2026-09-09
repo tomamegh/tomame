@@ -69,6 +69,35 @@ describe("BrowserlessClient", () => {
       expect(body.waitForSelector.selector).toBe("#productTitle");
     });
 
+    it("routes through the residential proxy and adds a settle wait when asked", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve("<html></html>"),
+      });
+
+      await browserlessClient.scrapeContent({
+        url: "https://www.ebay.com/itm/123456789012",
+        proxy: "residential",
+        waitForTimeout: 3000,
+      });
+
+      const [calledUrl, calledOptions] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
+      expect(calledUrl).toContain("proxy=residential&proxyCountry=us");
+      expect(JSON.parse(calledOptions.body).waitForTimeout).toBe(3000);
+    });
+
+    it("does not add proxy params by default", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve("<html></html>"),
+      });
+
+      await browserlessClient.scrapeContent({ url: "https://www.amazon.com/dp/B0DSVMVYPH" });
+
+      const [calledUrl] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
+      expect(calledUrl).not.toContain("proxy=");
+    });
+
     it("should not include waitForSelector when not provided", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
