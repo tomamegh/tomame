@@ -5,7 +5,6 @@ import {
   AlertTriangleIcon,
   ShoppingCartIcon,
   RefreshCwIcon,
-  CheckCircle2Icon,
   PackageSearchIcon,
   ClockIcon,
 } from "lucide-react";
@@ -67,14 +66,7 @@ export function ProductPreview({
             </p>
           </div>
         </div>
-      ) : (
-        <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200/60 rounded-xl px-4 py-2.5">
-          <CheckCircle2Icon className="size-4 shrink-0 text-emerald-500" />
-          <span className="font-medium">
-            Product details extracted successfully
-          </span>
-        </div>
-      )}
+      ) : null}
 
       {/* Product card */}
       <Card className="overflow-hidden">

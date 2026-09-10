@@ -278,12 +278,13 @@ export class PricingCalculator {
       const feePct = catPricing
         ? tieredFee(catPricing.value_percentage, catPricing.value_percentage_high, catPricing.value_threshold_usd)
         : this.constants?.default_value_fee_pct ?? 0.05;
+      // Freight is per item: a negotiated rate covers one unit.
       return finish(
         "fixed_freight",
         catPricing?.group ?? null,
         feePct,
-        fixed.freight_rate_ghs,
-        `fixed freight: ${fixed.product_name}`,
+        fixed.freight_rate_ghs * quantity,
+        `fixed freight: ${fixed.product_name}${quantity > 1 ? ` × ${quantity}` : ""}`,
         { fixed_freight_item: fixed.product_name },
       );
     }
@@ -344,12 +345,13 @@ export class PricingCalculator {
 
     // 4. Flat-rate group.
     if (catPricing.flat_rate_ghs != null) {
+      // Freight is per item: the flat rate is what one unit costs to ship.
       return finish(
         "flat_rate",
         catPricing.group,
         valueFeePct,
-        catPricing.flat_rate_ghs,
-        `flat rate: ${catPricing.name}`,
+        catPricing.flat_rate_ghs * quantity,
+        `flat rate: ${catPricing.name}${quantity > 1 ? ` × ${quantity}` : ""}`,
       );
     }
 

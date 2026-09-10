@@ -120,4 +120,18 @@ describe("minimum chargeable weight", () => {
     expect(r.freight_rate_per_lb).toBe(6);
     expect(r.handling_fee_usd).toBe(4);
   });
+
+  it("flat-rate and fixed freight scale with quantity", async () => {
+    const calc = new PricingCalculator();
+    calc.setConstants(constants());
+    calc.setCategoryPricing(new Map([[TomameCategory.CELL_PHONES, group({ flat_rate_ghs: 1200 })]]));
+    const flat = await calc.calculate({ itemPriceUsd: 300, quantity: 3, category: TomameCategory.CELL_PHONES });
+    expect(flat.flat_rate_ghs).toBe(3600);
+    expect(flat.fee_calculation_note).toContain("× 3");
+
+    calc.setFixedFreightItems([{ id: "1", category: "IPHONE", product_name: "iPhone 15", freight_rate_ghs: 900, keywords: ["iphone 15"], sort_order: 0 }]);
+    const fixed = await calc.calculate({ itemPriceUsd: 700, quantity: 2, category: TomameCategory.CELL_PHONES, productTitle: "Apple iPhone 15 128GB" });
+    expect(fixed.pricing_method).toBe("fixed_freight");
+    expect(fixed.flat_rate_ghs).toBe(1800);
+  });
 });
