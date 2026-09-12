@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<script src="./image-slot.js"></script>
+<style>
+body{margin:0;background:#EFE9E4;font-family:'Instrument Sans',system-ui,sans-serif;color:#2B2422;-webkit-font-smoothing:antialiased}
+a{color:#F25B3D;text-decoration:none}a:hover{color:#C43E22}
+*{box-sizing:border-box}
+h1,h2,h3{font-family:'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;margin:0}
+p{margin:0}
+@keyframes tmUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes tmFill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes tmFloat{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-8px) rotate(1.5deg)}}
+@keyframes tmPop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08);opacity:1}100%{transform:scale(1)}}
+@keyframes tmWords{0%,22%{transform:translateY(0)}27%,47%{transform:translateY(-100%)}52%,72%{transform:translateY(-200%)}77%,97%{transform:translateY(-300%)}100%{transform:translateY(-400%)}}
+@keyframes tmPlane{0%{left:0%}100%{left:100%}}
+@keyframes tmMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes tmPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.35}}
+@keyframes tmArc{0%{offset-distance:0%}100%{offset-distance:100%}}
+</style>
+</helmet>
+
+<div style="display:flex;flex-direction:column;gap:64px;padding:48px">
+
+<!-- ===================== LANDING ===================== -->
+<section id="mk-landing" data-screen-label="Marketing · Landing" style="width:1280px">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6E625B;margin-bottom:10px">01 · Landing — full page</div>
+  <div style="background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <dc-import name="TmMarketingNav" active="home" hint-size="100%,76px"></dc-import>
+
+    <div style="position:relative;overflow:hidden;padding:80px 32px 72px;display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center">
+      <div style="position:absolute;right:-220px;top:-220px;width:760px;height:760px;border-radius:50%;background:radial-gradient(circle,#FFE3D9 0%,rgba(255,227,217,0) 65%)"></div>
+      <div style="position:absolute;left:-160px;bottom:-260px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,#FFF1D6 0%,rgba(255,241,214,0) 65%)"></div>
+      <div style="position:relative;display:flex;flex-direction:column;gap:26px;animation:tmUp .7s both">
+        <span style="display:inline-flex;align-items:center;gap:8px;width:fit-content;padding:8px 12px;border-radius:999px;border:1px solid #F0E8E3;background:#fff;font:500 13px/1 'Instrument Sans';color:#6E625B"><span style="position:relative;width:8px;height:8px;display:inline-flex"><span style="position:absolute;inset:0;border-radius:50%;background:#1E9A5C;animation:tmPulse 2.2s infinite"></span><span style="position:absolute;inset:0;border-radius:50%;background:#1E9A5C"></span></span>$1 = GH₵14.43 today · shipping from the USA</span>
+        <h1 style="font:700 74px/.98 'Bricolage Grotesque';letter-spacing:-.035em">Shop the world.<br><span style="background:linear-gradient(90deg,#F43F5E,#F97316,#F59E0B);-webkit-background-clip:text;background-clip:text;color:transparent">Pay in cedis.</span></h1>
+        <p style="max-width:520px;font:400 18px/1.5 'Instrument Sans';color:#6E625B">Paste a link from <span style="display:inline-block;height:22px;overflow:hidden;vertical-align:bottom;color:#2B2422;font-weight:600"><span style="display:flex;flex-direction:column;animation:tmWords 9s cubic-bezier(.7,0,.3,1) infinite"><span style="height:22px;line-height:22px">Amazon</span><span style="height:22px;line-height:22px">eBay</span><span style="height:22px;line-height:22px">Walmart</span><span style="height:22px;line-height:22px">Best Buy</span><span style="height:22px;line-height:22px">Amazon</span></span></span> and see the full price at your door before you pay — item, tax, fee, freight. MoMo or card. We buy it, fly it, deliver it.</p>
+        <div style="display:flex;height:60px;background:#fff;border:1.5px solid #F0E8E3;border-radius:18px;overflow:hidden;max-width:600px;padding:5px;box-shadow:0 14px 40px -16px rgba(242,91,61,.35)"><span style="flex:1;padding:0 14px;display:flex;align-items:center;gap:10px;font:400 15px/1 'Instrument Sans';color:#8A7F79"><i class="ph-duotone ph-link-simple" style="font-size:20px;color:#F25B3D"></i>Paste a product link…</span><span style="padding:0 22px;border-radius:13px;background:linear-gradient(90deg,#F43F5E,#F97316);color:#fff;display:flex;align-items:center;gap:8px;font:700 15px/1 'Instrument Sans'">See landed price <i class="ph-bold ph-arrow-right"></i></span></div>
+        <div style="display:flex;gap:18px;font:500 13px/1 'Instrument Sans';color:#6E625B"><span style="display:flex;align-items:center;gap:6px"><i class="ph-fill ph-check-circle" style="color:#1E9A5C;font-size:16px"></i>Quote without an account</span><span style="display:flex;align-items:center;gap:6px"><i class="ph-fill ph-check-circle" style="color:#1E9A5C;font-size:16px"></i>Refund if we can't source</span><span style="display:flex;align-items:center;gap:6px"><i class="ph-fill ph-check-circle" style="color:#1E9A5C;font-size:16px"></i>2–4 weeks to your door</span></div>
+      </div>
+      <div style="position:relative;height:520px;animation:tmUp .7s .15s both">
+        <div style="position:absolute;left:0;top:20px;width:300px;height:400px;border-radius:28px;overflow:hidden;box-shadow:0 30px 60px -30px rgba(43,36,34,.35)"><image-slot id="mk-hero-photo" shape="rounded" radius="28" placeholder="Hero photo · Ghanaian shopper unboxing on a sunlit balcony"></image-slot></div>
+        <div style="position:absolute;right:0;top:0;width:340px;background:#fff;border:1px solid #F0E8E3;border-radius:26px;padding:20px;box-shadow:0 40px 80px -40px rgba(43,36,34,.3);display:flex;flex-direction:column;gap:12px;animation:tmFloat 7s ease-in-out infinite">
+          <div style="display:flex;gap:12px;align-items:center"><div style="width:52px;height:52px;border-radius:12px;background:repeating-linear-gradient(135deg,#F6EDE7 0 6px,#EFE4DC 6px 12px)"></div><div style="min-width:0"><p style="font:600 14px/1.3 'Instrument Sans'">Sony WH-1000XM5 · Black</p><p style="margin-top:3px;font:500 12px/1 'Instrument Sans';color:#8A7F79">amazon.com · $298.00</p></div></div>
+          <div style="display:flex;flex-direction:column;gap:9px;font:500 13px/1 'Instrument Sans';color:#6E625B;font-variant-numeric:tabular-nums"><sc-for list="{{ receipt }}" as="r" hint-placeholder-count="5"><div style="display:flex;justify-content:space-between;animation:tmUp .45s {{ r.delay }} both"><span style="display:flex;gap:8px;align-items:center"><i class="ph-duotone {{ r.icon }}" style="font-size:15px;color:#F25B3D"></i>{{ r.k }}</span><span style="color:#2B2422">{{ r.v }}</span></div></sc-for></div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:12px;border-top:1px dashed #E8DDD6"><span style="font:600 14px/1 'Instrument Sans'">At your door</span><span style="font:700 26px/1 'Instrument Sans';letter-spacing:-.02em;animation:tmPop .6s 1.2s both">GH₵5,041.16</span></div>
+          <span style="height:44px;border-radius:12px;background:linear-gradient(90deg,#F43F5E,#F97316);color:#fff;display:flex;align-items:center;justify-content:center;font:700 14px/1 'Instrument Sans'">Pay with MoMo</span>
+        </div>
+        <span style="position:absolute;left:250px;bottom:70px;display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:#EEF8F1;color:#15703F;font:600 13px/1 'Instrument Sans';box-shadow:0 10px 30px -14px rgba(30,154,92,.5);animation:tmPop .6s 1.5s both"><i class="ph-fill ph-airplane-tilt"></i>Landed in Accra · 16 days</span>
+      </div>
+    </div>
+
+    
+
+    <div style="padding:96px 32px;display:flex;flex-direction:column;gap:48px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:40px"><div style="display:flex;flex-direction:column;gap:14px"><span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#F25B3D">How it works</span><h2 style="font:700 46px/1.02 'Bricolage Grotesque';max-width:560px">Four steps between a link and your front door.</h2></div><p style="max-width:360px;font:400 16px/1.5 'Instrument Sans';color:#6E625B">Most people finish step one in under a minute. We handle two through four.</p></div>
+      <div style="position:relative">
+        <div style="position:absolute;left:8%;right:8%;top:26px;height:2px;background:#EFE4DC"></div>
+        <div style="position:absolute;top:18px;left:8%;width:84%;height:0"><span style="position:absolute;animation:tmPlane 10s linear infinite;color:#F25B3D;margin-left:-8px"><i class="ph-fill ph-airplane-tilt" style="font-size:16px"></i></span></div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;position:relative">
+          <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:18px;animation:tmUp .6s {{ s.delay }} both"><span style="width:54px;height:54px;border-radius:50%;background:#fff;border:2px solid #F25B3D;display:flex;align-items:center;justify-content:center;margin-left:calc(50% - 27px)"><i class="ph-duotone {{ s.icon }}" style="font-size:24px;color:#F25B3D"></i></span><div style="background:#FDF9F6;border:1px solid #F0E8E3;border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:10px;min-height:200px"><span style="font:700 12px/1 'Instrument Sans';letter-spacing:.14em;color:#8A7F79">STEP {{ s.n }}</span><h3 style="font:700 20px/1.15 'Bricolage Grotesque'">{{ s.t }}</h3><p style="font:400 14px/1.5 'Instrument Sans';color:#6E625B">{{ s.d }}</p></div></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#FDF9F6;padding:96px 32px;display:flex;flex-direction:column;gap:44px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:40px"><h2 style="font:700 46px/1.02 'Bricolage Grotesque';max-width:600px">Three things only a personal shopper can do.</h2><p style="max-width:380px;font:400 16px/1.5 'Instrument Sans';color:#6E625B">Not a marketplace. A team in Accra purchasing on your behalf — with the tools to prove it.</p></div>
+      <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:20px">
+        <div style="background:#fff;border:1px solid #F0E8E3;border-radius:26px;padding:30px;display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center">
+          <div style="display:flex;flex-direction:column;gap:14px"><span style="width:52px;height:52px;border-radius:16px;background:#FFF1EC;display:flex;align-items:center;justify-content:center"><i class="ph-duotone ph-receipt" style="font-size:26px;color:#F25B3D"></i></span><h3 style="font:700 26px/1.1 'Bricolage Grotesque'">The landed price, upfront</h3><p style="font:400 15px/1.5 'Instrument Sans';color:#6E625B">Item, tax, our 5%, freight, today's rate — printed on every product, locked for 24 hours. What you see is what you pay.</p><span style="font:600 14px/1 'Instrument Sans';color:#F25B3D">See how fees work →</span></div>
+          <div style="background:#FDF9F6;border:1px solid #F0E8E3;border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:9px;font:500 13px/1 'Instrument Sans';color:#6E625B;font-variant-numeric:tabular-nums"><sc-for list="{{ receipt }}" as="r" hint-placeholder-count="5"><div style="display:flex;justify-content:space-between"><span style="display:flex;gap:8px;align-items:center"><i class="ph-duotone {{ r.icon }}" style="font-size:15px;color:#F25B3D"></i>{{ r.k }}</span><span style="color:#2B2422">{{ r.v }}</span></div></sc-for><div style="display:flex;justify-content:space-between;padding-top:10px;border-top:1px dashed #E8DDD6;font:700 16px/1 'Instrument Sans';color:#2B2422"><span>At your door</span><span>GH₵5,041.16</span></div></div>
+        </div>
+        <div style="background:linear-gradient(160deg,#FFF1EC,#FFF7EA);border:1px solid #F5E9E2;border-radius:26px;padding:30px;display:flex;flex-direction:column;gap:14px"><span style="width:52px;height:52px;border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center"><i class="ph-duotone ph-package" style="font-size:26px;color:#C97A0A"></i></span><h3 style="font:700 26px/1.1 'Bricolage Grotesque'">One box, less freight</h3><p style="font:400 15px/1.5 'Instrument Sans';color:#6E625B">Everything you purchase in a week flies together. Fill the box and the freight per item drops — we show you the saving as you shop.</p><div style="margin-top:auto;display:flex;align-items:flex-end;gap:14px"><div style="position:relative;width:120px;height:86px"><div style="position:absolute;bottom:0;left:10px;width:100px;height:70px;border:2px solid #E1A08E;border-top:0;border-radius:0 0 10px 10px;overflow:hidden;background:rgba(255,255,255,.7)"><div style="position:absolute;left:0;right:0;bottom:0;height:62%;background:linear-gradient(180deg,#F8907A,#F25B3D)"></div></div><div style="position:absolute;top:8px;left:2px;width:116px;height:10px;border:2px solid #E1A08E;border-bottom:0;border-radius:5px 5px 0 0;background:#fff"></div></div><div><span style="display:block;font:700 22px/1 'Instrument Sans'">62% full</span><span style="font:500 13px/1.6 'Instrument Sans';color:#1E9A5C">save GH₵96 with one more item</span></div></div></div>
+        <div style="background:#fff;border:1px solid #F0E8E3;border-radius:26px;padding:30px;display:flex;flex-direction:column;gap:14px"><span style="width:52px;height:52px;border-radius:16px;background:#EEF8F1;display:flex;align-items:center;justify-content:center"><i class="ph-duotone ph-bell-ringing" style="font-size:26px;color:#1E9A5C"></i></span><h3 style="font:700 26px/1.1 'Bricolage Grotesque'">Price watch</h3><p style="font:400 15px/1.5 'Instrument Sans';color:#6E625B">Bookmark anything. We re-check the store daily and ping you on WhatsApp when it drops — in cedis, landed.</p><div style="margin-top:auto;display:flex;gap:12px;align-items:center;padding:12px;border-radius:14px;background:#FDF9F6;border:1px solid #F0E8E3"><span style="width:38px;height:38px;border-radius:10px;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center"><i class="ph-fill ph-whatsapp-logo" style="font-size:20px"></i></span><div><p style="font:600 13px/1.3 'Instrument Sans'">MacBook Air dropped $150</p><p style="font:500 12px/1.4 'Instrument Sans';color:#6E625B">Now GH₵23,795 landed · tap to add</p></div></div></div>
+        <div style="background:#fff;border:1px solid #F0E8E3;border-radius:26px;padding:30px;display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center"><div style="display:flex;flex-direction:column;gap:14px"><span style="width:52px;height:52px;border-radius:16px;background:#FFF7EA;display:flex;align-items:center;justify-content:center"><i class="ph-duotone ph-chats-circle" style="font-size:26px;color:#C97A0A"></i></span><h3 style="font:700 26px/1.1 'Bricolage Grotesque'">A buyer you can talk to</h3><p style="font:400 15px/1.5 'Instrument Sans';color:#6E625B">Wrong size? Sketchy seller? Ask on WhatsApp before we buy. A real person in Accra answers.</p></div><div style="height:220px;border-radius:18px;overflow:hidden"><image-slot id="mk-buyer-photo" shape="rounded" radius="18" placeholder="Photo · Tomame buyer on the phone in the Accra office"></image-slot></div></div>
+      </div>
+    </div>
+
+    <!-- REGIONS -->
+    <div style="padding:96px 32px;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center">
+      <div style="display:flex;flex-direction:column;gap:22px"><span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#F25B3D">Where we buy</span><h2 style="font:700 46px/1.02 'Bricolage Grotesque'">From the USA today. UK and China next.</h2><p style="font:400 16px/1.5 'Instrument Sans';color:#6E625B">Our buyers purchase from any US store right now. UK and China lanes are being set up — join the waitlist and we'll tell you the day they open.</p><div style="display:flex;flex-direction:column;gap:10px"><sc-for list="{{ regions }}" as="r" hint-placeholder-count="3"><div style="display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;padding:14px 16px;border-radius:16px;background:#FDF9F6;border:1px solid #F0E8E3"><span style="width:44px;height:44px;border-radius:12px;background:#fff;border:1px solid #F0E8E3;display:flex;align-items:center;justify-content:center;font:700 13px/1 'Bricolage Grotesque'">{{ r.code }}</span><div><p style="font:600 15px/1.2 'Instrument Sans';display:flex;align-items:center;gap:8px">{{ r.name }}<span style="padding:4px 8px;border-radius:999px;background:{{ r.pillBg }};color:{{ r.pillFg }};font:700 10px/1 'Instrument Sans';letter-spacing:.08em;text-transform:uppercase">{{ r.status }}</span></p><p style="margin-top:3px;font:400 13px/1.3 'Instrument Sans';color:#6E625B">{{ r.stores }}</p></div><div style="text-align:right;color:{{ r.textColor }}"><span style="display:block;font:700 14px/1 'Instrument Sans'">{{ r.days }}</span><span style="font:500 12px/1.6 'Instrument Sans';color:#8A7F79">{{ r.freight }}</span></div></div></sc-for></div><span style="font:600 14px/1 'Instrument Sans';color:#F25B3D">US freight and timelines in detail →</span></div>
+      <div style="position:relative;height:460px;border-radius:28px;overflow:hidden;background:linear-gradient(160deg,#FFF1EC,#FFF7EA)">
+        <image-slot id="mk-regions-photo" shape="rounded" radius="28" placeholder="Photo · aerial of Kotoka airport cargo apron at golden hour"></image-slot>
+        <div style="position:absolute;left:24px;right:24px;bottom:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;pointer-events:none"><sc-for list="{{ regions }}" as="r" hint-placeholder-count="3"><div style="background:#fff;border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:4px"><span style="font:700 11px/1 'Instrument Sans';letter-spacing:.12em;color:#8A7F79">{{ r.code }} → ACC</span><span style="font:700 18px/1 'Bricolage Grotesque';color:{{ r.textColor }}">{{ r.days }}</span></div></sc-for></div>
+      </div>
+    </div>
+
+    <div style="background:#FDF9F6;padding:96px 32px;display:flex;flex-direction:column;gap:56px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px">
+        <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4"><div style="display:flex;flex-direction:column;gap:8px;padding:26px;border-radius:22px;background:#fff;border:1px solid #F0E8E3;animation:tmUp .6s {{ s.delay }} both"><span style="font:700 48px/1 'Bricolage Grotesque';letter-spacing:-.03em;background:linear-gradient(90deg,#F43F5E,#F97316);-webkit-background-clip:text;background-clip:text;color:transparent;width:fit-content">{{ s.v }}</span><span style="font:500 14px/1.3 'Instrument Sans';color:#6E625B">{{ s.l }}</span></div></sc-for>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+        <sc-for list="{{ quotes }}" as="q" hint-placeholder-count="3"><div style="background:#fff;border:1px solid #F0E8E3;border-radius:24px;padding:28px;display:flex;flex-direction:column;gap:18px"><span style="color:#F25B3D;display:flex;gap:2px"><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i></span><p style="font:400 16px/1.55 'Instrument Sans'">“{{ q.quote }}”</p><div style="display:flex;gap:12px;align-items:center;margin-top:auto;padding-top:14px;border-top:1px solid #F5EEE9"><div style="width:44px;height:44px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,#F43F5E,#F59E0B);color:#fff;font:700 13px/44px 'Instrument Sans';text-align:center">{{ q.initials }}</div><div><p style="font:600 14px/1.2 'Instrument Sans'">{{ q.name }}</p><p style="margin-top:2px;font:400 12px/1.3 'Instrument Sans';color:#8A7F79">{{ q.role }}</p></div></div></div></sc-for>
+      </div>
+    </div>
+
+    <div style="padding:96px 32px;display:grid;grid-template-columns:1fr 1.4fr;gap:60px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:20px"><span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#F25B3D">FAQ</span><h2 style="font:700 44px/1.02 'Bricolage Grotesque'">Things people ask before their first order.</h2><p style="font:400 16px/1.5 'Instrument Sans';color:#6E625B">Still unsure? WhatsApp us — a human answers within the hour, 8am–10pm.</p><span style="width:fit-content;height:46px;padding:0 18px;border-radius:12px;background:#fff;border:1.5px solid #F0E8E3;display:inline-flex;align-items:center;gap:8px;font:600 14px/1 'Instrument Sans'"><i class="ph-fill ph-whatsapp-logo" style="color:#25D366;font-size:18px"></i>Chat on WhatsApp</span></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ faqs }}" as="f" hint-placeholder-count="6"><div style="background:{{ f.bg }};border:1px solid #F0E8E3;border-radius:18px;padding:20px 22px;display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between;align-items:center;gap:16px"><p style="font:600 16px/1.3 'Instrument Sans'">{{ f.q }}</p><i class="ph {{ f.icon }}" style="font-size:18px;color:#8A7F79"></i></div><sc-if value="{{ f.open }}" hint-placeholder-val="{{ false }}"><p style="font:400 15px/1.55 'Instrument Sans';color:#6E625B">{{ f.a }}</p></sc-if></div></sc-for>
+      </div>
+    </div>
+
+    <div style="padding:0 32px 96px"><div style="position:relative;overflow:hidden;border-radius:30px;background:linear-gradient(135deg,#FFF1EC,#FFF7EA 60%,#FFF);border:1px solid #F5E9E2;padding:72px 64px;display:grid;grid-template-columns:1.2fr 1fr;gap:40px;align-items:center"><div style="position:absolute;right:-120px;bottom:-200px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,#FFD9CC 0%,rgba(255,217,204,0) 65%)"></div><div style="position:relative;display:flex;flex-direction:column;gap:20px"><h2 style="font:700 54px/1 'Bricolage Grotesque';letter-spacing:-.03em">Ready to shop the world?</h2><p style="font:400 17px/1.5 'Instrument Sans';color:#6E625B;max-width:480px">Free account. Quote anything in seconds — no card until you're ready to buy.</p><div style="display:flex;gap:10px"><span style="height:52px;padding:0 24px;border-radius:14px;background:linear-gradient(90deg,#F43F5E,#F97316);color:#fff;display:inline-flex;align-items:center;gap:8px;font:700 15px/1 'Instrument Sans';box-shadow:0 12px 28px -12px rgba(244,63,94,.5)">Create free account <i class="ph-bold ph-arrow-right"></i></span><span style="height:52px;padding:0 22px;border-radius:14px;background:#fff;border:1.5px solid #F0E8E3;display:inline-flex;align-items:center;font:600 15px/1 'Instrument Sans'">See fees</span></div></div><div style="position:relative;height:280px;border-radius:22px;overflow:hidden"><image-slot id="mk-cta-photo" shape="rounded" radius="22" placeholder="Photo · courier handing a Tomame box to a smiling customer, Accra street"></image-slot></div></div></div>
+    <dc-import name="TmMarketingFooter" hint-size="100%,300px"></dc-import>
+  </div>
+</section>
+
+<!-- ===================== WHERE WE BUY ===================== -->
+<section id="mk-regions" data-screen-label="Marketing · Where we buy" style="width:1280px">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6E625B;margin-bottom:10px">02 · Where we buy &amp; how delivery works</div>
+  <div style="background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <dc-import name="TmMarketingNav" active="regions" hint-size="100%,76px"></dc-import>
+    <div style="position:relative;overflow:hidden;padding:80px 32px 72px;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;background:#FDF9F6">
+      <div style="display:flex;flex-direction:column;gap:24px;animation:tmUp .7s both"><span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#F25B3D">Where we buy</span><h1 style="font:700 62px/.98 'Bricolage Grotesque';letter-spacing:-.035em">From the USA to your door in Ghana.</h1><p style="font:400 18px/1.5 'Instrument Sans';color:#6E625B;max-width:520px">Paste a link from any US store and we work out the freight and the timeline. Deliveries go to Accra, Kumasi, Takoradi, Tamale and Cape Coast — or any pickup point. UK and China are coming soon.</p><div style="display:flex;gap:10px"><span style="height:52px;padding:0 24px;border-radius:14px;background:linear-gradient(90deg,#F43F5E,#F97316);color:#fff;display:inline-flex;align-items:center;gap:8px;font:700 15px/1 'Instrument Sans'">Quote something <i class="ph-bold ph-arrow-right"></i></span><span style="height:52px;padding:0 22px;border-radius:14px;background:#fff;border:1.5px solid #F0E8E3;display:inline-flex;align-items:center;gap:8px;font:600 15px/1 'Instrument Sans'"><i class="ph ph-list-magnifying-glass"></i>Stores we read</span></div></div>
+      <div style="position:relative;width:600px;height:440px;justify-self:end;background:#fff;border:1px solid #F0E8E3;border-radius:28px;overflow:hidden;animation:tmUp .7s .15s both">
+        <div style="position:absolute;inset:0;background:radial-gradient(circle at 60% 60%,#FFF1EC 0%,rgba(255,241,236,0) 60%)"></div>
+        <svg viewBox="0 0 600 440" style="position:absolute;inset:0;width:100%;height:100%" fill="none"><path id="rUS" d="M110 130 C 250 40, 380 120, 430 330" stroke="#F0E8E3" stroke-width="2" stroke-dasharray="6 8"></path><path id="rUK" d="M300 90 C 380 120, 420 220, 430 330" stroke="#F0E8E3" stroke-width="2" stroke-dasharray="6 8"></path><path id="rCN" d="M520 120 C 520 220, 480 300, 430 330" stroke="#F0E8E3" stroke-width="2" stroke-dasharray="6 8"></path></svg>
+        <span style="position:absolute;left:80px;top:106px;display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:999px;background:#fff;border:1px solid #F0E8E3;font:600 13px/1 'Instrument Sans';box-shadow:0 8px 20px -12px rgba(43,36,34,.3);white-space:nowrap">🇺🇸 New York · 14–18 d</span>
+        <span style="position:absolute;left:250px;top:66px;display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:999px;background:#fff;border:1px solid #F0E8E3;font:600 13px/1 'Instrument Sans';box-shadow:0 8px 20px -12px rgba(43,36,34,.3);white-space:nowrap;opacity:.55">🇬🇧 London · <span style="color:#C97A0A">coming soon</span></span>
+        <span style="position:absolute;left:470px;top:96px;display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:999px;background:#fff;border:1px solid #F0E8E3;font:600 13px/1 'Instrument Sans';box-shadow:0 8px 20px -12px rgba(43,36,34,.3);white-space:nowrap;opacity:.55">🇨🇳 Guangzhou · <span style="color:#C97A0A">coming soon</span></span>
+        <span style="position:absolute;left:384px;top:306px;display:inline-flex;align-items:center;gap:8px;padding:12px 14px;border-radius:999px;background:linear-gradient(90deg,#F43F5E,#F97316);color:#fff;font:700 14px/1 'Instrument Sans';box-shadow:0 12px 28px -12px rgba(244,63,94,.6);animation:tmPop .6s .8s both;white-space:nowrap">🇬🇭 Accra</span>
+        <span style="position:absolute;offset-path:path('M110 130 C 250 40, 380 120, 430 330');offset-rotate:auto;animation:tmArc 6s linear infinite;color:#F25B3D"><i class="ph-fill ph-airplane" style="font-size:18px;display:block;transform:rotate(90deg)"></i></span>
+        
+      </div>
+    </div>
+    <div style="padding:96px 32px;display:flex;flex-direction:column;gap:32px">
+      <h2 style="font:700 44px/1.02 'Bricolage Grotesque';max-width:600px">The US lane today — and what's next.</h2>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+        <sc-for list="{{ regionCards }}" as="r" hint-placeholder-count="3"><div style="background:#FDF9F6;border:1px solid #F0E8E3;border-radius:26px;overflow:hidden;display:flex;flex-direction:column;animation:tmUp .6s {{ r.delay }} both"><div style="height:200px"><image-slot id="{{ r.slot }}" shape="rect" placeholder="{{ r.photo }}"></image-slot></div><div style="padding:24px;display:flex;flex-direction:column;gap:14px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="font:700 24px/1.1 'Bricolage Grotesque'">{{ r.name }}</h3><span style="padding:5px 9px;border-radius:999px;background:{{ r.pillBg }};color:{{ r.pillFg }};font:700 10px/1 'Instrument Sans';letter-spacing:.08em;text-transform:uppercase">{{ r.status }}</span></div><p style="font:400 14px/1.5 'Instrument Sans';color:#6E625B">{{ r.blurb }}</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:6px"><div style="background:#fff;border-radius:12px;padding:12px;color:{{ r.textColor }}"><span style="display:block;font:500 11px/1 'Instrument Sans';color:#8A7F79">Link to door</span><span style="display:block;margin-top:5px;font:700 15px/1 'Instrument Sans'">{{ r.days }}</span></div><div style="background:#fff;border-radius:12px;padding:12px;color:{{ r.textColor }}"><span style="display:block;font:500 11px/1 'Instrument Sans';color:#8A7F79">Freight from</span><span style="display:block;margin-top:5px;font:700 15px/1 'Instrument Sans'">{{ r.freight }}</span></div></div><div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ r.tags }}" as="t" hint-placeholder-count="4"><span style="padding:6px 10px;border-radius:999px;background:#fff;border:1px solid #F0E8E3;font:500 12px/1 'Instrument Sans';color:#6E625B">{{ t }}</span></sc-for></div></div></div></sc-for>
+      </div>
+    </div>
+    <div style="background:#FDF9F6;padding:96px 32px;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center">
+      <div style="display:flex;flex-direction:column;gap:20px"><span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#F25B3D">Delivery in Ghana</span><h2 style="font:700 44px/1.02 'Bricolage Grotesque'">Door delivery in Accra is free. Everywhere else is flat.</h2><p style="font:400 16px/1.5 'Instrument Sans';color:#6E625B">Once your box lands at Kotoka, a Tomame rider brings it to you. Outside Greater Accra we hand over to trusted partners with the same tracking.</p><div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ cities }}" as="c" hint-placeholder-count="5"><div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-radius:14px;background:#fff;border:1px solid #F0E8E3;font:500 14px/1 'Instrument Sans'"><span style="display:flex;align-items:center;gap:10px"><i class="ph-duotone ph-map-pin" style="font-size:18px;color:#F25B3D"></i>{{ c.n }}</span><span style="display:flex;gap:18px;align-items:center;color:#6E625B"><span>{{ c.t }}</span><span style="font-weight:700;color:{{ c.color }};min-width:70px;text-align:right">{{ c.p }}</span></span></div></sc-for></div></div>
+      <div style="height:480px;border-radius:28px;overflow:hidden"><image-slot id="mk-delivery-photo" shape="rounded" radius="28" placeholder="Photo · Tomame rider handing a box to a customer at a gate in East Legon"></image-slot></div>
+    </div>
+    <dc-import name="TmMarketingFooter" hint-size="100%,300px"></dc-import>
+  </div>
+</section>
+
+<!-- ===================== FEES ===================== -->
+<section id="mk-fees" data-screen-label="Marketing · Fees" style="width:1280px">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6E625B;margin-bottom:10px">03 · Fees</div>
+  <div style="background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <dc-import name="TmMarketingNav" active="fees" hint-size="100%,76px"></dc-import>
+    <div style="padding:80px 32px 64px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:20px;animation:tmUp .7s both"><span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#F25B3D">Fees</span><h1 style="font:700 62px/.98 'Bricolage Grotesque';letter-spacing:-.035em;max-width:760px">One fee. Everything else is pass-through.</h1><p style="font:400 18px/1.5 'Instrument Sans';color:#6E625B;max-width:600px">We charge 5% of the item price. Tax, freight and the exchange rate are shown at cost — and every one of them is on your receipt before you pay.</p></div>
+    <div style="padding:0 32px 96px;display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <sc-for list="{{ fees }}" as="f" hint-placeholder-count="5"><div style="background:{{ f.bg }};border:1px solid #F0E8E3;border-radius:22px;padding:22px 24px;display:grid;grid-template-columns:52px 1fr auto;gap:18px;align-items:center;animation:tmUp .6s {{ f.delay }} both"><span style="width:52px;height:52px;border-radius:16px;background:#fff;border:1px solid #F0E8E3;display:flex;align-items:center;justify-content:center"><i class="ph-duotone {{ f.icon }}" style="font-size:26px;color:{{ f.color }}"></i></span><div><p style="font:700 17px/1.2 'Bricolage Grotesque'">{{ f.t }}</p><p style="margin-top:4px;font:400 14px/1.5 'Instrument Sans';color:#6E625B">{{ f.d }}</p></div><span style="font:700 20px/1 'Instrument Sans';letter-spacing:-.02em;color:{{ f.color }};white-space:nowrap">{{ f.v }}</span></div></sc-for>
+      </div>
+      <div style="position:sticky;top:20px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#fff;border:1px solid #F0E8E3;border-radius:26px;overflow:hidden;box-shadow:0 30px 60px -36px rgba(43,36,34,.25)">
+          <div style="padding:22px 24px 16px;background:linear-gradient(160deg,#FFF1EC,#FFF7EA);display:flex;flex-direction:column;gap:8px"><span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#C43E22">Worked example</span><p style="font:700 20px/1.2 'Bricolage Grotesque'">A $298 pair of headphones from the US</p><div style="display:flex;gap:6px;padding-top:4px"><span style="padding:6px 10px;border-radius:999px;background:#fff;font:600 12px/1 'Instrument Sans'">$298</span><span style="padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.5);font:600 12px/1 'Instrument Sans';color:#8A7F79">$50</span><span style="padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.5);font:600 12px/1 'Instrument Sans';color:#8A7F79">$1,200</span></div></div>
+          <div style="padding:18px 24px;display:flex;flex-direction:column;gap:12px;font:500 14px/1 'Instrument Sans';color:#6E625B;font-variant-numeric:tabular-nums">
+            <sc-for list="{{ worked }}" as="w" hint-placeholder-count="5"><div style="display:flex;flex-direction:column;gap:6px;animation:tmUp .45s {{ w.delay }} both"><div style="display:flex;justify-content:space-between"><span>{{ w.k }}</span><span style="color:#2B2422">{{ w.v }}</span></div><div style="height:6px;border-radius:3px;background:#F5EEE9;overflow:hidden"><div style="height:100%;width:{{ w.pct }};background:{{ w.color }};transform-origin:left;animation:tmFill 1s {{ w.delay }} cubic-bezier(.16,1,.3,1) both"></div></div></div></sc-for>
+          </div>
+          <div style="padding:16px 24px 24px;display:flex;justify-content:space-between;align-items:baseline;border-top:1px dashed #E8DDD6"><span style="font:600 15px/1 'Instrument Sans'">At your door</span><div style="text-align:right"><span style="display:block;font:700 32px/1 'Instrument Sans';letter-spacing:-.03em;animation:tmPop .6s 1.4s both">GH₵5,041.16</span><span style="font:500 12px/1.8 'Instrument Sans';color:#8A7F79">≈ $349.36 · of which Tomame keeps $14.90</span></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="background:#EEF8F1;border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:6px"><i class="ph-duotone ph-arrow-u-up-left" style="font-size:22px;color:#1E9A5C"></i><p style="font:700 14px/1.2 'Instrument Sans';color:#15703F">Can't source it? 100% back.</p><p style="font:400 12px/1.4 'Instrument Sans';color:#166534">Including our fee, within 24 hours.</p></div>
+          <div style="background:#FFF7EA;border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:6px"><i class="ph-duotone ph-lock-simple" style="font-size:22px;color:#C97A0A"></i><p style="font:700 14px/1.2 'Instrument Sans';color:#8A5A0A">Rate locked 24 hours.</p><p style="font:400 12px/1.4 'Instrument Sans';color:#8A5A0A">Mid-market + 4% buffer, shown on every quote.</p></div>
+        </div>
+      </div>
+    </div>
+    <div style="background:#FDF9F6;padding:80px 32px;display:flex;flex-direction:column;gap:32px">
+      <h2 style="font:700 40px/1.05 'Bricolage Grotesque'">Compared with doing it yourself.</h2>
+      <div style="background:#fff;border:1px solid #F0E8E3;border-radius:24px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;padding:16px 24px;background:#FDF9F6;border-bottom:1px solid #F0E8E3;font:600 12px/1 'Instrument Sans';letter-spacing:.08em;text-transform:uppercase;color:#8A7F79"><span></span><span>Tomame</span><span>Dollar card + forwarder</span><span>“Someone travelling”</span></div>
+        <sc-for list="{{ compare }}" as="c" hint-placeholder-count="5"><div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;padding:18px 24px;border-bottom:1px solid #F5EEE9;font:500 14px/1.3 'Instrument Sans';align-items:center"><span style="font-weight:600">{{ c.k }}</span><span style="display:flex;align-items:center;gap:8px;color:#15703F"><i class="ph-fill ph-check-circle" style="font-size:18px;color:#1E9A5C"></i>{{ c.a }}</span><span style="color:#6E625B">{{ c.b }}</span><span style="color:#6E625B">{{ c.c }}</span></div></sc-for>
+      </div>
+    </div>
+    <dc-import name="TmMarketingFooter" hint-size="100%,300px"></dc-import>
+  </div>
+</section>
+
+<!-- ===================== ABOUT ===================== -->
+<section id="mk-about" data-screen-label="Marketing · About" style="width:1280px">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6E625B;margin-bottom:10px">04 · About</div>
+  <div style="background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <dc-import name="TmMarketingNav" active="about" hint-size="100%,76px"></dc-import>
+    <div style="padding:80px 32px 64px;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:end"><div style="display:flex;flex-direction:column;gap:20px;animation:tmUp .7s both"><span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#F25B3D">About</span><h1 style="font:700 60px/.98 'Bricolage Grotesque';letter-spacing:-.035em">Buying from abroad shouldn't feel like asking a favour.</h1></div><p style="font:400 18px/1.55 'Instrument Sans';color:#6E625B;padding-bottom:8px">Tomame began in 2023 in Accra, when three friends got tired of begging cousins overseas to post things home. Today a small team buys, ships and delivers for thousands of Ghanaians — with the price agreed before a cedi moves.</p></div>
+    <div style="padding:0 32px;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:16px;height:380px"><div style="border-radius:24px;overflow:hidden"><image-slot id="mk-about-1" shape="rounded" radius="24" placeholder="Photo · Tomame team in the Accra office, warm light"></image-slot></div><div style="border-radius:24px;overflow:hidden"><image-slot id="mk-about-2" shape="rounded" radius="24" placeholder="Photo · buyer scanning a parcel label"></image-slot></div><div style="display:grid;grid-template-rows:1fr 1fr;gap:16px"><div style="border-radius:24px;overflow:hidden"><image-slot id="mk-about-3" shape="rounded" radius="24" placeholder="Photo · Accra courier on a motorbike"></image-slot></div><div style="border-radius:24px;background:linear-gradient(160deg,#FFF1EC,#FFF7EA);padding:22px;display:flex;flex-direction:column;justify-content:center;gap:6px"><span style="font:700 36px/1 'Bricolage Grotesque';letter-spacing:-.03em">5,000+</span><span style="font:500 13px/1.3 'Instrument Sans';color:#6E625B">boxes delivered since 2023</span></div></div></div>
+    <div style="padding:96px 32px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+      <sc-for list="{{ values }}" as="v" hint-placeholder-count="3"><div style="background:#FDF9F6;border:1px solid #F0E8E3;border-radius:24px;padding:28px;display:flex;flex-direction:column;gap:14px;min-height:220px"><span style="width:52px;height:52px;border-radius:16px;background:#fff;border:1px solid #F0E8E3;display:flex;align-items:center;justify-content:center"><i class="ph-duotone {{ v.icon }}" style="font-size:26px;color:#F25B3D"></i></span><h3 style="font:700 22px/1.15 'Bricolage Grotesque'">{{ v.t }}</h3><p style="font:400 15px/1.5 'Instrument Sans';color:#6E625B">{{ v.d }}</p></div></sc-for>
+    </div>
+    <dc-import name="TmMarketingFooter" hint-size="100%,300px"></dc-import>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals(){
+    const receipt=[
+      {icon:"ph-tag",k:"Item",v:"$298.00",delay:".25s"},
+      {icon:"ph-bank",k:"US sales tax 8%",v:"$23.84",delay:".4s"},
+      {icon:"ph-hand-heart",k:"Tomame fee 5%",v:"$14.90",delay:".55s"},
+      {icon:"ph-airplane-tilt",k:"Freight",v:"GH₵180.00",delay:".7s"},
+      {icon:"ph-arrows-left-right",k:"Rate",v:"1 USD = 14.43",delay:".85s"},
+    ];
+    const stores=["AMAZON","EBAY","SHEIN","MICRO CENTER","APPLE","WALMART","ASOS","ALIBABA","NIKE","ZARA","H&M","BEST BUY","TARGET","ETSY"];
+    const marquee=[...stores,...stores];
+    const steps=[
+      {n:"01",icon:"ph-link-simple",t:"Paste a link",d:"Any Amazon, eBay, Walmart or Best Buy product page. We read the title, photos, price and weight in seconds.",delay:".1s"},
+      {n:"02",icon:"ph-receipt",t:"See the landed price",d:"Item, tax, our 5%, freight and today's rate — itemised in GH₵ and locked for 24 hours.",delay:".2s"},
+      {n:"03",icon:"ph-device-mobile",t:"Pay with MoMo or card",d:"Paystack holds it until we've purchased your item. Can't source it? Full refund, same day.",delay:".3s"},
+      {n:"04",icon:"ph-house-line",t:"Track it to your door",d:"Store → our US hub → Accra → you. WhatsApp updates at each hop. Typically 2–4 weeks.",delay:".4s"},
+    ];
+    const regions=[
+      {code:"US",name:"United States",stores:"Amazon, eBay, Apple, Walmart, Best Buy, SHEIN US",days:"14–18 days",freight:"from GH₵74 / lb",status:"Live",pillBg:"#EEF8F1",pillFg:"#15703F",textColor:"#2B2422"},
+      {code:"UK",name:"United Kingdom",stores:"ASOS, Amazon UK, Zara, Boots",days:"Coming soon",freight:"join the waitlist",status:"Soon",pillBg:"#FFF7EA",pillFg:"#8A5A0A",textColor:"#8A7F79"},
+      {code:"CN",name:"China",stores:"Alibaba, AliExpress, Temu",days:"Coming soon",freight:"join the waitlist",status:"Soon",pillBg:"#FFF7EA",pillFg:"#8A5A0A",textColor:"#8A7F79"},
+    ];
+    const regionCards=[
+      {...regions[0],slot:"mk-region-us",photo:"Photo · New York storefronts / Amazon box on a stoop",blurb:"Our only lane for now, and a well-worn one. Weekly consolidated air freight out of New York; electronics and sneakers are most of what flies.",tags:["Electronics","Sneakers","Beauty","Books"],delay:".1s"},
+      {...regions[1],slot:"mk-region-uk",photo:"Photo · London high street, red bus blur",blurb:"Opening next. Direct cargo from London means a shorter flight — fashion first. Join the waitlist to hear when it opens.",tags:["Fashion","Skincare","Baby","Homeware"],delay:".2s"},
+      {...regions[2],slot:"mk-region-cn",photo:"Photo · Guangzhou market, bolts of fabric and boxes",blurb:"On the roadmap. Cheapest per pound for bulk orders and small-business stock. Waitlist open.",tags:["Bulk","Fabric","Gadgets","Hair"],delay:".3s"},
+    ];
+    const cities=[{n:"Greater Accra · door delivery",t:"same or next day after landing",p:"Free",color:"#1E9A5C"},{n:"Kumasi",t:"+2 days",p:"GH₵40",color:"#2B2422"},{n:"Takoradi",t:"+2 days",p:"GH₵40",color:"#2B2422"},{n:"Cape Coast · Tamale · Ho",t:"+3 days",p:"GH₵55",color:"#2B2422"},{n:"Pickup at our Osu hub",t:"any time after landing",p:"Free",color:"#1E9A5C"}];
+    const stats=[{v:"5,000+",l:"boxes delivered since 2023",delay:".1s"},{v:"16 days",l:"average link-to-door",delay:".18s"},{v:"100+",l:"US stores we buy from",delay:".26s"},{v:"0",l:"surprise charges, ever",delay:".34s"}];
+    const quotes=[
+      {quote:"I paste a link, pay with Mobile Money, and it arrives. No forex stress, no surprises.",name:"Kwame Asante",role:"Founder, Kente Boutique — Accra",initials:"KA"},
+      {quote:"I used to spend hours trying to buy from Amazon. Now it's minutes, in cedis. The WhatsApp tracking is a bonus.",name:"Abena Mensah",role:"CEO, Accra Imports Ltd.",initials:"AM"},
+      {quote:"The breakdown is incredibly honest. I see exactly what I'm paying before I confirm. That trust is everything.",name:"Kofi Boateng",role:"Owner, GoldCoast Trends — Kumasi",initials:"KB"},
+    ];
+    const faqs=[
+      {q:"Which stores can I buy from?",a:"Right now, any store that ships within the USA — Amazon, eBay, Apple, Walmart, Best Buy and 100+ more. If we can't read a page automatically, our team quotes it by hand within a few hours. UK and China lanes are coming soon.",open:true,icon:"ph-minus",bg:"#FDF9F6"},
+      {q:"How is the price worked out?",a:"",open:false,icon:"ph-plus",bg:"#fff"},
+      {q:"Can I pay with Mobile Money?",a:"",open:false,icon:"ph-plus",bg:"#fff"},
+      {q:"What if my item can't be sourced?",a:"",open:false,icon:"ph-plus",bg:"#fff"},
+      {q:"How long does delivery take?",a:"",open:false,icon:"ph-plus",bg:"#fff"},
+      {q:"Is there a minimum order?",a:"",open:false,icon:"ph-plus",bg:"#fff"},
+    ];
+    const fees=[
+      {icon:"ph-hand-heart",t:"Tomame fee",d:"Our only charge. Covers buying, checking the seller, receiving and repacking.",v:"5%",color:"#F25B3D",bg:"#FFF8F5",delay:".1s"},
+      {icon:"ph-bank",t:"Store sales tax",d:"Charged by the store at checkout, passed through at cost. Varies by US state; some states charge none.",v:"at cost",color:"#6E625B",bg:"#fff",delay:".18s"},
+      {icon:"ph-airplane-tilt",t:"Freight",d:"By weight. From GH₵74/lb out of the US, 1 lb minimum. Boxes consolidate, so freight per item falls as you add.",v:"per lb",color:"#6E625B",bg:"#fff",delay:".26s"},
+      {icon:"ph-arrows-left-right",t:"Exchange rate",d:"Mid-market plus a 4% buffer, locked for 24 hours from your quote. Always printed on the receipt.",v:"+4%",color:"#6E625B",bg:"#fff",delay:".34s"},
+      {icon:"ph-truck",t:"Door delivery",d:"Free in Greater Accra. Flat GH₵40–55 elsewhere, or free pickup at our Osu hub.",v:"free",color:"#1E9A5C",bg:"#F4FBF6",delay:".42s"},
+    ];
+    const worked=[
+      {k:"Item",v:"$298.00",pct:"100%",color:"#2B2422",delay:".3s"},
+      {k:"US sales tax 8%",v:"$23.84",pct:"8%",color:"#C9BDB5",delay:".45s"},
+      {k:"Tomame fee 5%",v:"$14.90",pct:"5%",color:"#F25B3D",delay:".6s"},
+      {k:"Freight · 0.6 lb, US",v:"GH₵180.00 (≈ $12.47)",pct:"4%",color:"#C9BDB5",delay:".75s"},
+      {k:"Rate · 1 USD = 14.43",v:"GH₵4,861.16 + freight",pct:"0%",color:"#C9BDB5",delay:".9s"},
+    ];
+    const compare=[
+      {k:"Total shown before paying",a:"Yes, itemised",b:"No — card FX + forwarder fee later",c:"Guesswork"},
+      {k:"Pay in cedis",a:"MoMo or card",b:"Needs a dollar card",c:"Cash, usually"},
+      {k:"Refund if unavailable",a:"100% in 24 h",b:"Store policy only",c:"Awkward"},
+      {k:"Tracking",a:"Store → door, WhatsApp",b:"Two separate trackers",c:"“Have they landed yet?”"},
+      {k:"Typical time",a:"2–4 weeks",b:"3–6 weeks",c:"Whenever they travel"},
+    ];
+    const values=[
+      {icon:"ph-eye",t:"Transparency",d:"Every fee explained before you pay. If it isn't on the receipt, you don't owe it."},
+      {icon:"ph-lightning",t:"Speed",d:"Instant quotes, weekly flights, riders the day it lands. We don't make you wait to know."},
+      {icon:"ph-shield-check",t:"Trust",d:"Your money is held until we've purchased your item. Can't source it? Refunded in full."},
+    ];
+    return {receipt,marquee,steps,regions,regionCards,cities,stats,quotes,faqs,fees,worked,compare,values};
+  }
+}
+</script>
+</body>
+</html>

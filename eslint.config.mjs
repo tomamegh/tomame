@@ -16,6 +16,8 @@ export default [
     },
   },
   {
-    ignores: [".next/**", "node_modules/**"],
+    // design/ holds the vendored redesign mocks (.dc.html + their support JS).
+    // Reference material, never imported by the app — not ours to lint.
+    ignores: [".next/**", "node_modules/**", "design/**", ".claude/**"],
   },
 ];

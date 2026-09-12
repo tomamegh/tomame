@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</helmet>
+<nav style="height:76px;display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-bottom:1px solid #F5EEE9;background:#fff;font-family:'Instrument Sans',system-ui,sans-serif">
+  <span style="font:800 26px/1 'Bricolage Grotesque',sans-serif;letter-spacing:-.03em;background:linear-gradient(90deg,#F43F5E 0%,#F97316 60%,#F59E0B 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Tomame</span>
+  <div style="display:flex;gap:28px;font:500 14px/1 'Instrument Sans',sans-serif">
+    <span style="color:{{ c.how }}">How it works</span>
+    <span style="color:{{ c.regions }}">Where we buy</span>
+    <span style="color:{{ c.fees }}">Fees</span>
+    <span style="color:{{ c.faq }}">FAQ</span>
+    <span style="color:{{ c.about }}">About</span>
+  </div>
+  <div style="display:flex;gap:8px"><span style="height:40px;padding:0 16px;border-radius:999px;display:inline-flex;align-items:center;font:600 14px/1 'Instrument Sans',sans-serif;color:#2B2422">Sign in</span><span style="height:40px;padding:0 18px;border-radius:999px;background:linear-gradient(90deg,#F43F5E,#F97316);color:#fff;display:inline-flex;align-items:center;font:600 14px/1 'Instrument Sans',sans-serif">Get started</span></div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:76},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;how&quot;,&quot;regions&quot;,&quot;fees&quot;,&quot;faq&quot;,&quot;about&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals(){const a=this.props.active??"home",c={};["how","regions","fees","faq","about"].forEach(k=>c[k]=k===a?"#2B2422":"#6E625B");return {c};}
+}
+</script>
+</body>
+</html>

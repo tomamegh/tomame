@@ -36,3 +36,9 @@ next-env.d.ts
 *.xlsx
 *.pdf
 .env*
+
+# Redesign mocks: keep the .dc.html sources and assets, drop canvas editor
+# state and the artboards extracted from them (regenerable).
+design/.image-slots.state.json
+design/.thumbnail
+design/_render/

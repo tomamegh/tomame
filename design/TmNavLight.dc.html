@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<style>@keyframes tmPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.35}}</style>
+</helmet>
+<nav style="background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-bottom:1px solid #F0E8E3;font-family:'Instrument Sans',system-ui,sans-serif;color:#2B2422">
+  <div style="max-width:1280px;margin:0 auto;padding:0 32px;height:76px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:24px">
+    <span style="font:800 26px/1 'Bricolage Grotesque',sans-serif;letter-spacing:-.03em;background:linear-gradient(90deg,#F43F5E 0%,#F97316 60%,#F59E0B 100%);-webkit-background-clip:text;background-clip:text;color:transparent;width:fit-content">Tomame</span>
+    <div style="display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;background:#FDF5F1;border:1px solid #F5E9E2">
+      <span style="display:flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:999px;font:600 14px/1 'Instrument Sans',sans-serif;background:{{ b.home }};color:{{ c.home }};box-shadow:{{ s.home }}"><i class="ph-duotone ph-house" style="font-size:18px"></i>Home</span>
+      <span style="display:flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:999px;font:600 14px/1 'Instrument Sans',sans-serif;background:{{ b.shop }};color:{{ c.shop }};box-shadow:{{ s.shop }}"><i class="ph-duotone ph-storefront" style="font-size:18px"></i>Buy for me</span>
+      <span style="display:flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:999px;font:600 14px/1 'Instrument Sans',sans-serif;background:{{ b.ship }};color:{{ c.ship }};box-shadow:{{ s.ship }}"><i class="ph-duotone ph-bookmark-simple" style="font-size:18px"></i>Price watch</span>
+      <span style="display:flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:999px;font:600 14px/1 'Instrument Sans',sans-serif;background:{{ b.orders }};color:{{ c.orders }};box-shadow:{{ s.orders }}"><i class="ph-duotone ph-path" style="font-size:18px"></i>Journeys</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end">
+      <span style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px 0 10px;border-radius:999px;border:1px solid #F0E8E3;font:500 13px/1 'Instrument Sans',sans-serif;color:#6E625B"><span style="position:relative;width:8px;height:8px;display:inline-flex"><span style="position:absolute;inset:0;border-radius:50%;background:#1E9A5C;animation:tmPulse 2.2s ease-in-out infinite"></span><span style="position:absolute;inset:0;border-radius:50%;background:#1E9A5C"></span></span>$1 = GH₵14.43</span>
+      <span style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#2B2422"><i class="ph ph-bookmark-simple" style="font-size:22px"></i></span>
+      <span style="position:relative;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center"><i class="ph ph-tote" style="font-size:22px"></i><span style="position:absolute;top:1px;right:0;min-width:18px;height:18px;border-radius:9px;background:#F25B3D;color:#fff;font:700 11px/18px 'Instrument Sans',sans-serif;text-align:center;padding:0 5px">{{ cart }}</span></span>
+      <span style="position:relative;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center"><i class="ph ph-bell-simple" style="font-size:22px"></i><span style="position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:#F25B3D;border:2px solid #fff"></span></span>
+      <span style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#FDE1DA,#FFE8C7);color:#B93A22;font:700 13px/36px 'Instrument Sans',sans-serif;text-align:center;margin-left:4px">K</span>
+    </div>
+  </div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:76},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;shop&quot;,&quot;ship&quot;,&quot;orders&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;cart&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;tsType&quot;:&quot;number&quot;}}">
+class Component extends DCLogic {
+  renderVals(){
+    const a=this.props.active??"home",b={},c={},s={};
+    ["home","shop","ship","orders"].forEach(k=>{const on=k===a;b[k]=on?"#fff":"transparent";c[k]=on?"#2B2422":"#6E625B";s[k]=on?"0 1px 3px rgba(43,36,34,.08)":"none";});
+    return {b,c,s,cart:this.props.cart??2};
+  }
+}
+</script>
+</body>
+</html>

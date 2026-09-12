@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+body{margin:0;background:#ece9e6;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+*{box-sizing:border-box}
+</style>
+</helmet>
+
+<div style="display:flex;flex-direction:column;gap:56px;padding:40px">
+
+<!-- ===== DASHBOARD /app ===== -->
+<section id="cur-dashboard" data-screen-label="Current · Dashboard" style="width:1280px">
+  <div style="font:600 11px/1 Inter;letter-spacing:.12em;text-transform:uppercase;color:#78716c;margin-bottom:10px">Current · /app (Dashboard)</div>
+  <div style="background:#f5f5f4;min-height:900px;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <nav style="background:#fff;border-bottom:1px solid rgba(231,229,228,.4);box-shadow:0 1px 12px -4px rgba(120,113,108,.08);padding:8px 0">
+      <div style="max-width:1280px;margin:0 auto;padding:0 32px;display:flex;justify-content:space-between;align-items:center;height:64px">
+        <span style="font:700 20px/1 Inter;background:linear-gradient(to right,#f43f5e,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent">Tomame</span>
+        <div style="display:flex;gap:32px;align-items:center;font:500 14px/1 Inter">
+          <span style="color:#78716c">Home</span><span style="color:#78716c">About</span><span style="color:#78716c">FAQ</span><span style="color:#78716c">Contact</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border-radius:999px">
+          <div style="width:32px;height:32px;border-radius:50%;border:1px solid #ffedd5;background:linear-gradient(to top right,#f59e0b,#ff793f);color:#fff;font:600 12px/32px Inter;text-align:center">K</div>
+          <span style="font:500 14px/1 Inter;color:#44403c">Kwame</span>
+          <i data-lucide="chevron-down" style="width:16px;height:16px;color:#a8a29e"></i>
+        </div>
+      </div>
+    </nav>
+    <div style="flex:1;width:100%;max-width:1280px;margin:0 auto;padding:40px 32px;display:flex;flex-direction:column;gap:40px">
+      <div style="position:relative;border-radius:24px;border:1px solid rgba(255,228,230,.6);background:#fff;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;align-items:center;min-height:56px;border:1px solid #e7e5e4;background:#f5f5f4;border-radius:8px;padding-left:12px;box-shadow:inset 0 2px 4px rgba(0,0,0,.05)">
+          <i data-lucide="link" style="width:20px;height:20px;color:#a8a29e;margin:0 8px"></i>
+          <span style="flex:1;font:500 14px/1 Inter;color:#78716c">Paste product URL here...</span>
+          <div style="margin:6px;display:flex;align-items:center;gap:6px;background:linear-gradient(to right,#f59e0b,#f43f5e);color:#fff;border-radius:8px;padding:12px 20px;font:600 14px/1 Inter;box-shadow:0 4px 6px -1px rgba(255,92,53,.15)">
+            <i data-lucide="sparkles" style="width:16px;height:16px"></i>Extract Product
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div style="height:40px;display:flex;align-items:center;padding:0 16px;border-radius:12px;border:1px solid #f5f5f4;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05)"><img src="assets/icons/amazon.svg" style="height:20px" alt="Amazon"></div>
+          <div style="height:40px;display:flex;align-items:center;padding:0 16px;border-radius:12px;border:1px solid #f5f5f4;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05)"><img src="assets/icons/ebay.svg" style="height:20px" alt="eBay"></div>
+          <div style="height:40px;display:flex;align-items:center;padding:0 16px;border-radius:12px;border:1px solid #f5f5f4;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05);font:700 14px/1 Inter;color:#1c1917">SHEIN</div>
+          <div style="height:40px;display:flex;align-items:center;padding:0 16px;border-radius:12px;border:1px solid #f5f5f4;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05);font:700 14px/1 Inter;color:#44403c">MICROCENTER</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
+        <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+          <div style="border-radius:16px;border:1px solid #f5f5f4;background:#fff;box-shadow:0 4px 24px -2px rgba(120,113,108,.08),0 2px 8px -2px rgba(120,113,108,.06);padding:20px;display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+              <span style="font:600 11px/1 Inter;letter-spacing:.05em;text-transform:uppercase;color:#a8a29e">{{ s.label }}</span>
+              <span style="font:900 {{ s.size }}/1.2 Inter;color:#292524">{{ s.value }}</span>
+              <span style="display:flex;align-items:center;gap:4px;padding-top:4px;font:600 12px/1 Inter;color:{{ s.color }}">{{ s.link }} <i data-lucide="arrow-right" style="width:12px;height:12px"></i></span>
+            </div>
+            <div style="width:44px;height:44px;border-radius:50%;background:{{ s.bg }};color:{{ s.color }};display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="{{ s.icon }}" style="width:20px;height:20px"></i></div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <h2 style="margin:0;font:500 18px/1.5 Inter;letter-spacing:-.025em;color:#292524">Recent Orders</h2>
+          <span style="font:500 14px/1 Inter;color:#f97316">View all</span>
+        </div>
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:24px 0;display:flex;flex-direction:column;gap:24px">
+          <div style="padding:0 24px">
+            <table style="width:100%;border-collapse:collapse;font-size:14px">
+              <thead><tr style="background:rgba(250,250,249,.8);color:#78716c;text-align:left;font-weight:500">
+                <th style="padding:8px 12px;height:40px;font-weight:500"><span style="display:inline-flex;align-items:center;gap:4px">Product <i data-lucide="chevrons-up-down" style="width:12px;height:12px;opacity:.4"></i></span></th>
+                <th style="padding:8px 12px;font-weight:500"><span style="display:inline-flex;align-items:center;gap:4px">Date <i data-lucide="arrow-down" style="width:12px;height:12px"></i></span></th>
+                <th style="padding:8px 12px;font-weight:500">Status</th>
+                <th style="padding:8px 12px;font-weight:500"><span style="display:inline-flex;align-items:center;gap:4px">Total <i data-lucide="chevrons-up-down" style="width:12px;height:12px;opacity:.4"></i></span></th>
+                <th style="padding:8px 12px;width:52px"></th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ orders }}" as="o" hint-placeholder-count="4">
+                  <tr style="border-bottom:1px solid #f5f5f4">
+                    <td style="padding:8px 12px"><div style="display:flex;align-items:center;gap:12px">
+                      <div style="width:80px;height:80px;border-radius:8px;border:1px solid #e7e5e4;background:#fafaf9;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="package" style="width:28px;height:28px;color:#d6d3d1"></i></div>
+                      <div style="display:flex;flex-direction:column;gap:8px;max-width:360px"><p style="margin:0;font-weight:500;color:#292524;line-height:1.4">{{ o.name }}</p><span style="width:fit-content;border-radius:8px;padding:0 8px;background:{{ o.pillBg }};color:{{ o.pillFg }};border:1px solid {{ o.pillBd }};font-size:14px">{{ o.platform }}</span></div>
+                    </div></td>
+                    <td style="padding:8px 12px;color:#78716c;white-space:nowrap">{{ o.date }}</td>
+                    <td style="padding:8px 12px"><span style="display:inline-flex;height:20px;align-items:center;padding:2px 8px;border-radius:32px;font:500 12px/1 Inter;background:{{ o.stBg }};color:{{ o.stFg }};border:1px solid {{ o.stBd }}">{{ o.status }}</span></td>
+                    <td style="padding:8px 12px;font-weight:500;color:#292524">{{ o.total }}</td>
+                    <td style="padding:8px 12px"><div style="width:32px;height:32px;border-radius:8px;border:1px solid #e7e5e4;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.05)"><i data-lucide="ellipsis" style="width:16px;height:16px;color:#44403c"></i></div></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:14px;color:#78716c">
+            <p style="margin:0">4 of 4 orders</p>
+            <div style="display:flex;align-items:center;gap:8px">Rows per page <span style="width:80px;height:32px;border:1px solid #e7e5e4;border-radius:8px;display:inline-flex;align-items:center;justify-content:space-between;padding:0 10px;background:#fff;color:#1c1917">10 <i data-lucide="chevron-down" style="width:14px;height:14px;opacity:.5"></i></span></div>
+            <div style="display:flex;align-items:center;gap:4px"><span style="margin-right:8px">Page 1 of 1</span>
+              <span style="width:32px;height:32px;border:1px solid #e7e5e4;border-radius:8px;background:#fff;display:inline-flex;align-items:center;justify-content:center;opacity:.5"><i data-lucide="chevrons-left" style="width:16px;height:16px"></i></span>
+              <span style="width:32px;height:32px;border:1px solid #e7e5e4;border-radius:8px;background:#fff;display:inline-flex;align-items:center;justify-content:center;opacity:.5"><i data-lucide="chevron-left" style="width:16px;height:16px"></i></span>
+              <span style="width:32px;height:32px;border:1px solid #e7e5e4;border-radius:8px;background:#fff;display:inline-flex;align-items:center;justify-content:center;opacity:.5"><i data-lucide="chevron-right" style="width:16px;height:16px"></i></span>
+              <span style="width:32px;height:32px;border:1px solid #e7e5e4;border-radius:8px;background:#fff;display:inline-flex;align-items:center;justify-content:center;opacity:.5"><i data-lucide="chevrons-right" style="width:16px;height:16px"></i></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer style="background:linear-gradient(to bottom right,#0c0a09,#1c1917,#0c0a09);color:#a8a29e;padding:48px 32px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-bottom:32px;font-size:14px">
+        <div><h3 style="margin:0 0 16px;font:700 18px/1 Inter;background:linear-gradient(to right,#fb7185,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent">Tomame</h3><p style="margin:0">The simplest way to source products globally.</p></div>
+        <div><h4 style="margin:0 0 16px;color:#e7e5e4;font-weight:600">Product</h4><div style="display:flex;flex-direction:column;gap:8px"><span>How It Works</span><span>Pricing</span><span>Features</span></div></div>
+        <div><h4 style="margin:0 0 16px;color:#e7e5e4;font-weight:600">Company</h4><div style="display:flex;flex-direction:column;gap:8px"><span>Home</span><span>About</span><span>Blog</span><span>Careers</span></div></div>
+        <div><h4 style="margin:0 0 16px;color:#e7e5e4;font-weight:600">Legal</h4><div style="display:flex;flex-direction:column;gap:8px"><span>Privacy Policy</span><span>Terms of Service</span><span>Shipping Policy</span><span>Returns &amp; Refunds</span><span>Payment Policy</span></div></div>
+      </div>
+      <div style="border-top:1px solid #292524;padding-top:32px;text-align:center;font-size:14px">© 2024 Tomame. All rights reserved.</div>
+    </footer>
+  </div>
+</section>
+
+<!-- ===== ROW: New order preview + Review ===== -->
+<section style="display:flex;gap:40px;align-items:flex-start">
+<div id="cur-new" data-screen-label="Current · New order preview" style="width:1280px">
+  <div style="font:600 11px/1 Inter;letter-spacing:.12em;text-transform:uppercase;color:#78716c;margin-bottom:10px">Current · /app/orders/new (Product preview)</div>
+  <div style="background:#f5f5f4;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <nav style="background:#fff;border-bottom:1px solid rgba(231,229,228,.4);padding:8px 32px;height:80px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font:700 20px/1 Inter;background:linear-gradient(to right,#f43f5e,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent">Tomame</span>
+      <div style="display:flex;gap:32px;font:500 14px/1 Inter;color:#78716c"><span>Home</span><span>About</span><span>FAQ</span><span>Contact</span></div>
+      <div style="display:flex;align-items:center;gap:8px"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(to top right,#f59e0b,#ff793f);color:#fff;font:600 12px/32px Inter;text-align:center">K</div><span style="font:500 14px/1 Inter;color:#44403c">Kwame</span><i data-lucide="chevron-down" style="width:16px;height:16px;color:#a8a29e"></i></div>
+    </nav>
+    <div style="padding:40px 32px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <span style="padding:6px;border-radius:8px;color:#a8a29e;display:flex"><i data-lucide="arrow-left" style="width:16px;height:16px"></i></span>
+        <div><p style="margin:0;font:600 12px/1.4 Inter;letter-spacing:.05em;text-transform:uppercase;color:#a8a29e">New Order</p><h1 style="margin:0;font:700 20px/1.4 Inter;color:#292524">Product Preview</h1></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px;font:500 14px/1 Inter;color:#047857;background:#ecfdf5;border:1px solid rgba(167,243,208,.6);border-radius:12px;padding:10px 16px"><i data-lucide="circle-check" style="width:16px;height:16px;color:#10b981"></i>Product details extracted successfully</div>
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding-top:24px;overflow:hidden">
+          <div style="display:flex;gap:32px;padding:0 24px 24px">
+            <div style="width:160px;height:184px;border-radius:12px;border:1px solid rgba(231,229,228,.6);background:#fafaf9;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="shopping-cart" style="width:40px;height:40px;color:#d6d3d1"></i></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:20px">
+              <div><p style="margin:0 0 12px;font:600 12px/1 Inter;letter-spacing:.05em;text-transform:uppercase;color:#a8a29e">Product</p><p style="margin:0;font:600 14px/1.4 Inter;color:#292524">Sony WH-1000XM5 Wireless Noise Cancelling Headphones, Black</p></div>
+              <div style="display:flex;flex-direction:column;gap:6px;width:fit-content;min-width:260px;font-size:14px">
+                <div style="display:flex;justify-content:space-between;gap:20px"><span style="font-weight:600;color:#44403c">Price:</span><span style="color:#292524"><span style="font:500 12px/1 Inter;color:#78716c;margin-right:2px">USD</span><span style="font-size:16px">298.00</span></span></div>
+                <div style="display:flex;justify-content:space-between;gap:20px"><span style="font-weight:600;color:#44403c">Brand</span><span style="font-weight:600;color:#292524">Sony</span></div>
+                <div style="display:flex;justify-content:space-between;gap:20px"><span style="font-weight:600;color:#44403c">Category</span><span style="font-weight:600;color:#292524">Electronics</span></div>
+                <div style="display:flex;justify-content:space-between;gap:20px"><span style="font-weight:600;color:#44403c">Weight</span><span style="font-weight:600;color:#292524">8.8 oz</span></div>
+                <div style="display:flex;justify-content:space-between;gap:20px"><span style="font-weight:600;color:#44403c">Platform</span><span style="font-weight:600;color:#292524">Amazon</span></div>
+                <div style="display:flex;justify-content:space-between;gap:20px"><span style="font-weight:600;color:#44403c">Ships from</span><span style="font-weight:600;color:#292524">USA</span></div>
+              </div>
+              <span style="display:inline-flex;align-items:center;gap:6px;font:400 12px/1 Inter;color:#f43f5e"><i data-lucide="external-link" style="width:12px;height:12px"></i>View original listing</span>
+            </div>
+          </div>
+          <div style="padding:16px 24px;border-top:1px solid #e7e5e4"><p style="margin:0 0 8px;font:600 12px/1 Inter;letter-spacing:.05em;text-transform:uppercase;color:#a8a29e">Estimated total (1 item)</p>
+            <div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px"><span style="font:700 20px/1.2 Inter;color:#1c1917">GH₵5,041.16</span><span style="font-size:12px;color:#78716c">item $298.00 · tax $23.84 · fee $14.90 · freight GH₵ 180.00 · rate 14.43</span><span style="width:100%;font-size:12px;color:#a8a29e">Freight basis: Electronics — small parcel flat rate</span></div></div>
+          <div style="padding:12px 24px;border-top:1px solid #e7e5e4;display:flex;gap:16px;font-size:12px;color:#a8a29e;align-items:center"><span style="display:inline-flex;align-items:center;gap:4px"><i data-lucide="clock" style="width:12px;height:12px"></i>Fetched Sep 9, 2026, 4:12 PM</span></div>
+          <div style="padding:24px;border-top:1px solid #e7e5e4;display:flex;justify-content:space-between">
+            <span style="height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border:1px solid #e7e5e4;border-radius:8px;background:#fff;font:600 14px/1 Inter;color:#44403c"><i data-lucide="refresh-cw" style="width:14px;height:14px"></i>Try another URL</span>
+            <span style="height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border-radius:8px;background:linear-gradient(to right,#f43f5e,#f59e0b);color:#fff;font:600 14px/1 Inter;box-shadow:0 4px 14px -2px rgba(244,63,94,.35)"><i data-lucide="shopping-cart" style="width:14px;height:14px"></i>Review</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="cur-review" data-screen-label="Current · Review & submit" style="width:1280px">
+  <div style="font:600 11px/1 Inter;letter-spacing:.12em;text-transform:uppercase;color:#78716c;margin-bottom:10px">Current · /app/orders/review/[id]</div>
+  <div style="background:#f5f5f4;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <nav style="background:#fff;border-bottom:1px solid rgba(231,229,228,.4);padding:8px 32px;height:80px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font:700 20px/1 Inter;background:linear-gradient(to right,#f43f5e,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent">Tomame</span>
+      <div style="display:flex;gap:32px;font:500 14px/1 Inter;color:#78716c"><span>Home</span><span>About</span><span>FAQ</span><span>Contact</span></div>
+      <div style="display:flex;align-items:center;gap:8px"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(to top right,#f59e0b,#ff793f);color:#fff;font:600 12px/32px Inter;text-align:center">K</div><span style="font:500 14px/1 Inter;color:#44403c">Kwame</span><i data-lucide="chevron-down" style="width:16px;height:16px;color:#a8a29e"></i></div>
+    </nav>
+    <div style="padding:40px 32px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <span style="padding:6px;color:#a8a29e;display:flex"><i data-lucide="arrow-left" style="width:16px;height:16px"></i></span>
+        <div><p style="margin:0;font:600 12px/1.4 Inter;letter-spacing:.05em;text-transform:uppercase;color:#a8a29e">New Order</p><h1 style="margin:0;font:700 20px/1.4 Inter;color:#292524">Review &amp; Submit</h1></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:24px;display:flex;gap:32px">
+          <div style="width:160px;height:160px;border-radius:12px;border:1px solid rgba(231,229,228,.6);background:#fafaf9;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="shopping-cart" style="width:40px;height:40px;color:#d6d3d1"></i></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:12px">
+            <div><p style="margin:0 0 4px;font:600 12px/1 Inter;letter-spacing:.05em;text-transform:uppercase;color:#a8a29e">Product</p><p style="margin:0;font:600 14px/1.4 Inter;color:#292524">Sony WH-1000XM5 Wireless Noise Cancelling Headphones, Black</p></div>
+            <div style="display:flex;flex-direction:column;gap:6px;width:fit-content;min-width:260px;font-size:14px">
+              <div style="display:flex;justify-content:space-between;gap:20px"><span style="font-weight:600;color:#44403c">Price</span><span><span style="font:500 12px/1 Inter;color:#78716c;margin-right:2px">USD</span><span style="font:700 16px/1 Inter;color:#292524">298.00</span></span></div>
+              <div style="display:flex;justify-content:space-between;gap:20px"><span style="font-weight:600;color:#44403c">Brand</span><span style="font-weight:600;color:#292524">Sony</span></div>
+              <div style="display:flex;justify-content:space-between;gap:20px"><span style="font-weight:600;color:#44403c">Platform</span><span style="font-weight:600;color:#292524">Amazon</span></div>
+              <div style="display:flex;justify-content:space-between;gap:20px"><span style="font-weight:600;color:#44403c">Ships from</span><span style="font-weight:600;color:#292524">USA</span></div>
+            </div>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#f43f5e"><i data-lucide="external-link" style="width:12px;height:12px"></i>View original listing</span>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:24px;display:flex;flex-direction:column;gap:20px">
+          <div><p style="margin:0 0 8px;font:500 14px/1 Inter;color:#44403c">Quantity <span style="font-size:12px;color:#a8a29e">(max 100)</span></p>
+            <div style="display:flex;align-items:center;gap:12px"><span style="width:32px;height:32px;border:1px solid #e7e5e4;border-radius:8px;background:#fff;display:inline-flex;align-items:center;justify-content:center;opacity:.5"><i data-lucide="minus" style="width:14px;height:14px"></i></span><span style="width:32px;text-align:center;font:600 16px/1 Inter;color:#292524">1</span><span style="width:32px;height:32px;border:1px solid #e7e5e4;border-radius:8px;background:#fff;display:inline-flex;align-items:center;justify-content:center"><i data-lucide="plus" style="width:14px;height:14px"></i></span></div></div>
+          <div><p style="margin:0 0 8px;font:500 14px/1 Inter;color:#44403c">Special Instructions <span style="margin-left:6px;font:400 12px/1 Inter;color:#a8a29e">optional</span></p>
+            <div style="min-height:80px;border:1px solid rgba(231,229,228,.6);background:rgba(250,250,249,.5);border-radius:8px;padding:8px 12px;font-size:14px;color:#a8a29e;box-shadow:inset 0 2px 6px rgba(120,113,108,.08)">e.g. Preferred colour: black, size: XL — or any specific product variant details</div></div>
+        </div>
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:16px 24px 24px;display:flex;flex-direction:column;gap:8px;font-size:14px;color:#57534e">
+          <p style="margin:0;font:600 12px/1 Inter;letter-spacing:.05em;text-transform:uppercase;color:#a8a29e">Estimated Pricing Breakdown</p>
+          <div style="display:flex;justify-content:space-between"><span>Item price</span><span>$298.00</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Subtotal (×1)</span><span>$298.00</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Tax (8%)</span><span>$23.84</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Value fee (5%)</span><span>$14.90</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Freight</span><span>GH₵ 180.00</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Exchange rate</span><span>1 USD = 14.43 GHS</span></div>
+          <div style="display:flex;justify-content:space-between;font:700 16px/1 Inter;color:#1c1917;padding-top:8px;border-top:1px solid #d6d3d1"><span>Total (GHS)</span><span>GH₵5,041.16</span></div>
+          <p style="margin:0;font-size:12px;color:#a8a29e">Freight basis: Electronics — small parcel flat rate</p>
+          <p style="margin:4px 0 0;font-size:12px;color:#a8a29e">Estimate only — final total confirmed after admin review. Full payment required before processing.</p>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding-top:8px">
+          <span style="height:36px;display:inline-flex;align-items:center;gap:6px;padding:0 16px;border:1px solid #e7e5e4;border-radius:8px;background:#fff;font:600 14px/1 Inter;color:#44403c"><i data-lucide="arrow-left" style="width:14px;height:14px"></i>Back</span>
+          <span style="height:36px;display:inline-flex;align-items:center;gap:6px;padding:0 16px;border-radius:8px;background:linear-gradient(to right,#f43f5e,#f59e0b);color:#fff;font:600 14px/1 Inter;box-shadow:0 4px 14px -2px rgba(244,63,94,.35)"><i data-lucide="package-check" style="width:16px;height:16px"></i>Submit Order</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ===== ROW: Checkout + Orders list ===== -->
+<section style="display:flex;gap:40px;align-items:flex-start">
+<div id="cur-checkout" data-screen-label="Current · Checkout" style="width:1280px">
+  <div style="font:600 11px/1 Inter;letter-spacing:.12em;text-transform:uppercase;color:#78716c;margin-bottom:10px">Current · /app/orders/[id]/checkout</div>
+  <div style="background:#f5f5f4;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <nav style="background:#fff;border-bottom:1px solid rgba(231,229,228,.4);padding:8px 32px;height:80px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font:700 20px/1 Inter;background:linear-gradient(to right,#f43f5e,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent">Tomame</span>
+      <div style="display:flex;gap:32px;font:500 14px/1 Inter;color:#78716c"><span>Home</span><span>About</span><span>FAQ</span><span>Contact</span></div>
+      <div style="display:flex;align-items:center;gap:8px"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(to top right,#f59e0b,#ff793f);color:#fff;font:600 12px/32px Inter;text-align:center">K</div><span style="font:500 14px/1 Inter;color:#44403c">Kwame</span><i data-lucide="chevron-down" style="width:16px;height:16px;color:#a8a29e"></i></div>
+    </nav>
+    <div style="padding:40px 32px;min-height:640px">
+      <div style="max-width:512px;display:flex;flex-direction:column;gap:24px">
+        <div style="display:flex;align-items:center;gap:12px"><span style="padding:6px;color:#a8a29e;display:flex"><i data-lucide="arrow-left" style="width:16px;height:16px"></i></span><div><p style="margin:0;font:600 12px/1.4 Inter;letter-spacing:.05em;text-transform:uppercase;color:#a8a29e">Checkout</p><h1 style="margin:0;font:700 20px/1.4 Inter;color:#292524">Complete Payment</h1></div></div>
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);overflow:hidden">
+          <div style="padding:16px 20px;border-bottom:1px solid #f5f5f4"><p style="margin:0 0 12px;font:600 12px/1 Inter;letter-spacing:.05em;text-transform:uppercase;color:#a8a29e">Order Summary</p>
+            <div style="display:flex;align-items:center;gap:12px"><div style="width:56px;height:56px;border-radius:8px;background:#f5f5f4;display:flex;align-items:center;justify-content:center"><i data-lucide="package" style="width:24px;height:24px;color:#a8a29e"></i></div><div><p style="margin:0;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#a8a29e">USA · Qty 1</p><p style="margin:0;font:600 14px/1.4 Inter;color:#292524">Sony WH-1000XM5 Wireless Noise Cancelling Headphones, Black</p></div></div></div>
+          <div style="padding:16px 20px;border-bottom:1px solid #f5f5f4;display:flex;flex-direction:column;gap:8px;font-size:14px;color:#57534e"><p style="margin:0 0 4px;font:600 12px/1 Inter;letter-spacing:.05em;text-transform:uppercase;color:#a8a29e">Pricing Breakdown</p>
+            <div style="display:flex;justify-content:space-between"><span>Item price (USD)</span><span>$298.00</span></div>
+            <div style="display:flex;justify-content:space-between"><span>Tax (8%)</span><span>$23.84</span></div>
+            <div style="display:flex;justify-content:space-between"><span>Value fee (5%)</span><span>$14.90</span></div>
+            <div style="display:flex;justify-content:space-between"><span>Freight</span><span>GH₵ 180.00</span></div>
+            <div style="display:flex;justify-content:space-between;color:#a8a29e"><span>Rate</span><span>1 USD = 14.43 GHS</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;margin-top:8px;border-top:1px solid #e7e5e4"><span style="font:600 14px/1 Inter;color:#44403c">Total</span><span style="font:700 24px/1 Inter;color:#1c1917">GH₵5,041.16</span></div></div>
+          <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+            <div style="height:44px;border-radius:8px;background:#343434;color:#fafafa;display:flex;align-items:center;justify-content:center;gap:8px;font:600 16px/1 Inter"><i data-lucide="credit-card" style="width:16px;height:16px"></i>Pay GH₵5,041.16</div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:#a8a29e"><i data-lucide="shield-check" style="width:14px;height:14px"></i>Secured by Paystack · Mobile Money &amp; Card accepted</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="cur-orders" data-screen-label="Current · My Orders" style="width:1280px">
+  <div style="font:600 11px/1 Inter;letter-spacing:.12em;text-transform:uppercase;color:#78716c;margin-bottom:10px">Current · /app/orders</div>
+  <div style="background:#f5f5f4;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <nav style="background:#fff;border-bottom:1px solid rgba(231,229,228,.4);padding:8px 32px;height:80px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font:700 20px/1 Inter;background:linear-gradient(to right,#f43f5e,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent">Tomame</span>
+      <div style="display:flex;gap:32px;font:500 14px/1 Inter;color:#78716c"><span>Home</span><span>About</span><span>FAQ</span><span>Contact</span></div>
+      <div style="display:flex;align-items:center;gap:8px"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(to top right,#f59e0b,#ff793f);color:#fff;font:600 12px/32px Inter;text-align:center">K</div><span style="font:500 14px/1 Inter;color:#44403c">Kwame</span><i data-lucide="chevron-down" style="width:16px;height:16px;color:#a8a29e"></i></div>
+    </nav>
+    <div style="padding:40px 32px;display:flex;flex-direction:column;gap:40px;min-height:640px">
+      <div><div style="display:flex;justify-content:space-between;align-items:center"><h1 style="margin:0;font:700 24px/1.3 Inter;color:#292524">My Orders</h1><span style="height:36px;display:inline-flex;align-items:center;gap:8px;padding:0 16px;border-radius:8px;background:linear-gradient(to right,#f43f5e,#f59e0b);color:#fff;font:600 14px/1 Inter;box-shadow:0 4px 14px -2px rgba(244,63,94,.35)"><i data-lucide="plus" style="width:16px;height:16px"></i>New</span></div><p style="margin:4px 0 0;font-size:14px;color:#a8a29e">Track your product requests and sourcing status</p></div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ orders }}" as="o" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:28px;border-radius:16px;border:1px solid #f5f5f4;background:#fff;padding:20px;box-shadow:0 1px 6px rgba(0,0,0,.04)">
+            <div style="width:88px;height:88px;border-radius:12px;border:1px solid #f5f5f4;background:#fafaf9;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="shopping-bag" style="width:24px;height:24px;color:#d6d3d1"></i></div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:16px">
+              <span style="width:fit-content;border-radius:4px;padding:2px 6px;font:700 10px/1 Inter;background:{{ o.pillBg }};color:{{ o.pillFg }};border:1px solid {{ o.pillBd }}">{{ o.platform }}</span>
+              <p style="margin:0;font:600 14px/1.4 Inter;color:#1c1917">{{ o.name }}</p>
+              <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;height:20px;align-items:center;padding:2px 8px;border-radius:32px;font:500 12px/1 Inter;background:{{ o.stBg }};color:{{ o.stFg }};border:1px solid {{ o.stBd }}">{{ o.status }}</span><span style="font-size:10px;color:#a8a29e">{{ o.date }}</span><span style="margin-left:auto;font:700 14px/1 Inter;color:#1c1917">GHS {{ o.totalPlain }}</span></div>
+            </div>
+            <div style="width:36px;height:36px;border-radius:12px;border:1px solid #e7e5e4;background:#fff;display:flex;align-items:center;justify-content:center;color:#78716c;flex-shrink:0"><i data-lucide="ellipsis-vertical" style="width:16px;height:16px"></i></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ===== ROW: Order detail + Account ===== -->
+<section style="display:flex;gap:40px;align-items:flex-start">
+<div id="cur-detail" data-screen-label="Current · Order detail" style="width:1280px">
+  <div style="font:600 11px/1 Inter;letter-spacing:.12em;text-transform:uppercase;color:#78716c;margin-bottom:10px">Current · /app/orders/[id]</div>
+  <div style="background:#f5f5f4;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <nav style="background:#fff;border-bottom:1px solid rgba(231,229,228,.4);padding:8px 32px;height:80px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font:700 20px/1 Inter;background:linear-gradient(to right,#f43f5e,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent">Tomame</span>
+      <div style="display:flex;gap:32px;font:500 14px/1 Inter;color:#78716c"><span>Home</span><span>About</span><span>FAQ</span><span>Contact</span></div>
+      <div style="display:flex;align-items:center;gap:8px"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(to top right,#f59e0b,#ff793f);color:#fff;font:600 12px/32px Inter;text-align:center">K</div><span style="font:500 14px/1 Inter;color:#44403c">Kwame</span><i data-lucide="chevron-down" style="width:16px;height:16px;color:#a8a29e"></i></div>
+    </nav>
+    <div style="padding:40px 32px;display:flex;flex-direction:column;gap:24px">
+      <span style="display:inline-flex;align-items:center;gap:4px;font-size:14px;color:#a8a29e"><i data-lucide="arrow-left" style="width:16px;height:16px"></i>Back to orders</span>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:24px">
+          <div style="display:flex;gap:16px;align-items:flex-start">
+            <div style="width:112px;height:112px;border-radius:12px;border:1px solid rgba(231,229,228,.6);background:#fafaf9;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="image" style="width:32px;height:32px;color:#d6d3d1"></i></div>
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><p style="margin:0;font:600 16px/1.4 Inter;color:#1c1917">Sony WH-1000XM5 Wireless Noise Cancelling Headphones, Black</p><span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#f43f5e;margin-top:2px"><i data-lucide="external-link" style="width:12px;height:12px"></i>View product</span></div><span style="display:inline-flex;height:20px;align-items:center;padding:2px 8px;border-radius:32px;font:500 12px/1 Inter;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe">In Transit</span></div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px 16px;margin-top:16px;font-size:14px">
+                <div><p style="margin:0;font-size:12px;color:#a8a29e">Origin</p><p style="margin:0;font-weight:500;color:#292524">USA</p></div>
+                <div><p style="margin:0;font-size:12px;color:#a8a29e">Qty</p><p style="margin:0;font-weight:500;color:#292524">1</p></div>
+                <div><p style="margin:0;font-size:12px;color:#a8a29e">Est. price</p><p style="margin:0;font-weight:500;color:#292524">$298.00</p></div>
+                <div><p style="margin:0;font-size:12px;color:#a8a29e">Placed</p><p style="margin:0;font-weight:500;color:#292524">28 Aug 2026</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:24px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;align-items:center;gap:8px;font:600 16px/1 Inter;color:#1c1917"><i data-lucide="package" style="width:16px;height:16px;color:#78716c"></i>Order Timeline</div>
+            <div>
+              <sc-for list="{{ timeline }}" as="t" hint-placeholder-count="6">
+                <div style="display:flex;gap:16px">
+                  <div style="display:flex;flex-direction:column;align-items:center">
+                    <sc-if value="{{ t.done }}" hint-placeholder-val="{{ true }}"><i data-lucide="circle-check" style="width:20px;height:20px;color:#10b981"></i></sc-if>
+                    <sc-if value="{{ t.current }}" hint-placeholder-val="{{ false }}"><div style="width:20px;height:20px;border-radius:50%;background:#f43f5e;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#fff"></div></div></sc-if>
+                    <sc-if value="{{ t.upcoming }}" hint-placeholder-val="{{ false }}"><i data-lucide="circle" style="width:20px;height:20px;color:#d6d3d1"></i></sc-if>
+                    <sc-if value="{{ t.notLast }}" hint-placeholder-val="{{ true }}"><div style="width:1px;flex:1;min-height:32px;margin-top:4px;background:{{ t.lineColor }}"></div></sc-if>
+                  </div>
+                  <div style="padding-bottom:24px"><p style="margin:0;font:500 14px/20px Inter;color:{{ t.color }}">{{ t.label }}</p><p style="margin:2px 0 0;font-size:12px;color:#a8a29e">{{ t.desc }}</p><sc-if value="{{ t.ts }}" hint-placeholder-val="{{ false }}"><p style="margin:2px 0 0;font-size:12px;color:#a8a29e">{{ t.ts }}</p></sc-if></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:24px;display:flex;flex-direction:column;gap:16px;align-self:flex-start">
+            <div style="display:flex;align-items:center;gap:8px;font:600 16px/1 Inter;color:#1c1917"><i data-lucide="clipboard-list" style="width:16px;height:16px;color:#78716c"></i>Pricing Breakdown</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:14px;color:#57534e">
+              <div style="display:flex;justify-content:space-between"><span>Item price (USD)</span><span>$298.00</span></div>
+              <div style="display:flex;justify-content:space-between"><span>Qty × price (×1)</span><span>$298.00</span></div>
+              <div style="display:flex;justify-content:space-between"><span>Tax (8%)</span><span>$23.84</span></div>
+              <div style="display:flex;justify-content:space-between"><span>Value fee (5%)</span><span>$14.90</span></div>
+              <div style="display:flex;justify-content:space-between"><span>Freight</span><span>GH₵ 180.00</span></div>
+              <div style="display:flex;justify-content:space-between"><span>Exchange rate</span><span>1 USD = 14.43 GHS</span></div>
+              <div style="display:flex;justify-content:space-between;font:700 16px/1 Inter;color:#1c1917;padding-top:8px;border-top:1px solid #e7e5e4"><span>Total (GHS)</span><span>GH₵5,041.16</span></div>
+            </div>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:24px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;gap:8px;font:600 16px/1 Inter;color:#1c1917"><i data-lucide="truck" style="width:16px;height:16px;color:#78716c"></i>Tracking Information</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font-size:14px">
+            <div><p style="margin:0 0 2px;font-size:12px;color:#a8a29e">Carrier</p><p style="margin:0;font-weight:500;color:#292524">DHL Express</p></div>
+            <div><p style="margin:0 0 2px;font-size:12px;color:#a8a29e">Tracking number</p><p style="margin:0;font:500 12px/1.4 ui-monospace,monospace;color:#292524">7734 2201 9856</p></div>
+            <div><p style="margin:0 0 2px;font-size:12px;color:#a8a29e">Estimated delivery</p><p style="margin:0;font-weight:500;color:#292524">18 Sep 2026</p></div>
+          </div>
+        </div>
+        <p style="margin:0;text-align:center;font-size:12px;color:#a8a29e">Order ID: <span style="font-family:ui-monospace,monospace">a3f9c2e1-7b44-4d0e-9f1a-2c6b8e5d0a17</span></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="cur-account" data-screen-label="Current · Account settings" style="width:1280px">
+  <div style="font:600 11px/1 Inter;letter-spacing:.12em;text-transform:uppercase;color:#78716c;margin-bottom:10px">Current · /app/account</div>
+  <div style="background:#f5f5f4;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <nav style="background:#fff;border-bottom:1px solid rgba(231,229,228,.4);padding:8px 32px;height:80px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font:700 20px/1 Inter;background:linear-gradient(to right,#f43f5e,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent">Tomame</span>
+      <div style="display:flex;gap:32px;font:500 14px/1 Inter;color:#78716c"><span>Home</span><span>About</span><span>FAQ</span><span>Contact</span></div>
+      <div style="display:flex;align-items:center;gap:8px"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(to top right,#f59e0b,#ff793f);color:#fff;font:600 12px/32px Inter;text-align:center">K</div><span style="font:500 14px/1 Inter;color:#44403c">Kwame</span><i data-lucide="chevron-down" style="width:16px;height:16px;color:#a8a29e"></i></div>
+    </nav>
+    <div style="padding:40px 32px"><div style="max-width:896px;margin:0 auto;padding:8px 0">
+      <div style="margin-bottom:32px"><h1 style="margin:0;font:700 30px/1.2 Inter;color:#1c1917">Account Settings</h1><p style="margin:8px 0 0;font-size:16px;color:#57534e">Manage your profile, security settings, and account preferences</p></div>
+      <div style="display:flex;flex-direction:column;gap:24px">
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:24px;display:flex;flex-direction:column;gap:24px">
+          <div><p style="margin:0;font:600 16px/1 Inter;color:#0a0a0a">Account Information</p><p style="margin:6px 0 0;font-size:14px;color:#8e8e8e">Your profile details and account status</p></div>
+          <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(to bottom right,#3b82f6,#9333ea);color:#fff;font:600 18px/64px Inter;text-align:center">KA</div>
+          <div style="display:flex;gap:12px;border-top:1px solid #e7e5e4;padding-top:24px"><i data-lucide="mail" style="width:20px;height:20px;color:#78716c;margin-top:2px"></i><div><p style="margin:0;font:500 14px/1.4 Inter;color:#44403c">Email Address</p><p style="margin:2px 0 0;font-size:14px;color:#57534e">kwame.asante@gmail.com</p><p style="margin:4px 0 0;font-size:12px;color:#16a34a">✓ Verified</p></div></div>
+          <div style="display:flex;gap:12px;border-top:1px solid #e7e5e4;padding-top:24px"><i data-lucide="calendar" style="width:20px;height:20px;color:#78716c;margin-top:2px"></i><div><p style="margin:0;font:500 14px/1.4 Inter;color:#44403c">Account Created</p><p style="margin:2px 0 0;font-size:14px;color:#57534e">March 12, 2026</p></div></div>
+          <div style="display:flex;gap:12px;border-top:1px solid #e7e5e4;padding-top:24px"><i data-lucide="calendar" style="width:20px;height:20px;color:#78716c;margin-top:2px"></i><div><p style="margin:0;font:500 14px/1.4 Inter;color:#44403c">Last Sign In</p><p style="margin:2px 0 0;font-size:14px;color:#57534e">September 9, 2026, 03:58 PM</p></div></div>
+        </div>
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:24px;display:flex;flex-direction:column;gap:24px">
+          <div><p style="margin:0;font:600 16px/1 Inter;color:#0a0a0a">Edit Profile</p><p style="margin:6px 0 0;font-size:14px;color:#8e8e8e">Update your personal information</p></div>
+          <div style="display:flex;flex-direction:column;gap:20px">
+            <div><p style="margin:0 0 8px;font:500 14px/1 Inter;color:#0a0a0a">First Name</p><div style="height:36px;border:1px solid #e5e5e5;border-radius:8px;padding:0 12px;display:flex;align-items:center;font-size:14px;color:#0a0a0a;background:#fff">Kwame</div></div>
+            <div><p style="margin:0 0 8px;font:500 14px/1 Inter;color:#0a0a0a">Last Name</p><div style="height:36px;border:1px solid #e5e5e5;border-radius:8px;padding:0 12px;display:flex;align-items:center;font-size:14px;color:#0a0a0a;background:#fff">Asante</div></div>
+            <div><p style="margin:0 0 8px;font:500 14px/1 Inter;color:#0a0a0a">Bio</p><div style="min-height:64px;border:1px solid #e5e5e5;border-radius:8px;padding:8px 12px;font-size:14px;color:#8e8e8e;background:#fff">Tell us about yourself</div></div>
+            <span style="width:fit-content;height:36px;display:inline-flex;align-items:center;padding:0 16px;border-radius:8px;background:#343434;color:#fafafa;font:600 14px/1 Inter;opacity:.5">Save Changes</span>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:24px;display:flex;flex-direction:column;gap:24px">
+          <div><p style="margin:0;font:600 16px/1 Inter;color:#0a0a0a;display:flex;align-items:center;gap:8px"><i data-lucide="lock" style="width:20px;height:20px"></i>Security Settings</p><p style="margin:6px 0 0;font-size:14px;color:#8e8e8e">Manage your password and security preferences</p></div>
+          <div style="display:flex;justify-content:space-between;align-items:center"><div><p style="margin:0;font:500 16px/1.4 Inter;color:#1c1917">Password</p><p style="margin:4px 0 0;font-size:14px;color:#57534e">Last changed 3 months ago</p></div><span style="height:36px;display:inline-flex;align-items:center;padding:0 16px;border:1px solid #e7e5e4;border-radius:8px;background:#fff;font:600 14px/1 Inter;color:#44403c">Change Password</span></div>
+        </div>
+        <div style="background:rgba(255,255,255,.8);border:1px solid rgba(231,229,228,.4);border-radius:12px;box-shadow:0 4px 24px -4px rgba(120,113,108,.08);padding:24px;display:flex;flex-direction:column;gap:24px">
+          <div><p style="margin:0;font:600 16px/1 Inter;color:#0a0a0a;display:flex;align-items:center;gap:8px"><i data-lucide="activity" style="width:20px;height:20px"></i>Account Activity</p><p style="margin:6px 0 0;font-size:14px;color:#8e8e8e">Recent activity on your account</p></div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;gap:16px;border:1px solid #e7e5e4;border-radius:8px;padding:16px"><div style="width:36px;height:36px;border-radius:50%;background:#dbeafe;color:#2563eb;display:flex;align-items:center;justify-content:center;margin-top:4px"><i data-lucide="log-in" style="width:16px;height:16px"></i></div><div><div style="display:flex;gap:8px;align-items:center"><p style="margin:0;font:500 14px/1 Inter;color:#1c1917">Signed in to your account</p><span style="height:20px;padding:2px 8px;border-radius:32px;background:#343434;color:#fafafa;font:500 12px/1 Inter;display:inline-flex;align-items:center">user</span></div><p style="margin:4px 0 0;font-size:12px;color:#78716c">2h ago</p></div></div>
+            <div style="display:flex;gap:16px;border:1px solid #e7e5e4;border-radius:8px;padding:16px"><div style="width:36px;height:36px;border-radius:50%;background:#dbeafe;color:#2563eb;display:flex;align-items:center;justify-content:center;margin-top:4px"><i data-lucide="user" style="width:16px;height:16px"></i></div><div><div style="display:flex;gap:8px;align-items:center"><p style="margin:0;font:500 14px/1 Inter;color:#1c1917">Profile information updated</p><span style="height:20px;padding:2px 8px;border-radius:32px;background:#f5f5f5;color:#343434;font:500 12px/1 Inter;display:inline-flex;align-items:center">user</span></div><p style="margin:4px 0 0;font-size:12px;color:#78716c">3d ago</p></div></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</div>
+</section>
+
+<!-- ===== MARKETING LANDING ===== -->
+<section id="cur-landing" data-screen-label="Current · Marketing landing" style="width:1280px">
+  <div style="font:600 11px/1 Inter;letter-spacing:.12em;text-transform:uppercase;color:#78716c;margin-bottom:10px">Current · / (Marketing — hero, platforms, features, how it works, CTA)</div>
+  <div style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <nav style="background:#fff;border-bottom:1px solid rgba(231,229,228,.4);padding:8px 32px;height:80px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font:700 20px/1 Inter;background:linear-gradient(to right,#f43f5e,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent">Tomame</span>
+      <div style="display:flex;gap:32px;font:500 14px/1 Inter;color:#78716c"><span style="color:#1c1917">Home</span><span>About</span><span>FAQ</span><span>Contact</span></div>
+      <div style="display:flex;gap:12px"><span style="height:36px;display:inline-flex;align-items:center;padding:0 16px;border-radius:8px;background:#343434;color:#fafafa;font:600 14px/1 Inter">Sign In</span><span style="height:36px;display:inline-flex;align-items:center;padding:0 16px;border-radius:8px;background:linear-gradient(to right,#f43f5e,#f59e0b);color:#fff;font:600 14px/1 Inter;box-shadow:0 4px 14px -2px rgba(244,63,94,.35)">Get Started</span></div>
+    </nav>
+    <div style="padding:96px 32px;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center">
+      <div style="display:flex;flex-direction:column;gap:28px;align-items:flex-start">
+        <span style="display:inline-flex;align-items:center;gap:10px;border-radius:999px;border:1px solid #e7e5e4;background:#fafaf9;padding:6px 14px;font:500 12px/1 Inter;color:#44403c"><span style="width:8px;height:8px;border-radius:50%;background:#10b981"></span>$1 = GH₵14.43 <span style="color:#78716c">live</span><span style="width:1px;height:12px;background:#d6d3d1"></span><span style="color:#78716c">Built for Ghana</span></span>
+        <h1 style="margin:0;font:800 72px/1.06 Inter;letter-spacing:-.025em;color:#1c1917">Shop the World.<br><span style="background:linear-gradient(to right,#f43f5e,#fb923c,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent">Pay in Ghana.</span></h1>
+        <p style="margin:0;max-width:576px;font:400 18px/1.6 Inter;color:#57534e">Paste any product link from Amazon, eBay, or SHEIN. We buy it, ship it, and deliver to your door — you pay in GHS.</p>
+        <div style="width:100%;height:48px;border:1px solid #e7e5e4;border-radius:8px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05);display:flex;align-items:center;padding-left:8px"><i data-lucide="link" style="width:20px;height:20px;color:#a8a29e;margin:0 8px"></i><span style="flex:1;font-size:14px;color:#78716c">Paste a product link…</span><span style="margin:4px;height:36px;display:inline-flex;align-items:center;gap:6px;padding:0 24px;border-radius:8px;background:linear-gradient(to right,#f59e0b,#f43f5e);color:#fff;font:600 14px/1 Inter">Get a quote <i data-lucide="arrow-right" style="width:16px;height:16px"></i></span></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px 16px;width:100%;padding-top:8px">
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:8px;background:#fff7ed;color:#f97316;display:flex;align-items:center;justify-content:center"><i data-lucide="zap" style="width:16px;height:16px"></i></span><span style="font:600 12px/1.2 Inter;color:#57534e">Fast Processing</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:8px;background:#fff7ed;color:#f97316;display:flex;align-items:center;justify-content:center"><i data-lucide="shield-check" style="width:16px;height:16px"></i></span><span style="font:600 12px/1.2 Inter;color:#57534e">Secure &amp; Safe</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:8px;background:#faf5ff;color:#a855f7;display:flex;align-items:center;justify-content:center"><i data-lucide="globe" style="width:16px;height:16px"></i></span><span style="font:600 12px/1.2 Inter;color:#57534e">Worldwide Shipping</span></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="position:relative;height:256px;border-radius:16px;overflow:hidden"><img src="assets/images/shopping.jpg" style="width:100%;height:100%;object-fit:cover" alt=""><span style="position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.95);border-radius:999px;padding:6px 12px;box-shadow:0 4px 6px rgba(0,0,0,.1)"><img src="assets/icons/amazon.svg" style="height:16px;display:block" alt="Amazon"></span></div>
+          <div style="position:relative;height:176px;border-radius:16px;overflow:hidden"><img src="assets/images/mobile-pay.jpg" style="width:100%;height:100%;object-fit:cover" alt=""><span style="position:absolute;right:12px;top:12px;background:rgba(255,255,255,.95);border-radius:12px;padding:8px 12px;box-shadow:0 4px 6px rgba(0,0,0,.1)"><span style="display:block;font:700 14px/1.2 Inter;color:#1c1917">GH₵14.43</span><span style="display:block;font:500 10px/1.2 Inter;color:#78716c">per $1 today</span></span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding-top:20px">
+          <div style="position:relative;height:176px;border-radius:16px;overflow:hidden"><img src="assets/images/boxes.jpg" style="width:100%;height:100%;object-fit:cover" alt=""><span style="position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.95);border-radius:999px;padding:6px 12px;box-shadow:0 4px 6px rgba(0,0,0,.1)"><img src="assets/icons/ebay.svg" style="height:14px;display:block" alt="eBay"></span></div>
+          <div style="position:relative;height:256px;border-radius:16px;overflow:hidden"><img src="assets/images/delivery.jpg" style="width:100%;height:100%;object-fit:cover" alt=""><span style="position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.95);border-radius:12px;padding:8px 12px;box-shadow:0 4px 6px rgba(0,0,0,.1)"><span style="display:block;font:700 14px/1.2 Inter;color:#1c1917">2,400+</span><span style="display:block;font:500 10px/1.2 Inter;color:#78716c">packages delivered</span></span></div>
+        </div>
+      </div>
+    </div>
+    <div style="background:#fafafa;padding:52px 32px;display:flex;justify-content:center;gap:20px;align-items:center;filter:grayscale(1)"><img src="assets/icons/amazon.svg" style="height:24px" alt=""><img src="assets/icons/ebay.svg" style="height:24px;margin:0 20px" alt=""><span style="font:700 14px/1 Inter;color:#1c1917;padding:0 20px">SHEIN</span><span style="font:700 14px/1 Inter;color:#44403c;padding:0 20px">MICROCENTER</span></div>
+    <div style="padding:128px 32px;display:flex;flex-direction:column;gap:64px">
+      <div style="text-align:center;max-width:672px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:20px">
+        <span style="display:inline-flex;align-items:center;gap:8px;border-radius:999px;border:1px solid #e7e5e4;padding:4px 12px;font:600 12px/1.4 Inter;letter-spacing:.2em;text-transform:uppercase;color:#78716c"><span style="width:6px;height:6px;border-radius:50%;background:#f43f5e"></span>Why Tomame</span>
+        <h2 style="margin:0;font:700 48px/1.1 Inter;letter-spacing:-.025em;color:#1c1917">Everything handled for you</h2>
+        <p style="margin:0;font:400 18px/1.6 Inter;color:#78716c">One workflow replaces the spreadsheets, the forex stress, and the 3am order-tracking spirals.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:24px">
+        <div style="grid-column:span 4;position:relative;min-height:208px;border-radius:16px;overflow:hidden"><img src="assets/images/warehouse.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" alt=""><div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(28,25,23,.8),rgba(28,25,23,.6),rgba(28,25,23,.2))"></div><div style="position:relative;padding:36px;display:flex;flex-direction:column;justify-content:flex-end;min-height:208px"><span style="width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;margin-bottom:16px"><i data-lucide="link" style="width:20px;height:20px;color:#fff"></i></span><h3 style="margin:0;font:700 24px/1.2 Inter;color:#fff">Link Extraction</h3><p style="margin:8px 0 0;max-width:576px;font:400 16px/1.6 Inter;color:rgba(255,255,255,.7)">Paste any product link — Amazon, ASOS, Alibaba, eBay, and more. We pull the title, image, price, and weight in seconds.</p></div></div>
+        <sc-for list="{{ features }}" as="f" hint-placeholder-count="4">
+          <div style="border:1px solid #e7e5e4;border-radius:16px;background:#fff;padding:28px"><span style="width:40px;height:40px;border-radius:12px;border:1px solid #e7e5e4;background:#fafaf9;display:flex;align-items:center;justify-content:center"><i data-lucide="{{ f.icon }}" style="width:20px;height:20px;color:#57534e"></i></span><h3 style="margin:20px 0 0;font:700 16px/1.3 Inter;color:#1c1917">{{ f.title }}</h3><p style="margin:8px 0 0;font:400 14px/1.6 Inter;color:#78716c">{{ f.desc }}</p></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="background:#fafaf9;padding:128px 32px;display:flex;flex-direction:column;gap:96px">
+      <div style="text-align:center;max-width:672px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:20px">
+        <span style="display:inline-flex;align-items:center;gap:8px;border-radius:999px;border:1px solid #e7e5e4;background:#fff;padding:4px 12px;font:600 12px/1.4 Inter;letter-spacing:.2em;text-transform:uppercase;color:#78716c"><span style="width:6px;height:6px;border-radius:50%;background:#f43f5e"></span>How it works</span>
+        <h2 style="margin:0;font:700 48px/1.1 Inter;letter-spacing:-.025em;color:#1c1917">Four steps.</h2>
+        <p style="margin:0;font:400 18px/1.6 Inter;color:#78716c">Just Four steps. No friction. No hidden costs.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:24px">
+        <sc-for list="{{ steps }}" as="st" hint-placeholder-count="4">
+          <div style="position:relative;overflow:hidden;border:1px solid #e7e5e4;border-radius:16px;background:#fff;padding:28px"><span style="position:absolute;top:-16px;right:-12px;font:900 120px/1 Inter;color:#f5f5f4;user-select:none">{{ st.n }}</span><div style="position:relative"><span style="width:48px;height:48px;border-radius:16px;border:1px solid #e7e5e4;background:#fafaf9;display:flex;align-items:center;justify-content:center"><i data-lucide="{{ st.icon }}" style="width:20px;height:20px;color:#57534e"></i></span><p style="margin:20px 0 0;font:700 11px/1 Inter;letter-spacing:.18em;text-transform:uppercase;color:#a8a29e">Step {{ st.num }}</p><h3 style="margin:8px 0 0;font:700 18px/1.3 Inter;color:#1c1917">{{ st.title }}</h3><p style="margin:8px 0 0;font:400 14px/1.6 Inter;color:#78716c">{{ st.desc }}</p></div></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="padding:128px 32px"><div style="position:relative;overflow:hidden;border-radius:24px;background:#0c0a09;padding:112px 40px;text-align:center"><img src="assets/images/boxes.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.15" alt=""><div style="position:relative;max-width:672px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:20px"><h2 style="margin:24px 0 0;font:900 60px/1.05 Inter;letter-spacing:-.025em;background:linear-gradient(to right,#fb7185,#fb923c,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent">Ready to shop the world?</h2><p style="margin:0;max-width:512px;font:400 18px/1.6 Inter;color:rgba(255,255,255,.65)">Join thousands of Ghanaians already shopping globally. No hidden fees, no forex stress.</p><span style="margin-top:12px;height:48px;display:inline-flex;align-items:center;gap:6px;padding:0 28px;border-radius:8px;background:linear-gradient(to right,#f43f5e,#f59e0b);color:#fff;font:600 16px/1 Inter;box-shadow:0 4px 14px -2px rgba(244,63,94,.35)">Create Free Account <i data-lucide="arrow-right" style="width:16px;height:16px"></i></span></div></div></div>
+    <footer style="background:linear-gradient(to bottom right,#0c0a09,#1c1917,#0c0a09);color:#a8a29e;padding:48px 32px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-bottom:32px;font-size:14px">
+        <div><h3 style="margin:0 0 16px;font:700 18px/1 Inter;background:linear-gradient(to right,#fb7185,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent">Tomame</h3><p style="margin:0">The simplest way to source products globally.</p></div>
+        <div><h4 style="margin:0 0 16px;color:#e7e5e4;font-weight:600">Product</h4><div style="display:flex;flex-direction:column;gap:8px"><span>How It Works</span><span>Pricing</span><span>Features</span></div></div>
+        <div><h4 style="margin:0 0 16px;color:#e7e5e4;font-weight:600">Company</h4><div style="display:flex;flex-direction:column;gap:8px"><span>Home</span><span>About</span><span>Blog</span><span>Careers</span></div></div>
+        <div><h4 style="margin:0 0 16px;color:#e7e5e4;font-weight:600">Legal</h4><div style="display:flex;flex-direction:column;gap:8px"><span>Privacy Policy</span><span>Terms of Service</span><span>Shipping Policy</span><span>Returns &amp; Refunds</span><span>Payment Policy</span></div></div>
+      </div>
+      <div style="border-top:1px solid #292524;padding-top:32px;text-align:center;font-size:14px">© 2024 Tomame. All rights reserved.</div>
+    </footer>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount(){ this.icons(); }
+  componentDidUpdate(){ this.icons(); }
+  icons(){ if(window.lucide) window.lucide.createIcons(); else setTimeout(()=>this.icons(),200); }
+  renderVals(){
+    const ST={pending:["Pending","#fffbeb","#b45309","#fde68a"],paid:["Paid","#eff6ff","#1d4ed8","#bfdbfe"],processing:["Processing","#faf5ff","#7e22ce","#e9d5ff"],in_transit:["In Transit","#eef2ff","#4338ca","#c7d2fe"],delivered:["Delivered","#f0fdfa","#0f766e","#99f6e4"],completed:["Completed","#ecfdf5","#047857","#a7f3d0"],cancelled:["Cancelled","#fef2f2","#b91c1c","#fecaca"]};
+    const PL={Amazon:["#fffbeb","#b45309","rgba(253,230,138,.6)"],eBay:["#eff6ff","#1d4ed8","rgba(191,219,254,.6)"],SHEIN:["#f5f5f4","#292524","#e7e5e4"],Microcenter:["#fff7ed","#c2410c","rgba(254,215,170,.6)"]};
+    const mk=(name,platform,date,status,total)=>({name,platform,date,status:ST[status][0],stBg:ST[status][1],stFg:ST[status][2],stBd:ST[status][3],pillBg:PL[platform][0],pillFg:PL[platform][1],pillBd:PL[platform][2],total:"GH₵"+total,totalPlain:total});
+    const orders=[
+      mk("Sony WH-1000XM5 Wireless Noise Cancelling Headphones, Black","Amazon","28 Aug 2026","in_transit","5,041.16"),
+      mk("Apple iPad (10.2-inch, Wi-Fi, 128GB) - Space Gray","eBay","14 Aug 2026","processing","6,524.79"),
+      mk("SHEIN Ribbed Knit Bodycon Dress — Black, M","SHEIN","02 Aug 2026","delivered","612.40"),
+      mk("Logitech MX Master 3S Wireless Mouse","Microcenter","21 Jul 2026","pending","1,388.02"),
+    ];
+    const stats=[
+      {label:"Total Orders",value:"4",size:"30px",link:"View all orders",color:"#f97316",bg:"#fff7ed",icon:"shopping-bag"},
+      {label:"Active Orders",value:"3",size:"30px",link:"Track progress",color:"#9333ea",bg:"#faf5ff",icon:"file-text"},
+      {label:"Total Spent",value:"GHS 12,178.35",size:"20px",link:"View transactions",color:"#059669",bg:"#ecfdf5",icon:"banknote"},
+      {label:"Delivered",value:"1",size:"30px",link:"View history",color:"#2563eb",bg:"#eff6ff",icon:"package-open"},
+    ];
+    const seq=[["Order Placed","Awaiting payment","28 Aug 2026, 10:12"],["Payment Confirmed","Payment received","28 Aug 2026, 10:20"],["Processing","Sourcing your item","30 Aug 2026, 09:05"],["In Transit","On its way to you",null],["Delivered","Package delivered",null],["Completed","Order complete",null]];
+    const cur=3;
+    const timeline=seq.map((s,i)=>({label:s[0],desc:s[1],ts:s[2],done:i<cur,current:i===cur,upcoming:i>cur,notLast:i<seq.length-1,lineColor:i<cur?"#6ee7b7":"#e7e5e4",color:i>cur?"#a8a29e":"#292524"}));
+    const features=[
+      {icon:"receipt",title:"Transparent Pricing",desc:"See every component — product, shipping, service fee, exchange rate — in GH₵ before you commit. No surprises after checkout."},
+      {icon:"globe",title:"Global Fulfillment",desc:"We buy from USA, UK, and China warehouses and consolidate shipments through reliable carriers to your door."},
+      {icon:"radio",title:"Live Tracking",desc:"Follow every order from purchase to delivery. Get email and WhatsApp updates at each milestone — no chasing."},
+      {icon:"shield-check",title:"Pay Locally. Safely.",desc:"Pay with MTN, Vodafone, AirtelTigo, or card in Ghana Cedis. Your funds are held securely until your item is sourced."},
+    ];
+    const steps=[
+      {n:"1",num:"01",icon:"link",title:"Paste a link",desc:"Any Amazon, ASOS, Alibaba, or eBay product link."},
+      {n:"2",num:"02",icon:"receipt",title:"Review pricing",desc:"See full cost in GH₵: product + shipping + fees. No surprises."},
+      {n:"3",num:"03",icon:"credit-card",title:"Pay locally",desc:"MTN, Vodafone, AirtelTigo or card. Processed in Ghana."},
+      {n:"4",num:"04",icon:"badge-check",title:"Receive delivery",desc:"Track your order in real-time. Avg 2–4 weeks."},
+    ];
+    return {orders,stats,timeline,features,steps};
+  }
+}
+</script>
+</body>
+</html>

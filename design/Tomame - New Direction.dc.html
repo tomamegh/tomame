@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+body{margin:0;background:#E9E3DB;font-family:'Instrument Sans',system-ui,sans-serif;color:#1C1715;-webkit-font-smoothing:antialiased}
+a{color:#E4573D;text-decoration:none}a:hover{color:#B93A22}
+*{box-sizing:border-box}
+h1,h2,h3{font-family:'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;margin:0}
+p{margin:0}
+</style>
+</helmet>
+
+<div style="display:flex;flex-direction:column;gap:64px;padding:48px">
+
+<!-- ===== DIRECTION NOTE ===== -->
+<section style="width:1280px;display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:20px;align-items:stretch">
+  <div style="background:#1C1715;color:#fff;border-radius:20px;padding:28px;display:flex;flex-direction:column;justify-content:space-between;gap:24px">
+    <span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55)">New direction</span>
+    <h2 style="font:700 34px/1.05 'Bricolage Grotesque'">Warm, flat, and store-first — one coral accent doing all the work.</h2>
+    <p style="font:400 14px/1.55 'Instrument Sans';color:rgba(255,255,255,.7)">Same job as today (paste a link, pay in GHS), but the product now leads: one search bar that takes a link <em>or</em> a query, dual pricing everywhere, cart, wishlist and a ship-a-package lane.</p>
+  </div>
+  <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:14px">
+    <span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#9A8F86">Palette</span>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      <div style="height:56px;border-radius:10px;background:#E4573D"></div><div style="height:56px;border-radius:10px;background:#1C1715"></div><div style="height:56px;border-radius:10px;background:#F7F3EE;border:1px solid #EBE4DC"></div>
+      <div style="height:56px;border-radius:10px;background:#FDEBE6"></div><div style="height:56px;border-radius:10px;background:#1F8A5B"></div><div style="height:56px;border-radius:10px;background:#E6F4EC"></div>
+    </div>
+    <p style="font:400 13px/1.5 'Instrument Sans';color:#6B625B">Coral <b style="color:#1C1715">#E4573D</b> is the only accent. Rose→amber gradient retired; warmth lives in the paper neutrals.</p>
+  </div>
+  <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:10px">
+    <span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#9A8F86">Type</span>
+    <span style="font:700 40px/1 'Bricolage Grotesque';letter-spacing:-.03em">Aa</span>
+    <p style="font:600 14px/1.3 'Instrument Sans'">Bricolage Grotesque <span style="color:#9A8F86;font-weight:400">headings</span></p>
+    <p style="font:400 14px/1.5 'Instrument Sans';color:#6B625B">Instrument Sans for everything else. Prices always tabular, GHS first.</p>
+    <span style="font:700 22px/1 'Instrument Sans';font-variant-numeric:tabular-nums;margin-top:auto">GH₵5,041.16 <span style="font:500 13px/1 'Instrument Sans';color:#9A8F86">$298.00</span></span>
+  </div>
+  <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:12px">
+    <span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#9A8F86">What's new</span>
+    <div style="display:flex;flex-direction:column;gap:8px;font:500 13px/1.4 'Instrument Sans'">
+      <span style="display:flex;gap:8px;align-items:center"><i data-lucide="search" style="width:14px;height:14px;color:#E4573D"></i>Link-or-search bar with store filter</span>
+      <span style="display:flex;gap:8px;align-items:center"><i data-lucide="shopping-cart" style="width:14px;height:14px;color:#E4573D"></i>Multi-item cart → one Paystack payment</span>
+      <span style="display:flex;gap:8px;align-items:center"><i data-lucide="heart" style="width:14px;height:14px;color:#E4573D"></i>Wishlist with price-drop alerts</span>
+      <span style="display:flex;gap:8px;align-items:center"><i data-lucide="package" style="width:14px;height:14px;color:#E4573D"></i>Ship-a-package: your US address</span>
+      <span style="display:flex;gap:8px;align-items:center"><i data-lucide="bell" style="width:14px;height:14px;color:#E4573D"></i>Notifications center</span>
+      <span style="display:flex;gap:8px;align-items:center"><i data-lucide="coins" style="width:14px;height:14px;color:#E4573D"></i>GH₵ + $ on every price</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 1. HOME ===== -->
+<section id="new-home" data-screen-label="New · Home" style="width:1280px">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6B625B;margin-bottom:10px">01 · Home (signed in)</div>
+  <div style="background:#F7F3EE;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <dc-import name="TmNav" active="home" cart="{{ cartCount }}" hint-size="100%,116px"></dc-import>
+    <div style="max-width:1280px;margin:0 auto;padding:28px 32px 56px;display:flex;flex-direction:column;gap:40px">
+
+      <div style="display:grid;grid-template-columns:1fr 380px;gap:20px">
+        <div style="background:#1C1715;border-radius:20px;padding:36px;color:#fff;display:flex;flex-direction:column;justify-content:space-between;gap:28px;position:relative;overflow:hidden">
+          <div style="position:absolute;right:-60px;top:-60px;width:320px;height:320px;border-radius:50%;background:#E4573D;opacity:.9"></div>
+          <div style="position:absolute;right:120px;bottom:-140px;width:260px;height:260px;border-radius:50%;background:#FDEBE6;opacity:.12"></div>
+          <div style="position:relative;display:flex;flex-direction:column;gap:12px;max-width:520px">
+            <span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.6)">Good afternoon, Kwame</span>
+            <h1 style="font:700 44px/1.02 'Bricolage Grotesque'">Anything from any US store. Landed in Accra, priced in cedis.</h1>
+          </div>
+          <div style="position:relative;display:flex;gap:10px;flex-wrap:wrap">
+            <span style="display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 18px;border-radius:12px;background:#fff;color:#1C1715;font:600 14px/1 'Instrument Sans'"><i data-lucide="link" style="width:16px;height:16px"></i>Paste a link</span>
+            <span style="display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 18px;border-radius:12px;border:1px solid rgba(255,255,255,.25);color:#fff;font:600 14px/1 'Instrument Sans'"><i data-lucide="package" style="width:16px;height:16px"></i>Ship a package to me</span>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="font:700 18px/1 'Bricolage Grotesque'">In motion</h3><span style="font:600 13px/1 'Instrument Sans';color:#E4573D">All orders →</span></div>
+          <sc-for list="{{ motion }}" as="m" hint-placeholder-count="2">
+            <div style="display:flex;gap:12px;align-items:center;padding:12px;border-radius:14px;background:#F7F3EE">
+              <div style="width:52px;height:52px;border-radius:10px;background:repeating-linear-gradient(135deg,#EFE8E0 0 6px,#E6DED4 6px 12px);flex-shrink:0"></div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                <p style="font:600 13px/1.3 'Instrument Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.name }}</p>
+                <div style="display:flex;gap:3px"><span style="flex:1;height:4px;border-radius:2px;background:{{ m.s1 }}"></span><span style="flex:1;height:4px;border-radius:2px;background:{{ m.s2 }}"></span><span style="flex:1;height:4px;border-radius:2px;background:{{ m.s3 }}"></span><span style="flex:1;height:4px;border-radius:2px;background:{{ m.s4 }}"></span></div>
+                <p style="font:500 12px/1 'Instrument Sans';color:#6B625B">{{ m.stage }}</p>
+              </div>
+            </div>
+          </sc-for>
+          <div style="margin-top:auto;display:flex;justify-content:space-between;align-items:baseline;padding-top:12px;border-top:1px solid #EBE4DC"><span style="font:500 13px/1 'Instrument Sans';color:#6B625B">Spent this year</span><span style="font:700 18px/1 'Instrument Sans';font-variant-numeric:tabular-nums">GH₵12,178.35</span></div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font:700 24px/1 'Bricolage Grotesque'">Shop by store</h2><span style="font:500 13px/1 'Instrument Sans';color:#6B625B">Paste any link from these — we handle the rest</span></div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px">
+          <div style="height:72px;border-radius:14px;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center"><img src="assets/icons/amazon.svg" style="height:24px" alt="Amazon"></div>
+          <div style="height:72px;border-radius:14px;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center"><img src="assets/icons/ebay.svg" style="height:26px" alt="eBay"></div>
+          <div style="height:72px;border-radius:14px;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center;font:800 16px/1 'Bricolage Grotesque';letter-spacing:.08em">SHEIN</div>
+          <div style="height:72px;border-radius:14px;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center;font:700 14px/1 'Bricolage Grotesque';letter-spacing:.02em;color:#1C1715">MICRO CENTER</div>
+          <div style="height:72px;border-radius:14px;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center;gap:8px;font:600 14px/1 'Instrument Sans';color:#6B625B"><i data-lucide="apple" style="width:18px;height:18px"></i>Apple</div>
+          <div style="height:72px;border-radius:14px;background:#FDEBE6;border:1px dashed #E4573D;display:flex;align-items:center;justify-content:center;gap:8px;font:600 14px/1 'Instrument Sans';color:#B93A22"><i data-lucide="plus" style="width:16px;height:16px"></i>Any other store</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font:700 24px/1 'Bricolage Grotesque'">Deals from Amazon</h2><span style="display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 16px;border-radius:10px;background:#fff;border:1px solid #EBE4DC;font:600 13px/1 'Instrument Sans'">Show all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></span></div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+          <sc-for list="{{ deals }}" as="d" hint-placeholder-count="4">
+            <div style="background:#fff;border:1px solid #EBE4DC;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:12px;position:relative">
+              <span style="position:absolute;top:14px;left:14px;padding:5px 8px;border-radius:7px;background:#1C1715;color:#fff;font:700 11px/1 'Instrument Sans'">{{ d.off }}</span>
+              <span style="position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center"><i data-lucide="heart" style="width:16px;height:16px;color:#1C1715"></i></span>
+              <div style="height:190px;border-radius:12px;background:repeating-linear-gradient(135deg,#F3EDE6 0 8px,#EDE6DE 8px 16px);display:flex;align-items:center;justify-content:center"><span style="font:500 11px/1 ui-monospace,monospace;color:#9A8F86">product shot</span></div>
+              <p style="font:500 14px/1.35 'Instrument Sans';color:#1C1715;height:38px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">{{ d.name }}</p>
+              <div style="display:flex;justify-content:space-between;align-items:flex-end">
+                <div style="display:flex;flex-direction:column;gap:3px"><span style="font:700 18px/1 'Instrument Sans';font-variant-numeric:tabular-nums">{{ d.big }}</span><span style="font:500 12px/1 'Instrument Sans';color:#9A8F86;font-variant-numeric:tabular-nums">{{ d.small }} <s>{{ d.was }}</s></span></div>
+                <span style="width:36px;height:36px;border-radius:10px;background:#E4573D;color:#fff;display:flex;align-items:center;justify-content:center"><i data-lucide="plus" style="width:18px;height:18px"></i></span>
+              </div>
+              <p style="font:500 11px/1 'Instrument Sans';color:#1F8A5B;display:flex;align-items:center;gap:5px"><i data-lucide="truck" style="width:12px;height:12px"></i>{{ d.eta }} · landed cost incl. freight</p>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <h2 style="font:700 24px/1 'Bricolage Grotesque'">Popular with Ghana</h2>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+            <sc-for list="{{ cats }}" as="c" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:10px"><div style="width:110px;height:110px;border-radius:50%;background:repeating-linear-gradient(135deg,#F3EDE6 0 8px,#EDE6DE 8px 16px);border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center"><span style="font:500 10px/1 ui-monospace,monospace;color:#9A8F86">photo</span></div><span style="font:600 14px/1 'Instrument Sans'">{{ c }}</span></div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:#E6F4EC;border-radius:20px;padding:28px;display:flex;gap:20px;align-items:center">
+          <div style="width:56px;height:56px;border-radius:16px;background:#1F8A5B;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="map-pin" style="width:24px;height:24px"></i></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px"><p style="font:700 16px/1.2 'Bricolage Grotesque';color:#14532D">Your US address is ready</p><p style="font:400 14px/1.45 'Instrument Sans';color:#166534">Shop any American store directly and ship to your Tomame locker in Delaware — tax-free. We forward it to Accra.</p></div>
+          <span style="display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 16px;border-radius:10px;background:#fff;font:600 13px/1 'Instrument Sans';color:#14532D;flex-shrink:0">View address <i data-lucide="chevron-right" style="width:14px;height:14px"></i></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 2. PRODUCT / QUOTE ===== -->
+<section id="new-product" data-screen-label="New · Product & quote" style="width:1280px">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6B625B;margin-bottom:10px">02 · Product page (after paste or search) — replaces "extract → preview → review"</div>
+  <div style="background:#F7F3EE;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <dc-import name="TmNav" active="shop" cart="{{ cartCount }}" placeholder="https://www.amazon.com/Sony-WH-1000XM5-Canceling-Headphones/dp/B09XS7JWHH" hint-size="100%,116px"></dc-import>
+    <div style="max-width:1280px;margin:0 auto;padding:24px 32px 56px;display:flex;flex-direction:column;gap:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="display:flex;align-items:center;gap:8px;font:500 14px/1 'Instrument Sans';color:#6B625B"><i data-lucide="arrow-left" style="width:16px;height:16px"></i>Back</span>
+        <div style="display:flex;gap:8px">
+          <span style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:999px;background:#fff;border:1px solid #EBE4DC;font:600 13px/1 'Instrument Sans'"><img src="assets/icons/amazon-mid.svg" style="height:16px" alt="">Amazon.com <i data-lucide="external-link" style="width:13px;height:13px;color:#9A8F86"></i></span>
+          <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center"><i data-lucide="share-2" style="width:16px;height:16px"></i></span>
+          <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center"><i data-lucide="heart" style="width:16px;height:16px"></i></span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:480px 1fr 360px;gap:24px;align-items:start">
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px">
+          <div style="height:420px;border-radius:14px;background:repeating-linear-gradient(135deg,#F3EDE6 0 8px,#EDE6DE 8px 16px);display:flex;align-items:center;justify-content:center;position:relative"><span style="font:500 12px/1 ui-monospace,monospace;color:#9A8F86">product image 1/6</span><span style="position:absolute;top:12px;right:12px;padding:6px 10px;border-radius:999px;background:rgba(28,23,21,.75);color:#fff;font:600 12px/1 'Instrument Sans'">1 / 6</span></div>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">
+            <div style="aspect-ratio:1;border-radius:8px;background:repeating-linear-gradient(135deg,#F3EDE6 0 6px,#EDE6DE 6px 12px);border:2px solid #1C1715"></div>
+            <div style="aspect-ratio:1;border-radius:8px;background:repeating-linear-gradient(135deg,#F3EDE6 0 6px,#EDE6DE 6px 12px)"></div><div style="aspect-ratio:1;border-radius:8px;background:repeating-linear-gradient(135deg,#F3EDE6 0 6px,#EDE6DE 6px 12px)"></div><div style="aspect-ratio:1;border-radius:8px;background:repeating-linear-gradient(135deg,#F3EDE6 0 6px,#EDE6DE 6px 12px)"></div><div style="aspect-ratio:1;border-radius:8px;background:repeating-linear-gradient(135deg,#F3EDE6 0 6px,#EDE6DE 6px 12px)"></div><div style="aspect-ratio:1;border-radius:8px;background:repeating-linear-gradient(135deg,#F3EDE6 0 6px,#EDE6DE 6px 12px)"></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <span style="display:inline-flex;align-items:center;gap:6px;width:fit-content;padding:6px 10px;border-radius:999px;background:#E6F4EC;color:#14532D;font:600 12px/1 'Instrument Sans'"><i data-lucide="check" style="width:12px;height:12px"></i>Details read from Amazon · 2 min ago</span>
+            <h1 style="font:700 28px/1.15 'Bricolage Grotesque'">Sony WH-1000XM5 Wireless Industry Leading Noise Canceling Headphones, Black</h1>
+            <span style="display:flex;align-items:center;gap:6px;font:500 13px/1 'Instrument Sans';color:#6B625B"><span style="color:#E4573D">★★★★★</span>4.6 · 38,402 ratings on Amazon</span>
+          </div>
+          <div style="border:1px solid #EBE4DC;border-radius:14px;overflow:hidden;background:#fff">
+            <sc-for list="{{ specs }}" as="s" hint-placeholder-count="5">
+              <div style="display:grid;grid-template-columns:150px 1fr;border-bottom:1px solid #EBE4DC"><span style="padding:12px 16px;background:#FBF8F4;font:500 14px/1.3 'Instrument Sans';color:#6B625B">{{ s.k }}</span><span style="padding:12px 16px;font:500 14px/1.3 'Instrument Sans'">{{ s.v }}</span></div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <p style="font:500 14px/1 'Instrument Sans';color:#6B625B">Color: <b style="color:#1C1715">Black</b></p>
+            <div style="display:flex;gap:8px">
+              <span style="width:64px;height:64px;border-radius:10px;background:#1C1715;border:2px solid #1C1715;outline:2px solid #fff;outline-offset:-4px"></span>
+              <span style="width:64px;height:64px;border-radius:10px;background:#D9D2CA"></span>
+              <span style="width:64px;height:64px;border-radius:10px;background:#2E3A63"></span>
+              <span style="width:64px;height:64px;border-radius:10px;background:#B9C4C9"></span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <p style="font:600 14px/1 'Instrument Sans'">Notes for our buyer <span style="font-weight:400;color:#9A8F86">optional</span></p>
+            <div style="min-height:72px;border:1px solid #EBE4DC;border-radius:12px;background:#fff;padding:12px 14px;font:400 14px/1.4 'Instrument Sans';color:#9A8F86">e.g. Only buy if sold by Amazon, not a 3rd-party seller</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;position:sticky;top:20px">
+          <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;align-items:baseline;gap:10px"><span style="font:700 32px/1 'Instrument Sans';font-variant-numeric:tabular-nums;letter-spacing:-.02em">{{ main.big }}</span><span style="font:500 15px/1 'Instrument Sans';color:#9A8F86"><s>$348.00</s></span></div>
+              <span style="font:500 14px/1 'Instrument Sans';color:#6B625B;font-variant-numeric:tabular-nums">{{ main.small }} on Amazon · <span style="color:#1F8A5B">In stock</span></span>
+            </div>
+            <div style="background:#FDEBE6;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:700 13px/1 'Instrument Sans';color:#B93A22">Landed cost to Accra</span><span style="font:700 15px/1 'Instrument Sans';font-variant-numeric:tabular-nums;color:#1C1715">GH₵5,041.16</span></div>
+              <div style="display:flex;flex-direction:column;gap:7px;font:500 13px/1 'Instrument Sans';color:#6B625B;font-variant-numeric:tabular-nums">
+                <div style="display:flex;justify-content:space-between"><span>Item</span><span>$298.00</span></div>
+                <div style="display:flex;justify-content:space-between"><span>US sales tax 8%</span><span>$23.84</span></div>
+                <div style="display:flex;justify-content:space-between"><span>Service fee 5%</span><span>$14.90</span></div>
+                <div style="display:flex;justify-content:space-between"><span>Freight · small parcel</span><span>GH₵180.00</span></div>
+                <div style="display:flex;justify-content:space-between;color:#9A8F86"><span>Rate locked 24h</span><span>1 USD = 14.43</span></div>
+              </div>
+              <span style="display:flex;align-items:center;gap:6px;font:600 12px/1 'Instrument Sans';color:#B93A22"><i data-lucide="truck" style="width:13px;height:13px"></i>Arrives 22 – 29 Sep · door delivery included</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 14px/1 'Instrument Sans'">Quantity</span><div style="display:flex;align-items:center;border:1px solid #EBE4DC;border-radius:10px;height:40px"><span style="width:40px;display:flex;align-items:center;justify-content:center"><i data-lucide="minus" style="width:14px;height:14px"></i></span><span style="width:36px;text-align:center;font:600 15px/1 'Instrument Sans'">1</span><span style="width:40px;display:flex;align-items:center;justify-content:center"><i data-lucide="plus" style="width:14px;height:14px"></i></span></div></div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span style="height:48px;border-radius:12px;background:#E4573D;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font:700 15px/1 'Instrument Sans'"><i data-lucide="shopping-cart" style="width:18px;height:18px"></i>Add to cart</span>
+              <span style="height:48px;border-radius:12px;background:#1C1715;color:#fff;display:flex;align-items:center;justify-content:center;font:700 15px/1 'Instrument Sans'">Buy now · GH₵5,041.16</span>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #EBE4DC;border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;font:500 13px/1 'Instrument Sans';color:#6B625B">
+            <span style="display:flex;align-items:center;gap:10px"><i data-lucide="shield-check" style="width:16px;height:16px;color:#1C1715"></i>Paystack · MoMo &amp; card, held until sourced</span>
+            <span style="display:flex;align-items:center;gap:10px"><i data-lucide="rotate-ccw" style="width:16px;height:16px;color:#1C1715"></i>Full refund if we can't source it</span>
+            <span style="display:flex;align-items:center;gap:10px"><i data-lucide="message-circle" style="width:16px;height:16px;color:#1C1715"></i>WhatsApp updates at each step</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 3. CART & CHECKOUT ===== -->
+<section id="new-checkout" data-screen-label="New · Cart & checkout" style="width:1280px">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6B625B;margin-bottom:10px">03 · Cart &amp; checkout — several items, one payment</div>
+  <div style="background:#F7F3EE;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <dc-import name="TmNav" active="shop" cart="{{ cartCount }}" hint-size="100%,116px"></dc-import>
+    <div style="max-width:1280px;margin:0 auto;padding:28px 32px 56px;display:grid;grid-template-columns:1fr 400px;gap:24px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><h1 style="font:700 32px/1 'Bricolage Grotesque';white-space:nowrap">Your cart <span style="color:#9A8F86;font-weight:500">· {{ cartCount }} items</span></h1><span style="font:600 13px/1 'Instrument Sans';color:#6B625B">Continue shopping →</span></div>
+        <sc-for list="{{ cart }}" as="c" hint-placeholder-count="2">
+          <div style="background:#fff;border:1px solid #EBE4DC;border-radius:18px;padding:18px;display:grid;grid-template-columns:96px 1fr auto;gap:18px;align-items:start">
+            <div style="width:96px;height:96px;border-radius:12px;background:repeating-linear-gradient(135deg,#F3EDE6 0 8px,#EDE6DE 8px 16px)"></div>
+            <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+              <span style="display:inline-flex;align-items:center;gap:6px;width:fit-content;padding:4px 8px;border-radius:6px;background:#F7F3EE;font:600 11px/1 'Instrument Sans';color:#6B625B">{{ c.store }} · ships from USA</span>
+              <p style="font:600 15px/1.3 'Instrument Sans'">{{ c.name }}</p>
+              <p style="font:400 13px/1 'Instrument Sans';color:#6B625B">{{ c.variant }}</p>
+              <div style="display:flex;gap:16px;align-items:center;margin-top:4px">
+                <div style="display:flex;align-items:center;border:1px solid #EBE4DC;border-radius:8px;height:32px"><span style="width:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="minus" style="width:12px;height:12px"></i></span><span style="width:28px;text-align:center;font:600 13px/1 'Instrument Sans'">{{ c.qty }}</span><span style="width:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="plus" style="width:12px;height:12px"></i></span></div>
+                <span style="font:500 13px/1 'Instrument Sans';color:#6B625B;display:flex;align-items:center;gap:5px"><i data-lucide="heart" style="width:13px;height:13px"></i>Save</span>
+                <span style="font:500 13px/1 'Instrument Sans';color:#6B625B;display:flex;align-items:center;gap:5px"><i data-lucide="trash-2" style="width:13px;height:13px"></i>Remove</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span style="font:700 18px/1 'Instrument Sans';font-variant-numeric:tabular-nums">{{ c.big }}</span><span style="font:500 12px/1 'Instrument Sans';color:#9A8F86">{{ c.small }} landed</span></div>
+          </div>
+        </sc-for>
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:14px">
+          <h3 style="font:700 18px/1 'Bricolage Grotesque'">Deliver to</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div style="border:2px solid #1C1715;border-radius:14px;padding:14px;display:flex;gap:12px;align-items:flex-start;background:#fff"><i data-lucide="home" style="width:18px;height:18px;margin-top:2px"></i><div style="display:flex;flex-direction:column;gap:3px"><p style="font:600 14px/1 'Instrument Sans'">Home · East Legon</p><p style="font:400 13px/1.4 'Instrument Sans';color:#6B625B">12 Boundary Rd, Accra · +233 24 555 0192</p></div><span style="margin-left:auto;font:600 12px/1 'Instrument Sans';color:#E4573D">Edit</span></div>
+            <div style="border:1px dashed #D9D2CA;border-radius:14px;padding:14px;display:flex;gap:10px;align-items:center;justify-content:center;font:600 14px/1 'Instrument Sans';color:#6B625B"><i data-lucide="plus" style="width:16px;height:16px"></i>Pick-up point or new address</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;position:sticky;top:20px">
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:16px">
+          <h3 style="font:700 18px/1 'Bricolage Grotesque'">Summary</h3>
+          <div style="display:flex;flex-direction:column;gap:9px;font:500 14px/1 'Instrument Sans';color:#6B625B;font-variant-numeric:tabular-nums">
+            <div style="display:flex;justify-content:space-between"><span>Items (2)</span><span>$817.00</span></div>
+            <div style="display:flex;justify-content:space-between"><span>US sales tax</span><span>$65.36</span></div>
+            <div style="display:flex;justify-content:space-between"><span>Service fee 5%</span><span>$40.85</span></div>
+            <div style="display:flex;justify-content:space-between"><span>Freight · 2 parcels</span><span>GH₵360.00</span></div>
+            <div style="display:flex;justify-content:space-between"><span>Door delivery · Accra</span><span style="color:#1F8A5B">Free</span></div>
+            <div style="display:flex;justify-content:space-between;color:#9A8F86;font-size:12px"><span>1 USD = 14.43 GHS · locked until 4:12 PM tomorrow</span></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:14px;border-top:1px solid #EBE4DC"><span style="font:600 15px/1 'Instrument Sans'">Total</span><div style="text-align:right"><span style="display:block;font:700 26px/1 'Instrument Sans';font-variant-numeric:tabular-nums;letter-spacing:-.02em">GH₵13,681.66</span><span style="font:500 12px/1.6 'Instrument Sans';color:#9A8F86">≈ $948.15</span></div></div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <p style="font:600 13px/1 'Instrument Sans';color:#6B625B">Pay with</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <span style="height:44px;border-radius:10px;border:2px solid #1C1715;display:flex;align-items:center;justify-content:center;gap:8px;font:600 13px/1 'Instrument Sans'"><span style="width:10px;height:10px;border-radius:50%;background:#FFCC00"></span>MTN MoMo</span>
+              <span style="height:44px;border-radius:10px;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center;gap:8px;font:600 13px/1 'Instrument Sans';color:#6B625B"><span style="width:10px;height:10px;border-radius:50%;background:#E60000"></span>Telecel Cash</span>
+              <span style="height:44px;border-radius:10px;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center;gap:8px;font:600 13px/1 'Instrument Sans';color:#6B625B"><span style="width:10px;height:10px;border-radius:50%;background:#0033A0"></span>AT Money</span>
+              <span style="height:44px;border-radius:10px;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center;gap:8px;font:600 13px/1 'Instrument Sans';color:#6B625B"><i data-lucide="credit-card" style="width:14px;height:14px"></i>Card</span>
+            </div>
+          </div>
+          <span style="height:52px;border-radius:12px;background:#E4573D;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font:700 16px/1 'Instrument Sans'">Pay GH₵13,681.66 <i data-lucide="arrow-right" style="width:18px;height:18px"></i></span>
+          <p style="text-align:center;font:500 12px/1.4 'Instrument Sans';color:#9A8F86;display:flex;align-items:center;justify-content:center;gap:6px"><i data-lucide="lock" style="width:12px;height:12px"></i>Secured by Paystack · funds held until items are sourced</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 4. ORDERS + DETAIL ===== -->
+<section style="display:flex;gap:40px;align-items:flex-start">
+<div id="new-orders" data-screen-label="New · Orders" style="width:1280px;flex-shrink:0">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6B625B;margin-bottom:10px">04 · Orders — one row per order, stage visible at a glance</div>
+  <div style="background:#F7F3EE;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <dc-import name="TmNav" active="orders" cart="{{ cartCount }}" hint-size="100%,116px"></dc-import>
+    <div style="max-width:1280px;margin:0 auto;padding:28px 32px 56px;display:flex;flex-direction:column;gap:20px;min-height:700px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end">
+        <div><h1 style="font:700 32px/1 'Bricolage Grotesque'">Orders</h1><p style="margin-top:8px;font:400 14px/1 'Instrument Sans';color:#6B625B">Every item you've bought through Tomame, and where it is right now.</p></div>
+        <div style="display:flex;gap:8px">
+          <span style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:10px;background:#fff;border:1px solid #EBE4DC;font:500 13px/1 'Instrument Sans';color:#9A8F86;width:280px"><i data-lucide="search" style="width:15px;height:15px"></i>Search by product, store or ID</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px;border-radius:10px;background:#fff;border:1px solid #EBE4DC;font:600 13px/1 'Instrument Sans'"><i data-lucide="sliders-horizontal" style="width:15px;height:15px"></i>Filter</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;border-bottom:1px solid #EBE4DC">
+        <span style="padding:10px 14px;font:600 14px/1 'Instrument Sans';border-bottom:2px solid #1C1715">All <span style="color:#9A8F86">4</span></span>
+        <span style="padding:10px 14px;font:600 14px/1 'Instrument Sans';color:#6B625B">Active <span style="color:#9A8F86">3</span></span>
+        <span style="padding:10px 14px;font:600 14px/1 'Instrument Sans';color:#6B625B">Delivered <span style="color:#9A8F86">1</span></span>
+        <span style="padding:10px 14px;font:600 14px/1 'Instrument Sans';color:#6B625B">Packages I'm shipping <span style="color:#9A8F86">0</span></span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ orders }}" as="o" hint-placeholder-count="4">
+          <div style="background:#fff;border:1px solid #EBE4DC;border-radius:18px;padding:18px 20px;display:grid;grid-template-columns:72px 1.4fr 1.2fr auto auto;gap:20px;align-items:center">
+            <div style="width:72px;height:72px;border-radius:12px;background:repeating-linear-gradient(135deg,#F3EDE6 0 8px,#EDE6DE 8px 16px)"></div>
+            <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+              <span style="font:600 11px/1 'Instrument Sans';color:#9A8F86;letter-spacing:.04em">{{ o.store }} · {{ o.id }} · {{ o.date }}</span>
+              <p style="font:600 15px/1.3 'Instrument Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ o.name }}</p>
+              <span style="font:500 13px/1 'Instrument Sans';color:#6B625B">Qty {{ o.qty }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;gap:4px"><span style="flex:1;height:5px;border-radius:3px;background:{{ o.s1 }}"></span><span style="flex:1;height:5px;border-radius:3px;background:{{ o.s2 }}"></span><span style="flex:1;height:5px;border-radius:3px;background:{{ o.s3 }}"></span><span style="flex:1;height:5px;border-radius:3px;background:{{ o.s4 }}"></span><span style="flex:1;height:5px;border-radius:3px;background:{{ o.s5 }}"></span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="display:inline-flex;align-items:center;gap:6px;font:600 13px/1 'Instrument Sans';color:{{ o.stColor }}"><span style="width:8px;height:8px;border-radius:50%;background:{{ o.stColor }}"></span>{{ o.stage }}</span><span style="font:500 12px/1 'Instrument Sans';color:#9A8F86">{{ o.hint }}</span></div>
+            </div>
+            <div style="text-align:right;display:flex;flex-direction:column;gap:4px"><span style="font:700 16px/1 'Instrument Sans';font-variant-numeric:tabular-nums">{{ o.ghs }}</span><span style="font:500 12px/1 'Instrument Sans';color:#9A8F86">{{ o.usd }}</span></div>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:10px;background:{{ o.ctaBg }};color:{{ o.ctaFg }};border:1px solid {{ o.ctaBd }};font:600 13px/1 'Instrument Sans';white-space:nowrap">{{ o.cta }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="new-detail" data-screen-label="New · Order detail" style="width:1280px;flex-shrink:0">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6B625B;margin-bottom:10px">05 · Order detail &amp; tracking</div>
+  <div style="background:#F7F3EE;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <dc-import name="TmNav" active="orders" cart="{{ cartCount }}" hint-size="100%,116px"></dc-import>
+    <div style="max-width:1280px;margin:0 auto;padding:24px 32px 56px;display:flex;flex-direction:column;gap:20px">
+      <span style="display:flex;align-items:center;gap:8px;font:500 14px/1 'Instrument Sans';color:#6B625B"><i data-lucide="arrow-left" style="width:16px;height:16px"></i>Orders</span>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:20px">
+        <div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 12px/1 'Instrument Sans';color:#9A8F86;letter-spacing:.04em">ORDER TM-48213 · Placed 28 Aug 2026</span><h1 style="font:700 30px/1.1 'Bricolage Grotesque';max-width:760px">Sony WH-1000XM5 Wireless Noise Canceling Headphones, Black</h1></div>
+        <span style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:#FDEBE6;color:#B93A22;font:700 13px/1 'Instrument Sans'"><i data-lucide="plane" style="width:14px;height:14px"></i>In the air · lands Accra Sat</span>
+      </div>
+      <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:28px 28px 24px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0;position:relative">
+          <sc-for list="{{ track }}" as="t" hint-placeholder-count="5">
+            <div style="display:flex;flex-direction:column;gap:12px;position:relative">
+              <div style="display:flex;align-items:center"><span style="width:32px;height:32px;border-radius:50%;background:{{ t.dotBg }};border:2px solid {{ t.dotBd }};color:{{ t.dotFg }};display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:1"><i data-lucide="{{ t.icon }}" style="width:14px;height:14px"></i></span><sc-if value="{{ t.notLast }}" hint-placeholder-val="{{ true }}"><span style="flex:1;height:3px;background:{{ t.line }};margin:0 -2px"></span></sc-if></div>
+              <div style="display:flex;flex-direction:column;gap:3px;padding-right:16px"><p style="font:600 14px/1.2 'Instrument Sans';color:{{ t.color }}">{{ t.label }}</p><p style="font:400 12px/1.4 'Instrument Sans';color:#9A8F86">{{ t.sub }}</p></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding-top:18px;border-top:1px solid #EBE4DC">
+          <div style="display:flex;gap:12px;align-items:center"><span style="width:40px;height:40px;border-radius:10px;background:#F7F3EE;display:flex;align-items:center;justify-content:center"><i data-lucide="truck" style="width:18px;height:18px"></i></span><div><p style="font:500 12px/1 'Instrument Sans';color:#9A8F86">Carrier</p><p style="margin-top:4px;font:600 14px/1 'Instrument Sans'">DHL Express · 7734 2201 9856</p></div></div>
+          <div style="display:flex;gap:12px;align-items:center"><span style="width:40px;height:40px;border-radius:10px;background:#F7F3EE;display:flex;align-items:center;justify-content:center"><i data-lucide="calendar" style="width:18px;height:18px"></i></span><div><p style="font:500 12px/1 'Instrument Sans';color:#9A8F86">Estimated delivery</p><p style="margin-top:4px;font:600 14px/1 'Instrument Sans'">Thu 18 – Sat 20 Sep</p></div></div>
+          <div style="display:flex;gap:12px;align-items:center"><span style="width:40px;height:40px;border-radius:10px;background:#F7F3EE;display:flex;align-items:center;justify-content:center"><i data-lucide="map-pin" style="width:18px;height:18px"></i></span><div><p style="font:500 12px/1 'Instrument Sans';color:#9A8F86">Deliver to</p><p style="margin-top:4px;font:600 14px/1 'Instrument Sans'">Home · 12 Boundary Rd, East Legon</p></div></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:16px">
+          <h3 style="font:700 18px/1 'Bricolage Grotesque'">Item</h3>
+          <div style="display:flex;gap:14px"><div style="width:88px;height:88px;border-radius:12px;background:repeating-linear-gradient(135deg,#F3EDE6 0 8px,#EDE6DE 8px 16px);flex-shrink:0"></div><div style="display:flex;flex-direction:column;gap:6px"><span style="display:inline-flex;align-items:center;gap:6px;width:fit-content;padding:4px 8px;border-radius:6px;background:#F7F3EE;font:600 11px/1 'Instrument Sans';color:#6B625B">Amazon · USA</span><p style="font:600 14px/1.35 'Instrument Sans'">Sony WH-1000XM5 · Black · Qty 1</p><span style="font:500 13px/1 'Instrument Sans';color:#E4573D;display:flex;align-items:center;gap:4px">View on Amazon <i data-lucide="external-link" style="width:12px;height:12px"></i></span></div></div>
+          <div style="padding:12px 14px;border-radius:12px;background:#F7F3EE;font:400 13px/1.4 'Instrument Sans';color:#6B625B"><b style="color:#1C1715">Your note:</b> Only buy if sold by Amazon.</div>
+        </div>
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:14px">
+          <h3 style="font:700 18px/1 'Bricolage Grotesque'">What you paid</h3>
+          <div style="display:flex;flex-direction:column;gap:9px;font:500 14px/1 'Instrument Sans';color:#6B625B;font-variant-numeric:tabular-nums">
+            <div style="display:flex;justify-content:space-between"><span>Item</span><span>$298.00</span></div>
+            <div style="display:flex;justify-content:space-between"><span>US sales tax 8%</span><span>$23.84</span></div>
+            <div style="display:flex;justify-content:space-between"><span>Service fee 5%</span><span>$14.90</span></div>
+            <div style="display:flex;justify-content:space-between"><span>Freight</span><span>GH₵180.00</span></div>
+            <div style="display:flex;justify-content:space-between;color:#9A8F86;font-size:12px"><span>Rate</span><span>1 USD = 14.43</span></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:12px;border-top:1px solid #EBE4DC"><span style="font:600 14px/1 'Instrument Sans'">Total paid</span><span style="font:700 22px/1 'Instrument Sans';font-variant-numeric:tabular-nums">GH₵5,041.16</span></div>
+          <span style="display:flex;align-items:center;gap:6px;font:500 12px/1 'Instrument Sans';color:#1F8A5B"><i data-lucide="check-circle-2" style="width:13px;height:13px"></i>Paid via MTN MoMo · 28 Aug, 10:20 · Receipt</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="background:#1C1715;color:#fff;border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:14px">
+            <h3 style="font:700 18px/1 'Bricolage Grotesque'">Updates</h3>
+            <div style="display:flex;flex-direction:column;gap:12px;font:400 13px/1.4 'Instrument Sans';color:rgba(255,255,255,.75)">
+              <div style="display:flex;gap:10px"><span style="width:6px;height:6px;border-radius:50%;background:#E4573D;margin-top:6px;flex-shrink:0"></span><p><b style="color:#fff">Departed Cincinnati hub</b> · Sep 8, 22:14</p></div>
+              <div style="display:flex;gap:10px"><span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.3);margin-top:6px;flex-shrink:0"></span><p>Received at Tomame Delaware warehouse · Sep 6</p></div>
+              <div style="display:flex;gap:10px"><span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.3);margin-top:6px;flex-shrink:0"></span><p>Purchased from Amazon · Sep 2</p></div>
+            </div>
+          </div>
+          <span style="height:44px;border-radius:12px;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center;gap:8px;font:600 14px/1 'Instrument Sans'"><i data-lucide="message-circle" style="width:16px;height:16px"></i>Ask about this order</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ===== 6. SHIP A PACKAGE ===== -->
+<section style="display:flex;gap:40px;align-items:flex-start">
+<div id="new-ship" data-screen-label="New · Ship a package" style="width:1280px;flex-shrink:0">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6B625B;margin-bottom:10px">06 · Ship a package — your US address</div>
+  <div style="background:#F7F3EE;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <dc-import name="TmNav" active="ship" cart="{{ cartCount }}" hint-size="100%,116px"></dc-import>
+    <div style="background:#1C1715;color:#fff;padding:44px 32px"><div style="max-width:1280px;margin:0 auto;display:flex;justify-content:space-between;align-items:flex-end;gap:40px"><div style="max-width:640px;display:flex;flex-direction:column;gap:12px"><h1 style="font:700 40px/1.05 'Bricolage Grotesque'">Shop any US store yourself. Ship it to your Tomame address.</h1><p style="font:400 16px/1.5 'Instrument Sans';color:rgba(255,255,255,.7)">Use it at checkout on any site — Nike, Target, Apple, a friend's house. We receive it in Delaware (no sales tax) and forward it to your door in Accra.</p></div><span style="display:inline-flex;align-items:center;gap:8px;height:48px;padding:0 20px;border-radius:12px;background:#E4573D;color:#fff;font:700 15px/1 'Instrument Sans';white-space:nowrap">Register a package <i data-lucide="arrow-right" style="width:16px;height:16px"></i></span></div></div>
+    <div style="max-width:1280px;margin:0 auto;padding:28px 32px 56px;display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="background:#FDEBE6;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:700 12px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#B93A22">Your US shipping address · tax-free</span><span style="display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:8px;background:#fff;font:600 12px/1 'Instrument Sans'"><i data-lucide="copy" style="width:13px;height:13px"></i>Copy all</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <sc-for list="{{ addr }}" as="a" hint-placeholder-count="6">
+              <div style="background:#fff;border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;flex-direction:column;gap:4px;min-width:0"><span style="font:500 11px/1 'Instrument Sans';color:#9A8F86">{{ a.k }}</span><span style="font:600 14px/1.2 'Instrument Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.v }}</span></div><i data-lucide="copy" style="width:14px;height:14px;color:#9A8F86;flex-shrink:0"></i></div>
+            </sc-for>
+          </div>
+          <p style="font:400 13px/1.4 'Instrument Sans';color:#B93A22">Always include <b>TM-KA-4821</b> in Address line 2 — that's how we match the parcel to you.</p>
+        </div>
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:16px">
+          <h3 style="font:700 18px/1 'Bricolage Grotesque'">Three steps</h3>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;gap:14px;align-items:flex-start"><span style="width:28px;height:28px;border-radius:50%;background:#1C1715;color:#fff;font:700 13px/28px 'Instrument Sans';text-align:center;flex-shrink:0">1</span><div><p style="font:600 14px/1.2 'Instrument Sans'">Check out on the store with the address above</p><p style="margin-top:3px;font:400 13px/1.4 'Instrument Sans';color:#6B625B">Pay the store yourself with any card — or ask a friend abroad to send it.</p></div></div>
+            <div style="display:flex;gap:14px;align-items:flex-start"><span style="width:28px;height:28px;border-radius:50%;background:#1C1715;color:#fff;font:700 13px/28px 'Instrument Sans';text-align:center;flex-shrink:0">2</span><div><p style="font:600 14px/1.2 'Instrument Sans'">Register the tracking number here</p><p style="margin-top:3px;font:400 13px/1.4 'Instrument Sans';color:#6B625B">We know what to expect and quote freight in GH₵ before it lands.</p></div></div>
+            <div style="display:flex;gap:14px;align-items:flex-start"><span style="width:28px;height:28px;border-radius:50%;background:#1C1715;color:#fff;font:700 13px/28px 'Instrument Sans';text-align:center;flex-shrink:0">3</span><div><p style="font:600 14px/1.2 'Instrument Sans'">Pay freight in cedis, we deliver</p><p style="margin-top:3px;font:400 13px/1.4 'Instrument Sans';color:#6B625B">Typically 7–12 days from our warehouse to your door.</p></div></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div style="background:#fff;border:2px solid #1C1715;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px"><span style="width:40px;height:40px;border-radius:12px;background:#1C1715;color:#fff;display:flex;align-items:center;justify-content:center"><i data-lucide="shopping-bag" style="width:18px;height:18px"></i></span><p style="font:700 14px/1.2 'Instrument Sans'">I'm yet to shop</p><p style="font:400 13px/1.4 'Instrument Sans';color:#6B625B">Use my US address at checkout</p></div>
+          <div style="background:#fff;border:1px solid #EBE4DC;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px"><span style="width:40px;height:40px;border-radius:12px;background:#F7F3EE;display:flex;align-items:center;justify-content:center"><i data-lucide="gift" style="width:18px;height:18px"></i></span><p style="font:700 14px/1.2 'Instrument Sans'">Someone is sending to me</p><p style="font:400 13px/1.4 'Instrument Sans';color:#E4573D">Share my address →</p></div>
+          <div style="background:#fff;border:1px solid #EBE4DC;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px"><span style="width:40px;height:40px;border-radius:12px;background:#F7F3EE;display:flex;align-items:center;justify-content:center"><i data-lucide="package-check" style="width:18px;height:18px"></i></span><p style="font:700 14px/1.2 'Instrument Sans'">Already shipped</p><p style="font:400 13px/1.4 'Instrument Sans';color:#E4573D">Register tracking →</p></div>
+        </div>
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:14px">
+          <h3 style="font:700 18px/1 'Bricolage Grotesque'">Freight estimate</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 12px/1 'Instrument Sans';color:#6B625B">Weight</span><div style="height:44px;border:1px solid #EBE4DC;border-radius:10px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;font:600 14px/1 'Instrument Sans'">2.5 <span style="color:#9A8F86;font-weight:500">lb</span></div></div>
+            <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 12px/1 'Instrument Sans';color:#6B625B">Category</span><div style="height:44px;border:1px solid #EBE4DC;border-radius:10px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;font:600 14px/1 'Instrument Sans'">Clothing <i data-lucide="chevron-down" style="width:14px;height:14px;color:#9A8F86"></i></div></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding:14px 16px;border-radius:12px;background:#F7F3EE"><span style="font:500 14px/1 'Instrument Sans';color:#6B625B">Warehouse → your door</span><span style="font:700 20px/1 'Instrument Sans';font-variant-numeric:tabular-nums">GH₵412.00 <span style="font:500 12px/1 'Instrument Sans';color:#9A8F86">≈ $28.55</span></span></div>
+        </div>
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="font:700 18px/1 'Bricolage Grotesque'">Incoming packages</h3><span style="font:600 13px/1 'Instrument Sans';color:#E4573D">+ Register</span></div>
+          <div style="padding:22px;border:1px dashed #D9D2CA;border-radius:12px;text-align:center;font:500 13px/1.4 'Instrument Sans';color:#6B625B">Nothing on the way yet. Register a tracking number and it shows up here.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ===== 7. NOTIFICATIONS + ACCOUNT ===== -->
+<section style="display:flex;gap:40px;align-items:flex-start">
+<div id="new-account" data-screen-label="New · Account & notifications" style="width:1280px;flex-shrink:0">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6B625B;margin-bottom:10px">07 · Account — with the notifications panel open</div>
+  <div style="background:#F7F3EE;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);position:relative">
+    <dc-import name="TmNav" active="account" cart="{{ cartCount }}" hint-size="100%,116px"></dc-import>
+    <div style="position:absolute;top:66px;right:120px;width:400px;background:#fff;border:1px solid #EBE4DC;border-radius:18px;box-shadow:0 24px 60px -20px rgba(28,23,21,.35);z-index:5;overflow:hidden">
+      <div style="padding:16px 18px;border-bottom:1px solid #EBE4DC;display:flex;justify-content:space-between;align-items:center"><h3 style="font:700 16px/1 'Bricolage Grotesque'">Notifications</h3><span style="font:600 12px/1 'Instrument Sans';color:#E4573D">Mark all read</span></div>
+      <sc-for list="{{ notifs }}" as="n" hint-placeholder-count="4">
+        <div style="padding:14px 18px;display:flex;gap:12px;border-bottom:1px solid #F1EBE4;background:{{ n.bg }}"><span style="width:36px;height:36px;border-radius:10px;background:{{ n.iconBg }};color:{{ n.iconFg }};display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="{{ n.icon }}" style="width:16px;height:16px"></i></span><div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0"><p style="font:600 13px/1.3 'Instrument Sans'">{{ n.title }}</p><p style="font:400 13px/1.4 'Instrument Sans';color:#6B625B">{{ n.body }}</p><span style="font:500 11px/1 'Instrument Sans';color:#9A8F86;margin-top:2px">{{ n.time }}</span></div></div>
+      </sc-for>
+      <div style="padding:12px;text-align:center;font:600 13px/1 'Instrument Sans';color:#6B625B">See all</div>
+    </div>
+    <div style="max-width:1280px;margin:0 auto;padding:28px 32px 56px;display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:start;min-height:700px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;gap:12px;align-items:center;padding:12px 12px 20px"><span style="width:48px;height:48px;border-radius:50%;background:#FDEBE6;color:#B93A22;font:700 18px/48px 'Instrument Sans';text-align:center">K</span><div><p style="font:700 15px/1.2 'Bricolage Grotesque'">Kwame Asante</p><p style="font:400 12px/1.3 'Instrument Sans';color:#6B625B">Member since Mar 2026</p></div></div>
+        <span style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:#fff;border:1px solid #EBE4DC;font:600 14px/1 'Instrument Sans'"><i data-lucide="user" style="width:16px;height:16px"></i>Profile</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;font:500 14px/1 'Instrument Sans';color:#6B625B"><i data-lucide="map-pin" style="width:16px;height:16px"></i>Delivery addresses</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;font:500 14px/1 'Instrument Sans';color:#6B625B"><i data-lucide="wallet" style="width:16px;height:16px"></i>Payment methods</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;font:500 14px/1 'Instrument Sans';color:#6B625B"><i data-lucide="heart" style="width:16px;height:16px"></i>Wishlist <span style="margin-left:auto;font:600 12px/1 'Instrument Sans';color:#9A8F86">7</span></span>
+        <span style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;font:500 14px/1 'Instrument Sans';color:#6B625B"><i data-lucide="bell" style="width:16px;height:16px"></i>Notifications</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;font:500 14px/1 'Instrument Sans';color:#6B625B"><i data-lucide="lock" style="width:16px;height:16px"></i>Security</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;font:500 14px/1 'Instrument Sans';color:#6B625B;margin-top:12px"><i data-lucide="log-out" style="width:16px;height:16px"></i>Sign out</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <h1 style="font:700 30px/1 'Bricolage Grotesque'">Profile</h1>
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 12px/1 'Instrument Sans';color:#6B625B">First name</span><div style="height:44px;border:1px solid #EBE4DC;border-radius:10px;padding:0 14px;display:flex;align-items:center;font:500 14px/1 'Instrument Sans'">Kwame</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 12px/1 'Instrument Sans';color:#6B625B">Last name</span><div style="height:44px;border:1px solid #EBE4DC;border-radius:10px;padding:0 14px;display:flex;align-items:center;font:500 14px/1 'Instrument Sans'">Asante</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 12px/1 'Instrument Sans';color:#6B625B">Email</span><div style="height:44px;border:1px solid #EBE4DC;border-radius:10px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;font:500 14px/1 'Instrument Sans'">kwame.asante@gmail.com <span style="font:600 11px/1 'Instrument Sans';color:#1F8A5B;display:flex;align-items:center;gap:4px"><i data-lucide="check" style="width:12px;height:12px"></i>Verified</span></div></div>
+          <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 12px/1 'Instrument Sans';color:#6B625B">WhatsApp number</span><div style="height:44px;border:1px solid #EBE4DC;border-radius:10px;padding:0 14px;display:flex;align-items:center;font:500 14px/1 'Instrument Sans'">+233 24 555 0192</div></div>
+          <div style="grid-column:span 2;display:flex;justify-content:space-between;align-items:center;padding-top:8px"><span style="font:400 13px/1 'Instrument Sans';color:#9A8F86">Updates go to email and WhatsApp.</span><span style="height:40px;padding:0 18px;border-radius:10px;background:#1C1715;color:#fff;display:inline-flex;align-items:center;font:600 14px/1 'Instrument Sans'">Save changes</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="font:700 16px/1 'Bricolage Grotesque'">Default delivery</h3><span style="font:600 12px/1 'Instrument Sans';color:#E4573D">Change</span></div><p style="font:500 14px/1.5 'Instrument Sans'">Home · 12 Boundary Rd, East Legon, Accra</p><p style="font:400 13px/1 'Instrument Sans';color:#6B625B">+233 24 555 0192</p></div>
+          <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="font:700 16px/1 'Bricolage Grotesque'">Password</h3><span style="font:600 12px/1 'Instrument Sans';color:#E4573D">Change</span></div><p style="font:500 14px/1.5 'Instrument Sans'">Last changed 3 months ago</p><p style="font:400 13px/1 'Instrument Sans';color:#6B625B">Sign-in alerts on</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ===== 8. MOBILE ===== -->
+<section id="new-mobile" data-screen-label="New · Mobile" style="width:1280px">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6B625B;margin-bottom:10px">08 · Mobile — Home, Product, Orders (bottom tabs)</div>
+  <div style="display:flex;gap:28px;align-items:flex-start">
+    <div style="width:390px;height:844px;background:#F7F3EE;border-radius:36px;overflow:hidden;border:1px solid #EBE4DC;position:relative;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+      <div style="background:#1C1715;color:#fff;padding:52px 18px 14px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="display:flex;align-items:center;gap:5px;font:700 22px/1 'Bricolage Grotesque';letter-spacing:-.02em">tomame<span style="width:7px;height:7px;border-radius:50%;background:#E4573D;margin-top:7px"></span></span><div style="display:flex;gap:16px;align-items:center"><span style="position:relative"><i data-lucide="shopping-cart" style="width:22px;height:22px"></i><span style="position:absolute;top:-6px;right:-8px;min-width:16px;height:16px;border-radius:8px;background:#E4573D;font:700 10px/16px 'Instrument Sans';text-align:center;padding:0 4px">{{ cartCount }}</span></span><i data-lucide="heart" style="width:22px;height:22px"></i><i data-lucide="bell" style="width:22px;height:22px"></i></div></div>
+        <div style="height:44px;background:#fff;border-radius:12px;display:flex;align-items:center;overflow:hidden"><span style="padding:0 12px;border-right:1px solid #EBE4DC;height:100%;display:flex;align-items:center"><img src="assets/icons/amazon-mid.svg" style="height:14px" alt=""></span><span style="flex:1;padding:0 12px;font:400 13px/1 'Instrument Sans';color:#9A8F86">Paste a link or search…</span><span style="width:44px;height:100%;background:#E4573D;display:flex;align-items:center;justify-content:center"><i data-lucide="search" style="width:16px;height:16px;color:#fff"></i></span></div>
+      </div>
+      <div style="flex:1;overflow:hidden;padding:16px 18px;display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;gap:8px;overflow:hidden"><span style="height:56px;min-width:100px;border-radius:12px;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center"><img src="assets/icons/amazon.svg" style="height:18px" alt=""></span><span style="height:56px;min-width:100px;border-radius:12px;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center"><img src="assets/icons/ebay.svg" style="height:20px" alt=""></span><span style="height:56px;min-width:100px;border-radius:12px;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center;font:800 13px/1 'Bricolage Grotesque';letter-spacing:.08em">SHEIN</span><span style="height:56px;min-width:100px;border-radius:12px;background:#fff;border:1px solid #EBE4DC;display:flex;align-items:center;justify-content:center;font:700 12px/1 'Bricolage Grotesque'">MICRO</span></div>
+        <div style="display:flex;gap:12px;align-items:center;padding:14px;border-radius:14px;background:#fff;border:1px solid #EBE4DC"><div style="width:48px;height:48px;border-radius:10px;background:repeating-linear-gradient(135deg,#EFE8E0 0 6px,#E6DED4 6px 12px);flex-shrink:0"></div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><p style="font:600 13px/1.3 'Instrument Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sony WH-1000XM5 Headphones</p><div style="display:flex;gap:3px"><span style="flex:1;height:4px;border-radius:2px;background:#1F8A5B"></span><span style="flex:1;height:4px;border-radius:2px;background:#1F8A5B"></span><span style="flex:1;height:4px;border-radius:2px;background:#E4573D"></span><span style="flex:1;height:4px;border-radius:2px;background:#EBE4DC"></span></div><p style="font:500 12px/1 'Instrument Sans';color:#B93A22">In the air · lands Sat</p></div><i data-lucide="chevron-right" style="width:16px;height:16px;color:#9A8F86"></i></div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font:700 20px/1 'Bricolage Grotesque'">Deals from Amazon</h2><span style="font:600 13px/1 'Instrument Sans';color:#E4573D">Show all</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <sc-for list="{{ dealsM }}" as="d" hint-placeholder-count="2">
+              <div style="background:#fff;border:1px solid #EBE4DC;border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:8px;position:relative"><span style="position:absolute;top:10px;left:10px;padding:4px 6px;border-radius:6px;background:#1C1715;color:#fff;font:700 10px/1 'Instrument Sans'">{{ d.off }}</span><div style="height:130px;border-radius:10px;background:repeating-linear-gradient(135deg,#F3EDE6 0 8px,#EDE6DE 8px 16px)"></div><p style="font:500 13px/1.3 'Instrument Sans';height:34px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">{{ d.name }}</p><div style="display:flex;justify-content:space-between;align-items:flex-end"><div><span style="display:block;font:700 15px/1 'Instrument Sans';font-variant-numeric:tabular-nums">{{ d.big }}</span><span style="display:block;margin-top:3px;font:500 11px/1 'Instrument Sans';color:#9A8F86">{{ d.small }}</span></div><span style="width:30px;height:30px;border-radius:8px;background:#E4573D;color:#fff;display:flex;align-items:center;justify-content:center"><i data-lucide="plus" style="width:14px;height:14px"></i></span></div></div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="height:84px;background:#fff;border-top:1px solid #EBE4DC;display:grid;grid-template-columns:repeat(4,1fr);padding:10px 8px 22px">
+        <span style="display:flex;flex-direction:column;align-items:center;gap:5px;font:600 11px/1 'Instrument Sans';color:#1C1715"><i data-lucide="house" style="width:22px;height:22px"></i>Home</span>
+        <span style="display:flex;flex-direction:column;align-items:center;gap:5px;font:500 11px/1 'Instrument Sans';color:#9A8F86"><i data-lucide="shopping-bag" style="width:22px;height:22px"></i>Shop</span>
+        <span style="display:flex;flex-direction:column;align-items:center;gap:5px;font:500 11px/1 'Instrument Sans';color:#9A8F86"><i data-lucide="package" style="width:22px;height:22px"></i>Ship</span>
+        <span style="display:flex;flex-direction:column;align-items:center;gap:5px;font:500 11px/1 'Instrument Sans';color:#9A8F86"><i data-lucide="clipboard-list" style="width:22px;height:22px"></i>Orders</span>
+      </div>
+    </div>
+
+    <div style="width:390px;height:844px;background:#F7F3EE;border-radius:36px;overflow:hidden;border:1px solid #EBE4DC;position:relative;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+      <div style="background:#1C1715;color:#fff;padding:52px 18px 14px;display:flex;justify-content:space-between;align-items:center"><span style="display:flex;align-items:center;gap:8px;font:600 14px/1 'Instrument Sans'"><i data-lucide="arrow-left" style="width:20px;height:20px"></i>Back</span><div style="display:flex;gap:16px"><i data-lucide="share-2" style="width:20px;height:20px"></i><i data-lucide="heart" style="width:20px;height:20px"></i></div></div>
+      <div style="flex:1;overflow:hidden;padding:14px 18px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:8px"><div style="height:250px;border-radius:12px;background:repeating-linear-gradient(135deg,#F3EDE6 0 8px,#EDE6DE 8px 16px);position:relative"><span style="position:absolute;top:10px;right:10px;padding:5px 9px;border-radius:999px;background:rgba(28,23,21,.75);color:#fff;font:600 11px/1 'Instrument Sans'">1 / 6</span></div><div style="display:flex;gap:6px"><span style="width:48px;height:48px;border-radius:8px;background:repeating-linear-gradient(135deg,#F3EDE6 0 6px,#EDE6DE 6px 12px);border:2px solid #1C1715"></span><span style="width:48px;height:48px;border-radius:8px;background:repeating-linear-gradient(135deg,#F3EDE6 0 6px,#EDE6DE 6px 12px)"></span><span style="width:48px;height:48px;border-radius:8px;background:repeating-linear-gradient(135deg,#F3EDE6 0 6px,#EDE6DE 6px 12px)"></span><span style="width:48px;height:48px;border-radius:8px;background:repeating-linear-gradient(135deg,#F3EDE6 0 6px,#EDE6DE 6px 12px)"></span></div></div>
+        <span style="display:inline-flex;align-items:center;gap:6px;width:fit-content;padding:5px 9px;border-radius:999px;background:#E6F4EC;color:#14532D;font:600 11px/1 'Instrument Sans'"><img src="assets/icons/amazon-mid.svg" style="height:12px" alt="">Read from Amazon · in stock</span>
+        <h1 style="font:700 20px/1.2 'Bricolage Grotesque'">Sony WH-1000XM5 Wireless Noise Canceling Headphones, Black</h1>
+        <div style="display:flex;align-items:baseline;gap:8px"><span style="font:700 26px/1 'Instrument Sans';font-variant-numeric:tabular-nums;letter-spacing:-.02em">{{ main.big }}</span><span style="font:500 13px/1 'Instrument Sans';color:#9A8F86">{{ main.small }} · <s>$348</s></span></div>
+        <div style="background:#FDEBE6;border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center"><div><p style="font:700 12px/1 'Instrument Sans';color:#B93A22">Landed in Accra</p><p style="margin-top:4px;font:400 12px/1 'Instrument Sans';color:#6B625B">Item + tax + fee + freight</p></div><span style="display:flex;align-items:center;gap:4px;font:600 13px/1 'Instrument Sans';color:#B93A22">Breakdown <i data-lucide="chevron-down" style="width:14px;height:14px"></i></span></div>
+      </div>
+      <div style="padding:12px 18px 30px;background:#fff;border-top:1px solid #EBE4DC;display:flex;gap:10px"><div style="display:flex;align-items:center;border:1px solid #EBE4DC;border-radius:12px;height:52px"><span style="width:44px;display:flex;align-items:center;justify-content:center"><i data-lucide="minus" style="width:14px;height:14px"></i></span><span style="width:24px;text-align:center;font:600 15px/1 'Instrument Sans'">1</span><span style="width:44px;display:flex;align-items:center;justify-content:center"><i data-lucide="plus" style="width:14px;height:14px"></i></span></div><span style="flex:1;height:52px;border-radius:12px;background:#E4573D;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font:700 15px/1 'Instrument Sans'"><i data-lucide="shopping-cart" style="width:18px;height:18px"></i>Add · GH₵5,041</span></div>
+    </div>
+
+    <div style="width:390px;height:844px;background:#F7F3EE;border-radius:36px;overflow:hidden;border:1px solid #EBE4DC;position:relative;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+      <div style="background:#1C1715;color:#fff;padding:52px 18px 16px;display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="display:flex;align-items:center;gap:5px;font:700 22px/1 'Bricolage Grotesque';letter-spacing:-.02em">tomame<span style="width:7px;height:7px;border-radius:50%;background:#E4573D;margin-top:7px"></span></span><i data-lucide="bell" style="width:22px;height:22px"></i></div><h1 style="font:700 28px/1 'Bricolage Grotesque'">Orders</h1></div>
+      <div style="padding:14px 18px 0;display:flex;gap:6px"><span style="padding:8px 12px;border-radius:999px;background:#1C1715;color:#fff;font:600 12px/1 'Instrument Sans'">All 4</span><span style="padding:8px 12px;border-radius:999px;background:#fff;border:1px solid #EBE4DC;font:600 12px/1 'Instrument Sans';color:#6B625B">Active 3</span><span style="padding:8px 12px;border-radius:999px;background:#fff;border:1px solid #EBE4DC;font:600 12px/1 'Instrument Sans';color:#6B625B">Delivered 1</span><span style="padding:8px 12px;border-radius:999px;background:#fff;border:1px solid #EBE4DC;font:600 12px/1 'Instrument Sans';color:#6B625B">Packages</span></div>
+      <div style="flex:1;overflow:hidden;padding:14px 18px;display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ orders }}" as="o" hint-placeholder-count="4">
+          <div style="background:#fff;border:1px solid #EBE4DC;border-radius:16px;padding:12px;display:flex;gap:12px;align-items:center"><div style="width:60px;height:60px;border-radius:10px;background:repeating-linear-gradient(135deg,#F3EDE6 0 8px,#EDE6DE 8px 16px);flex-shrink:0"></div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><p style="font:600 13px/1.3 'Instrument Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ o.name }}</p><div style="display:flex;gap:3px"><span style="flex:1;height:4px;border-radius:2px;background:{{ o.s1 }}"></span><span style="flex:1;height:4px;border-radius:2px;background:{{ o.s2 }}"></span><span style="flex:1;height:4px;border-radius:2px;background:{{ o.s3 }}"></span><span style="flex:1;height:4px;border-radius:2px;background:{{ o.s4 }}"></span><span style="flex:1;height:4px;border-radius:2px;background:{{ o.s5 }}"></span></div><div style="display:flex;justify-content:space-between"><span style="font:600 12px/1 'Instrument Sans';color:{{ o.stColor }}">{{ o.stage }}</span><span style="font:700 12px/1 'Instrument Sans';font-variant-numeric:tabular-nums">{{ o.ghs }}</span></div></div></div>
+        </sc-for>
+      </div>
+      <div style="height:84px;background:#fff;border-top:1px solid #EBE4DC;display:grid;grid-template-columns:repeat(4,1fr);padding:10px 8px 22px">
+        <span style="display:flex;flex-direction:column;align-items:center;gap:5px;font:500 11px/1 'Instrument Sans';color:#9A8F86"><i data-lucide="house" style="width:22px;height:22px"></i>Home</span>
+        <span style="display:flex;flex-direction:column;align-items:center;gap:5px;font:500 11px/1 'Instrument Sans';color:#9A8F86"><i data-lucide="shopping-bag" style="width:22px;height:22px"></i>Shop</span>
+        <span style="display:flex;flex-direction:column;align-items:center;gap:5px;font:500 11px/1 'Instrument Sans';color:#9A8F86"><i data-lucide="package" style="width:22px;height:22px"></i>Ship</span>
+        <span style="display:flex;flex-direction:column;align-items:center;gap:5px;font:600 11px/1 'Instrument Sans';color:#1C1715"><i data-lucide="clipboard-list" style="width:22px;height:22px"></i>Orders</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 9. MARKETING ===== -->
+<section id="new-landing" data-screen-label="New · Marketing landing" style="width:1280px">
+  <div style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#6B625B;margin-bottom:10px">09 · Marketing landing (signed out)</div>
+  <div style="background:#F7F3EE;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <nav style="background:#1C1715;color:#fff;height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 32px">
+      <span style="display:flex;align-items:center;gap:6px;font:700 24px/1 'Bricolage Grotesque';letter-spacing:-.02em">tomame<span style="width:8px;height:8px;border-radius:50%;background:#E4573D;margin-top:8px"></span></span>
+      <div style="display:flex;gap:28px;font:500 14px/1 'Instrument Sans';color:rgba(255,255,255,.75)"><span>How it works</span><span>Ship a package</span><span>Pricing</span><span>FAQ</span></div>
+      <div style="display:flex;gap:8px"><span style="height:40px;padding:0 16px;border-radius:10px;display:inline-flex;align-items:center;font:600 14px/1 'Instrument Sans'">Sign in</span><span style="height:40px;padding:0 16px;border-radius:10px;background:#E4573D;display:inline-flex;align-items:center;font:600 14px/1 'Instrument Sans'">Start shopping</span></div>
+    </nav>
+    <div style="background:#1C1715;color:#fff;padding:72px 32px 88px;position:relative;overflow:hidden">
+      <div style="position:absolute;right:-120px;top:-160px;width:620px;height:620px;border-radius:50%;background:#E4573D"></div>
+      <div style="position:absolute;right:260px;bottom:-260px;width:420px;height:420px;border-radius:50%;background:#FDEBE6;opacity:.1"></div>
+      <div style="position:relative;max-width:720px;display:flex;flex-direction:column;gap:28px">
+        <span style="display:inline-flex;align-items:center;gap:8px;width:fit-content;padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.2);font:500 13px/1 'Instrument Sans';color:rgba(255,255,255,.8)"><span style="width:7px;height:7px;border-radius:50%;background:#4ADE80"></span>$1 = GH₵14.43 today · built for Ghana</span>
+        <h1 style="font:700 76px/.98 'Bricolage Grotesque';letter-spacing:-.035em">Shop America.<br>Pay in cedis.<br><span style="color:#E4573D">Delivered to Accra.</span></h1>
+        <p style="max-width:560px;font:400 18px/1.5 'Instrument Sans';color:rgba(255,255,255,.7)">Paste any Amazon, eBay or SHEIN link — or search right here — and see the full landed price in GH₵ before you pay. MoMo or card. Door delivery in 2–3 weeks.</p>
+        <div style="display:flex;height:56px;background:#fff;border-radius:14px;overflow:hidden;max-width:640px"><span style="flex:1;padding:0 18px;display:flex;align-items:center;gap:10px;font:400 15px/1 'Instrument Sans';color:#9A8F86"><i data-lucide="link" style="width:18px;height:18px"></i>Paste a product link or search…</span><span style="padding:0 22px;background:#E4573D;display:flex;align-items:center;gap:8px;font:700 15px/1 'Instrument Sans'">Get landed price <i data-lucide="arrow-right" style="width:16px;height:16px"></i></span></div>
+        <div style="display:flex;gap:24px;align-items:center;filter:brightness(0) invert(1);opacity:.8"><img src="assets/icons/amazon.svg" style="height:22px" alt=""><img src="assets/icons/ebay.svg" style="height:24px" alt=""><span style="font:800 15px/1 'Bricolage Grotesque';letter-spacing:.08em">SHEIN</span><span style="font:700 13px/1 'Bricolage Grotesque'">MICRO CENTER</span><span style="font:600 13px/1 'Instrument Sans'">+ any US store</span></div>
+      </div>
+    </div>
+    <div style="padding:88px 32px;display:flex;flex-direction:column;gap:40px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end"><h2 style="font:700 44px/1 'Bricolage Grotesque';max-width:520px">No hidden fees. The price you see is the price at your door.</h2><p style="max-width:380px;font:400 16px/1.5 'Instrument Sans';color:#6B625B">Item, US tax, our 5% fee, freight and today's rate — itemised on every product, locked for 24 hours.</p></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:18px;min-height:280px"><span style="font:700 48px/1 'Bricolage Grotesque';color:#E4573D">01</span><h3 style="font:700 22px/1.15 'Bricolage Grotesque'">Paste or search</h3><p style="font:400 15px/1.5 'Instrument Sans';color:#6B625B">We read the listing — title, photos, price, weight — and show the landed cost in cedis instantly.</p></div>
+        <div style="background:#fff;border:1px solid #EBE4DC;border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:18px;min-height:280px"><span style="font:700 48px/1 'Bricolage Grotesque';color:#E4573D">02</span><h3 style="font:700 22px/1.15 'Bricolage Grotesque'">Pay with MoMo or card</h3><p style="font:400 15px/1.5 'Instrument Sans';color:#6B625B">Paystack holds the money until we've bought your item. Can't source it? Full refund, same day.</p></div>
+        <div style="background:#1C1715;color:#fff;border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:18px;min-height:280px"><span style="font:700 48px/1 'Bricolage Grotesque';color:#E4573D">03</span><h3 style="font:700 22px/1.15 'Bricolage Grotesque'">Track it to your door</h3><p style="font:400 15px/1.5 'Instrument Sans';color:rgba(255,255,255,.7)">US warehouse → Accra → you. WhatsApp updates at each hop, and a delivery window you can plan around.</p></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:stretch">
+        <div style="position:relative;border-radius:20px;overflow:hidden;min-height:320px"><img src="assets/images/delivery.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" alt=""><div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(28,23,21,.85),rgba(28,23,21,.1))"></div><div style="position:relative;padding:28px;display:flex;flex-direction:column;justify-content:flex-end;min-height:320px;color:#fff;gap:8px"><span style="font:700 40px/1 'Bricolage Grotesque'">2,400+</span><p style="font:500 15px/1.4 'Instrument Sans';color:rgba(255,255,255,.8)">packages delivered across Greater Accra, Kumasi and Takoradi</p></div></div>
+        <div style="background:#FDEBE6;border-radius:20px;padding:32px;display:flex;flex-direction:column;justify-content:space-between;gap:20px"><div style="display:flex;flex-direction:column;gap:12px"><span style="font:600 11px/1 'Instrument Sans';letter-spacing:.14em;text-transform:uppercase;color:#B93A22">Ship a package</span><h3 style="font:700 30px/1.1 'Bricolage Grotesque'">Already have a US cart? Use your free Tomame address.</h3><p style="font:400 15px/1.5 'Instrument Sans';color:#6B625B">Check out on any American site, ship to our Delaware warehouse tax-free, and we bring it home for a flat freight rate in GH₵.</p></div><span style="width:fit-content;height:48px;padding:0 20px;border-radius:12px;background:#1C1715;color:#fff;display:inline-flex;align-items:center;gap:8px;font:600 15px/1 'Instrument Sans'">Get my US address <i data-lucide="arrow-right" style="width:16px;height:16px"></i></span></div>
+      </div>
+    </div>
+    <footer style="background:#1C1715;color:rgba(255,255,255,.6);padding:48px 32px;display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:32px;font:400 14px/1.6 'Instrument Sans'">
+      <div style="display:flex;flex-direction:column;gap:12px"><span style="display:flex;align-items:center;gap:6px;font:700 24px/1 'Bricolage Grotesque';letter-spacing:-.02em;color:#fff">tomame<span style="width:8px;height:8px;border-radius:50%;background:#E4573D;margin-top:8px"></span></span><p>Concierge shopping for Ghana. Accra · Delaware.</p></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><b style="color:#fff">Shop</b><span>How it works</span><span>Pricing</span><span>Supported stores</span></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><b style="color:#fff">Ship</b><span>Your US address</span><span>Freight rates</span><span>Prohibited items</span></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><b style="color:#fff">Legal</b><span>Privacy</span><span>Terms</span><span>Returns &amp; refunds</span></div>
+    </footer>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;currencyPrimary&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;GHS&quot;,&quot;USD&quot;],&quot;default&quot;:&quot;GHS&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Pricing&quot;},&quot;cartCount&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:0,&quot;max&quot;:9,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;State&quot;}}">
+class Component extends DCLogic {
+  componentDidMount(){ this.icons(); }
+  componentDidUpdate(){ this.icons(); }
+  icons(){ if(window.lucide) window.lucide.createIcons(); else setTimeout(()=>this.icons(),200); }
+  renderVals(){
+    const ghsFirst=(this.props.currencyPrimary??"GHS")==="GHS";
+    const cartCount=this.props.cartCount??2;
+    const price=(usd,ghs)=>ghsFirst?{big:"GH₵"+ghs,small:"$"+usd}:{big:"$"+usd,small:"GH₵"+ghs};
+    const G="#1F8A5B",C="#E4573D",N="#EBE4DC";
+    const bars=(stage)=>{const o={};for(let i=1;i<=5;i++)o["s"+i]=i<stage?G:i===stage?C:N;return o;};
+    const deals=[
+      {name:"Apple iPhone 15 128GB (Renewed Premium) — Blue",off:"-14%",...price("519.97","7,503.17"),was:"$599",eta:"Arrives 22–29 Sep"},
+      {name:"Apple 2026 MacBook Air 15-inch, M4, 16GB, 512GB — Starlight",off:"-8%",...price("1,649.00","23,795.07"),was:"$1,799",eta:"Arrives 22–29 Sep"},
+      {name:"Sony WH-1000XM5 Wireless Noise Canceling Headphones",off:"-14%",...price("298.00","4,300.14"),was:"$348",eta:"Arrives 22–29 Sep"},
+      {name:"Ninja Foodi 10-in-1 Air Fryer &amp; Pressure Cooker, 6.5 qt",off:"-22%",...price("139.99","2,020.06"),was:"$179",eta:"Arrives 24 Sep–1 Oct"},
+    ].map(d=>({...d,name:d.name.replace("&amp;","&")}));
+    const dealsM=deals.slice(0,2);
+    const motion=[
+      {name:"Sony WH-1000XM5 Headphones",stage:"In the air · lands Sat",s1:G,s2:G,s3:C,s4:N},
+      {name:"Apple iPad 10.2-inch 128GB",stage:"Buying from eBay",s1:G,s2:C,s3:N,s4:N},
+    ];
+    const cats=["Phones","Laptops","Skincare","Sneakers"];
+    const specs=[{k:"Seller",v:"Amazon.com"},{k:"Brand",v:"Sony"},{k:"Condition",v:"New"},{k:"Weight",v:"8.8 oz · small parcel freight"},{k:"Product ID",v:"B09XS7JWHH"}];
+    const main=price("298.00","4,300.14");
+    const cart=[
+      {store:"Amazon",name:"Sony WH-1000XM5 Wireless Noise Canceling Headphones",variant:"Black · Qty 1",qty:1,...price("298.00","5,041.16")},
+      {store:"eBay",name:"Apple iPad (10.2-inch, Wi-Fi, 128GB) — Space Gray, Renewed",variant:"Space Gray · Qty 1",qty:1,...price("519.00","8,640.50")},
+    ];
+    const O=(store,id,date,name,qty,stage,label,hint,usd,ghs,cta,dark)=>({store,id,date,name,qty,stage:label,hint,usd:"$"+usd,ghs:"GH₵"+ghs,cta,...bars(stage),stColor:stage===5?G:C,ctaBg:dark?"#1C1715":"#fff",ctaFg:dark?"#fff":"#1C1715",ctaBd:dark?"#1C1715":"#EBE4DC"});
+    const orders=[
+      O("Amazon","TM-48213","28 Aug","Sony WH-1000XM5 Wireless Noise Canceling Headphones, Black",1,4,"In the air","Lands Accra Sat","298.00","5,041.16","Track",true),
+      O("eBay","TM-48102","14 Aug","Apple iPad (10.2-inch, Wi-Fi, 128GB) — Space Gray",1,2,"Buying from eBay","Usually 1–2 days","519.00","8,640.50","View",false),
+      O("Microcenter","TM-47990","21 Jul","Logitech MX Master 3S Wireless Mouse",1,1,"Awaiting payment","Price locked till 4:12 PM","89.99","1,388.02","Pay GH₵1,388",true),
+      O("SHEIN","TM-47811","02 Aug","SHEIN Ribbed Knit Bodycon Dress — Black, M",2,5,"Delivered","Signed by Kwame · 26 Aug","38.00","612.40","Buy again",false),
+    ];
+    const T=(icon,label,sub,state)=>({icon,label,sub,notLast:true,dotBg:state==="done"?G:state==="now"?C:"#fff",dotBd:state==="done"?G:state==="now"?C:N,dotFg:state==="up"?"#9A8F86":"#fff",line:state==="done"?G:N,color:state==="up"?"#9A8F86":"#1C1715"});
+    const track=[T("check","Paid","28 Aug · MTN MoMo","done"),T("shopping-bag","Bought","2 Sep · Amazon","done"),T("warehouse","US warehouse","6 Sep · Delaware","done"),T("plane","In the air","Departed 8 Sep","now"),T("home","Delivered","Est. 18–20 Sep","up")];
+    track[4].notLast=false;
+    const addr=[{k:"Full name",v:"Kwame Asante TM-KA-4821"},{k:"Address line 1",v:"1120 Tomame Logistics Way"},{k:"Address line 2",v:"Suite TM-KA-4821"},{k:"City",v:"New Castle"},{k:"State · ZIP",v:"Delaware · 19720"},{k:"Phone",v:"+1 (302) 555-0148"}];
+    const notifs=[
+      {icon:"plane",iconBg:"#FDEBE6",iconFg:"#B93A22",bg:"#FFF8F5",title:"Your headphones are in the air",body:"TM-48213 departed Cincinnati. Landing Accra Saturday.",time:"2h ago"},
+      {icon:"tag",iconBg:"#E6F4EC",iconFg:"#1F8A5B",bg:"#FFF8F5",title:"Price drop on a wishlisted item",body:"MacBook Air 15\" is $150 cheaper — GH₵23,795 landed.",time:"Yesterday"},
+      {icon:"clock",iconBg:"#F7F3EE",iconFg:"#6B625B",bg:"#fff",title:"Rate lock expires soon",body:"Pay TM-47990 before 4:12 PM to keep GH₵1,388.02.",time:"Yesterday"},
+      {icon:"check-circle-2",iconBg:"#F7F3EE",iconFg:"#6B625B",bg:"#fff",title:"Delivered: SHEIN dress",body:"Signed for by Kwame at East Legon.",time:"26 Aug"},
+    ];
+    return {cartCount,deals,dealsM,motion,cats,specs,main,cart,orders,track,addr,notifs};
+  }
+}
+</script>
+</body>
+</html>

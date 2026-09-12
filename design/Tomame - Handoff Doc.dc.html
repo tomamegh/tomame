@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="./doc-page.js"></script>
+<style>
+doc-page:not(:defined){visibility:hidden}
+body{margin:0;font-family:'Instrument Sans',system-ui,sans-serif;color:#2B2422;-webkit-font-smoothing:antialiased}
+a{color:#F25B3D;text-decoration:none}a:hover{color:#C43E22;text-decoration:underline}
+h1,h2,h3{font-family:'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;margin:0}
+p{margin:0}
+table{border-collapse:collapse;width:100%}
+.kt{break-inside:avoid}
+</style>
+</helmet>
+<doc-page margin="0.75in">
+<div style="display:flex;flex-direction:column;gap:28px;font:400 14px/1.6 'Instrument Sans',sans-serif">
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <span style="font:700 26px/1 'Bricolage Grotesque',sans-serif;letter-spacing:-.03em;background:linear-gradient(90deg,#F43F5E,#F97316,#F59E0B);-webkit-background-clip:text;background-clip:text;color:transparent;width:fit-content">Tomame</span>
+    <h1 style="font:800 38px/1.05 'Bricolage Grotesque',sans-serif">UI redesign — handoff</h1>
+    <p style="color:#6E625B;font-size:15px">Design direction, files, and build notes for the Tomame app and marketing site. 10 September 2026.</p>
+  </div>
+
+  <div class="kt" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div style="background:#FDF9F6;border:1px solid #F0E8E3;border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:6px"><span style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#F25B3D">Scope</span><p>App: Home, Landed price, Bag &amp; pay, Journeys, Journey detail, Account, Mobile. Marketing: Landing, Where we buy, Fees, About.</p></div>
+    <div style="background:#FDF9F6;border:1px solid #F0E8E3;border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:6px"><span style="font:600 11px/1 'Instrument Sans';letter-spacing:.12em;text-transform:uppercase;color:#F25B3D">Business rules baked in</span><p>Ship from the <b>USA only</b> today — UK and China shown as “coming soon”. No personal US address. Journey stage is <b>Purchased</b>, not Bought. GH₵ first, $ second on every price.</p></div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <h2 style="font:700 22px/1.2 'Bricolage Grotesque',sans-serif">1. Files</h2>
+    <p style="color:#6E625B">All files open directly in the browser. Screens are laid out on a pan/zoom canvas; each screen has an anchor id you can link to.</p>
+    <table style="font-size:13px">
+      <thead><tr style="background:#FDF9F6;text-align:left"><th style="padding:10px 12px;border-bottom:1px solid #F0E8E3;font-weight:600">File</th><th style="padding:10px 12px;border-bottom:1px solid #F0E8E3;font-weight:600">What it is</th><th style="padding:10px 12px;border-bottom:1px solid #F0E8E3;font-weight:600">Status</th></tr></thead>
+      <tbody>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9"><a href="Tomame - New Direction v2.dc.html">Tomame - New Direction v2</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">App redesign — 8 screens incl. mobile. <b>Build from this.</b></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;color:#15703F;font-weight:600">Final</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9"><a href="Tomame - Marketing v2.dc.html">Tomame - Marketing v2</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Landing, Where we buy, Fees, About. Photo drop-zones. <b>Build from this.</b></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;color:#15703F;font-weight:600">Final</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">TmNavLight · TmMarketingNav · TmMarketingFooter</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Shared app nav, marketing nav and footer components used by the two files above.</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;color:#15703F;font-weight:600">Final</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9"><a href="Tomame - Current UI.dc.html">Tomame - Current UI</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Faithful recreation of today's app from source — for before/after comparison.</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;color:#8A7F79">Reference</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9"><a href="Tomame - New Direction.dc.html">Tomame - New Direction</a> · TmNav</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">First pass (dark header, coral). Superseded by v2.</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;color:#8A7F79">Archive</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">assets/</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Store logos (amazon, ebay, shein, microcenter) and stock photos copied from the repo's /public.</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;color:#8A7F79">Assets</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <h2 style="font:700 22px/1.2 'Bricolage Grotesque',sans-serif">2. Visual system</h2>
+    <div class="kt" style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:10px;background:linear-gradient(90deg,#F43F5E,#F97316,#F59E0B)"></div><span style="font-size:11px;color:#6E625B">Brand gradient<br>rose → amber</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:10px;background:#F25B3D"></div><span style="font-size:11px;color:#6E625B">Coral #F25B3D<br>accent, links</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:10px;background:#2B2422"></div><span style="font-size:11px;color:#6E625B">Ink #2B2422<br>text only</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:10px;background:#FDF9F6;border:1px solid #F0E8E3"></div><span style="font-size:11px;color:#6E625B">Paper #FDF9F6<br>page bg</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:10px;background:#FFF1EC"></div><span style="font-size:11px;color:#6E625B">Tint #FFF1EC<br>highlights</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:10px;background:#1E9A5C"></div><span style="font-size:11px;color:#6E625B">Green #1E9A5C<br>success / done</span></div>
+    </div>
+    <ul style="margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px">
+      <li><b>Type:</b> Bricolage Grotesque 700/800 for headings (tight tracking −0.02 to −0.035em); Instrument Sans 400–700 for everything else. Prices use <code>font-variant-numeric: tabular-nums</code>.</li>
+      <li><b>Neutrals:</b> #6E625B secondary text, #8A7F79 tertiary, #F0E8E3 borders, #F5EEE9 hairlines. Amber #C97A0A for “in progress / soon”.</li>
+      <li><b>Shape:</b> cards 20–26px radius, 1px #F0E8E3 border, no shadows except floating hero cards. Pills 999px. Buttons 44–52px tall, 12–14px radius; primary = brand gradient.</li>
+      <li><b>Icons:</b> Phosphor (duotone for feature icons, fill for status, bold for arrows, regular in-line). Not Lucide.</li>
+      <li><b>Black:</b> used for text only — no dark surfaces, no dark header.</li>
+    </ul>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <h2 style="font:700 22px/1.2 'Bricolage Grotesque',sans-serif">3. Motion</h2>
+    <p>All animation is CSS keyframes, ease <code>cubic-bezier(.16,1,.3,1)</code>, and must respect <code>prefers-reduced-motion</code>.</p>
+    <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">
+      <li><b>tmUp</b> — 14px rise + fade, 0.5–0.7s, staggered 60–80ms per card on page load.</li>
+      <li><b>Receipt print-in</b> — landed-price rows appear one by one (150ms apart), total pops (<b>tmPop</b>) after the last row.</li>
+      <li><b>tmFill</b> — bars scale from left (worked example on Fees, freight box on Home).</li>
+      <li><b>tmFloat</b> — hero cards drift ±8px over 6–7s.</li>
+      <li><b>tmPlane / tmArc</b> — plane glides along the journey track (10s loop) and along the US→Accra arc (6s loop, <code>offset-path</code>).</li>
+      <li><b>tmWords</b> — hero store name cycles Amazon → eBay → Walmart → Best Buy every ~2.2s.</li>
+    </ul>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px;break-before:page">
+    <h2 style="font:700 22px/1.2 'Bricolage Grotesque',sans-serif">4. Screen map — app</h2>
+    <table style="font-size:13px">
+      <thead><tr style="background:#FDF9F6;text-align:left"><th style="padding:10px 12px;border-bottom:1px solid #F0E8E3;font-weight:600;width:24%">Screen (anchor)</th><th style="padding:10px 12px;border-bottom:1px solid #F0E8E3;font-weight:600">Replaces</th><th style="padding:10px 12px;border-bottom:1px solid #F0E8E3;font-weight:600">Key changes</th></tr></thead>
+      <tbody>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top"><a href="Tomame - New Direction v2.dc.html#v2-home">Home</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top">/app (hero + stats + table)</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Paste bar stays the hero. Stats → “Journeys in motion” with stage bars; new Freight box (fill to save), Price watch, US-only + waitlist card, Ask a buyer.</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top"><a href="Tomame - New Direction v2.dc.html#v2-quote">Landed price</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top">/orders/new + /orders/review/[id]</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Preview and review merge into one screen: gallery, specs, buyer notes, and a receipt that prints in. Actions: Add to bag / Pay now. Rate lock 24h shown.</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top"><a href="Tomame - New Direction v2.dc.html#v2-bag">Bag &amp; pay</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top">/orders/[id]/checkout</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9"><b>New:</b> multi-item bag grouped by the box it travels in, one Paystack payment. MoMo / Telecel / AT / card selector. Delivery address picker.</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top"><a href="Tomame - New Direction v2.dc.html#v2-journeys">Journeys</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top">/orders (list)</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Orders become “Journeys”: Paid → Purchased → US hub → In the air → Delivered on every row. Filters: All / Active / Delivered / Unpaid.</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top"><a href="Tomame - New Direction v2.dc.html#v2-detail">Journey detail</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top">/orders/[id]</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Horizontal track with a plane, carrier + ETA + address strip, item / paid / updates columns, “Ask about this journey”.</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top">Account</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top">/account</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Left rail (Profile, Addresses, Payment, Price watch, Notifications, Security). Notifications panel design included.</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top"><a href="Tomame - New Direction v2.dc.html#v2-mobile">Mobile</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top">Responsive views</td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Home, Landed price, Journeys at 390px with bottom tabs: Home · Shop · Watch · Journeys. Sticky Add/Pay bar.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <h2 style="font:700 22px/1.2 'Bricolage Grotesque',sans-serif">5. Screen map — marketing</h2>
+    <table style="font-size:13px">
+      <thead><tr style="background:#FDF9F6;text-align:left"><th style="padding:10px 12px;border-bottom:1px solid #F0E8E3;font-weight:600;width:24%">Page (anchor)</th><th style="padding:10px 12px;border-bottom:1px solid #F0E8E3;font-weight:600">Sections</th></tr></thead>
+      <tbody>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top"><a href="Tomame - Marketing v2.dc.html#mk-landing">Landing</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Hero (paste bar + floating receipt) · How it works (4 steps, plane track) · Three things only a personal shopper can do · Where we buy (US live, UK/CN soon) · Stats + testimonials · FAQ · CTA · Footer.</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top"><a href="Tomame - Marketing v2.dc.html#mk-regions">Where we buy</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Hero with animated US→Accra arc (UK/CN dimmed “coming soon”) · Region cards with Live/Soon pills · Delivery in Ghana price list (Accra free, GH₵40–55 elsewhere, Osu pickup).</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top"><a href="Tomame - Marketing v2.dc.html#mk-fees">Fees</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">5% fee + pass-through list · Worked example ($298 headphones) with animated bars · Refund / rate-lock cards · Comparison table.</td></tr>
+        <tr><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9;vertical-align:top"><a href="Tomame - Marketing v2.dc.html#mk-about">About</a></td><td style="padding:10px 12px;border-bottom:1px solid #F5EEE9">Story · Photo grid + stat · Values (Transparency, Speed, Trust).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <h2 style="font:700 22px/1.2 'Bricolage Grotesque',sans-serif">6. Build notes</h2>
+    <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">
+      <li><b>Nav:</b> app nav (TmNavLight) is white with a search/paste bar, Bag count, Price watch, Bell, avatar. Tabs: Home · Shop · Price watch · Journeys · Account. Replaces the marketing links in <code>dashboard-navbar</code> / <code>main/navbar</code>.</li>
+      <li><b>Pricing copy:</b> item · US sales tax · Tomame fee 5% · freight (GH₵) · rate (locked 24h). Total labelled “At your door”. Keep the existing pricing helpers in <code>src/config/pricing.ts</code>; only the labels change.</li>
+      <li><b>Journey stages</b> map to existing <code>OrderStatus</code>: pending→Awaiting payment, paid→Paid, processing→Being purchased, in_transit→In the air, delivered/completed→Delivered.</li>
+      <li><b>Bag</b> is new state (multi-item, grouped by consolidation box). Freight box % = total weight / box cap; surface “save GH₵X with one more item”.</li>
+      <li><b>Regions:</b> only <code>US</code> is purchasable. UK/CN render disabled with a waitlist CTA — don't build routing for them yet.</li>
+      <li><b>Photos:</b> every marketing image is a labelled drop-zone; captions describe the shot. Generation prompts are in the chat thread. Product images use striped placeholders until real data is wired.</li>
+      <li><b>Copy fixtures:</b> names, prices and dates in the mocks are sample data — swap for live.</li>
+    </ul>
+  </div>
+
+</div>
+</doc-page>
+</x-dc>
+</body>
+</html>

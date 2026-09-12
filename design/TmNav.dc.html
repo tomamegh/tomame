@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+</helmet>
+<nav style="background:#1C1715;color:#fff;font-family:'Instrument Sans',system-ui,sans-serif">
+  <div style="max-width:1280px;margin:0 auto;padding:0 32px;height:72px;display:flex;align-items:center;gap:24px">
+    <span style="display:flex;align-items:center;gap:6px;font:700 24px/1 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;color:#fff">tomame<span style="width:8px;height:8px;border-radius:50%;background:#E4573D;margin-top:8px"></span></span>
+    <div style="flex:1;display:flex;align-items:center;height:46px;background:#fff;border-radius:12px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:6px;padding:0 14px;height:100%;border-right:1px solid #EBE4DC;color:#1C1715;font:600 13px/1 'Instrument Sans',sans-serif"><img src="assets/icons/amazon-mid.svg" style="height:16px" alt="Amazon"><i data-lucide="chevron-down" style="width:14px;height:14px;color:#9A8F86"></i></div>
+      <span style="flex:1;padding:0 14px;font:400 14px/1 'Instrument Sans',sans-serif;color:#9A8F86">{{ placeholder }}</span>
+      <div style="height:100%;width:52px;display:flex;align-items:center;justify-content:center;background:#E4573D;color:#fff"><i data-lucide="search" style="width:18px;height:18px"></i></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:10px"><i data-lucide="shopping-cart" style="width:22px;height:22px"></i><span style="position:absolute;top:2px;right:2px;min-width:18px;height:18px;border-radius:9px;background:#E4573D;color:#fff;font:700 11px/18px 'Instrument Sans',sans-serif;text-align:center;padding:0 5px">{{ cart }}</span></span>
+      <span style="width:40px;height:40px;display:flex;align-items:center;justify-content:center"><i data-lucide="heart" style="width:22px;height:22px"></i></span>
+      <span style="display:flex;align-items:center;gap:6px;padding:0 12px;height:40px;font:600 14px/1 'Instrument Sans',sans-serif"><i data-lucide="package" style="width:20px;height:20px"></i>Ship</span>
+      <span style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center"><i data-lucide="bell" style="width:22px;height:22px"></i><span style="position:absolute;top:8px;right:9px;width:8px;height:8px;border-radius:50%;background:#E4573D;border:2px solid #1C1715"></span></span>
+      <span style="display:flex;align-items:center;gap:8px;padding-left:8px"><span style="width:32px;height:32px;border-radius:50%;background:#FDEBE6;color:#B93A22;font:700 13px/32px 'Instrument Sans',sans-serif;text-align:center">K</span><i data-lucide="chevron-down" style="width:14px;height:14px;color:#9A8F86"></i></span>
+    </div>
+  </div>
+  <div style="border-top:1px solid rgba(255,255,255,.08)"><div style="max-width:1280px;margin:0 auto;padding:0 32px;height:44px;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;gap:28px;font:500 14px/1 'Instrument Sans',sans-serif;color:rgba(255,255,255,.7)">
+      <span style="color:{{ c.home }};display:flex;align-items:center;gap:6px">Home</span>
+      <span style="color:{{ c.shop }}">Shop</span>
+      <span style="color:{{ c.ship }}">Ship a package</span>
+      <span style="color:{{ c.orders }}">Orders</span>
+      <span style="color:{{ c.account }}">Account</span>
+    </div>
+    <span style="display:flex;align-items:center;gap:8px;font:500 13px/1 'Instrument Sans',sans-serif;color:rgba(255,255,255,.7)"><span style="width:7px;height:7px;border-radius:50%;background:#4ADE80"></span>$1 = GH₵14.43 <span style="color:rgba(255,255,255,.4)">· live rate · delivering to Accra</span></span>
+  </div></div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:116},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;shop&quot;,&quot;ship&quot;,&quot;orders&quot;,&quot;account&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;cart&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;tsType&quot;:&quot;number&quot;},&quot;placeholder&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Paste a product link or search Amazon, eBay, SHEIN…&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  componentDidMount(){ this.icons(); }
+  componentDidUpdate(){ this.icons(); }
+  icons(){ if(window.lucide) window.lucide.createIcons(); else setTimeout(()=>this.icons(),200); }
+  renderVals(){
+    const a=this.props.active??"home";
+    const c={};["home","shop","ship","orders","account"].forEach(k=>c[k]=k===a?"#fff":"rgba(255,255,255,.7)");
+    return {c,cart:this.props.cart??2,placeholder:this.props.placeholder??"Paste a product link or search Amazon, eBay, SHEIN…"};
+  }
+}
+</script>
+</body>
+</html>
