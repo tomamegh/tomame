@@ -4,6 +4,7 @@ import { TomameCategory, EBAY_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyEbayProduct } from "@/lib/apify/client";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
 import { ebayItemIdOf } from "../url";
+import { addVariant, cleanString, normalizeImages } from "./parse";
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
@@ -83,6 +84,33 @@ function extractAllImages($: CheerioAPI): string[] {
     });
   }
   return images;
+}
+
+/**
+ * Multi-SKU listings: one <select class="x-msku__select-box"> per attribute
+ * (label in aria-label or the sibling .x-msku__label). Placeholder and
+ * out-of-stock options are not available choices and are skipped.
+ */
+function extractVariants($: CheerioAPI): Record<string, string[]> {
+  const variants: Record<string, string[]> = {};
+  $("select.x-msku__select-box, select[id^='msku-sel'], select[name^='variation']").each((_, sel) => {
+    const $sel = $(sel);
+    const label = ($sel.attr("aria-label")
+      ?? $sel.closest(".x-msku__box-cont, .x-msku__select-box-wrapper, .x-msku__cell").find(".x-msku__label, label").first().text())
+      .replace(/:\s*$/, "").trim();
+    if (!label) return;
+    $sel.find("option").each((_, opt) => {
+      if ($(opt).attr("disabled") != null) return;
+      const t = $(opt).text().trim();
+      if (!t || /\bselect\b|out of stock|sold out/i.test(t)) return;
+      addVariant(variants, label, t);
+    });
+  });
+  return variants;
+}
+
+function extractAvailability($: CheerioAPI): string | null {
+  return cleanString(text($, ".x-quantity__availability .ux-textspans") ?? text($, ".x-quantity__availability") ?? text($, "#qtySubTxt"));
 }
 
 function extractSpecifications($: CheerioAPI): Record<string, string> {
@@ -197,8 +225,9 @@ export function mapApifyEbayProduct(item: ApifyEbayProduct): ScrapedProduct {
   }
   if (!category && crumbs.length > 0) category = TomameCategory.OTHER;
 
-  const images = item.imageUrlList ?? item.images ?? [];
-  const mainImage = item.mainImage ?? images[0] ?? null;
+  const rawImages = item.imageUrlList ?? item.images ?? [];
+  const images = normalizeImages(rawImages, item.mainImage ?? null);
+  const mainImage = images[0] ?? null;
   const seller = typeof item.seller === "string"
     ? item.seller
     : (item.seller?.username ?? item.seller?.name ?? null);
@@ -222,8 +251,15 @@ export function mapApifyEbayProduct(item: ApifyEbayProduct): ScrapedProduct {
     weight_lbs: parseWeight(extractWeight(specs)),
     dimensions: extractDimensions(specs),
     specifications: specs,
+    seller: cleanString(seller),
+    condition: cleanString(item.condition ?? specs["Condition"]),
+    rating: null,
+    review_count: null,
+    images,
+    variants: {},
+    availability: null,
     metadata: {
-      images,
+      images: rawImages,
       itemId: itemId != null ? String(itemId) : null,
       condition: item.condition ?? specs["Condition"] ?? null,
       seller,
@@ -263,10 +299,13 @@ export class EbayScraper implements PlatformScraper {
     const { price, currency } = extractPrice($);
     const specifications = extractSpecifications($);
     const allImages = extractAllImages($);
+    const mainImage = extractMainImage($);
+    const condition = text($, ".x-item-condition-text .ux-textspans") ?? text($, ".x-item-condition-text");
+    const seller = text($, ".x-sellercard-atf__info__about-seller a") ?? text($, ".mbg-nw");
 
     return {
       title: extractTitle($),
-      image: extractMainImage($),
+      image: mainImage,
       price,
       currency,
       description: extractDescription($),
@@ -277,11 +316,18 @@ export class EbayScraper implements PlatformScraper {
       weight_lbs: parseWeight(extractWeight(specifications)),
       dimensions: extractDimensions(specifications),
       specifications,
+      seller: cleanString(seller),
+      condition: cleanString(condition),
+      rating: null,
+      review_count: null,
+      images: normalizeImages(allImages, mainImage),
+      variants: extractVariants($),
+      availability: extractAvailability($),
       metadata: {
         images: allImages,
         itemId: null,
-        condition: text($, ".x-item-condition-text .ux-textspans") ?? text($, ".x-item-condition-text"),
-        seller: text($, ".x-sellercard-atf__info__about-seller a") ?? text($, ".mbg-nw"),
+        condition,
+        seller,
       },
     };
   }

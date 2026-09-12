@@ -6,7 +6,6 @@ import {
   scrapeMicrocenterWithApify,
   scrapeSheinWithApify,
 } from "@/lib/apify/client";
-import { SupportedPlatform } from "../scrapers/registry";
 import { mapApifyAmazonProduct } from "../scrapers/amazon";
 import { mapApifyEbayProduct } from "../scrapers/ebay";
 import { mapApifyMicrocenterProduct } from "../scrapers/microcenter";
@@ -29,19 +28,19 @@ export const apifyResolver: ExtractionResolver = {
     if (ctx.deadline - Date.now() < 15_000) return { product: {} };
     try {
       switch (ctx.platform) {
-        case SupportedPlatform.AMAZON: {
+        case "amazon": {
           const item = await scrapeAmazonWithApify(ctx.url);
           return { product: item ? mapApifyAmazonProduct(item, ctx.url) : {} };
         }
-        case SupportedPlatform.EBAY: {
+        case "ebay": {
           const item = await scrapeEbayWithApify(ctx.url);
           return { product: item ? mapApifyEbayProduct(item) : {} };
         }
-        case SupportedPlatform.SHEIN: {
+        case "shein": {
           const item = await scrapeSheinWithApify(ctx.url);
           return { product: item ? mapApifySheinProduct(item) : {} };
         }
-        case SupportedPlatform.MICROCENTER: {
+        case "microcenter": {
           const item = await scrapeMicrocenterWithApify(ctx.url);
           return { product: item ? mapApifyMicrocenterProduct(item) : {} };
         }

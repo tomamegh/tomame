@@ -32,6 +32,6 @@ output "api_key" {
     there is no endpoint that reads it back, so this output and Terraform state
     are the only copies.
   EOT
-  value       = try(restful_resource.api_key.sensitive_output.token, null)
+  value       = try(restful_operation.api_key.sensitive_output.token, null)
   sensitive   = true
 }

@@ -21,7 +21,7 @@ The application is implemented under `src/` (Next.js App Router) with migrations
 - **Payments**: Paystack (Mobile Money + Card), server-side only
 - **Email**: Resend (transactional, default notification channel)
 - **Notifications**: Email (default) + WhatsApp (optional)
-- **Extraction**: resolver chain in `src/features/extraction/resolvers` — ScraperAPI structured data for Amazon + eBay (no browser) → Rainforest (optional) → direct fetch → Browserless for HTML; platform Cheerio → generic JSON-LD/OpenGraph → Claude (`@anthropic-ai/sdk`, structured output) → Apify (optional). Never throws; partial products carry `messages`. See `docs/extraction-pipeline-rework.md`.
+- **Extraction**: hedged resolver race in `src/features/extraction/resolvers` driven by the store registry (`stores.ts`, one entry per store: domains, region, provider plan, status). Structured tiers — ScraperAPI (Amazon, eBay), Oxylabs (Amazon, Walmart), Zyte (any store) — start in order and hedge after 2 s; `category-map` (static maps → `store_category_map` → Haiku) starts as soon as title + price land; HTML tiers (direct → Zyte browser → Browserless; platform Cheerio → JSON-LD/OpenGraph) and the Claude page tier are fallbacks. Unknown hosts get the `generic` store. Never throws; partial products carry `messages`. See `docs/extraction-speed-plan.md` and `docs/extraction-pipeline-rework.md`.
 
 ## Expected Build Commands
 
@@ -50,7 +50,7 @@ BROWSERLESS_API_KEY        # extraction: headless Chrome tier
 ANTHROPIC_API_KEY          # extraction: Claude structured-extraction tier
 EXCHANGE_RATE_API_KEY      # currency: primary provider
 ```
-Optional (tier skipped when absent): `SCRAPERAPI_API_KEY` (fast Amazon + eBay path, recommended), `RAINFOREST_API_KEY`, `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY`.
+Optional (tier skipped when absent): `SCRAPERAPI_API_KEY` (Amazon + eBay), `OXYLABS_USERNAME` + `OXYLABS_PASSWORD` (Amazon weight, Walmart), `ZYTE_API_KEY` (any other store — recommended), `RAINFOREST_API_KEY`, `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY`.
 
 The quote flow (`/app/orders/new`, `/app/orders/review/[id]`, `/api/products/extract`, `/api/extractions/[id]`, `/api/pricing/preview`) is public; sign-in is required at order submission (`/api/orders/new`) and beyond.
 

@@ -29,7 +29,8 @@ describe("url normalization", () => {
     expect(regionForUrl("https://www.amazon.co.uk/dp/B0DSVMVYPH")).toBe("UK");
     expect(regionForUrl("https://www.ebay.co.uk/itm/123456789012")).toBe("UK");
     expect(regionForUrl("https://us.shein.com/x-p-123.html")).toBe("CHINA");
-    expect(regionForUrl("https://www.etsy.com/listing/1")).toBeNull();
+    expect(regionForUrl("https://www.etsy.com/listing/1")).toBe("USA");
+    expect(regionForUrl("https://unknown-shop.io/p/1")).toBeNull();
     expect(defaultCurrencyForUrl("https://www.amazon.co.uk/dp/B0DSVMVYPH")).toBe("GBP");
     expect(defaultCurrencyForUrl("https://www.amazon.com/dp/B0DSVMVYPH")).toBe("USD");
   });

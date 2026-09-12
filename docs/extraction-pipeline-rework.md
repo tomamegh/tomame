@@ -42,6 +42,11 @@ Tier 0 is now **ScraperAPI structured endpoints** (`SCRAPERAPI_API_KEY`) for Ama
 **Keys to create:** `BROWSERLESS_API_KEY`, `ANTHROPIC_API_KEY`, `EXCHANGE_RATE_API_KEY` (required).
 `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY` optional. `SERPAPI_API_KEY` and ScrapingBee removed.
 
+**Speed + stores (2026-09-12):** the chain became a hedged parallel race with a 25 s budget; Oxylabs (Amazon,
+Walmart) and Zyte (any store) joined as structured tiers; stores moved to a registry (`stores.ts`) with per-store
+provider plans and the `generic` fallback for unknown hosts; category comes from `store_category_map` + Haiku
+instead of Opus on the hot path. See `docs/extraction-speed-plan.md` → Status.
+
 **Where the code lives:** `src/features/extraction/{url.ts, extraction.service.ts, quote.service.ts, resolvers/*}`,
 `src/features/orders/services/order-intake.service.ts`, `src/lib/pricing/calculator.ts`,
 `supabase/migrations/035_extraction_cache_product_keyed.sql`.

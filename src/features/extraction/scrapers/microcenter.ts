@@ -3,6 +3,7 @@ import type { PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, MICROCENTER_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyMicrocenterProduct } from "@/lib/apify/client";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition } from "./parse";
 
 type JsonLdNode = Record<string, unknown>;
 
@@ -221,7 +222,8 @@ export function mapApifyMicrocenterProduct(item: ApifyMicrocenterProduct): Scrap
     category = MICROCENTER_CATEGORY_MAP.get(item.category) ?? TomameCategory.OTHER;
   }
 
-  const images = (item.images ?? []).filter((u): u is string => typeof u === "string");
+  const rawImages = (item.images ?? []).filter((u): u is string => typeof u === "string");
+  const images = normalizeImages(rawImages);
   const price = typeof item.price === "number" && Number.isFinite(item.price) ? item.price : null;
 
   return {
@@ -237,8 +239,15 @@ export function mapApifyMicrocenterProduct(item: ApifyMicrocenterProduct): Scrap
     weight_lbs: parseWeight(extractWeight(specs)),
     dimensions: extractDimensions(specs),
     specifications: specs,
+    seller: null,
+    condition: null,
+    rating: null,
+    review_count: null,
+    images,
+    variants: {},
+    availability: cleanString(item.availability),
     metadata: {
-      images,
+      images: rawImages,
       sku: item.sku ?? null,
       availability: item.availability ?? null,
       storeLocation: item.store_location ?? null,
@@ -306,9 +315,13 @@ export class MicrocenterScraper implements PlatformScraper {
 
     let price: number | null = linkData.price;
     let currency: string | null = null;
+    let condition: string | null = null;
+    let availability: string | null = null;
     const offers = product?.offers;
     if (offers && typeof offers === "object") {
-      const offerNode = offers as JsonLdNode;
+      const offerNode = (Array.isArray(offers) ? offers[0] ?? {} : offers) as JsonLdNode;
+      condition = parseSchemaCondition(offerNode.itemCondition);
+      availability = parseSchemaAvailability(offerNode.availability);
       const offerPrice = offerNode.price;
       if (price == null) {
         if (typeof offerPrice === "number") price = offerPrice;
@@ -327,7 +340,9 @@ export class MicrocenterScraper implements PlatformScraper {
     const sku = typeof product?.sku === "string" ? product.sku : null;
     const mpn = typeof product?.mpn === "string" ? product.mpn : null;
 
-    const proxiedImages = images.map(proxyMicrocenterImage);
+    const proxiedImages = normalizeImages(images.map(proxyMicrocenterImage));
+    const { rating, review_count } = parseAggregateRating(product?.aggregateRating);
+    if (!availability) availability = cleanString(text($, ".inventoryCnt, .inventory, [class*='inventory']"));
 
     return {
       title,
@@ -342,6 +357,13 @@ export class MicrocenterScraper implements PlatformScraper {
       weight_lbs: parseWeight(extractWeight(specifications)),
       dimensions: extractDimensions(specifications),
       specifications,
+      seller: null,
+      condition,
+      rating,
+      review_count,
+      images: proxiedImages,
+      variants: {},
+      availability,
       metadata: {
         images: proxiedImages,
         productId: linkData.id,

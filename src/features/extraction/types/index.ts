@@ -3,6 +3,7 @@ import type { ExtractionSource } from "@/config/extraction";
 import type { PricingBreakdown } from "@/lib/pricing";
 
 export type { ScrapedProduct };
+export { withProductDefaults, emptyProduct } from "../scrapers/types";
 
 export interface ExtractionResult {
   extraction_attempted: boolean;
@@ -19,7 +20,12 @@ export interface ExtractionResult {
   source: ExtractionSource | null;
   /** Every resolver that ran, in order. */
   sources: ExtractionSource[];
-  /** Per-field confidence 0..1 of the winning value. */
+  /**
+   * Per-field confidence 0..1 of the winning value. Keyed by every
+   * `ScrapedProduct` field, including the typed facts (`seller`, `condition`,
+   * `rating`, `review_count`, `availability`); `images` / `variants` are unions
+   * and carry no single confidence.
+   */
   confidence: Partial<Record<keyof ScrapedProduct, number>>;
   fetched_at: string;
   /** ID of the extraction_cache row — present when returned from the API */

@@ -5,6 +5,7 @@ vi.mock("@/lib/env", () => ({
   env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null, rainforestApiKey: "rf-test-key", scraperApiKey: null } },
 }));
 
+import { STORES } from "../stores";
 import { mapRainforestProduct, rainforestResolver } from "../resolvers/rainforest.resolver";
 import { emptyProduct, SupportedPlatform, getScraperByPlatform } from "../scrapers";
 import { TomameCategory } from "@/config/categories";
@@ -53,6 +54,31 @@ describe("mapRainforestProduct", () => {
     expect(p.metadata?.condition).toBe("New");
   });
 
+  it("promotes rating, review count, condition, availability and images to typed fields", () => {
+    const p = mapRainforestProduct(HOMALL.product);
+    expect(p.rating).toBe(4.3);
+    expect(p.review_count).toBe(51234);
+    expect(p.condition).toBe("New");
+    expect(p.availability).toBe("In Stock"); // the raw phrase, not the enum
+    expect(p.seller).toBeNull(); // fixture has no fulfillment block
+    expect(p.images).toEqual(["https://m.media-amazon.com/images/I/homall.jpg", "https://m.media-amazon.com/images/I/homall2.jpg"]);
+    expect(p.images![0]).toBe(p.image);
+  });
+
+  it("reads the third-party seller / sold-by-Amazon flag and the enum availability when raw is missing", () => {
+    const third = mapRainforestProduct({
+      ...HOMALL.product,
+      buybox_winner: { ...HOMALL.product.buybox_winner, fulfillment: { third_party_seller: { name: "FlamakerDirect" } }, availability: { type: "out_of_stock" }, condition: { is_new: false } },
+    });
+    expect(third.seller).toBe("FlamakerDirect");
+    expect(third.availability).toBe("Out of stock");
+    expect(third.condition).toBe("Used");
+
+    const amazon = mapRainforestProduct({ ...HOMALL.product, buybox_winner: { ...HOMALL.product.buybox_winner, fulfillment: { is_sold_by_amazon: true }, condition: undefined } });
+    expect(amazon.seller).toBe("Amazon");
+    expect(amazon.condition).toBeNull();
+  });
+
   it("leaves price null when there is no buybox offer", () => {
     const p = mapRainforestProduct({ ...HOMALL.product, buybox_winner: undefined });
     expect(p.price).toBeNull();
@@ -73,6 +99,8 @@ describe("rainforestResolver", () => {
     scraper: getScraperByPlatform(platform),
     region: "USA" as const,
     deadline: Date.now() + 30_000,
+    store: STORES[0]!,
+    signal: new AbortController().signal,
     getHtml: async () => null,
     htmlState: () => "unfetched" as const,
     current: emptyProduct(),

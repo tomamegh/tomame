@@ -265,6 +265,11 @@ variable "optional_third_party_secrets" {
       RAINFOREST_API_KEY   — second Amazon product-data source (optional).
       APIFY_API_TOKEN      — last-resort extraction tier (community actors).
       FREECURRENCY_API_KEY — fallback exchange-rate provider.
+      OXYLABS_USERNAME /
+      OXYLABS_PASSWORD     — Oxylabs Web Scraper API: parsed product JSON for
+                             Walmart and a second Amazon source (2–6 s).
+      ZYTE_API_KEY         — Zyte API: AI product extraction for any other
+                             store, plus browser-rendered HTML.
 
     Kept separate from third_party_secrets so the distinction is visible. A key
     missing from that map is an outage; a key missing from this one is a
@@ -282,7 +287,55 @@ variable "optional_third_party_secrets" {
       "RAINFOREST_API_KEY",
       "APIFY_API_TOKEN",
       "FREECURRENCY_API_KEY",
+      "OXYLABS_USERNAME",
+      "OXYLABS_PASSWORD",
+      "ZYTE_API_KEY",
     ])) == 0
-    error_message = "optional_third_party_secrets accepts only SCRAPERAPI_API_KEY, RAINFOREST_API_KEY, APIFY_API_TOKEN and FREECURRENCY_API_KEY. Anything else the app cannot run without belongs in third_party_secrets."
+    error_message = "optional_third_party_secrets accepts only SCRAPERAPI_API_KEY, RAINFOREST_API_KEY, APIFY_API_TOKEN, FREECURRENCY_API_KEY, OXYLABS_USERNAME, OXYLABS_PASSWORD and ZYTE_API_KEY. Anything else the app cannot run without belongs in third_party_secrets."
   }
+}
+
+# ---------------------------------------------------------------------------
+# DNS records this stack does not generate.
+# ---------------------------------------------------------------------------
+
+variable "additional_dns_records" {
+  description = <<-EOT
+    Records published into the Vercel zone alongside Resend's, with `name`
+    relative to the zone. Only read when dns_managed_by_vercel is true.
+
+    These exist because Terraform generates exactly one family of records — the
+    DKIM/SPF/DMARC set Resend reports for the sending subdomain. Everything else
+    the zone carries is invisible to it, and a zone published from Resend's
+    records alone has NO MX at the apex: delegating the domain would then take
+    inbound mail down while every plan continued to read as clean. Google
+    Workspace's MX and DKIM, the apex SPF and DMARC therefore have to be
+    declared, and this is where.
+
+    Do NOT list Resend's own records here; the resend module produces those and
+    a duplicate is a for_each collision. Do NOT list the apex A or www records
+    either — Vercel writes those itself when the domain is attached to a project.
+  EOT
+  type = list(object({
+    name     = string
+    type     = string
+    value    = string
+    ttl      = optional(number)
+    priority = optional(number)
+  }))
+  default = []
+}
+
+variable "builder_enabled" {
+  type    = bool
+  default = false
+
+  description = <<-EOT
+    Whether the /builder image tool is reachable on this environment.
+
+    The builder lets an admin upload files, which is the largest attack surface
+    the app exposes, so it is off unless an environment deliberately turns it on.
+    Leave it false for production. Turning it on is not sufficient to use the
+    tool — every builder route independently requires an admin session.
+  EOT
 }

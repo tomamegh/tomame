@@ -56,8 +56,9 @@ resource "restful_resource" "domain" {
 # encrypted remote bucket.
 # ---------------------------------------------------------------------------
 
-resource "restful_resource" "api_key" {
-  path = "/api-keys"
+resource "restful_operation" "api_key" {
+  path   = "/api-keys"
+  method = "POST"
 
   body = {
     name       = var.api_key_name
@@ -65,17 +66,18 @@ resource "restful_resource" "api_key" {
     domain_id  = restful_resource.domain.output.id
   }
 
-  read_path = "$(path)/$(body.id)"
-
+  # An operation, not a resource, because Resend cannot read a key back.
+  # GET /api-keys/{id} answers 405, so restful_resource fails on the read that
+  # follows its own create. Pointing read_path at the list endpoint instead
+  # would succeed and be worse: a list entry carries no `token` field, so the
+  # refresh would silently erase the only copy of the key from state and the
+  # next apply would push an empty RESEND_API_KEY to Vercel.
+  #
+  # The cost of an operation is that destroy does not revoke the key. A
+  # superseded key stays live in Resend until somebody deletes it there.
   use_sensitive_output = true
 
-  # A changed name or scope means a different key. Replacing is correct; there
-  # is no update endpoint.
-  force_new_attrs = ["name", "permission", "domain_id"]
-
-  lifecycle {
-    # The new key must exist before the old one is revoked, or every email the
-    # app tries to send between the two operations is rejected.
-    create_before_destroy = true
-  }
+  # Re-runs when the name, scope or domain changes — each of which means a
+  # different key.
+  id_builder = "api-key/${var.api_key_name}/${var.api_key_permission}/${restful_resource.domain.output.id}"
 }

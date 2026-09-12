@@ -8,6 +8,7 @@ import { EXTRACTION } from "@/config/extraction";
 import { TomameCategory } from "@/config/categories";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
 import { hasRequiredFields, hasWeight, missingFields } from "./merge";
+import { cleanString, parseRating, parseReviewCount } from "../scrapers/parse";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
 
 const CATEGORY_VALUES = Object.values(TomameCategory) as [string, ...string[]];
@@ -21,7 +22,11 @@ const ProductSchema = z.object({
   category: z.enum(CATEGORY_VALUES).nullable().describe("Closest Tomame category for this product."),
   weight_text: z.string().nullable().describe("Item weight exactly as listed (e.g. '1.2 pounds', '540 g'). Item weight, not shipping/package weight, unless only that is available."),
   dimensions_text: z.string().nullable().describe("Product dimensions as listed."),
-  condition: z.string().nullable().describe("New, Used, Refurbished, etc. when stated."),
+  condition: z.string().nullable().describe("New, Used, Refurbished, etc. — only when the page states it."),
+  seller: z.string().nullable().describe("Merchant / seller name when the page states one (e.g. 'Sold by X', the eBay seller). null otherwise."),
+  rating: z.number().nullable().describe("Average customer rating for this product on a 0-5 scale, when shown. Not a seller feedback percentage."),
+  review_count: z.number().nullable().describe("Number of ratings or reviews behind that rating, as an integer, when shown."),
+  availability: z.string().nullable().describe("The store's availability phrase for the selected/default variant, verbatim (e.g. 'In Stock', 'Only 3 left', 'Out of stock')."),
   is_product_page: z.boolean().describe("false if the text is a captcha, error, search results, or category listing."),
 });
 
@@ -72,7 +77,7 @@ export const llmResolver: ExtractionResolver = {
   defaultConfidence: 0.6,
   needsHtml: false,
   available: () => env.extraction.anthropicApiKey !== null,
-  shouldRun: (ctx) => !hasRequiredFields(ctx.current) || !hasWeight(ctx.current) || !ctx.current.category,
+  shouldRun: (ctx) => !hasRequiredFields(ctx.current) || !hasWeight(ctx.current),
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {
     const anthropic = getClient();
     if (!anthropic) return { product: {} };
@@ -99,7 +104,7 @@ export const llmResolver: ExtractionResolver = {
     }
     const gaps = missingFields(ctx.current);
     const known = Object.entries(ctx.current)
-      .filter(([k, v]) => v != null && !["specifications", "metadata", "description"].includes(k))
+      .filter(([k, v]) => v != null && !["specifications", "metadata", "description", "images", "variants"].includes(k))
       .map(([k, v]) => `${k}: ${String(v)}`)
       .join("\n");
 
@@ -142,6 +147,11 @@ export const llmResolver: ExtractionResolver = {
         weight: parsed.weight_text,
         weight_lbs: parseWeight(parsed.weight_text),
         dimensions: parsed.dimensions_text,
+        seller: cleanString(parsed.seller),
+        condition: cleanString(parsed.condition),
+        rating: parseRating(parsed.rating),
+        review_count: parseReviewCount(parsed.review_count),
+        availability: cleanString(parsed.availability),
         metadata: {
           ...(parsed.condition ? { condition: parsed.condition } : {}),
           llm_usage: { input: response.usage.input_tokens, output: response.usage.output_tokens },

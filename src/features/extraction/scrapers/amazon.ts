@@ -4,6 +4,7 @@ import { TomameCategory, AMAZON_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyAmazonProduct } from "@/lib/apify/client";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
 import { amazonAsinOf, defaultCurrencyForUrl } from "../url";
+import { addVariant, cleanString, normalizeImages, parseRating, parseReviewCount } from "./parse";
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
@@ -95,6 +96,34 @@ function extractAvailableSizes($: CheerioAPI): string[] {
     });
   }
   return sizes;
+}
+
+/** Colour swatches: <li title="Click to select Black"><img alt="Black"></li>. */
+function extractAvailableColors($: CheerioAPI): string[] {
+  const colors: string[] = [];
+  $("#variation_color_name li").each((_, el) => {
+    const alt = $(el).find("img").first().attr("alt")?.trim();
+    const title = $(el).attr("title")?.replace(/^Click to select\s+/i, "").trim();
+    const val = alt || title;
+    if (val && !colors.includes(val)) colors.push(val);
+  });
+  return colors;
+}
+
+function extractSeller($: CheerioAPI): string | null {
+  return text($, "#sellerProfileTriggerId") ?? text($, "#merchant-info a") ?? null;
+}
+
+function extractAvailability($: CheerioAPI): string | null {
+  return cleanString(text($, "#availability span") ?? text($, "#availability"));
+}
+
+function extractRating($: CheerioAPI): number | null {
+  return parseRating(text($, "#acrPopover .a-icon-alt") ?? $("#acrPopover").attr("title") ?? null);
+}
+
+function extractReviewCount($: CheerioAPI): number | null {
+  return parseReviewCount($("#acrCustomerReviewText").first().attr("aria-label") ?? text($, "#acrCustomerReviewText"));
 }
 
 function extractSpecifications($: CheerioAPI): Record<string, string> {
@@ -224,7 +253,8 @@ export function mapApifyAmazonProduct(item: ApifyAmazonProduct, sourceUrl: strin
     }
   }
 
-  const images = item.imageUrlList ?? [];
+  const rawImages = item.imageUrlList ?? [];
+  const images = normalizeImages(rawImages);
 
   return {
     title: item.title ?? null,
@@ -239,8 +269,15 @@ export function mapApifyAmazonProduct(item: ApifyAmazonProduct, sourceUrl: strin
     weight_lbs: parseWeight(extractWeight(specs)),
     dimensions: extractDimensions(specs),
     specifications: specs,
+    seller: cleanString(item.soldBy),
+    condition: null,
+    rating: parseRating(item.productRating),
+    review_count: parseReviewCount(item.countReview),
+    images,
+    variants: {},
+    availability: cleanString(item.warehouseAvailability),
     metadata: {
-      images,
+      images: rawImages,
       availableSizes: [],
       asin: item.asin ?? specs["ASIN"] ?? null,
       rating: item.productRating ?? null,
@@ -284,10 +321,15 @@ export class AmazonScraper implements PlatformScraper {
     const specifications = extractSpecifications($);
     const allImages = extractAllImages($);
     const availableSizes = extractAvailableSizes($);
+    const mainImage = extractMainImage($);
+    const images = normalizeImages(allImages, mainImage);
+    const variants: Record<string, string[]> = {};
+    for (const s of availableSizes) addVariant(variants, "size", s);
+    for (const c of extractAvailableColors($)) addVariant(variants, "color", c);
 
     return {
       title: text($, "#productTitle"),
-      image: extractMainImage($),
+      image: mainImage,
       price,
       currency,
       description: extractDescription($),
@@ -298,6 +340,13 @@ export class AmazonScraper implements PlatformScraper {
       weight_lbs: parseWeight(extractWeight(specifications)),
       dimensions: extractDimensions(specifications),
       specifications,
+      seller: extractSeller($),
+      condition: null,
+      rating: extractRating($),
+      review_count: extractReviewCount($),
+      images,
+      variants,
+      availability: extractAvailability($),
       metadata: {
         images: allImages,
         availableSizes,

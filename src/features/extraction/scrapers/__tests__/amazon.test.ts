@@ -92,6 +92,30 @@ describe("amazonScraper", () => {
     });
   });
 
+  describe("typed facts", () => {
+    it("reads seller, availability, rating and review count from the page", () => {
+      expect(result.seller).toBe("goodgoodsstore");
+      expect(result.availability).toBe("In Stock");
+      expect(result.rating).toBe(4.5);
+      expect(result.review_count).toBe(47);
+    });
+
+    it("never states a condition the page does not", () => {
+      expect(result.condition).toBeNull();
+    });
+
+    it("builds a de-duplicated gallery led by the main image", () => {
+      expect(result.images.length).toBeGreaterThan(1);
+      expect(result.images[0]).toBe(result.image);
+      expect(new Set(result.images).size).toBe(result.images.length);
+      for (const u of result.images) expect(u).toMatch(/^https?:\/\//);
+    });
+
+    it("has no variants for a single-option listing", () => {
+      expect(result.variants).toEqual({});
+    });
+  });
+
   describe("metadata", () => {
     it("should include images array", () => {
       const images = result.metadata["images"] as string[];

@@ -2,6 +2,7 @@ import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import { logger } from "@/lib/logger";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition } from "../scrapers/parse";
 import type { PartialProduct, ExtractionResolver, ResolveContext, ResolverResult } from "./types";
 
 type Node = Record<string, unknown>;
@@ -90,12 +91,17 @@ export function extractFromJsonLd(nodes: Node[]): PartialProduct {
   out.title = str(product.name);
   out.description = str(product.description);
 
-  const img = product.image;
-  if (typeof img === "string") out.image = img;
-  else if (Array.isArray(img)) {
-    const first = img.find((i) => typeof i === "string" || (i && typeof i === "object"));
-    out.image = typeof first === "string" ? first : str((first as Node | undefined)?.url);
-  } else if (img && typeof img === "object") out.image = str((img as Node).url);
+  const imageUrls = (Array.isArray(product.image) ? product.image : [product.image])
+    .map((i) => (typeof i === "string" ? i : i && typeof i === "object" ? str((i as Node).url ?? (i as Node).contentUrl) : null));
+  const images = normalizeImages(imageUrls);
+  if (images.length) {
+    out.images = images;
+    out.image = images[0] ?? null;
+  }
+
+  const { rating, review_count } = parseAggregateRating(product.aggregateRating);
+  if (rating != null) out.rating = rating;
+  if (review_count != null) out.review_count = review_count;
 
   const brand = product.brand;
   out.brand = typeof brand === "string" ? brand : str((brand as Node | undefined)?.name);
@@ -110,6 +116,13 @@ export function extractFromJsonLd(nodes: Node[]): PartialProduct {
       out.price = out.price ?? num(ps.price);
       out.currency = out.currency ?? str(ps.priceCurrency)?.toUpperCase() ?? null;
     }
+    const condition = parseSchemaCondition(offer.itemCondition);
+    if (condition) out.condition = condition;
+    const availability = parseSchemaAvailability(offer.availability);
+    if (availability) out.availability = availability;
+    const seller = offer.seller;
+    const sellerName = typeof seller === "string" ? cleanString(seller) : seller && typeof seller === "object" ? cleanString((seller as Node).name) : null;
+    if (sellerName) out.seller = sellerName;
   }
 
   const weight = product.weight;
@@ -151,7 +164,19 @@ export function extractFromMeta($: CheerioAPI): PartialProduct {
   const out: PartialProduct = {};
 
   out.title = meta("og:title") ?? meta("twitter:title") ?? str($("title").first().text());
-  out.image = meta("og:image") ?? meta("twitter:image");
+  const ogImages: unknown[] = [];
+  $("meta[property='og:image'], meta[property='og:image:url'], meta[property='og:image:secure_url'], meta[name='twitter:image']").each((_, el) => {
+    ogImages.push($(el).attr("content"));
+  });
+  const images = normalizeImages(ogImages);
+  if (images.length) {
+    out.images = images;
+    out.image = images[0] ?? null;
+  }
+  const availability = parseSchemaAvailability(meta("product:availability") ?? meta("og:availability"));
+  if (availability) out.availability = availability;
+  const condition = parseSchemaCondition(meta("product:condition") ?? meta("og:condition"));
+  if (condition) out.condition = condition;
   out.description = meta("og:description") ?? meta("description");
   out.brand = meta("product:brand") ?? meta("og:brand");
 
@@ -202,7 +227,7 @@ export const structuredDataResolver: ExtractionResolver = {
       const ld = extractFromJsonLd(parseJsonLd($));
       const og = extractFromMeta($);
       // JSON-LD outranks OG; OG fills gaps.
-      const product: PartialProduct = { ...og, ...Object.fromEntries(Object.entries(ld).filter(([, v]) => v != null)) };
+      const product: PartialProduct = { ...og, ...Object.fromEntries(Object.entries(ld).filter(([, v]) => v != null && !(Array.isArray(v) && v.length === 0))) };
       if (product.price != null && !product.currency) product.currency = ctx.scraper.defaultCurrency;
       const confidence: ResolverResult["confidence"] = {};
       for (const k of Object.keys(product) as (keyof PartialProduct)[]) {

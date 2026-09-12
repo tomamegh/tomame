@@ -1,5 +1,6 @@
 import type { ExtractionSource } from "@/config/extraction";
 import type { ScrapedProduct } from "../scrapers";
+import { addVariant, cleanTitle, normalizeImageUrl } from "../scrapers/parse";
 import type { PartialProduct, ResolverResult } from "./types";
 
 type Field = keyof ScrapedProduct;
@@ -7,6 +8,7 @@ type Field = keyof ScrapedProduct;
 const SCALAR_FIELDS: Field[] = [
   "title", "image", "price", "currency", "description", "brand",
   "category", "size", "weight", "weight_lbs", "dimensions",
+  "seller", "condition", "rating", "review_count", "availability",
 ];
 
 export interface MergeState {
@@ -27,19 +29,31 @@ function sane(field: Field, v: unknown): boolean {
   if (field === "currency") return typeof v === "string" && /^[A-Z]{3}$/.test(v);
   if (field === "image") return typeof v === "string" && /^(https?:)?\/\//.test(v);
   if (field === "title") return typeof v === "string" && v.trim().length >= 3;
+  if (field === "rating") return typeof v === "number" && v >= 0 && v <= 5;
+  if (field === "review_count") return typeof v === "number" && Number.isInteger(v) && v >= 0;
   return true;
+}
+
+/** Same bar as the `image` scalar: an absolute or protocol-relative URL. */
+function saneImageUrl(v: unknown): string | null {
+  const u = normalizeImageUrl(v);
+  return u && /^https?:\/\//.test(u) ? u : null;
 }
 
 /**
  * Field-by-field merge. A later resolver only replaces a value when it is
  * more confident about that specific field. `specifications` and `metadata`
- * are unioned (earlier values win on key collisions).
+ * are unioned (earlier values win on key collisions). `images` is an ordered
+ * union (earlier resolver's order first, de-duplicated) kept in step with the
+ * winning `image`; `variants` is a key union where the earlier resolver wins
+ * per key.
  */
 export function mergeResult(state: MergeState, source: ExtractionSource, result: ResolverResult, defaultConfidence: number): void {
   const incoming: PartialProduct = result.product ?? {};
 
   for (const field of SCALAR_FIELDS) {
-    const value = incoming[field];
+    let value = incoming[field];
+    if (field === "title" && typeof value === "string") value = cleanTitle(value);
     if (!isPresent(value) || !sane(field, value)) continue;
     const conf = result.confidence?.[field] ?? defaultConfidence;
     const existing = state.confidence[field] ?? -1;
@@ -58,6 +72,31 @@ export function mergeResult(state: MergeState, source: ExtractionSource, result:
   if (incoming.metadata) {
     for (const [k, v] of Object.entries(incoming.metadata)) {
       if (k && isPresent(v) && !(k in state.product.metadata)) state.product.metadata[k] = v;
+    }
+  }
+
+  if (Array.isArray(incoming.images)) {
+    for (const raw of incoming.images) {
+      const u = saneImageUrl(raw);
+      if (u && !state.product.images.includes(u)) state.product.images.push(u);
+    }
+  }
+  // Keep images[0] === image: the winning main image leads the gallery.
+  const main = saneImageUrl(state.product.image);
+  if (main) {
+    const idx = state.product.images.indexOf(main);
+    if (idx > 0) state.product.images.splice(idx, 1);
+    if (idx !== 0) state.product.images.unshift(main);
+  }
+
+  if (incoming.variants && typeof incoming.variants === "object" && !Array.isArray(incoming.variants)) {
+    for (const [k, list] of Object.entries(incoming.variants)) {
+      if (!Array.isArray(list) || list.length === 0) continue;
+      const scratch: Record<string, string[]> = {};
+      for (const v of list) addVariant(scratch, k, v);
+      for (const [key, values] of Object.entries(scratch)) {
+        if (values.length && !(key in state.product.variants)) state.product.variants[key] = values;
+      }
     }
   }
 }

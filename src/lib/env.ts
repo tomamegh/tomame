@@ -34,5 +34,10 @@ export const env = {
     rainforestApiKey: optional("RAINFOREST_API_KEY"),
     anthropicApiKey: optional("ANTHROPIC_API_KEY"),
     apifyApiToken: optional("APIFY_API_TOKEN"),
+    /** Oxylabs Web Scraper API (realtime, parsed e-commerce targets: Amazon, Walmart, …). */
+    oxylabsUsername: optional("OXYLABS_USERNAME"),
+    oxylabsPassword: optional("OXYLABS_PASSWORD"),
+    /** Zyte API — AI product extraction on any store URL + browser HTML. */
+    zyteApiKey: optional("ZYTE_API_KEY"),
   },
 } as const;

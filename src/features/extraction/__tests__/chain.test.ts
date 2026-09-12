@@ -44,6 +44,42 @@ describe("merge", () => {
     expect(state.product.currency).toBe("USD"); // lowercase rejected
     expect(state.product.image).toBeNull(); // bad URL rejected
   });
+
+  it("typed facts: earlier resolver wins when non-null; junk ratings and counts are rejected", () => {
+    const state: MergeState = { product: emptyProduct(), confidence: {}, sources: {} };
+    mergeResult(state, "scraperapi", { product: { seller: "6ave", rating: 4.7, review_count: 28773, availability: "In Stock", condition: null } }, 0.95);
+    mergeResult(state, "platform-html", { product: { seller: "someone-else", rating: 4.5, review_count: 47, availability: "Only 2 left", condition: "New" } }, 0.9);
+    mergeResult(state, "llm", { product: { rating: 9, review_count: 1.5 } }, 0.6);
+
+    expect(state.product.seller).toBe("6ave");
+    expect(state.product.rating).toBe(4.7);
+    expect(state.product.review_count).toBe(28773);
+    expect(state.product.availability).toBe("In Stock");
+    expect(state.product.condition).toBe("New"); // first non-null wins
+    expect(state.sources.condition).toBe("platform-html");
+    expect(state.confidence.seller).toBe(0.95);
+  });
+
+  it("images: ordered union, earlier resolver first, de-duplicated, main image leading", () => {
+    const state: MergeState = { product: emptyProduct(), confidence: {}, sources: {} };
+    mergeResult(state, "scraperapi", { product: { image: "https://a/1.jpg", images: ["https://a/1.jpg", "https://a/2.jpg"] } }, 0.95);
+    mergeResult(state, "platform-html", { product: { image: "https://a/3.jpg", images: ["https://a/3.jpg", "https://a/2.jpg", "//a/4.jpg", "not-a-url"] } }, 0.9);
+    expect(state.product.image).toBe("https://a/1.jpg");
+    expect(state.product.images).toEqual(["https://a/1.jpg", "https://a/2.jpg", "https://a/3.jpg", "https://a/4.jpg"]);
+
+    // A later, more confident main image moves to the front of the gallery.
+    mergeResult(state, "rainforest", { product: { image: "https://a/3.jpg" }, confidence: { image: 0.99 } }, 0.95);
+    expect(state.product.image).toBe("https://a/3.jpg");
+    expect(state.product.images[0]).toBe("https://a/3.jpg");
+    expect(state.product.images).toHaveLength(4);
+  });
+
+  it("variants: key union, earlier resolver wins per key", () => {
+    const state: MergeState = { product: emptyProduct(), confidence: {}, sources: {} };
+    mergeResult(state, "oxylabs", { product: { variants: { color: ["Black", "Clay"], material_type: ["Silicone"] } } }, 0.92);
+    mergeResult(state, "platform-html", { product: { variants: { color: ["Red"], size: ["S", "M", "- Select -", "S"] } } }, 0.9);
+    expect(state.product.variants).toEqual({ color: ["Black", "Clay"], material_type: ["Silicone"], size: ["S", "M"] });
+  });
 });
 
 describe("resolveProduct", () => {
@@ -149,5 +185,92 @@ describe("resolveProduct", () => {
     const enriched = await continueResolve({ ...base, resolvers: [api, parser], fetchHtml }, fast);
     expect(fetchHtml).toHaveBeenCalledTimes(1);
     expect(enriched.product.weight_lbs).toBe(4);
+  });
+});
+
+describe("resolveProduct — hedged race", () => {
+  const slow = (name: ExtractionResolver["name"], ms: number, product: Record<string, unknown>, extra: Partial<ExtractionResolver> = {}) => {
+    const r = {
+      name,
+      calls: 0,
+      aborted: false,
+      defaultConfidence: 0.9,
+      needsHtml: false,
+      available: () => true,
+      shouldRun: (ctx: { current: { price: number | null } }) => ctx.current.price == null,
+      ...extra,
+      async resolve(ctx: { signal: AbortSignal }) {
+        r.calls++;
+        await new Promise<void>((resolve) => {
+          const t = setTimeout(resolve, ms);
+          ctx.signal.addEventListener("abort", () => { clearTimeout(t); r.aborted = true; resolve(); }, { once: true });
+        });
+        return { product };
+      },
+    };
+    return r as ExtractionResolver & { calls: number; aborted: boolean };
+  };
+
+  it("starts the next vendor after the hedge window and aborts the loser", async () => {
+    const stuck = slow("scraperapi", 5_000, { title: "late", price: 1, currency: "USD" }, { startAfterMs: 50 });
+    const quick = slow("zyte", 20, { title: "Desk", price: 99, currency: "USD", category: "Furniture" }, { startAfterMs: 50 });
+    const t0 = Date.now();
+    const out = await resolveProduct({ ...base, resolvers: [stuck, quick], fetchHtml: async () => null, stopWhenRequired: true });
+    expect(Date.now() - t0).toBeLessThan(1_000);
+    expect(quick.calls).toBe(1);
+    expect(stuck.calls).toBe(1);
+    expect(stuck.aborted).toBe(true);
+    expect(out.ran).toEqual(["zyte"]);
+    expect(out.skipped).toContain("scraperapi");
+    expect(out.product.title).toBe("Desk");
+  });
+
+  it("does not hedge into a sequential (costly) tier while cheaper ones are pending", async () => {
+    const vendor = slow("scraperapi", 60, { title: "Desk", price: 99, currency: "USD", category: "Furniture" }, { startAfterMs: 20 });
+    const costly = slow("llm", 5, { title: "LLM" }, { shouldRun: () => true });
+    const out = await resolveProduct({ ...base, resolvers: [vendor, costly], fetchHtml: async () => null, stopWhenRequired: true });
+    expect(costly.calls).toBe(0);
+    expect(out.ran).toEqual(["scraperapi"]);
+  });
+
+  it("a startWhen tier runs as soon as its precondition holds, even mid-race", async () => {
+    const vendor = slow("scraperapi", 30, { title: "Desk", price: 99, currency: "USD" }, { startAfterMs: 20 });
+    const laggard = slow("oxylabs", 2_000, { title: "x", price: 1, currency: "USD" }, { startAfterMs: 20 });
+    const classifier = slow("category-map", 5, { category: "Furniture" }, {
+      startWhen: (ctx) => hasRequiredFields(ctx.current),
+      shouldRun: (ctx) => hasRequiredFields(ctx.current) && ctx.current.category == null,
+    });
+    const t0 = Date.now();
+    const out = await resolveProduct({ ...base, resolvers: [vendor, laggard, classifier], fetchHtml: async () => null, stopWhenRequired: true });
+    expect(Date.now() - t0).toBeLessThan(1_000);
+    expect(classifier.calls).toBe(1);
+    expect(out.product.category).toBe("Furniture");
+    expect(laggard.aborted).toBe(true);
+  });
+});
+
+describe("resolveProduct — unavailable items", () => {
+  it("stops spending once a store reports the item out of stock", async () => {
+    const vendor = resolver("oxylabs", { title: "Phone", metadata: { availability: "Out of stock" } });
+    const costly = resolver("llm", { price: 1, currency: "USD" });
+    const out = await resolveProduct({ ...base, resolvers: [vendor, costly], fetchHtml: async () => null, stopWhenRequired: true });
+    expect(costly.calls).toBe(0);
+    expect(out.product.price).toBeNull();
+    expect(out.messages.some((m) => /unavailable/i.test(m))).toBe(true);
+  });
+
+  it("reads the typed availability field as well as the legacy metadata copy", async () => {
+    const vendor = resolver("zyte", { title: "Phone", availability: "Out of Stock" });
+    const costly = resolver("llm", { price: 1, currency: "USD" });
+    const out = await resolveProduct({ ...base, resolvers: [vendor, costly], fetchHtml: async () => null, stopWhenRequired: true });
+    expect(costly.calls).toBe(0);
+    expect(out.product.availability).toBe("Out of Stock");
+    expect(out.messages.some((m) => /unavailable/i.test(m))).toBe(true);
+  });
+
+  it("strips zero-width spaces from titles", async () => {
+    const r = resolver("scraperapi", { title: "Case​​  with  MagSafe ​ | SHEIN USA", price: 1, currency: "USD", category: "Other" });
+    const out = await resolveProduct({ ...base, resolvers: [r], fetchHtml: async () => null, stopWhenRequired: true });
+    expect(out.product.title).toBe("Case with MagSafe");
   });
 });

@@ -6,11 +6,12 @@ vi.mock("@/lib/env", () => ({
   env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null, rainforestApiKey: null, scraperApiKey: "sa-test-key" } },
 }));
 
-import { mapScraperApiAmazon, mapScraperApiEbay, parseMoney, scraperApiResolver } from "../resolvers/scraperapi.resolver";
+import { mapScraperApiAmazon, mapScraperApiEbay, normalizeCurrency, parseMoney, scraperApiResolver } from "../resolvers/scraperapi.resolver";
 import { resolveProduct } from "../resolvers/chain";
 import { emptyProduct, SupportedPlatform, getScraperByPlatform } from "../scrapers";
 import { TomameCategory } from "@/config/categories";
 import type { ExtractionResolver } from "../resolvers/types";
+import { STORES } from "../stores";
 
 const AMZ_URL = "https://www.amazon.com/dp/B01MRZ02TL";
 const EBAY_URL = "https://www.ebay.com/itm/407064013193?_trkparms=x";
@@ -21,6 +22,24 @@ describe("parseMoney", () => {
     expect(parseMoney("£1,299.00", "USD")).toEqual({ price: 1299, currency: "GBP" });
     expect(parseMoney("129.99", "GBP")).toEqual({ price: 129.99, currency: "GBP" });
     expect(parseMoney(undefined, "USD")).toEqual({ price: null, currency: null });
+  });
+});
+
+describe("normalizeCurrency", () => {
+  it("reduces eBay's scraped currency text to an ISO code", () => {
+    expect(normalizeCurrency("US $or Best Offer", "USD")).toBe("USD"); // seen live 2026-09-12
+    expect(normalizeCurrency("US $", "GBP")).toBe("USD");
+    expect(normalizeCurrency("GBP", "USD")).toBe("GBP");
+    expect(normalizeCurrency("£", "USD")).toBe("GBP");
+    expect(normalizeCurrency("C $", "USD")).toBe("CAD");
+    expect(normalizeCurrency("", "GBP")).toBe("GBP");
+    expect(normalizeCurrency("whatever", "USD")).toBe("USD");
+  });
+
+  it("maps a live eBay listing whose currency field is polluted", () => {
+    const p = mapScraperApiEbay({ title: "Apple AirPods Pro 2", price: { value: 1234, currency: "US $or Best Offer" }, available: true }, EBAY_URL);
+    expect(p.price).toBe(1234);
+    expect(p.currency).toBe("USD");
   });
 });
 
@@ -38,6 +57,19 @@ describe("mapScraperApiAmazon (real response shape)", () => {
     expect(p.image).toMatch(/^https:\/\/m\.media-amazon\.com/);
     expect(p.metadata?.listPrice).toBe(129.99);
   });
+
+  it("promotes seller, rating, review count, images and availability to typed fields; condition stays null", () => {
+    const p = mapScraperApiAmazon(fixtures.amazon, AMZ_URL);
+    expect(p.seller).toBe("FlamakerDirect");
+    expect(p.rating).toBe(4.4);
+    expect(p.review_count).toBe(77891);
+    expect(p.availability).toBe("In Stock");
+    expect(p.condition).toBeNull(); // the Amazon record does not state it
+    expect(p.images).toHaveLength(2);
+    expect(p.images![0]).toBe(p.image);
+    expect(p.variants).toEqual({});
+    expect(p.metadata?.reviewCount).toBe("77891 reviews"); // legacy copy kept
+  });
 });
 
 describe("mapScraperApiEbay (real response shape)", () => {
@@ -52,6 +84,17 @@ describe("mapScraperApiEbay (real response shape)", () => {
     expect(p.specifications?.["Storage Capacity"]).toBeDefined();
     expect(p.specifications?.["Seller Notes"]).toBeUndefined();
     expect(p.category).toBeNull(); // eBay endpoint has no category path
+  });
+
+  it("promotes seller, condition and images; availability is a boolean upstream so stays null", () => {
+    const p = mapScraperApiEbay(fixtures.ebay, EBAY_URL);
+    expect(p.seller).toBe("T4C LLC");
+    expect(p.condition).toBe("Excellent - Refurbished");
+    expect(p.images).toHaveLength(2);
+    expect(p.images![0]).toBe(p.image);
+    expect(p.availability).toBeNull();
+    expect(p.rating).toBeNull();
+    expect(p.review_count).toBeNull();
   });
 });
 
@@ -68,6 +111,8 @@ describe("scraperApiResolver", () => {
     scraper: getScraperByPlatform(platform),
     region: "USA" as const,
     deadline: Date.now() + 30_000,
+    store: STORES[0]!,
+    signal: new AbortController().signal,
     getHtml: async () => null,
     htmlState: () => "unfetched" as const,
     current: emptyProduct(),

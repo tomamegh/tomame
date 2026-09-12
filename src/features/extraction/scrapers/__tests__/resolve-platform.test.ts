@@ -35,8 +35,13 @@ describe("resolvePlatform", () => {
     ).toBe(SupportedPlatform.AMAZON);
   });
 
-  it("should return null for unsupported platforms", () => {
-    expect(resolvePlatform("https://www.etsy.com/listing/12345")).toBeNull();
+  it("resolves registry stores without a Cheerio scraper", () => {
+    expect(resolvePlatform("https://www.etsy.com/listing/12345")).toBe("etsy");
+  });
+
+  it("returns 'generic' for unknown public hosts and null for unusable URLs", () => {
+    expect(resolvePlatform("https://some-unknown-shop.io/products/1")).toBe("generic");
+    expect(resolvePlatform("http://127.0.0.1/x")).toBeNull();
   });
 
   it("should return null for invalid URLs", () => {

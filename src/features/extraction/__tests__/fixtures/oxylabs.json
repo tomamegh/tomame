@@ -1,0 +1,319 @@
+{
+  "amazon": {
+    "amazon_choice": true,
+    "answered_questions_count": 0,
+    "asin": "B0CHX3QBCH",
+    "asin_in_url": "B0CHX3QBCH",
+    "brand": "Apple",
+    "bullet_points": "Crafted with a blend of optically clear polycarbonate and flexible materials, the case fits right over the buttons for easy use. On the surface, a scratch-resistant coating has been applied to both the interior and exterior. And all materials and coatings are optimized to prevent yellowing over time",
+    "category": [
+      {
+        "ladder": [
+          {
+            "name": "Cell Phones & Accessories",
+            "url": "/x"
+          },
+          {
+            "name": "Cases, Holsters & Sleeves",
+            "url": "/y"
+          },
+          {
+            "name": "Basic Cases",
+            "url": "/z"
+          }
+        ]
+      }
+    ],
+    "coupon": "",
+    "currency": "USD",
+    "description": "",
+    "discount_percentage": 73,
+    "featured_merchant": {
+      "is_amazon_fulfilled": true,
+      "link": "/gp/help/seller/at-a-glance.html/ref=dp_merchant_link?ie=UTF8&seller=A1KP6T6MILHEDF&asin=B0CHX3QBCH&ref_=dp_merchant_link&isAmazonFulfilled=1",
+      "name": "iDeals Today",
+      "seller_id": "A1KP6T6MILHEDF",
+      "shipped_from": "Amazon"
+    },
+    "has_videos": true,
+    "images": [
+      "https://m.media-amazon.com/images/I/411aTMUWgPL._AC_SL1000_.jpg",
+      "https://m.media-amazon.com/images/I/41-R4aC2+NL._AC_SL1000_.jpg",
+      "https://m.media-amazon.com/images/I/41S2tEwVGsL._AC_SL1000_.jpg"
+    ],
+    "is_prime_eligible": true,
+    "manufacturer": "Apple",
+    "max_quantity": 30,
+    "page": 1,
+    "page_type": "Product",
+    "parent_asin": "B0CZY3SY62",
+    "parse_status_code": 12000,
+    "price": 12.99,
+    "price_buybox": 12.99,
+    "price_initial": 0,
+    "price_shipping": 0,
+    "price_sns": 0,
+    "price_strikethrough": 49,
+    "price_upper": 12.99,
+    "pricing_count": 1,
+    "pricing_url": "https://www.amazon.com/gp/offer-listing/B0CHX3QBCH/ref=dp_olp_ALL_mbc?ie=UTF8&condition=ALL",
+    "product_details": {
+      "asin": "B0CHX3QBCH",
+      "date_first_available": "September 12, 2023",
+      "item_model_number": "MT213ZM/A",
+      "item_weight": "2.46 ounces",
+      "manufacturer": "Apple",
+      "product_dimensions": "6.89 x 3.65 x 0.6 inches"
+    },
+    "product_dimensions": "6.89 x 3.65 x 0.6 inches",
+    "product_name": "Apple iPhone 15 Plus Clear Case with MagSafe",
+    "rating": 4.3,
+    "reviews_count": 321,
+    "sales_rank": [],
+    "stock": "In Stock",
+    "store_url": "/stores/Apple/page/77D9E1F7-0337-4282-9DB6-B6B8FB2DC98D?lp_asin=B0CHX3QBCH&ref_=ast_bln",
+    "technical_details": [
+      {
+        "name": "Product Dimensions",
+        "value": "6.89 x 3.65 x 0.6 inches"
+      },
+      {
+        "name": "Item Weight",
+        "value": "2.46 ounces"
+      },
+      {
+        "name": "Manufacturer",
+        "value": "Apple"
+      },
+      {
+        "name": "ASIN",
+        "value": "B0CHX3QBCH"
+      },
+      {
+        "name": "Item model number",
+        "value": "MT213ZM/A"
+      },
+      {
+        "name": "Date First Available",
+        "value": "September 12, 2023"
+      }
+    ],
+    "title": "Apple iPhone 15 Plus Clear Case with MagSafe",
+    "url": "https://www.amazon.com/dp/B0CHX3QBCH?language=en_US",
+    "variation": [
+      {
+        "asin": "B0CHX1W216",
+        "dimensions": {
+          "Color": "Black",
+          "Material Type": "Fabric"
+        },
+        "selected": false
+      },
+      {
+        "asin": "B0CHX3JHCR",
+        "dimensions": {
+          "Color": "Black",
+          "Material Type": "Silicone"
+        },
+        "selected": false
+      },
+      {
+        "asin": "B0CHX2F5SR",
+        "dimensions": {
+          "Color": "Light Pink",
+          "Material Type": "Silicone"
+        },
+        "selected": false
+      },
+      {
+        "asin": "B0CHX3QBCH",
+        "dimensions": {
+          "Color": "Clear",
+          "Material Type": "Polycarbonate"
+        },
+        "selected": true
+      }
+    ],
+    "whats_in_the_box": "Apple iPhone 15 Plus Clear Case with MagSafe ​​​​​​​"
+  },
+  "walmart": {
+    "breadcrumbs": [
+      {
+        "category_name": "Cell Phones",
+        "url": "/cp/cell-phones/1105910"
+      },
+      {
+        "category_name": "Shop Phones by Brand",
+        "url": "/cp/shop-phones-by-brand/7551331"
+      },
+      {
+        "category_name": "Samsung Galaxy Phones",
+        "url": "/cp/samsung-galaxy-phones/1986562"
+      },
+      {
+        "category_name": "Samsung Galaxy Phones by Model",
+        "url": "/cp/samsung-galaxy-phones-by-model/1231202"
+      },
+      {
+        "category_name": "Galaxy S Series",
+        "url": "/cp/galaxy-s-series/1562593"
+      },
+      {
+        "category_name": "Galaxy S24",
+        "url": "/cp/galaxy-s24/8056739"
+      }
+    ],
+    "cheapest_seller_name": null,
+    "fulfillment": {
+      "delivery": false,
+      "delivery_information": ", Delivery, Not available",
+      "free_shipping": false,
+      "fulfilled_by": "",
+      "out_of_stock": true,
+      "pickup": false,
+      "pickup_information": ", Pickup, Not available",
+      "shipping": false,
+      "shipping_information": ", Shipping, Not available"
+    },
+    "general": {
+      "badge": [],
+      "brand": "Samsung",
+      "description": "Do more with the most epic Galaxy yet. Capture every detail of your candlelight meal with impressive Nightography and zoom in to see the live violinist playing across the room.Once you’re back in your hotel, elevate your pics from good to great right on your Galaxy S24 Ultra. You can even use your b",
+      "images": [
+        "https://i5.walmartimages.com/seo/AT-T-Samsung-Galaxy-S24-Ultra-Titanium-Violet-512GB_784b47ee-bfb7-4543-af9d-5406c37ffed5.fa51da09222008a396f35c6e245e2e2a.jpeg?odnHeight=117&odnWidth=117&odnBg=FFFFFF",
+        "https://i5.walmartimages.com/asr/363e7f07-5363-426d-aa10-516a67b452b2.bbfc8dad0a78d51b06407f8adee38385.jpeg?odnHeight=117&odnWidth=117&odnBg=FFFFFF",
+        "https://i5.walmartimages.com/asr/759e507a-547c-4752-8918-f6eb43c7d729.1766c946037d6a3d5f11fe52f93fd73f.jpeg?odnHeight=117&odnWidth=117&odnBg=FFFFFF",
+        "https://i5.walmartimages.com/asr/950096db-f835-4428-b05f-4a7182ad6d11.c6ccf52d276062229db47a4fb9193d8f.jpeg?odnHeight=117&odnWidth=117&odnBg=FFFFFF",
+        "https://i5.walmartimages.com/asr/6778532d-3ca5-4104-b0b2-61d299eb2284.25c8a7d9333d50b3e74e3629de8a663c.jpeg?odnHeight=117&odnWidth=117&odnBg=FFFFFF"
+      ],
+      "main_image": "https://i5.walmartimages.com/seo/AT-T-Samsung-Galaxy-S24-Ultra-Titanium-Violet-512GB_784b47ee-bfb7-4543-af9d-5406c37ffed5.fa51da09222008a396f35c6e245e2e2a.jpeg?odnHeight=573&odnWidth=573&odnBg=FFFFFF",
+      "meta": {
+        "gtin": "466327078502",
+        "sku": "5303769194"
+      },
+      "title": "AT&T Samsung Galaxy S24 Ultra Titanium Violet 512GB",
+      "url": "https://www.walmart.com/ip/AT-T-Samsung-Galaxy-S24-Ultra-Titanium-Violet-512GB/5253396052"
+    },
+    "parse_status_code": 12000,
+    "price": {
+      "currency": "USD",
+      "price_strikethrough": 1469
+    },
+    "rating": {
+      "count": 0,
+      "rating": 0
+    },
+    "seller": {
+      "id": "F55CDC31AB754BB68FE0B39041159D63",
+      "name": "Walmart.com",
+      "official_name": "Walmart.com"
+    },
+    "sold_by_walmart_price": null,
+    "specifications": [
+      {
+        "key": "Rear cam mpx",
+        "value": "200 MP"
+      },
+      {
+        "key": "Battery capacity",
+        "value": "5000 mAh"
+      },
+      {
+        "key": "Screen size",
+        "value": "6.8 in"
+      },
+      {
+        "key": "Ram memory",
+        "value": "12 GB"
+      },
+      {
+        "key": "Wireless",
+        "value": "5G"
+      },
+      {
+        "key": "Native resolution",
+        "value": "3120 x 1440"
+      },
+      {
+        "key": "Brand",
+        "value": "Samsung"
+      },
+      {
+        "key": "Model name",
+        "value": "Galaxy S24 Ultra"
+      },
+      {
+        "key": "Series",
+        "value": "S24 Ultra"
+      },
+      {
+        "key": "HD capacity",
+        "value": "512 GB"
+      },
+      {
+        "key": "Mobile OS",
+        "value": "Android"
+      },
+      {
+        "key": "Display",
+        "value": "OLED"
+      }
+    ],
+    "variations": [
+      {
+        "product_id": "19TEF0VYEF1H",
+        "selected_options": [
+          {
+            "key": "Carrier",
+            "value": "AT&T"
+          },
+          {
+            "key": "Capacity",
+            "value": "512GB"
+          },
+          {
+            "key": "Color",
+            "value": "Titanium Violet"
+          }
+        ],
+        "state": "OUT_OF_STOCK"
+      },
+      {
+        "product_id": "6SDRC2CJKWAX",
+        "selected_options": [
+          {
+            "key": "Carrier",
+            "value": "AT&T"
+          },
+          {
+            "key": "Capacity",
+            "value": "512GB"
+          },
+          {
+            "key": "Color",
+            "value": "Titanium Gray"
+          }
+        ],
+        "state": "OUT_OF_STOCK"
+      },
+      {
+        "product_id": "16TFEZEK2JB5",
+        "selected_options": [
+          {
+            "key": "Carrier",
+            "value": "AT&T"
+          },
+          {
+            "key": "Capacity",
+            "value": "512GB"
+          },
+          {
+            "key": "Color",
+            "value": "Titanium Yellow"
+          }
+        ],
+        "state": "OUT_OF_STOCK"
+      }
+    ]
+  }
+}

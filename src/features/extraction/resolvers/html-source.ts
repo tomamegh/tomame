@@ -1,6 +1,8 @@
 import { logger } from "@/lib/logger";
 import { EXTRACTION } from "@/config/extraction";
 import { browserlessClient, isBrowserlessConfigured } from "@/lib/browserless/client";
+import { fetchZyteBrowserHtml, isZyteConfigured } from "@/lib/zyte/client";
+import { fetchOxylabsRenderedHtml, isOxylabsConfigured } from "@/lib/oxylabs/client";
 import type { PlatformScraper } from "../scrapers";
 import type { HtmlAttemptName } from "../scrapers/types";
 import type { HtmlFetch } from "./types";
@@ -35,6 +37,10 @@ async function directFetch(url: string, timeoutMs: number): Promise<string | nul
 
 type Attempt = {
   name: HtmlAttemptName;
+  /** Which HTML source the page is attributed to. */
+  source: HtmlFetch["source"];
+  /** Key present for this vendor. */
+  configured: () => boolean;
   /** Minimum time that must remain in the budget for this attempt to start. */
   minRemainingMs: number;
   /** Extra runs when the first returns a blocked/shell page. */
@@ -65,46 +71,78 @@ export async function fetchProductHtml(
 ): Promise<HtmlFetch | null> {
   const remaining = () => deadline - Date.now();
 
-  const order: HtmlAttemptName[] = scraper.htmlAttempts ?? ["direct", "unblock", "unblock+residential", "content+residential"];
+  const order: HtmlAttemptName[] = scraper.htmlAttempts ?? ["direct", "zyte-browser", "unblock", "unblock+residential", "content+residential"];
 
   if (order.includes("direct") && !opts.skipDirect && remaining() > 2_000) {
     const html = await directFetch(url, Math.min(EXTRACTION.directFetchTimeoutMs, remaining()));
     if (html && scraper.looksLikeProductPage(html)) return { html, source: "direct" };
   }
 
-  if (!isBrowserlessConfigured()) {
-    logger.warn("html-source: browserless not configured, skipping", { url });
-    return null;
-  }
-
   const catalogue: Record<Exclude<HtmlAttemptName, "direct">, Attempt> = {
+    "zyte-browser": {
+      name: "zyte-browser",
+      source: "zyte",
+      configured: isZyteConfigured,
+      minRemainingMs: 6_000,
+      retries: 0,
+      run: async (t) => {
+        const html = await fetchZyteBrowserHtml(url, Math.min(t, EXTRACTION.zyteBrowserTimeoutMs));
+        return { success: !!html, html, error: html ? null : "zyte returned no page" };
+      },
+    },
+    "oxylabs-render": {
+      name: "oxylabs-render",
+      source: "oxylabs",
+      configured: isOxylabsConfigured,
+      minRemainingMs: 8_000,
+      retries: 0,
+      run: async (t) => {
+        const html = await fetchOxylabsRenderedHtml(url, t);
+        return { success: !!html, html, error: html ? null : "oxylabs returned no page" };
+      },
+    },
     unblock: {
       name: "unblock",
+      source: "browserless",
+      configured: isBrowserlessConfigured,
       minRemainingMs: 8_000,
       retries: 0,
       run: (t) => browserlessClient.unblockContent(url, t),
     },
     "unblock+residential": {
       name: "unblock+residential",
-      minRemainingMs: 15_000,
+      source: "browserless",
+      configured: isBrowserlessConfigured,
+      minRemainingMs: 12_000,
       // Residential exits are per-request; eBay blocks roughly one in three.
       retries: 1,
       run: (t) => browserlessClient.unblockContent(url, t, { proxy: "residential", waitForTimeout: 3_000 }),
     },
     "content+residential": {
       name: "content+residential",
-      minRemainingMs: 15_000,
+      source: "browserless",
+      configured: isBrowserlessConfigured,
+      minRemainingMs: 12_000,
       retries: 0,
       run: (t) => browserlessClient.scrapeContent({ url, timeout: t, waitForSelector: scraper.renderWaitSelector, proxy: "residential" }),
     },
     content: {
       name: "content",
-      minRemainingMs: 15_000,
+      source: "browserless",
+      configured: isBrowserlessConfigured,
+      minRemainingMs: 12_000,
       retries: 0,
       run: (t) => browserlessClient.scrapeContent({ url, timeout: t, waitForSelector: scraper.renderWaitSelector }),
     },
   };
-  const attempts = order.filter((n): n is Exclude<HtmlAttemptName, "direct"> => n !== "direct").map((n) => catalogue[n]);
+  const attempts = order
+    .filter((n): n is Exclude<HtmlAttemptName, "direct"> => n !== "direct")
+    .map((n) => catalogue[n])
+    .filter((a) => {
+      if (a.configured()) return true;
+      logger.info("html-source: source not configured, skipping", { url, skipped: a.name });
+      return false;
+    });
 
   for (const attempt of attempts) {
     for (let run = 0; run <= attempt.retries; run++) {
@@ -117,7 +155,7 @@ export async function fetchProductHtml(
       const result = await attempt.run(timeout);
       if (result.success && result.html && scraper.looksLikeProductPage(result.html)) {
         logger.info("html-source: page obtained", { url, via: attempt.name, run, ms: Date.now() - t0, bytes: result.html.length });
-        return { html: result.html, source: "browserless" };
+        return { html: result.html, source: attempt.source };
       }
       logger.warn("html-source: attempt did not yield a product page", {
         url,

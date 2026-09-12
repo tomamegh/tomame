@@ -4,7 +4,16 @@ product     = "tomame"
 # No domain yet. The app is served on https://tomame-dev.vercel.app and mail
 # goes out over Resend's shared onboarding domain. Set this once you own a
 # domain — NOT tomame.com, which is parked at Afternic and not yours.
-root_domain = null
+root_domain = "tomame.ca"
+
+# dev gets its own sending subdomain. sending_domain is built from
+# mail_subdomain + root_domain with no environment in it, so leaving this at the
+# default would have dev and prod both create the Resend domain send.tomame.ca
+# and publish the same records into the same zone, from two separate states.
+mail_subdomain = "send-dev"
+
+# prod owns the zone. dev attaches dev.tomame.ca and publishes nothing.
+dns_managed_by_vercel = false
 
 vercel_team       = "albertahadjie-6953s-projects"
 github_repo       = "tomamegh/tomame"

@@ -3,6 +3,7 @@ import type { HtmlAttemptName, PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, SHEIN_CATEGORY_MAP } from "@/config/categories";
 import type { ApifySheinProduct } from "@/lib/apify/client";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { addVariant, normalizeImages, parseAggregateRating, parseRating, parseReviewCount } from "./parse";
 
 type JsonLdNode = Record<string, unknown>;
 
@@ -217,10 +218,11 @@ function extractDimensions(specs: Record<string, string>): string | null {
   return null;
 }
 
-function extractAvailableSizes($: CheerioAPI): string[] {
+function extractAvailableSizes($: CheerioAPI, onlyInStock = false): string[] {
   const sizes: string[] = [];
   $(".product-intro__size-radio span, .size-list li, [class*='product-intro__size'] [class*='size-radio']")
     .each((_, el) => {
+      if (onlyInStock && /sold-?out|disabled|unavailable/i.test(`${$(el).attr("class") ?? ""} ${$(el).parent().attr("class") ?? ""}`)) return;
       const t = $(el).text().trim();
       if (t && t.length <= 12 && !sizes.includes(t)) sizes.push(t);
     });
@@ -275,8 +277,9 @@ export function mapApifySheinProduct(item: ApifySheinProduct): ScrapedProduct {
   }
   if (!category && crumbs.length > 0) category = TomameCategory.OTHER;
 
-  const images = (item.images ?? []).map((u) => toHttps(u)).filter((u): u is string => !!u);
-  const mainImage = toHttps(item.main_image) ?? images[0] ?? null;
+  const rawImages = (item.images ?? []).map((u) => toHttps(u)).filter((u): u is string => !!u);
+  const images = normalizeImages(rawImages, toHttps(item.main_image));
+  const mainImage = images[0] ?? null;
 
   const price = priceUsd(item.sale_price) ?? priceUsd(item.retail_price);
   const currency = (item.sale_price?.currency ?? item.retail_price?.currency)
@@ -292,6 +295,11 @@ export function mapApifySheinProduct(item: ApifySheinProduct): ScrapedProduct {
     }
   }
   const size = availableSizes.length === 1 ? availableSizes[0]! : null;
+  const variants: Record<string, string[]> = {};
+  for (const s of item.sizes ?? []) {
+    if (s?.is_sold_out === true) continue;
+    addVariant(variants, "size", s?.attr_value_name_en ?? s?.attr_value_name);
+  }
 
   return {
     title: item.title ?? null,
@@ -306,8 +314,15 @@ export function mapApifySheinProduct(item: ApifySheinProduct): ScrapedProduct {
     weight_lbs: null,
     dimensions: null,
     specifications: specs,
+    seller: null,
+    condition: null,
+    rating: parseRating(item.rating),
+    review_count: parseReviewCount(item.review_count),
+    images,
+    variants,
+    availability: null,
     metadata: {
-      images,
+      images: rawImages,
       goodsId: goodsId != null ? String(goodsId) : null,
       sku: item.sku ?? null,
       availableSizes,
@@ -386,6 +401,11 @@ export class SheinScraper implements PlatformScraper {
 
     const specifications = extractSpecifications($);
     const availableSizes = extractAvailableSizes($);
+    const variants: Record<string, string[]> = {};
+    for (const s of extractAvailableSizes($, true)) addVariant(variants, "size", s);
+    const ratingText = text($, ".product-intro__head-rate, [class*='rate-num']");
+    const reviewText = text($, ".product-intro__head-reviews, [class*='review-count']");
+    const ld = parseAggregateRating(product?.aggregateRating);
 
     return {
       title: extractTitle(product, $),
@@ -400,14 +420,21 @@ export class SheinScraper implements PlatformScraper {
       weight_lbs: parseWeight(extractWeight(specifications)),
       dimensions: extractDimensions(specifications),
       specifications,
+      seller: null,
+      condition: null,
+      rating: parseRating(ratingText) ?? ld.rating,
+      review_count: parseReviewCount(reviewText) ?? ld.review_count,
+      images: normalizeImages(allImages, mainImage),
+      variants,
+      availability: null,
       metadata: {
         images: allImages,
         goodsId: extractGoodsId($),
         sku: typeof product?.sku === "string" ? product.sku : null,
         mpn: typeof product?.mpn === "string" ? product.mpn : null,
         availableSizes,
-        rating: text($, ".product-intro__head-rate, [class*='rate-num']"),
-        reviewCount: text($, ".product-intro__head-reviews, [class*='review-count']"),
+        rating: ratingText,
+        reviewCount: reviewText,
       },
     };
   }

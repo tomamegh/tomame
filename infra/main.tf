@@ -76,6 +76,13 @@ locals {
     # environment, and TAX_PERCENTAGE in particular decides what a customer pays.
     TAX_PERCENTAGE      = tostring(var.tax_percentage)
     BROWSERLESS_API_URL = var.browserless_api_url
+
+    # The /builder screen accepts image uploads, which is the most dangerous
+    # surface in the app. The code already defaults it off outside development,
+    # but an implicit default is invisible to whoever reads the deployment. Set
+    # it here so the kill switch is a line of infrastructure someone has to
+    # deliberately flip, not an assumption about NODE_ENV.
+    BUILDER_ENABLED = var.builder_enabled ? "true" : "false"
   }
 
   # What the RUNNING APP needs. This is what Vercel gets, and nothing more.
@@ -287,7 +294,7 @@ module "resend_dns" {
   count  = local.has_domain && var.dns_managed_by_vercel ? 1 : 0
 
   zone    = var.root_domain
-  records = local.resend_records_for_vercel
+  records = concat(local.resend_records_for_vercel, var.additional_dns_records)
 }
 
 # Verification, ordered after the records exist.

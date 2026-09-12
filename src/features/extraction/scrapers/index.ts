@@ -1,4 +1,4 @@
-export { SupportedPlatform, getScraperByPlatform, getDomainsForPlatform, SUPPORTED_STORE_NAMES } from "./registry";
-export { resolvePlatform } from "./resolve-platform";
+export { SupportedPlatform, getScraperByPlatform, getScraperForStore, getDomainsForPlatform, resolvePlatform, SUPPORTED_STORE_NAMES } from "./registry";
 export type { PlatformScraper, ScrapedProduct } from "./types";
-export { emptyProduct } from "./types";
+export { emptyProduct, withProductDefaults } from "./types";
+export { parseRating, parseReviewCount } from "./parse";

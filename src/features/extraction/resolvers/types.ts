@@ -1,11 +1,12 @@
 import type { ExtractionSource } from "@/config/extraction";
-import type { SupportedPlatform, PlatformScraper, ScrapedProduct } from "../scrapers";
+import type { PlatformScraper, ScrapedProduct } from "../scrapers";
+import type { StoreDefinition } from "../stores";
 import type { Region } from "../url";
 
 export type PartialProduct = Partial<ScrapedProduct>;
 
 /** Which HTML source produced the page. */
-export type HtmlSource = "direct" | "browserless";
+export type HtmlSource = "direct" | "browserless" | "zyte" | "oxylabs";
 
 export interface HtmlFetch {
   html: string;
@@ -19,11 +20,15 @@ export interface HtmlFetch {
 export interface ResolveContext {
   /** Canonical product URL. */
   url: string;
-  platform: SupportedPlatform;
+  /** Store slug (`ExtractionResult.platform`). */
+  platform: string;
+  store: StoreDefinition;
   scraper: PlatformScraper;
   region: Region | null;
   /** Absolute epoch ms after which resolvers should not start new network work. */
   deadline: number;
+  /** Aborted once the chain has what it needs — pass to fetch so losing tiers stop spending. */
+  signal: AbortSignal;
   getHtml(): Promise<HtmlFetch | null>;
   /** Whether the page has been fetched yet — lets a tier choose a text-only mode instead of triggering a browser fetch. */
   htmlState(): "unfetched" | "none" | "ready";
@@ -45,6 +50,14 @@ export interface ExtractionResolver {
   readonly defaultConfidence: number;
   /** True when the tier can only work from the fetched page. In fast mode these are deferred to enrichment once price is known. */
   readonly needsHtml: boolean;
+  /**
+   * Race policy. When earlier tiers are still running:
+   *   - `startAfterMs` set → start anyway once that long has passed (hedge), or sooner if they finish.
+   *   - `startWhen` set   → start as soon as the predicate holds (e.g. "title + price known").
+   *   - neither          → wait for every pending tier to finish (strictly sequential; for costly tiers).
+   */
+  readonly startAfterMs?: number;
+  readonly startWhen?: (ctx: ResolveContext) => boolean;
   /** Whether this tier can run right now (key present, platform supported). */
   available(ctx: ResolveContext): boolean;
   /** Should this tier run given what is still missing? Cheap tiers say yes always. */
@@ -59,9 +72,9 @@ export interface ChainOutcome {
   confidence: Partial<Record<keyof ScrapedProduct, number>>;
   /** Per-field source of the winning value. */
   fieldSources: Partial<Record<keyof ScrapedProduct, ExtractionSource>>;
-  /** Resolvers that ran, in order. */
+  /** Resolvers that finished and were merged, in completion order. */
   ran: ExtractionSource[];
-  /** Available resolvers that did not run because the chain stopped early (fast mode / budget). */
+  /** Available resolvers that did not finish: never started, or aborted when the chain had enough. */
   skipped: ExtractionSource[];
   /** Resolver that supplied the title (or the first that supplied anything). */
   primarySource: ExtractionSource | null;
@@ -70,4 +83,6 @@ export interface ChainOutcome {
   html: HtmlFetch | null;
   messages: string[];
   durationMs: number;
+  /** Per-resolver wall time, for the bench and logs. */
+  timings: Partial<Record<ExtractionSource, number>>;
 }

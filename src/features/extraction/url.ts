@@ -1,30 +1,11 @@
 import { createHash } from "crypto";
+import { findStore, registeredDomains } from "./stores";
 
 export type Region = "USA" | "UK" | "CHINA";
 
 /** Region as the pricing calculator spells it. */
 export const REGION_TO_PRICING = { USA: "usa", UK: "uk", CHINA: "china" } as const;
 export const PRICING_TO_REGION = { usa: "USA", uk: "UK", china: "CHINA" } as const;
-
-/** Store hostname → region the item ships from. Subdomains match too. */
-const DOMAIN_REGION: Record<string, Region> = {
-  "amazon.com": "USA",
-  "a.co": "USA",
-  "amazon.co.uk": "UK",
-  "ebay.com": "USA",
-  "ebay.us": "USA",
-  "ebay.to": "USA",
-  "ebay.co.uk": "UK",
-  "microcenter.com": "USA",
-  "walmart.com": "USA",
-  "target.com": "USA",
-  "bestbuy.com": "USA",
-  "argos.co.uk": "UK",
-  "aliexpress.com": "CHINA",
-  "alibaba.com": "CHINA",
-  "temu.com": "CHINA",
-  "shein.com": "CHINA",
-};
 
 /** Currency a store lists prices in when the page doesn't say. */
 const DOMAIN_CURRENCY: Record<string, string> = {
@@ -64,14 +45,9 @@ export function isShortUrl(url: string): boolean {
   return !!u && SHORT_URL_HOSTS.has(u.hostname.toLowerCase());
 }
 
+/** Region a registered store ships from; `null` for unknown stores (the customer confirms). */
 export function regionForUrl(url: string): Region | null {
-  const u = parseUrl(url);
-  if (!u) return null;
-  const host = u.hostname.toLowerCase();
-  for (const [domain, region] of Object.entries(DOMAIN_REGION)) {
-    if (hostMatches(host, domain)) return region;
-  }
-  return null;
+  return findStore(url)?.region ?? null;
 }
 
 export function defaultCurrencyForUrl(url: string): string {
@@ -103,7 +79,7 @@ export function hashUrl(url: string): string {
 function isAllowedRedirectHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   if (SHORT_URL_HOSTS.has(host)) return true;
-  return Object.keys(DOMAIN_REGION).some((domain) => hostMatches(host, domain));
+  return registeredDomains().some((domain) => hostMatches(host, domain));
 }
 
 /**

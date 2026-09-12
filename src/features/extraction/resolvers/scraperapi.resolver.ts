@@ -1,4 +1,5 @@
 import { logger } from "@/lib/logger";
+import { EXTRACTION } from "@/config/extraction";
 import {
   fetchAmazonProductStructured,
   fetchEbayProductStructured,
@@ -8,11 +9,30 @@ import {
 } from "@/lib/scraperapi/client";
 import { TomameCategory, AMAZON_CATEGORY_MAP, EBAY_CATEGORY_MAP } from "@/config/categories";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
-import { SupportedPlatform } from "../scrapers/registry";
 import { amazonAsinOf, amazonDomainOf, defaultCurrencyForUrl, ebayItemIdOf } from "../url";
+import { cleanString, normalizeImages, parseRating, parseReviewCount } from "../scrapers/parse";
+import { hasRequiredFields } from "./merge";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
 
 const SYMBOL_CURRENCY: Record<string, string> = { $: "USD", "£": "GBP", "€": "EUR", "¥": "CNY" };
+
+/**
+ * ScraperAPI's eBay currency field is scraped text — "USD", "US $", "US $or Best Offer",
+ * "GBP", "C $" have all been seen. Reduce it to an ISO code or the store default.
+ */
+export function normalizeCurrency(raw: string | null | undefined, fallback: string): string {
+  if (!raw) return fallback;
+  const code = raw.toUpperCase().match(/\b(USD|GBP|EUR|CNY|CAD|AUD|JPY)\b/)?.[1];
+  if (code) return code;
+  const t = raw.replace(/\s+/g, "").toUpperCase();
+  if (t.startsWith("US$") || t.startsWith("$")) return "USD";
+  if (t.startsWith("C$") || t.startsWith("CA$")) return "CAD";
+  if (t.startsWith("AU$")) return "AUD";
+  if (t.startsWith("£")) return "GBP";
+  if (t.startsWith("€")) return "EUR";
+  if (t.startsWith("¥")) return "CNY";
+  return fallback;
+}
 
 /** "$80.74" / "£1,299.00" → { price, currency }. */
 export function parseMoney(text: string | null | undefined, fallbackCurrency: string): { price: number | null; currency: string | null } {
@@ -55,7 +75,8 @@ export function mapScraperApiAmazon(item: ScraperApiAmazonProduct, sourceUrl: st
   if (!category && crumbs.length > 0) category = TomameCategory.OTHER;
 
   const { price, currency } = parseMoney(item.pricing, defaultCurrencyForUrl(sourceUrl));
-  const images = item.high_res_images?.length ? item.high_res_images : item.images ?? [];
+  const rawImages = item.high_res_images?.length ? item.high_res_images : item.images ?? [];
+  const images = normalizeImages(rawImages);
   const weightText = info.item_weight ?? null;
 
   return {
@@ -71,8 +92,16 @@ export function mapScraperApiAmazon(item: ScraperApiAmazonProduct, sourceUrl: st
     weight_lbs: parseWeight(weightText),
     dimensions: info.item_dimensions_d_x_w_x_h ?? info.item_dimensions ?? info.product_dimensions ?? null,
     specifications: specs,
+    seller: cleanString(item.sold_by),
+    condition: null, // the Amazon structured record does not state condition
+    rating: parseRating(item.average_rating),
+    review_count: parseReviewCount(item.total_reviews),
+    images,
+    variants: {},
+    availability: cleanString(item.availability_status),
     metadata: {
-      images,
+      images: rawImages,
+      breadcrumbs: crumbs,
       asin: info.asin ?? amazonAsinOf(sourceUrl),
       rating: item.average_rating ?? null,
       reviewCount: item.total_reviews != null ? `${item.total_reviews} reviews` : null,
@@ -105,12 +134,13 @@ export function mapScraperApiEbay(item: ScraperApiEbayProduct, sourceUrl: string
 
   const weightText = Object.entries(specs).find(([k]) => /\bweight\b/i.test(k))?.[1] ?? null;
   const price = typeof item.price?.value === "number" && item.price.value > 0 ? item.price.value : null;
+  const images = normalizeImages(item.images ?? []);
 
   return {
     title: item.title ?? null,
-    image: item.images?.[0] ?? null,
+    image: images[0] ?? null,
     price,
-    currency: price != null ? item.price?.currency?.toUpperCase() ?? defaultCurrencyForUrl(sourceUrl) : null,
+    currency: price != null ? normalizeCurrency(item.price?.currency, defaultCurrencyForUrl(sourceUrl)) : null,
     description: null,
     brand: item.brand ?? specs["Brand"] ?? null,
     category,
@@ -119,6 +149,14 @@ export function mapScraperApiEbay(item: ScraperApiEbayProduct, sourceUrl: string
     weight_lbs: parseWeight(weightText),
     dimensions: Object.entries(specs).find(([k]) => /dimension|item (length|height|width)/i.test(k))?.[1] ?? null,
     specifications: specs,
+    seller: cleanString(item.seller?.name),
+    condition: cleanString(item.condition),
+    rating: parseRating(item.rating),
+    review_count: parseReviewCount(item.review_count),
+    images,
+    variants: {},
+    // `available` is a boolean, not a store phrase; the resolver adds a message when it is false.
+    availability: null,
     metadata: {
       images: item.images ?? [],
       itemId: item.product_id_epid ?? ebayItemIdOf(sourceUrl),
@@ -148,13 +186,13 @@ export const scraperApiResolver: ExtractionResolver = {
   name: "scraperapi",
   defaultConfidence: 0.95,
   needsHtml: false,
-  available: (ctx) =>
-    isScraperApiConfigured() && (ctx.platform === SupportedPlatform.AMAZON || ctx.platform === SupportedPlatform.EBAY),
-  shouldRun: () => true,
+  startAfterMs: EXTRACTION.hedgeAfterMs,
+  available: (ctx) => isScraperApiConfigured() && (ctx.platform === "amazon" || ctx.platform === "ebay"),
+  shouldRun: (ctx) => !hasRequiredFields(ctx.current),
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {
     if (ctx.deadline - Date.now() < 3_000) return { product: {} };
     try {
-      if (ctx.platform === SupportedPlatform.AMAZON) {
+      if (ctx.platform === "amazon") {
         const asin = amazonAsinOf(ctx.url);
         if (!asin) return { product: {} };
         const { tld, country } = marketplace(ctx.url);

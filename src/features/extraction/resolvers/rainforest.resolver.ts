@@ -2,8 +2,10 @@ import { logger } from "@/lib/logger";
 import { fetchAmazonProduct, isRainforestConfigured, type RainforestProduct } from "@/lib/rainforest/client";
 import { TomameCategory, AMAZON_CATEGORY_MAP } from "@/config/categories";
 import { parseWeight } from "@/features/pricing/services/weight-parser";
-import { SupportedPlatform } from "../scrapers/registry";
+import { EXTRACTION } from "@/config/extraction";
+import { hasRequiredFields } from "./merge";
 import { amazonAsinOf, amazonDomainOf } from "../url";
+import { cleanString, humanizeToken, normalizeImages, parseRating, parseReviewCount } from "../scrapers/parse";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
 
 /** Rainforest product record → partial product. Exported for tests. */
@@ -27,11 +29,14 @@ export function mapRainforestProduct(item: RainforestProduct): PartialProduct {
   const price = item.buybox_winner?.price;
   const weightText = item.weight ?? Object.entries(specs).find(([k]) => /weight/i.test(k))?.[1] ?? null;
   const dimensions = item.dimensions ?? Object.entries(specs).find(([k]) => /dimension/i.test(k))?.[1] ?? null;
-  const images = (item.images ?? []).map((i) => i?.link).filter((l): l is string => !!l);
+  const rawImages = (item.images ?? []).map((i) => i?.link).filter((l): l is string => !!l);
+  const images = normalizeImages(rawImages, item.main_image?.link ?? null);
+  const bb = item.buybox_winner;
+  const conditionTitle = cleanString((bb?.condition as { title?: unknown } | undefined)?.title);
 
   return {
     title: item.title ?? null,
-    image: item.main_image?.link ?? images[0] ?? null,
+    image: images[0] ?? null,
     price: typeof price?.value === "number" && price.value > 0 ? price.value : null,
     currency: price?.currency?.toUpperCase() ?? null,
     description: item.feature_bullets?.length ? item.feature_bullets.join("\n") : item.description ?? null,
@@ -42,8 +47,15 @@ export function mapRainforestProduct(item: RainforestProduct): PartialProduct {
     weight_lbs: parseWeight(weightText),
     dimensions,
     specifications: specs,
+    seller: cleanString(bb?.fulfillment?.third_party_seller?.name) ?? (bb?.fulfillment?.is_sold_by_amazon === true ? "Amazon" : null),
+    condition: conditionTitle ?? (bb?.condition?.is_new === true ? "New" : bb?.condition?.is_new === false ? "Used" : null),
+    rating: parseRating(item.rating),
+    review_count: parseReviewCount(item.ratings_total),
+    images,
+    variants: {},
+    availability: cleanString(bb?.availability?.raw) ?? humanizeToken(bb?.availability?.type),
     metadata: {
-      images,
+      images: rawImages,
       asin: item.asin ?? null,
       rating: item.rating ?? null,
       reviewCount: item.ratings_total != null ? `${item.ratings_total} ratings` : null,
@@ -64,8 +76,9 @@ export const rainforestResolver: ExtractionResolver = {
   name: "rainforest",
   defaultConfidence: 0.95,
   needsHtml: false,
-  available: (ctx) => ctx.platform === SupportedPlatform.AMAZON && isRainforestConfigured(),
-  shouldRun: () => true,
+  startAfterMs: EXTRACTION.hedgeAfterMs,
+  available: (ctx) => ctx.platform === "amazon" && isRainforestConfigured(),
+  shouldRun: (ctx) => !hasRequiredFields(ctx.current),
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {
     const asin = amazonAsinOf(ctx.url);
     if (!asin) return { product: {} };
