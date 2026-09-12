@@ -1,243 +1,134 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeftIcon, AlertCircleIcon } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Spinner } from "@/components/ui/spinner";
-import { ProductPreview } from "@/features/extraction/components/product-preview";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, LinkSimple, WarningCircle } from "@phosphor-icons/react/ssr";
+
+import { QuoteSkeleton } from "@/features/quotes/components";
 import { useExtractProduct } from "@/features/extraction/hooks/useExtraction";
-import type { Quote } from "@/features/extraction/types";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { toast } from "@/lib/sonner";
 
-type Step = "extracting" | "error" | "preview";
+/**
+ * The step between pasting a link and seeing the landed price.
+ *
+ * It extracts and forwards — nothing more. Until Phase 3 this screen rendered a
+ * second, lesser preview of the product and asked the customer to press
+ * "Continue" to see the price they had already asked for; `/app/orders/review`
+ * now IS that screen, so the extra hop was a click between the customer and the
+ * only number they came for.
+ *
+ * The skeleton is the quote's own, so the landed price lands in place instead of
+ * shoving the page down when it arrives.
+ */
 
-function ExtractionSkeleton() {
+// ── Failure ──────────────────────────────────────────────────────────────────
+
+/**
+ * Extraction failing is ordinary, not exceptional — a category page instead of a
+ * product page, a store that blocks readers, a link truncated by a chat app. The
+ * reasons are the ones that actually recur, and the way out is a real link back
+ * to the paste bar rather than a dead end.
+ */
+function ExtractionFailed({ message }: { message: string | null }) {
   return (
-    <div className="space-y-4 fade-in">
-      <Card className="p-0">
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <Spinner scale={2} />
-            </EmptyMedia>
-            <EmptyTitle>Analyzing Product Link</EmptyTitle>
-            <EmptyDescription>
-              We are currently analyzing the product link you provided. This may
-              take a moment. Please wait while we extract the necessary details
-              to process your order.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </Card>
+    <section className="mx-auto flex max-w-[560px] flex-col items-center gap-5 rounded-[24px] border border-tm-border bg-card px-6 py-12 text-center">
+      <span className="flex size-14 items-center justify-center rounded-full bg-tm-amber-bg">
+        <WarningCircle
+          weight="duotone"
+          className="size-7 text-tm-amber"
+          aria-hidden
+        />
+      </span>
 
-      <Card className="overflow-hidden">
-        <CardContent className="flex items-center gap-5 md:gap-8">
-          <Skeleton className="shrink-0 size-28 sm:size-36 rounded-xl" />
-          <div className="flex-1 min-w-0 space-y-4">
-            <div className="space-y-2">
-              <Skeleton className="h-3 w-16 rounded" />
-              <Skeleton className="h-4 w-full rounded" />
-              <Skeleton className="h-4 w-3/4 rounded" />
-            </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-24 rounded" />
-              <Skeleton className="h-4 w-20 rounded" />
-            </div>
-            <Skeleton className="h-3 w-32 rounded" />
-          </div>
-        </CardContent>
-        <div className="flex items-center justify-between px-6 py-4 border-t">
-          <Skeleton className="h-8 w-32 rounded-lg" />
-          <Skeleton className="h-8 w-28 rounded-lg" />
-        </div>
-      </Card>
-    </div>
-  );
-}
+      <div className="flex flex-col gap-2">
+        <h1 className="font-display text-[22px] leading-[1.2] font-bold">
+          We couldn&apos;t read that link
+        </h1>
+        <p className="text-[14px] leading-[1.5] text-tm-text-2">
+          {message ?? "Something went wrong reading the product page."}
+        </p>
+      </div>
 
-function ExtractionError({
-  onRetry,
-}: {
-  message: string | null;
-  url: string;
-  onRetry: () => void;
-}) {
-  return (
-    <div className="space-y-4 fade-in">
-      <Card>
-        <CardContent className="flex flex-col items-center text-center space-y-5 py-10">
-          <div className="size-14 rounded-full bg-destructive/10 flex items-center justify-center">
-            <AlertCircleIcon className="size-7 text-destructive" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-lg font-bold text-stone-800">
-              Failed to fetch product information
-            </h3>
-            <p className="text-sm text-stone-500 max-w-sm">
-              We couldn&apos;t read this product page. Check the tips below and try again.
-            </p>
-          </div>
-          <ul className="text-left text-sm text-stone-500 space-y-1.5 bg-stone-50 rounded-xl px-5 py-4 w-full max-w-sm">
-            <li className="flex items-start gap-2">
-              <span className="mt-0.5 size-1.5 rounded-full bg-stone-300 shrink-0 mt-2" />
-              Make sure the link points directly to a product page, not a search or category page.
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="size-1.5 rounded-full bg-stone-300 shrink-0 mt-2" />
-              The product must be from a supported store — Amazon, eBay, SHEIN, or Microcenter.
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="size-1.5 rounded-full bg-stone-300 shrink-0 mt-2" />
-              Copy the link directly from your browser&apos;s address bar for best results.
-            </li>
-          </ul>
-          <div className="flex items-center gap-3 pt-1">
-            <Button variant="outline" onClick={onRetry} className="gap-1.5">
-              <ArrowLeftIcon className="size-3.5" />
-              Try another URL
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+      <ul className="flex w-full flex-col gap-2 rounded-[16px] bg-tm-tint px-5 py-4 text-left text-[13px] leading-[1.5] text-tm-text-2">
+        <li>Link straight to one product page, not a search or category page.</li>
+        <li>Copy it from your browser&apos;s address bar, not a shared preview.</li>
+        <li>Some stores block readers — try the same item on another store.</li>
+      </ul>
 
-function PageHeader({ step }: { step: Step }) {
-  const labels: Record<Step, string> = {
-    extracting: "Extracting Product",
-    error: "Product Fetch Failed",
-    preview: "Product Preview",
-  };
-
-  return (
-    <div className="flex items-center gap-3 mb-6">
       <Link
         href="/app"
-        className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-200 hover:text-stone-600 transition-colors"
-        aria-label="Back to dashboard"
+        className="flex h-11 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tm-border bg-card px-5 text-[14px] leading-none font-semibold transition-colors hover:bg-tm-tint"
       >
-        <ArrowLeftIcon className="size-4" />
+        <ArrowLeft className="size-4" aria-hidden />
+        Paste another link
       </Link>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-stone-400">
-          New Order
-        </p>
-        <h1 className="text-xl font-bold text-stone-800">{labels[step]}</h1>
-      </div>
-    </div>
+    </section>
   );
 }
 
-// ── Main content (inside Suspense) ──────────────────────────────────────────
+// ── Extract and forward ──────────────────────────────────────────────────────
 
 function NewOrderContent() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  // NOT decodeURIComponent'd: `searchParams.get` already percent-decodes, and
-  // decoding a second time corrupts any product URL that legitimately contains
-  // an escape (`%2B` becomes `+`) and throws URIError outright on a bare `%`
-  // — e.g. ".../p?discount=100%" — which kills this screen on render.
+  const searchParams = useSearchParams();
+  const { mutate: extractProduct } = useExtractProduct();
+
+  // `searchParams.get()` already percent-decodes. Calling decodeURIComponent on
+  // top of it throws URIError on any URL containing a bare `%` and silently
+  // turns `%2B` into `+`. Do not reintroduce it.
   const url = searchParams.get("url") ?? "";
 
-  const [step, setStep] = useState<Step>("extracting");
-  const [extractionResult, setExtractionResult] =
-    useState<Quote | null>(null);
-  const [extractionError, setExtractionError] = useState<string | null>(null);
-
-  const { mutateAsync: extractProduct } = useExtractProduct();
+  const [error, setError] = useState<string | null>(null);
+  // React 18 StrictMode mounts effects twice in dev, and an extraction is a paid
+  // vendor call. One paste means one call.
+  const started = useRef(false);
 
   useEffect(() => {
     if (!url) {
       router.replace("/app");
       return;
     }
+    if (started.current) return;
+    started.current = true;
 
     extractProduct(
       { product_url: url },
       {
-        onSuccess: (data) => {
-          setExtractionResult(data);
-          setStep("preview");
+        onSuccess: (quote) => {
+          if (quote.extraction_cache_id) {
+            // replace(), not push(): the back button should return to the paste
+            // bar, not to a screen that immediately re-extracts.
+            router.replace(`/app/orders/review/${quote.extraction_cache_id}`);
+            return;
+          }
+          // The extractor answered but nothing was cached, so there is no id to
+          // price against. Saying so beats forwarding to a 404.
+          setError(
+            "We read the page but couldn't save it. Please try that link again.",
+          );
         },
-        onError: (err) => {
-          setExtractionError(err.message);
-          setStep("error");
-        },
+        onError: (err) => setError(err.message),
       },
     );
-  }, []);
+  }, [url, extractProduct, router]);
+
+  if (error) return <ExtractionFailed message={error} />;
 
   return (
-    <div>
-      <PageHeader step={step} />
-
-      {step === "extracting" && <ExtractionSkeleton />}
-
-      {step === "error" && (
-        <ExtractionError
-          message={extractionError}
-          url={url}
-          onRetry={() => router.push("/app")}
-        />
-      )}
-
-      {step === "preview" && extractionResult && (
-        <ProductPreview
-          data={extractionResult}
-          productUrl={url}
-          onOrder={() => {
-            const cacheId = extractionResult.extraction_cache_id;
-            if (cacheId) {
-              router.push(`/app/orders/review/${cacheId}`);
-            } else {
-              toast.error({
-                title: "Could not save product",
-                description: "There was a problem saving the extraction. Please try again.",
-              });
-            }
-          }}
-          onReset={() => router.push("/app")}
-        />
-      )}
+    <div className="flex flex-col gap-[18px] lg:gap-[22px]">
+      <p className="flex items-center gap-2 text-[13px] leading-none font-medium text-tm-text-2">
+        <LinkSimple className="size-4 shrink-0 text-tm-coral" aria-hidden />
+        <span className="truncate">Reading {url}</span>
+      </p>
+      <QuoteSkeleton />
     </div>
   );
 }
 
-// ── Page export ─────────────────────────────────────────────────────────────
-
 export default function NewOrderPage() {
   return (
-    <main>
-      <Suspense
-        fallback={
-          <div>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="rounded-lg p-1.5 text-stone-400">
-                <ArrowLeftIcon className="size-4" />
-              </div>
-              <div className="space-y-1">
-                <Skeleton className="h-3 w-16 rounded" />
-                <Skeleton className="h-6 w-40 rounded" />
-              </div>
-            </div>
-            <ExtractionSkeleton />
-          </div>
-        }
-      >
-        <NewOrderContent />
-      </Suspense>
-    </main>
+    <Suspense fallback={<QuoteSkeleton />}>
+      <NewOrderContent />
+    </Suspense>
   );
 }

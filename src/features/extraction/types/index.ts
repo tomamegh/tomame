@@ -46,13 +46,6 @@ export interface Quote extends ExtractionResult {
   pricing_unavailable_reason: string | null;
 }
 
-export interface ProductPreviewProps {
-  data: Quote;
-  productUrl: string;
-  onOrder: () => void;
-  onReset: () => void;
-}
-
 export interface CachedExtraction {
   id: string;
   result: ExtractionResult;

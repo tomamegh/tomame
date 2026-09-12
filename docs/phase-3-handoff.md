@@ -247,3 +247,73 @@ These are genuine business decisions. Raise them before writing code — several
 - **`GET /api/orders` drops its envelope** (`route.ts:45-47` returns a bare array, losing `count`),
   and `POST /api/orders` duplicates `POST /api/orders/new`. Both matter more in Phases 4–5, but you
   are about to work next door to them.
+
+---
+
+## 9. Outcome — Phase 3 shipped 2026-09-12
+
+All five features are done. Phase 3 is closed.
+
+### What was built
+
+| | What | Where |
+|---|---|---|
+| **F1** | Rate lock, quote constants, delivery ETA | migration 044, `src/features/quotes/services/` |
+| **F2** | Typed product facts on `ScrapedProduct` | `scrapers/types.ts`, every resolver |
+| **F3** | The desktop `v2-quote` screen | `src/features/quotes/components/`, `app/orders/review/[id]/page.tsx` |
+| **F4** | The 390px view + sticky action bar | the same components, responsively |
+| **F5** | Old components deleted, `/app/orders/new` rewritten | this section |
+
+### Decisions this phase settled (the §7 open questions)
+
+1. **The lock covers FX only.** The item price is re-read live and the customer pays the **lower of
+   locked and live** — it ratchets down, never up. The lock's `pricing` column is an informational
+   snapshot and is never a price source.
+2. **Anonymous quotes** get a server-minted httpOnly cookie, adopted onto the user on the first
+   signed-in request, and only when the user lookup misses.
+3. **Tax stays a blended 10%**, labelled from the live constant. The Fees page's "varies by US
+   state" is the copy that is wrong — tax is charged at Tomame's US receiving address. Phase 1 fix.
+4. **Fee stays tiered 4–8%**, labelled from the live percentage. "From 4%" is a Phase 1 copy edit.
+5. **Delivery is displayed, never charged.** `fee_ghs = 0` renders "Free"; non-zero renders
+   "from GH₵X, chosen at checkout" and the total stays ex-delivery until Phase 4.
+6. **"Describe it" stays out** of the paste bar. The catalogue search is the start of that path.
+
+### Things worth knowing before Phase 4
+
+- **`total_usd` is new on `PricingBreakdown`** (computed in `calculator.ts`), for the "≈ $317.46"
+  echo. It is `total_ghs` divided by the rate **actually applied**, server-side, because dividing a
+  total by an exchange rate in the browser is money maths on the client. It is optional: breakdowns
+  stored in `orders.pricing` before 2026-09-12 do not carry it, so render the echo only when present.
+- **Migration 047** adds `site_content` kind `quote_assurance` — the two promises under the receipt
+  are copy, and copy lives in a table. `data.icon` is resolved through an explicit map in the
+  component; a database that can name an arbitrary icon component can break the build.
+- **`AppBottomTabs` now yields on `/app/orders/review/*`** (`ownsMobileBottomBar()` in
+  `src/components/layout/app/links.ts`). Two bottom bars cost ~180px of an 844px screen. Any future
+  screen with its own bottom action bar must opt in there too.
+- **`/app/orders/new` is now a thin extract-and-redirect.** The old screen rendered a second, lesser
+  preview and asked the customer to press Continue to see the price they had already asked for.
+  `ProductPreview` and `ProductPreviewProps` are deleted.
+- **No colour swatches.** Colour renders as text — a colour-name → hex map would be invented.
+- The mock's **"Add to bag" is "Continue to payment"** everywhere until the bag exists (Phase 4).
+
+### Gates at close
+
+- `npm run typecheck` — clean.
+- `npm run lint` — **exactly 9 pre-existing errors**, unchanged since Phase 2.
+- `npx vitest run` — **62 files / 830 tests** (was 61/786 at the start of F3).
+- Animation delays confirmed with `getComputedStyle` at 1280px and 390px, not by eye: receipt rows
+  `tmUp .45s` at `.25/.4/.55/.7/.85` on `cubic-bezier(.16,1,.3,1)`; breadcrumb `tmIn .5s`; rail
+  `.05s`; product column `.1s`; receipt column `.15s`; total `tmPop .6s` at `1.2s`. Desktop grid
+  measures `72px 680px 420px` at gap 22.
+
+### Branch layout (new as of 2026-09-12)
+
+The redesign lives on **`v2`**, which branches off **`main`**. Scraping and pricing improvements go
+on `main` so the current design gets them too; everything v2-shaped goes on the branch. Reverting
+the redesign means deploying `main`, which keeps every scraper improvement. Push **main's migrations
+(043, 045, 046) before v2's** (036–042, 044, 047) — the numbering is non-contiguous per branch.
+
+### Left for Phase 4
+
+Unchanged from §8 above, plus: the bag (`carts`, `cart_items`, `delivery_fee_ghs`, order groups) is
+what turns "Continue to payment" into "Add to bag" and makes the delivery row chargeable.
