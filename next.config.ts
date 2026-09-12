@@ -29,6 +29,11 @@ const nextConfig: NextConfig = {
             {
                 pathname: "/icons/**",
             },
+            // Admin-uploaded marketing photos, streamed from the private
+            // storage bucket by /api/media/[key]. Same-origin on purpose.
+            {
+                pathname: "/api/media/**",
+            },
         ],
     }
 };
