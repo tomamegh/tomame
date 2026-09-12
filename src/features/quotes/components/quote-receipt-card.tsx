@@ -83,10 +83,10 @@ export function QuoteReceiptCard({
     <section
       aria-label="Landed price"
       aria-busy={repricing}
-      className="overflow-hidden rounded-[24px] border border-tm-border bg-card"
+      className="overflow-hidden rounded-[20px] border border-tm-border bg-card lg:rounded-[24px]"
     >
-      <header className="flex flex-col gap-1.5 bg-[linear-gradient(160deg,#FFF1EC,#FFF7EA)] px-[22px] pt-[22px] pb-4">
-        <span className="text-[11px] leading-none font-semibold tracking-[0.14em] text-tm-coral-strong uppercase">
+      <header className="flex flex-col gap-1.5 bg-[linear-gradient(160deg,#FFF1EC,#FFF7EA)] px-4 py-3.5 lg:px-[22px] lg:pt-[22px] lg:pb-4">
+        <span className="text-[10px] leading-none font-semibold tracking-[0.14em] text-tm-coral-strong uppercase lg:text-[11px] lg:leading-none">
           Landed in Accra
         </span>
 
@@ -100,10 +100,10 @@ export function QuoteReceiptCard({
             not carry the field, so the echo is simply omitted for them.
           */
           <div className="flex flex-wrap items-baseline gap-2.5">
-            <p className="tm-pop tm-nums text-[34px] leading-none font-bold tracking-[-0.03em] lg:text-[40px] lg:leading-none [animation-delay:1.2s] [animation-duration:0.6s]">
+            <p className="tm-pop tm-nums text-[28px] leading-none font-bold tracking-[-0.03em] sm:text-[34px] sm:leading-none lg:text-[40px] lg:leading-none [animation-delay:1.2s] [animation-duration:0.6s]">
               {total.whole}
               {total.fraction && (
-                <span className="text-[24px] text-tm-text-3 lg:text-[28px]">
+                <span className="text-[20px] text-tm-text-3 sm:text-[24px] lg:text-[28px]">
                   {total.fraction}
                 </span>
               )}
@@ -128,10 +128,10 @@ export function QuoteReceiptCard({
         )}
       </header>
 
-      <div className="flex flex-col gap-2.5 px-[22px] py-4">
+      <div className="flex flex-col gap-2 px-4 py-3 lg:gap-2.5 lg:px-[22px] lg:py-4">
         {rows.length > 0 ? (
           <>
-            <dl className="tm-nums flex flex-col gap-2.5 text-[13px] leading-none font-medium text-tm-text-2">
+            <dl className="tm-nums flex flex-col gap-2 text-[12px] leading-none font-medium text-tm-text-2 lg:gap-2.5 lg:text-[13px] lg:leading-none">
               {rows.map((row, index) => {
                 const RowIcon = RECEIPT_ROW_ICONS[row.icon];
                 return (
@@ -145,7 +145,7 @@ export function QuoteReceiptCard({
                     <dt className="flex items-center gap-2">
                       <RowIcon
                         weight="duotone"
-                        className="size-4 shrink-0 text-tm-coral"
+                        className="size-3.5 shrink-0 text-tm-coral lg:size-4"
                         aria-hidden
                       />
                       {row.label}
@@ -170,7 +170,7 @@ export function QuoteReceiptCard({
         )}
 
         {deliveryZone && (
-          <div className="flex items-center justify-between gap-3 border-t border-dashed border-[#E8DDD6] pt-2.5 text-[13px] leading-none font-medium text-tm-text-2">
+          <div className="flex items-center justify-between gap-3 border-t border-dashed border-[#E8DDD6] pt-2.5 text-[12px] leading-none font-medium text-tm-text-2 lg:text-[13px] lg:leading-none">
             <span className="flex items-center gap-2">
               <Truck
                 weight="duotone"
@@ -190,7 +190,7 @@ export function QuoteReceiptCard({
         )}
       </div>
 
-      <div className="flex flex-col gap-3 px-[22px] pt-1.5 pb-[22px]">
+      <div className="flex flex-col gap-3 px-4 pt-1.5 pb-4 lg:px-[22px] lg:pb-[22px]">
         <div className="flex items-center justify-between gap-3">
           <span id="quote-quantity-label" className="text-sm leading-none font-semibold">
             Quantity
@@ -220,12 +220,17 @@ export function QuoteReceiptCard({
           </div>
         </div>
 
+        {/*
+          Desktop only. Below `lg` these two live in `QuoteActionBar`, pinned to
+          the bottom edge as the 390px artboard has them — rendering both would
+          give the screen two "Continue to payment" buttons.
+        */}
         <button
           type="button"
           onClick={onContinue}
           disabled={!pricing || continuePending || repricing}
           className={cn(
-            "tm-cta-gradient flex h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
+            "tm-cta-gradient hidden h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold lg:flex",
             "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
             "hover:brightness-105 focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
             "disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none",
@@ -241,7 +246,7 @@ export function QuoteReceiptCard({
           disabled={watchPending}
           aria-pressed={watching}
           className={cn(
-            "flex h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border-[1.5px] bg-card text-sm leading-none font-semibold",
+            "hidden h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border-[1.5px] bg-card text-sm leading-none font-semibold lg:flex",
             "transition-colors hover:border-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
             "disabled:cursor-not-allowed disabled:opacity-60",
             watching ? "border-tm-coral text-tm-coral-strong" : "border-tm-border",

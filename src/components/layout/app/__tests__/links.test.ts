@@ -8,6 +8,7 @@ import {
   formatRatePill,
   greetingForHour,
   notificationsLabel,
+  ownsMobileBottomBar,
   resolveActiveAppNavKey,
 } from "../links";
 
@@ -180,5 +181,26 @@ describe("notificationsLabel", () => {
   it("stays plain when there is nothing unread", () => {
     expect(notificationsLabel(0)).toBe("Notifications");
     expect(notificationsLabel(Number.NaN)).toBe("Notifications");
+  });
+});
+
+describe("ownsMobileBottomBar", () => {
+  it("stands the tab bar down on the landed-price screen", () => {
+    expect(ownsMobileBottomBar("/app/orders/review/abc-123")).toBe(true);
+    expect(ownsMobileBottomBar("/app/orders/review")).toBe(true);
+    expect(ownsMobileBottomBar("/app/orders/review/")).toBe(true);
+  });
+
+  it("leaves the tab bar alone everywhere else in the app", () => {
+    expect(ownsMobileBottomBar("/app")).toBe(false);
+    expect(ownsMobileBottomBar("/app/orders")).toBe(false);
+    expect(ownsMobileBottomBar("/app/orders/new")).toBe(false);
+    expect(ownsMobileBottomBar("/app/orders/abc-123/checkout")).toBe(false);
+    expect(ownsMobileBottomBar("/app/watches")).toBe(false);
+  });
+
+  it("does not match a route that merely shares a prefix", () => {
+    expect(ownsMobileBottomBar("/app/orders/reviews")).toBe(false);
+    expect(ownsMobileBottomBar(null)).toBe(false);
   });
 });

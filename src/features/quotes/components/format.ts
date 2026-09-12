@@ -289,3 +289,26 @@ export function formatProductUrlLabel(productUrl: string): string {
   const tail = `${parsed.pathname}${parsed.search}`.replace(/\/$/, "");
   return `${host}${tail}`;
 }
+
+/**
+ * The 390px header's store pill: "Amazon", or the bare host when the URL
+ * belongs to no store in the registry.
+ *
+ * The desktop badge can fall back to generic copy because it sits on a hero
+ * image that is obviously the listing; the mobile pill is the only thing on
+ * that row saying where the item comes from, so it prints the host rather than
+ * a placeholder. An unparseable URL is returned as-is — the pill truncates it —
+ * because that string is the whole of what we know.
+ */
+export function formatStorePillLabel(
+  storeName: string | null,
+  productUrl: string,
+): string {
+  const name = storeName?.trim();
+  if (name) return name;
+  try {
+    return new URL(productUrl).hostname.replace(/^www\./, "");
+  } catch {
+    return productUrl;
+  }
+}

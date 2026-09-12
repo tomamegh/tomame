@@ -11,6 +11,7 @@ import {
   formatProductUrlLabel,
   formatRateLockDeadline,
   formatRatingChip,
+  formatStorePillLabel,
   pickProductColour,
 } from "../components/format";
 
@@ -241,5 +242,26 @@ describe("formatProductUrlLabel", () => {
 
   it("returns an unparseable value unchanged rather than hiding it", () => {
     expect(formatProductUrlLabel("not a url")).toBe("not a url");
+  });
+});
+
+describe("formatStorePillLabel", () => {
+  it("prefers the store registry's own name", () => {
+    expect(
+      formatStorePillLabel("Amazon", "https://www.amazon.com/dp/B0CHWRXH8B"),
+    ).toBe("Amazon");
+  });
+
+  it("falls back to the bare host for a store we do not know", () => {
+    expect(formatStorePillLabel(null, "https://www.shop.example.com/p/1")).toBe(
+      "shop.example.com",
+    );
+    expect(formatStorePillLabel("   ", "https://kicks.co.uk/p/1")).toBe(
+      "kicks.co.uk",
+    );
+  });
+
+  it("returns an unparseable URL unchanged rather than inventing a store", () => {
+    expect(formatStorePillLabel(null, "not a url")).toBe("not a url");
   });
 });

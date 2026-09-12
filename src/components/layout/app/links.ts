@@ -81,6 +81,29 @@ export function resolveActiveAppNavKey(
   return match?.key ?? null;
 }
 
+/**
+ * Routes whose 390px view pins its OWN action bar to the bottom edge.
+ *
+ * `/app/orders/review` is the landed-price screen: artboard 2 of `v2-mobile`
+ * replaces the tab bar there with a watch button and "Continue to payment",
+ * because two stacked bars would eat 180px of an 844px phone and put the
+ * screen's own primary action in the middle of it. The screen carries a back
+ * button to Home in its place.
+ */
+const MOBILE_ACTION_BAR_ROUTES = ["/app/orders/review"] as const;
+
+/**
+ * True when the current route renders its own bottom bar and the tab bar must
+ * stand down. Prefix-matched: every quote id lives under the same route.
+ */
+export function ownsMobileBottomBar(pathname: string | null): boolean {
+  if (!pathname) return false;
+  const normalised = stripTrailingSlash(pathname);
+  return MOBILE_ACTION_BAR_ROUTES.some(
+    (route) => normalised === route || normalised.startsWith(`${route}/`),
+  );
+}
+
 /** `/app/orders/` and `/app/orders` are the same destination. */
 function stripTrailingSlash(pathname: string): string {
   return pathname.length > 1 && pathname.endsWith("/")

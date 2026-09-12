@@ -16,8 +16,11 @@ import type { ApiSuccessResponse } from "@/types/api";
 import type { QuoteAssurance } from "../types";
 import { AssuranceCards } from "./assurance-cards";
 import { BuyerNoteCard, ProductColourCard, ProductFacts } from "./product-facts";
+import { QuoteActionBar } from "./quote-action-bar";
 import { QuoteBreadcrumb } from "./quote-breadcrumb";
-import { QuoteMainImage, QuoteThumbRail } from "./quote-gallery";
+import { formatStorePillLabel } from "./format";
+import { QuoteGallery, QuoteThumbRail } from "./quote-gallery";
+import { QuoteMobileHeader } from "./quote-mobile-header";
 import { QuoteReceiptCard } from "./quote-receipt-card";
 import { QuoteSkeleton } from "./quote-skeleton";
 
@@ -217,21 +220,43 @@ export function QuoteView({
     : quote.product.image
       ? [quote.product.image]
       : [];
-  const mainImage = gallery[selectedImage] ?? gallery[0] ?? null;
   const hasRail = gallery.length > 1;
   const store = storeForUrl(quote.product_url);
 
   return (
-    <div className="flex flex-col gap-[22px]">
+    /*
+      `pb-[95px]` is the height of the action bar, which is `fixed` and so out
+      of flow: 12 + 52 + 30 plus its hairline, the literal the artboard gives.
+      `main` already carries the page's own 64px bottom padding, so the gap the
+      customer sees under the last card stays the usual one — the bar covers
+      the space reserved here. Nothing is reserved from `lg` up, where the bar
+      does not render.
+    */
+    <div className="flex flex-col gap-[18px] pb-[95px] lg:gap-[22px] lg:pb-0">
+      <QuoteMobileHeader
+        storeLabel={formatStorePillLabel(store?.name ?? null, quote.product_url)}
+        productUrl={quote.product_url}
+        watching={watching}
+        watchPending={watchPending}
+        onToggleWatch={toggleWatch}
+        onShare={share}
+      />
+
       <QuoteBreadcrumb
         productUrl={quote.product_url}
         fetchedAt={quote.fetched_at}
         now={receivedAt}
       />
 
+      {/*
+        One grid at every width. Below `lg` it collapses to a single column and
+        `order` puts the receipt directly under the chips, where the 390px
+        artboard has it — the colour and buyer-note cards follow the price
+        rather than pushing it below the fold.
+      */}
       <div
         className={cn(
-          "grid items-start gap-[22px]",
+          "grid items-start gap-3.5 lg:gap-x-[22px] lg:gap-y-5",
           // The 72px rail column only exists when there is a rail to put in it;
           // an empty track would leave a 72px hole beside a one-image listing.
           hasRail
@@ -240,7 +265,7 @@ export function QuoteView({
         )}
       >
         {hasRail && (
-          <div className="order-2 lg:order-1">
+          <div className="hidden lg:order-1 lg:block">
             <QuoteThumbRail
               images={gallery}
               selectedIndex={selectedImage}
@@ -249,12 +274,14 @@ export function QuoteView({
           </div>
         )}
 
-        <div className="tm-up order-1 flex min-w-0 flex-col gap-5 lg:order-2 [animation-delay:0.1s] [animation-duration:0.5s]">
-          <QuoteMainImage
-            src={mainImage}
+        <div className="tm-up order-1 flex min-w-0 flex-col gap-3.5 lg:order-2 lg:gap-5 [animation-delay:0.1s] [animation-duration:0.5s]">
+          <QuoteGallery
+            images={gallery}
             title={quote.product.title ?? ""}
             storeName={store?.name ?? null}
             productUrl={quote.product_url}
+            selectedIndex={selectedImage}
+            onSelect={setSelectedImage}
             watching={watching}
             watchPending={watchPending}
             onToggleWatch={toggleWatch}
@@ -266,18 +293,9 @@ export function QuoteView({
             productUrl={quote.product_url}
             messages={quote.messages}
           />
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <ProductColourCard product={quote.product} />
-            <BuyerNoteCard
-              value={instructions}
-              onChange={setInstructions}
-              maxLength={INSTRUCTIONS_MAX}
-            />
-          </div>
         </div>
 
-        <div className="tm-up order-3 flex flex-col gap-3.5 lg:sticky lg:top-5 [animation-delay:0.15s] [animation-duration:0.5s]">
+        <div className="tm-up order-2 flex flex-col gap-3.5 lg:order-3 lg:row-span-2 lg:sticky lg:top-5 [animation-delay:0.15s] [animation-duration:0.5s]">
           <QuoteReceiptCard
             pricing={quote.pricing}
             unavailableReason={quote.pricing_unavailable_reason}
@@ -297,7 +315,31 @@ export function QuoteView({
 
           <AssuranceCards assurances={assurances} pricing={quote.pricing} />
         </div>
+
+        <div
+          className={cn(
+            "tm-up order-3 grid gap-3.5 sm:grid-cols-2 lg:order-4 lg:row-start-2 lg:gap-4 [animation-delay:0.1s] [animation-duration:0.5s]",
+            hasRail ? "lg:col-start-2" : "lg:col-start-1",
+          )}
+        >
+          <ProductColourCard product={quote.product} />
+          <BuyerNoteCard
+            value={instructions}
+            onChange={setInstructions}
+            maxLength={INSTRUCTIONS_MAX}
+          />
+        </div>
       </div>
+
+      <QuoteActionBar
+        canContinue={Boolean(quote.pricing)}
+        continuePending={creatingOrder}
+        repricing={repricing}
+        onContinue={continueToPayment}
+        watching={watching}
+        watchPending={watchPending}
+        onToggleWatch={toggleWatch}
+      />
     </div>
   );
 }

@@ -42,32 +42,54 @@ export function ProductFacts({
   messages,
 }: ProductFactsProps) {
   const chips = buildSpecChips(product);
+  const availability = product.availability?.trim();
 
   return (
-    <div className="flex flex-col gap-2.5">
-      <h1 className="font-display text-[24px] leading-[1.15] font-bold lg:text-[30px] lg:leading-[1.15]">
+    <div className="flex flex-col gap-3.5 lg:gap-2.5">
+      <h1 className="font-display text-[20px] leading-[1.2] font-bold sm:text-[24px] sm:leading-[1.15] lg:text-[30px] lg:leading-[1.15]">
         {product.title ?? productUrl}
       </h1>
 
-      {chips.length > 0 && (
-        <ul className="flex flex-wrap gap-2">
+      {(chips.length > 0 || availability) && (
+        <ul className="flex flex-wrap gap-1.5 lg:gap-2">
           {chips.map((chip) => {
             const ChipIcon = CHIP_ICONS[chip.icon];
             return (
+              /*
+                The 390px artboard drops the key and the glyph and keeps only
+                the value, so the chip row fits a phone without wrapping to
+                three lines. Same markup at both widths — the label and icon
+                are simply not shown below `lg`.
+              */
               <li
                 key={chip.key}
-                className="inline-flex items-center gap-1.5 rounded-full border border-tm-border bg-card px-3 py-2 text-[13px] leading-none font-medium text-tm-text-2"
+                className="inline-flex items-center gap-1.5 rounded-full border border-tm-border bg-card px-2.5 py-1.5 text-[12px] leading-none font-medium text-tm-text-2 lg:px-3 lg:py-2 lg:text-[13px] lg:leading-none"
               >
                 <ChipIcon
                   weight="duotone"
-                  className="size-[15px] shrink-0 text-tm-coral"
+                  className="hidden size-[15px] shrink-0 text-tm-coral lg:block"
                   aria-hidden
                 />
-                {chip.label}{" "}
-                <b className="tm-nums font-semibold text-tm-ink">{chip.value}</b>
+                <span className="hidden lg:inline">{chip.label} </span>
+                <b className="tm-nums font-medium text-tm-text-2 lg:font-semibold lg:text-tm-ink">
+                  {chip.value}
+                </b>
               </li>
             );
           })}
+
+          {/*
+            The store's own availability phrase, verbatim — "In Stock",
+            "Only 3 left in stock". The artboard puts it only on the 390px
+            view, where it is the one fact a customer checks before paying and
+            there is no room for a labelled chip; the desktop mock has no such
+            chip and keeps its labelled row unchanged.
+          */}
+          {availability && (
+            <li className="inline-flex items-center rounded-full bg-tm-green-bg px-2.5 py-1.5 text-[12px] leading-none font-semibold text-tm-green-ink lg:hidden">
+              {availability}
+            </li>
+          )}
         </ul>
       )}
 

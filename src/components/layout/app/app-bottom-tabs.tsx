@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { APP_NAV_ICONS } from "./icons";
-import { resolveActiveAppNavKey } from "./links";
+import { ownsMobileBottomBar, resolveActiveAppNavKey } from "./links";
 import { FOCUS_RING } from "./styles";
 import type { AppNavItem } from "./types";
 
@@ -26,10 +26,16 @@ interface AppBottomTabsProps {
  * The 22px of bottom padding in the mock is the home-indicator inset; it is
  * expressed here as `env(safe-area-inset-bottom)` with the mock's value as the
  * floor, so the bar clears the indicator on a real device.
+ *
+ * It stands down entirely on a route that pins its own action bar — see
+ * `ownsMobileBottomBar`. The bar is mobile-only in the first place, so there is
+ * nothing left to render at any width once it does.
  */
 export function AppBottomTabs({ items, className }: AppBottomTabsProps) {
   const pathname = usePathname();
   const activeKey = resolveActiveAppNavKey(pathname, items);
+
+  if (ownsMobileBottomBar(pathname)) return null;
 
   return (
     <nav

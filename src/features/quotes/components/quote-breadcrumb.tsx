@@ -13,7 +13,11 @@ export interface QuoteBreadcrumbProps {
 }
 
 /**
- * "Home / amazon.com/… / Read 2 min ago".
+ * "Home / amazon.com/… / Read 2 min ago" — desktop only.
+ *
+ * Below `lg` the 390px artboard replaces the whole row with `QuoteMobileHeader`:
+ * a back button, the store pill and the two actions. A wrapping three-part
+ * breadcrumb under it would say the same thing twice.
  *
  * The freshness clause is the screen's quiet claim that these numbers came off
  * the real listing rather than a cache of unknown age, so it prints the actual
@@ -29,7 +33,7 @@ export function QuoteBreadcrumb({
   return (
     <nav
       aria-label="Breadcrumb"
-      className="tm-in flex flex-wrap items-center gap-3 text-[13px] leading-none font-medium text-tm-text-3 [animation-duration:0.5s]"
+      className="tm-in hidden flex-wrap items-center gap-3 text-[13px] leading-none font-medium text-tm-text-3 lg:flex [animation-duration:0.5s]"
     >
       <Link
         href="/app"
