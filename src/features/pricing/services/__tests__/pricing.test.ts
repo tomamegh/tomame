@@ -111,6 +111,56 @@ describe("PricingCalculator (JSON fallback)", () => {
     });
   });
 
+  describe("total_usd (the \u2248 $ echo beside the cedi total)", () => {
+    it("is the landed total divided by the rate actually applied", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.2);
+
+      const calc = new PricingCalculator();
+      const result = await calc.calculate({
+        itemPriceUsd: 50,
+        quantity: 1,
+        category: TomameCategory.HEADPHONES,
+      }, null);
+
+      // The screen prints these two side by side, so they must agree exactly.
+      // Not `/ 15.2`: the applied rate carries the FX buffer, and dividing by
+      // the mid-market rate would print a dollar figure nobody is charged.
+      expect(result.total_usd).toBeCloseTo(result.total_ghs / result.exchange_rate, 2);
+      expect(result.total_usd).toBeGreaterThan(0);
+    });
+
+    it("covers freight too, not just the USD components", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.2);
+
+      const calc = new PricingCalculator();
+      const result = await calc.calculate({
+        itemPriceUsd: 50,
+        quantity: 1,
+        category: TomameCategory.HEADPHONES,
+      }, null);
+
+      // flat_rate_ghs is GH\u20b5250 of freight. A total_usd built by summing only
+      // the USD lines would silently omit it and under-state the echo.
+      const usdLinesOnly = result.subtotal_usd + result.tax_usd + result.value_fee_usd;
+      expect(result.total_usd).toBeGreaterThan(usdLinesOnly);
+    });
+
+    it("is zero on needs_review, where there is no total to echo", async () => {
+      vi.mocked(getGhsRate).mockResolvedValue(15.2);
+
+      const calc = new PricingCalculator();
+      const result = await calc.calculate({
+        itemPriceUsd: 50,
+        quantity: 1,
+        category: null,
+      }, null);
+
+      expect(result.pricing_method).toBe("needs_review");
+      expect(result.total_ghs).toBe(0);
+      expect(result.total_usd).toBe(0);
+    });
+  });
+
   describe("Weight Expression (car parts)", () => {
     it("car part with weight → weight_expression pricing", async () => {
       vi.mocked(getGhsRate).mockResolvedValue(15.2);
