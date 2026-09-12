@@ -37,11 +37,24 @@ declare
   v_app_url text;
   v_cron_secret text;
 begin
-  v_app_url := current_setting('app.settings.app_url', true);
-  v_cron_secret := current_setting('app.settings.cron_secret', true);
+  -- Vault first, GUC second -- the same order refresh_exchange_rates() uses
+  -- since 034. `alter database postgres set app.settings.*` answers 42501 on
+  -- hosted Supabase, so a function that reads ONLY the GUC installs cleanly,
+  -- warns once a schedule, and never calls the app: a cron that looks healthy
+  -- and does nothing.
+  select decrypted_secret into v_app_url
+  from vault.decrypted_secrets
+  where name = 'app_url';
+
+  select decrypted_secret into v_cron_secret
+  from vault.decrypted_secrets
+  where name = 'cron_secret';
+
+  v_app_url := coalesce(v_app_url, current_setting('app.settings.app_url', true));
+  v_cron_secret := coalesce(v_cron_secret, current_setting('app.settings.cron_secret', true));
 
   if v_app_url is null or v_app_url = '' then
-    raise warning 'app.settings.app_url not configured';
+    raise warning 'app_url not configured: set vault secret "app_url" (or app.settings.app_url)';
     return;
   end if;
 
