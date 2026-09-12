@@ -60,7 +60,8 @@ export async function GET(request: NextRequest) {
       const { pricing, reason } = await priceExtraction(
         { ...row.result, country },
         input.quantity,
-        !snapshotHasPrice && input.itemPriceUsd != null ? { itemPriceUsd: input.itemPriceUsd } : undefined,
+        !snapshotHasPrice && input.itemPriceUsd != null ? { itemPriceUsd: input.itemPriceUsd } : null,
+        null,
       );
       if (!pricing) throw new APIError(422, reason ?? "Pricing unavailable");
       return successResponse(pricing);
@@ -69,13 +70,16 @@ export async function GET(request: NextRequest) {
     if (input.itemPriceUsd == null) {
       throw new APIError(400, "Provide extraction_cache_id or itemPriceUsd");
     }
-    const breakdown = await calculatePricing({
-      itemPriceUsd: input.itemPriceUsd,
-      quantity: input.quantity,
-      category: input.category,
-      weightLbs: input.weightLbs,
-      region: input.region,
-    });
+    const breakdown = await calculatePricing(
+      {
+        itemPriceUsd: input.itemPriceUsd,
+        quantity: input.quantity,
+        category: input.category,
+        weightLbs: input.weightLbs,
+        region: input.region,
+      },
+      null,
+    );
     return successResponse(breakdown);
   } catch (err) {
     return errorResponse(err);

@@ -165,14 +165,18 @@ export async function reviewOrder(
 
     // Always recalculate pricing on approval so pricing_method is never "needs_review"
     // after approval (checkout page and email both require a resolved pricing method).
-    const newPricing = await calculatePricing({
-      itemPriceUsd: newPrice,
-      quantity: order.quantity,
-      category: order.extraction_metadata?.product?.category ?? null,
-      weightLbs: order.extraction_metadata?.product?.weight_lbs ?? order.pricing.weight_lbs ?? undefined,
-      productTitle: input.updates?.product_name ?? order.product_name,
-      region: REGION_TO_PRICING[newCountry],
-    });
+    const newPricing = await calculatePricing(
+      {
+        itemPriceUsd: newPrice,
+        quantity: order.quantity,
+        category: order.extraction_metadata?.product?.category ?? null,
+        weightLbs: order.extraction_metadata?.product?.weight_lbs ?? order.pricing.weight_lbs ?? undefined,
+        productTitle: input.updates?.product_name ?? order.product_name,
+        region: REGION_TO_PRICING[newCountry],
+      },
+      // Live FX: an admin re-pricing on approval is not quoting under a lock.
+      null,
+    );
     updates.pricing = newPricing as unknown as Record<string, unknown>;
 
     if (priceChanged || countryChanged) {

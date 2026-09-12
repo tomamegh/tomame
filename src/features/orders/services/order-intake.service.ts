@@ -5,7 +5,7 @@ import { priceExtraction } from "@/features/extraction/quote.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
 import { regionForUrl } from "@/features/extraction/url";
 import { hasRequiredFields } from "@/features/extraction/resolvers/merge";
-import type { ExtractionResult } from "@/features/extraction/types";
+import { emptyProduct, type ExtractionResult } from "@/features/extraction/types";
 import type { PricingBreakdown } from "@/lib/pricing";
 import type { CreateOrderSchemaType } from "../schema";
 import type { OriginCountry } from "../types";
@@ -80,20 +80,13 @@ export async function buildOrderIntake(input: CreateOrderSchemaType): Promise<Or
       extraction_success: false,
       platform,
       country,
+      // emptyProduct() rather than a literal: ScrapedProduct grows typed facts
+      // (seller, condition, rating, images, variants, ...) and a hand-listed
+      // object here silently goes stale every time one is added.
       product: {
+        ...emptyProduct(),
         title: input.product_name,
         image: input.product_image_url ?? null,
-        price: null,
-        currency: null,
-        description: null,
-        brand: null,
-        category: null,
-        size: null,
-        weight: null,
-        weight_lbs: null,
-        dimensions: null,
-        specifications: {},
-        metadata: {},
       },
       messages: [],
       errors: [],
@@ -106,7 +99,8 @@ export async function buildOrderIntake(input: CreateOrderSchemaType): Promise<Or
   const { pricing, reason } = await priceExtraction(
     { ...pricingBase, country },
     input.quantity,
-    priceOverrideUsd != null ? { itemPriceUsd: priceOverrideUsd } : undefined,
+    priceOverrideUsd != null ? { itemPriceUsd: priceOverrideUsd } : null,
+    null,
   );
   if (!pricing) {
     throw new APIError(503, reason ?? "Pricing is temporarily unavailable. Please try again shortly.");
