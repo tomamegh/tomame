@@ -1,39 +1,109 @@
-"use client";
-import { useOrders } from "@/features/orders/hooks";
-import { HeroSection } from "@/features/orders/components/hero-section";
-import { StatsRow } from "@/features/orders/components/stats-row";
-import Link from "next/link";
-import { motion, useReducedMotion } from "motion/react";
-import { UserOrdersTable } from "@/features/orders/components/user-orders";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { Check } from "@phosphor-icons/react/ssr";
 
-export default function DashboardPage() {
-  const { data: orders = [], isPending } = useOrders();
-  const shouldReduceMotion = useReducedMotion();
+import { readQuoteSessionFromCookies } from "@/lib/quote-session";
+
+import { SUPPORTED_STORE_NAMES } from "@/features/extraction/scrapers";
+import { getHomeView } from "@/features/app-home/services/home.service";
+import {
+  AskBuyerCard,
+  GreetingChip,
+  HeroPasteBar,
+  JourneysInMotion,
+  LaneCard,
+  LiveReceiptCard,
+} from "@/features/app-home/components";
+import { PriceWatchCard } from "@/features/watches/components";
+
+/**
+ * Trust chips under the paste bar.
+ *
+ * The third, "Rate locked Nh", is backed by `quote_locks`: N is
+ * `pricing_constants.rate_lock_hours`, the same number the lock is minted with.
+ * It is omitted when the constant cannot be read rather than shown with a
+ * hardcoded 24 — an unbacked promise is worse than a missing chip.
+ */
+function trustChips(rateLockHours: number | null): string[] {
+  const chips = ["Price in GH₵ before you pay", "Refund if we can't source"];
+  if (rateLockHours != null && rateLockHours > 0) chips.push(`Rate locked ${rateLockHours}h`);
+  return chips;
+}
+
+/**
+ * The signed-in Home screen — `id="v2-home"` in the v2 mocks.
+ *
+ * A Server Component: it does the one read, then hands pure props down. The
+ * only client island is the paste bar, which owns an input and nothing else.
+ * The page shell's width, horizontal padding and top padding come from
+ * `src/app/app/layout.tsx`; only the 44px inter-row rhythm is added here.
+ */
+export default async function AppHomePage() {
+  // The quote cookie names the visitor's pre-sign-in locks; Home prices the
+  // receipt under the customer's existing lock (never minting one).
+  const view = await getHomeView(readQuoteSessionFromCookies(await cookies()));
+
+  // `src/proxy.ts` already gates `/app`, so this is the belt-and-braces case of
+  // a session that disappeared between the proxy check and the render.
+  if (!view) redirect("/auth/login");
+
+  // Passed down rather than read inside the components, so every relative time
+  // on this render is measured against the same instant.
+  const now = new Date();
 
   return (
-    <div className="space-y-10 pb-10">
-      <HeroSection />
-      <StatsRow orders={orders} isLoading={isPending} />
-      <motion.div
-        initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.3 }}
-        className="space-y-4"
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium tracking-tight text-stone-800">
-            Recent Orders
-          </h2>
-          <Link
-            href="/app/orders"
-            className="text-sm font-medium text-orange-500 hover:text-orange-600"
-          >
-            View all
-          </Link>
+    <div className="flex flex-col gap-11">
+      {/* ── Row A ─────────────────────────────────────────────────────── */}
+      <div className="grid items-stretch gap-7 lg:grid-cols-[1.25fr_1fr]">
+        <div className="tm-up flex min-w-0 flex-col justify-center gap-[22px]">
+          <GreetingChip greeting={view.greeting} />
+
+          <h1 className="font-display text-[34px] leading-[1.02] font-bold tracking-[-0.02em] sm:text-[42px] lg:text-[50px]">
+            What would you like landed in Accra?
+          </h1>
+
+          <div className="flex flex-col gap-2.5">
+            <HeroPasteBar stores={SUPPORTED_STORE_NAMES} />
+
+            <ul className="flex flex-wrap gap-3.5 pl-1.5 text-[13px] leading-none font-medium text-tm-text-3">
+              {trustChips(view.rateLockHours).map((chip) => (
+                <li key={chip} className="flex items-center gap-[5px]">
+                  <Check className="size-4 shrink-0 text-tm-green" aria-hidden />
+                  {chip}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-        {/* <OrdersList orders={orders} isLoading={isPending} error={error} /> */}
-        <UserOrdersTable />
-      </motion.div>
+
+        <LiveReceiptCard receipt={view.receipt} now={now} />
+      </div>
+
+      {/* ── Row B ─────────────────────────────────────────────────────── */}
+      {/*
+        One full-width card. The mock's "Your freight box" sits to the right of
+        it; it is not built, because it aggregates weight over a bag that does
+        not exist yet (Phase 4) against a box-capacity constant that has no
+        source. A stubbed "62% full · save GH₵96" would be a fabricated figure.
+      */}
+      <JourneysInMotion journeys={view.journeys} />
+
+      {/*
+        ── Row C ───────────────────────────────────────────────────────
+        The mock nests a grid here: Price watch takes the left half, and the
+        two small cards split the right half between them.
+      */}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <PriceWatchCard
+          watches={view.watches.watches}
+          watchingCount={view.watches.watching_count}
+        />
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <LaneCard lanes={view.lanes} />
+          <AskBuyerCard askBuyer={view.askBuyer} />
+        </div>
+      </div>
     </div>
   );
 }

@@ -11,6 +11,8 @@ export const AUDIT_ENTITY_TYPES = {
   ORDER: "order",
   JOB: "job",
   STORE: "store",
+  PRICE_WATCH: "price_watch",
+  QUOTE_LOCK: "quote_lock",
 } as const;
 
 export type AuditEntityType =

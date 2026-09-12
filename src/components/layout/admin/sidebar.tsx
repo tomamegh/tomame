@@ -2,7 +2,6 @@
 
 
 import {
-  Command,
   CreditCardIcon,
   FileTextIcon,
   LayoutGridIcon,
@@ -28,6 +27,7 @@ import {
 } from "@/components/ui/sidebar";
 import { LinkItem } from "@/types";
 import { useProfile } from "@/features/account/hooks/useProfile";
+import { Logo } from "@/components/brand/logo";
 
 const NAV_LIST: Array<{ label?: string; links: LinkItem[] }> = [
   {
@@ -105,8 +105,8 @@ export default function AppSidebar(props: { className?: string }) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <div>
-                <div className="gradient-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <Command className="size-4" />
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-tm-tint">
+                  <Logo variant="mark" className="h-4" decorative />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">Tomame</span>

@@ -14,6 +14,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DashboardNavLinks } from "./dashboard-nav-links";
 import MobileMenu from "@/components/layout/main/mobile-menu";
+import { Logo } from "@/components/brand/logo";
 
 const MARKETING_LINKS = [
   { href: "/", label: "Home" },
@@ -38,9 +39,10 @@ export default async function DashboardNavbar() {
         {/* Left Side: Logo */}
         <Link
           href="/"
-          className="font-bold text-xl bg-linear-to-r from-rose-500 to-amber-500 bg-clip-text text-transparent"
+          aria-label="Tomame — home"
+          className="flex items-center"
         >
-          Tomame
+          <Logo variant="horizontal" height={22} decorative />
         </Link>
 
         {/* Center: Navigation Links */}
