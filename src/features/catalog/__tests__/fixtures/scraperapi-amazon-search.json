@@ -1,0 +1,85 @@
+{
+  "results": [
+    {
+      "type": "search_product",
+      "position": 7,
+      "asin": "B0DN45YMP6",
+      "name": "JBL Vibe Beam 2 - Noise Cancelling Earbuds - Black | JBL Pure Bass sound, Active Noise Cancelling with Smart Ambient, 4 mics for crisp, clear calls, Water and dust resistant",
+      "image": "https://m.media-amazon.com/images/I/618f5yBk26L.jpg",
+      "has_prime": false,
+      "is_best_seller": false,
+      "is_amazon_choice": false,
+      "is_limited_deal": false,
+      "stars": 4.1,
+      "total_reviews": 6996,
+      "url": "https://www.amazon.com/JBL-Vibe-Beam-Cancelling-Technology/dp/B0DN45YMP6/ref=sr_1_6?ref=sr_1_1&qid=1",
+      "spec": {}
+    },
+    {
+      "type": "search_product",
+      "position": 1,
+      "asin": "B0HCXW6CDR",
+      "name": "XIAOWTEK Wireless Earbuds, 2026 Bluetooth 5.4 Headphones Bass Stereo Ear Buds with Noise Cancelling Mic, LED Display in Ear Earphones 50H Playtime Ear Buds, IP7 Waterproof for Laptop Pad Phones White",
+      "image": "https://m.media-amazon.com/images/I/61rw2e+AtUL.jpg",
+      "has_prime": false,
+      "is_best_seller": false,
+      "is_amazon_choice": false,
+      "is_limited_deal": false,
+      "stars": 4.9,
+      "total_reviews": 676,
+      "url": "https://www.amazon.com/XIAOWTEK-Bluetooth-Headphones-Cancelling-Waterproof/dp/B0HCXW6CDR/ref=sr_1_1?ref=sr_1_2&qid=1",
+      "spec": {},
+      "price_string": "$19.99",
+      "price_symbol": "$",
+      "price": 19.99,
+      "original_price": {
+        "price_string": "$199.99",
+        "price_symbol": "$",
+        "price": 199.99
+      }
+    },
+    {
+      "type": "search_product",
+      "position": 2,
+      "asin": "B0HBWW3958",
+      "name": "Wireless Earbuds, Bluetooth 5.3 Headphones HiFi Stereo 50H Playback LED Digital Display Ear Buds with ENC Noise Canceling Headset, IPX7 Waterproof Earphones for Gym/Running/Work(Black)",
+      "image": "https://m.media-amazon.com/images/I/61D5ZCSIymL.jpg",
+      "has_prime": false,
+      "is_best_seller": false,
+      "is_amazon_choice": false,
+      "is_limited_deal": false,
+      "stars": 4.8,
+      "total_reviews": 240,
+      "url": "https://www.amazon.com/Fhumsh-Bluetooth-Headphones-Canceling-Waterproof/dp/B0HBWW3958/ref=sr_1_2?ref=sr_1_3&qid=1",
+      "spec": {},
+      "price_string": "$19.97",
+      "price_symbol": "$",
+      "price": 19.97,
+      "original_price": {
+        "price_string": "$249.99",
+        "price_symbol": "$",
+        "price": 249.99
+      }
+    },
+    {
+      "type": "search_product",
+      "position": 3,
+      "asin": "B0HC6YKJG8",
+      "name": "Open Ear Headphones Bluetooth 6.0 Immersive Stereo, 2026 Wireless Sports Earbuds with Wide Area Tap, 45Hrs Lightweight Comfort Ear Buds with ENC Mic, IPX7 Waterproof Earphones for Gym/Running/Office",
+      "image": "https://m.media-amazon.com/images/I/6168Th8cjoL.jpg",
+      "has_prime": false,
+      "is_best_seller": false,
+      "is_amazon_choice": false,
+      "is_limited_deal": false,
+      "stars": 4.3,
+      "total_reviews": 272,
+      "url": "https://www.amazon.com/Headphones-Bluetooth-Immersive-Lightweight-Waterproof/dp/B0HC6YKJG8/ref=sr_1_3?ref=sr_1_4&qid=1",
+      "availability_quantity": 6,
+      "spec": {},
+      "price_string": "$9.99",
+      "price_symbol": "$",
+      "price": 9.99
+    }
+  ],
+  "next_pages": []
+}
