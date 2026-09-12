@@ -20,6 +20,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CreateOrderSchemaType } from "../schema";
+import { consumeQuoteLocksForOrder } from "@/features/quotes/services/quote-lock.service";
+import { isSchemaMissingError } from "@/lib/supabase/errors";
+import type { Viewer } from "@/features/quotes/types";
 
 export async function getOrderById(
   client: SupabaseClient,
@@ -243,10 +246,12 @@ export async function createOrder(
   client: SupabaseClient,
   user: PlatformUser,
   input: CreateOrderSchemaType,
+  viewer: Viewer,
 ): Promise<Order> {
   // Every money-relevant field is decided server-side from the extraction
-  // snapshot. See order-intake.service.ts — the client never sets pricing.
-  const intake = await buildOrderIntake(input);
+  // snapshot and the viewer's rate lock. See order-intake.service.ts — the
+  // client never sets pricing, a rate, or a lock id.
+  const intake = await buildOrderIntake(input, viewer);
   const { pricing, needs_review: needsReview, review_reasons: reviewReasons } = intake;
 
   const orderToCreate = {
@@ -286,6 +291,30 @@ export async function createOrder(
     throw new APIError(500, "Failed to create order.");
   }
 
+  // The lock did its job; mark it — and any sibling lock this viewer holds on
+  // the same extraction — spent so a second order cannot reuse one. The order
+  // exists by now, so a failure here is logged, not thrown — except a missing
+  // table, which is a deploy bug and must surface.
+  if (intake.rate_lock_id) {
+    try {
+      await consumeQuoteLocksForOrder({
+        viewer,
+        extractionCacheId: intake.extraction_cache_id,
+        lockId: intake.rate_lock_id,
+        orderId: order.id,
+        actorId: user.id,
+        exchangeRate: pricing.exchange_rate,
+      });
+    } catch (err) {
+      if (isSchemaMissingError(err)) throw err;
+      logger.error("consumeQuoteLocksForOrder failed", {
+        orderId: order.id,
+        lockId: intake.rate_lock_id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   await logAuditEvent({
     actorId: user.id,
     actorRole: "user",
@@ -298,6 +327,7 @@ export async function createOrder(
       total_ghs: pricing.total_ghs,
       pricing_method: pricing.pricing_method,
       extraction_cache_id: intake.extraction_cache_id,
+      rate_lock_id: intake.rate_lock_id,
       review_reasons: reviewReasons,
     },
   });

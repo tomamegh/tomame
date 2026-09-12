@@ -1,11 +1,16 @@
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { getExtractionSnapshot } from "@/features/extraction/extraction.service";
-import { priceExtraction } from "@/features/extraction/quote.service";
+import { gapFillOverrides, priceExtractionWith } from "@/features/extraction/quote.service";
+import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
 import { regionForUrl } from "@/features/extraction/url";
 import { hasRequiredFields } from "@/features/extraction/resolvers/merge";
-import type { ExtractionResult } from "@/features/extraction/types";
+import { isSchemaMissingError } from "@/lib/supabase/errors";
+import { extractionPricer, priceLowerOf, resolveLockForOrder } from "@/features/quotes/services/quote-lock.service";
+import { QuoteConstantsMissingError } from "@/features/quotes/services/quote-constants.service";
+import type { Viewer } from "@/features/quotes/types";
+import { withProductDefaults, type ExtractionResult } from "@/features/extraction/types";
 import type { PricingBreakdown } from "@/lib/pricing";
 import type { CreateOrderSchemaType } from "../schema";
 import type { OriginCountry } from "../types";
@@ -21,6 +26,8 @@ export interface OrderIntake {
   review_reasons: string[];
   extraction_metadata: ExtractionResult | null;
   extraction_cache_id: string | null;
+  /** The unexpired lock this order was priced under; createOrder consumes it after insert. */
+  rate_lock_id: string | null;
 }
 
 /**
@@ -30,8 +37,14 @@ export interface OrderIntake {
  * decides every money-relevant field itself. The client can name the product,
  * pick a quantity and leave instructions. It can supply a price or region only
  * to fill a gap the extraction left, and doing so flags the order for review.
+ *
+ * The viewer's unexpired rate lock (resolved from the session, never the body)
+ * decides the FX: the customer pays the lower of the locked and live total. An
+ * expired or absent lock means today's rate. The lock's stored `pricing`
+ * snapshot is never a price source — only the live snapshot or a flagged
+ * customer gap-filler is.
  */
-export async function buildOrderIntake(input: CreateOrderSchemaType): Promise<OrderIntake> {
+export async function buildOrderIntake(input: CreateOrderSchemaType, viewer: Viewer): Promise<OrderIntake> {
   const platform = resolvePlatform(input.product_url);
   if (!platform) throw new APIError(400, "We currently do not support this store. Please try again");
 
@@ -45,9 +58,10 @@ export async function buildOrderIntake(input: CreateOrderSchemaType): Promise<Or
   const reasons: string[] = [];
 
   // ── Price ────────────────────────────────────────────────────────────────
+  // Server snapshot wins; the client's estimate only fills a gap, and is flagged.
   let priceOverrideUsd: number | undefined;
   if (product?.price != null && product.price > 0) {
-    // Server snapshot wins. The client's estimate is ignored.
+    // Snapshot has a price; the client's estimate is ignored.
   } else if (input.estimated_price_usd != null) {
     priceOverrideUsd = input.estimated_price_usd;
     reasons.push("Price entered by customer — not verified against the store.");
@@ -74,42 +88,59 @@ export async function buildOrderIntake(input: CreateOrderSchemaType): Promise<Or
   }
 
   // ── Pricing (server-side, from the snapshot) ─────────────────────────────
-  const pricingBase: ExtractionResult =
-    extraction ?? {
+  const pricingBase: ExtractionResult = {
+    ...(extraction ?? {
       extraction_attempted: false,
       extraction_success: false,
       platform,
-      country,
-      product: {
+      product: withProductDefaults({
         title: input.product_name,
         image: input.product_image_url ?? null,
-        price: null,
-        currency: null,
-        description: null,
-        brand: null,
-        category: null,
-        size: null,
-        weight: null,
-        weight_lbs: null,
-        dimensions: null,
-        specifications: {},
-        metadata: {},
-      },
+      }),
       messages: [],
       errors: [],
       source: null,
       sources: [],
       confidence: {},
       fetched_at: new Date().toISOString(),
-    };
+    }),
+    country,
+  };
 
-  const { pricing, reason } = await priceExtraction(
-    { ...pricingBase, country },
-    input.quantity,
-    priceOverrideUsd != null ? { itemPriceUsd: priceOverrideUsd } : undefined,
-  );
-  if (!pricing) {
-    throw new APIError(503, reason ?? "Pricing is temporarily unavailable. Please try again shortly.");
+  const overrides = gapFillOverrides(pricingBase, priceOverrideUsd);
+  const calculator = await loadPricingCalculator();
+  const live = await priceExtractionWith(calculator, pricingBase, input.quantity, overrides, null);
+  if (!live.pricing) {
+    throw new APIError(503, live.reason ?? "Pricing is temporarily unavailable. Please try again shortly.");
+  }
+
+  // ── Rate lock ────────────────────────────────────────────────────────────
+  // A transient lock failure must never block an order: the customer is priced
+  // live with no lock. A missing table or a missing seeded constant is a deploy
+  // bug and surfaces.
+  let pricing = live.pricing;
+  let rateLockId: string | null = null;
+  if (snapshot) {
+    try {
+      const lock = await resolveLockForOrder(viewer, snapshot.id);
+      if (lock) {
+        pricing = await priceLowerOf({
+          lock,
+          live: live.pricing,
+          priceAt: extractionPricer(calculator, pricingBase, input.quantity, overrides),
+          onLiveWins: { ratchet: true, actorId: viewer.userId },
+        });
+        rateLockId = lock.id;
+      }
+    } catch (err) {
+      if (isSchemaMissingError(err) || err instanceof QuoteConstantsMissingError) throw err;
+      logger.error("order intake: rate lock failed, pricing live", {
+        extraction_cache_id: snapshot.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      pricing = live.pricing;
+      rateLockId = null;
+    }
   }
   if (pricing.pricing_method === "needs_review") {
     reasons.push(pricing.review_reason ?? "Pricing could not be determined");
@@ -125,5 +156,6 @@ export async function buildOrderIntake(input: CreateOrderSchemaType): Promise<Or
     review_reasons: reasons,
     extraction_metadata: extraction,
     extraction_cache_id: snapshot?.id ?? null,
+    rate_lock_id: rateLockId,
   };
 }

@@ -3,7 +3,9 @@ import { logger } from "@/lib/logger";
 import { REGION_TO_PRICING } from "@/features/extraction/url";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { getOrderById } from "@/features/orders/services/orders.service";
-import { calculatePricing } from "@/features/pricing/services/pricing.service";
+import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
+import { getQuoteLockById } from "@/db/queries/quote-locks";
+import { isLockUnexpired, priceLowerOf } from "@/features/quotes/services/quote-lock.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/transport";
 import {
@@ -165,14 +167,31 @@ export async function reviewOrder(
 
     // Always recalculate pricing on approval so pricing_method is never "needs_review"
     // after approval (checkout page and email both require a resolved pricing method).
-    const newPricing = await calculatePricing({
+    // An order placed under a rate lock is re-priced by the same rule the
+    // customer was quoted under — the lower of locked and live total — for as
+    // long as the lock is unexpired. The FX comes from the lock ROW (never the
+    // order's stored breakdown), and the lock fields are kept only when the
+    // locked pricing won. An expired or missing lock means today's rate.
+    const pricingInput = {
       itemPriceUsd: newPrice,
       quantity: order.quantity,
       category: order.extraction_metadata?.product?.category ?? null,
       weightLbs: order.extraction_metadata?.product?.weight_lbs ?? order.pricing.weight_lbs ?? undefined,
       productTitle: input.updates?.product_name ?? order.product_name,
       region: REGION_TO_PRICING[newCountry],
-    });
+    };
+    const calculator = await loadPricingCalculator();
+    const lock = order.pricing.rate_lock_id ? await getQuoteLockById(order.pricing.rate_lock_id) : null;
+    const live = await calculator.calculate(pricingInput, null);
+    const newPricing =
+      lock && isLockUnexpired(lock)
+        ? await priceLowerOf({
+            lock,
+            live,
+            priceAt: (fx) => calculator.calculate(pricingInput, fx),
+            onLiveWins: { ratchet: false },
+          })
+        : live;
     updates.pricing = newPricing as unknown as Record<string, unknown>;
 
     if (priceChanged || countryChanged) {

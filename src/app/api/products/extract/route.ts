@@ -1,15 +1,16 @@
 import { NextRequest, after } from "next/server";
 import { extractProductSchema } from "@/features/extraction/schema";
 import { extractPrepared, prepareProductUrl } from "@/features/extraction/extraction.service";
-import { buildQuote } from "@/features/extraction/quote.service";
+import { quoteForViewer } from "@/features/quotes/services/quote-lock.service";
+import { resolveViewer } from "@/lib/quote-session";
 import { getCachedExtractionByHash } from "@/db/queries/extraction-cache";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
-// Chain budget is 90s (config/extraction.ts). Headroom for pricing + response.
-export const maxDuration = 120;
+// Chain budget is 25s (config/extraction.ts). Headroom for enrichment scheduling + pricing.
+export const maxDuration = 60;
 
 /**
  * POST /api/products/extract
@@ -33,25 +34,29 @@ export async function POST(request: NextRequest) {
     }
 
     const user = await getAuthenticatedUser();
+    const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
 
     // Validate + canonicalize before spending anything — a bad link is a 400,
     // and a cached product costs no rate-limit budget.
     const prepared = await prepareProductUrl(parsed.data.product_url);
-    const cached = await getCachedExtractionByHash(prepared.urlHash);
-    if (cached) {
-      return successResponse(await buildQuote({ ...cached.result, extraction_cache_id: cached.id, cached: true }));
-    }
 
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`extraction:${ip}`, RATE_LIMIT.extraction).allowed) {
-      throw new APIError(429, "Too many requests. Please wait a few minutes and try again.");
+    // A cached product costs nothing to serve, so it spends no rate-limit
+    // budget. The response still goes through `extractPrepared` — which re-reads
+    // the same cache row and returns immediately — so that every paste, cached
+    // or fresh, follows one path and is recorded against the customer there.
+    const cached = await getCachedExtractionByHash(prepared.urlHash);
+    if (!cached) {
+      const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+      if (!checkRateLimit(`extraction:${ip}`, RATE_LIMIT.extraction).allowed) {
+        throw new APIError(429, "Too many requests. Please wait a few minutes and try again.");
+      }
     }
 
     const { enrich, ...extraction } = await extractPrepared(prepared, user?.id ?? null);
     // Weight lookup etc. finishes after the response and updates the cache row;
     // the review page reads the row, so it sees the enriched product.
     if (enrich) after(enrich);
-    return successResponse(await buildQuote(extraction));
+    return finalize(successResponse(await quoteForViewer(extraction, 1, viewer)));
   } catch (error) {
     return errorResponse(error);
   }

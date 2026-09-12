@@ -145,7 +145,11 @@ function PageHeader({ step }: { step: Step }) {
 function NewOrderContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const url = decodeURIComponent(searchParams.get("url") ?? "");
+  // NOT decodeURIComponent'd: `searchParams.get` already percent-decodes, and
+  // decoding a second time corrupts any product URL that legitimately contains
+  // an escape (`%2B` becomes `+`) and throws URIError outright on a bare `%`
+  // — e.g. ".../p?discount=100%" — which kills this screen on render.
+  const url = searchParams.get("url") ?? "";
 
   const [step, setStep] = useState<Step>("extracting");
   const [extractionResult, setExtractionResult] =

@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { createClient } from "@/lib/supabase/server";
+import { resolveViewer } from "@/lib/quote-session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
@@ -27,7 +28,9 @@ export async function POST(request: NextRequest) {
     const auth = requireAuth(user);
 
     const supabase = await createClient();
-    const data = await createOrder(supabase, auth, parsed.data);
+    // The rate lock is resolved from the session, never from the body.
+    const { viewer } = resolveViewer(request, auth.id);
+    const data = await createOrder(supabase, auth, parsed.data, viewer);
 
     return successResponse(data, 201);
   } catch (error) {
