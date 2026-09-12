@@ -51,7 +51,9 @@ export function QuoteActionBar({
         <button
           type="button"
           onClick={onToggleWatch}
-          disabled={watchPending}
+          // Disabled once watching: there is no unwatch endpoint yet, so a
+          // still-live button would do nothing when pressed.
+          disabled={watchPending || watching}
           aria-pressed={watching}
           aria-label={watching ? "Watching this price" : "Watch this price"}
           className={cn(

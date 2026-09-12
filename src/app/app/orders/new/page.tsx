@@ -79,17 +79,19 @@ function NewOrderContent() {
   const url = searchParams.get("url") ?? "";
 
   const [error, setError] = useState<string | null>(null);
-  // React 18 StrictMode mounts effects twice in dev, and an extraction is a paid
-  // vendor call. One paste means one call.
-  const started = useRef(false);
+  const started = useRef<string | null>(null);
 
   useEffect(() => {
     if (!url) {
       router.replace("/app");
       return;
     }
-    if (started.current) return;
-    started.current = true;
+    // One paste, one extraction: React 18 StrictMode mounts effects twice in
+    // dev and an extraction is a paid vendor call. Keyed by URL, so navigating
+    // to this route with a DIFFERENT link still extracts -- an unkeyed ref
+    // leaves the second link stuck on the skeleton forever.
+    if (started.current === url) return;
+    started.current = url;
 
     extractProduct(
       { product_url: url },

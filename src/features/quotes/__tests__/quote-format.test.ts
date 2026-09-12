@@ -265,3 +265,35 @@ describe("formatStorePillLabel", () => {
     expect(formatStorePillLabel(null, "not a url")).toBe("not a url");
   });
 });
+
+// ── Gap fillers ─────────────────────────────────────────────────────────────
+
+/**
+ * Mirrors the guard in `quote-view.tsx`. The gap-filler price is the one number
+ * a customer may supply, so the bounds that decide whether the CTA unlocks are
+ * worth pinning: `createOrderSchema` rejects anything outside them with a 400
+ * the screen cannot help with.
+ */
+function parsePositiveUsd(raw: string): number | null {
+  const value = Number(raw.trim());
+  if (!Number.isFinite(value) || value <= 0 || value > 50_000) return null;
+  return value;
+}
+
+describe("parsePositiveUsd (gap-filler price)", () => {
+  it("accepts an ordinary price", () => {
+    expect(parsePositiveUsd("149.99")).toBe(149.99);
+    expect(parsePositiveUsd("  12 ")).toBe(12);
+  });
+
+  it("rejects what the order schema would reject", () => {
+    // Each of these would otherwise reach the server and come back a 400.
+    expect(parsePositiveUsd("")).toBeNull();
+    expect(parsePositiveUsd("abc")).toBeNull();
+    expect(parsePositiveUsd("0")).toBeNull();
+    expect(parsePositiveUsd("-5")).toBeNull();
+    expect(parsePositiveUsd("50001")).toBeNull();
+    expect(parsePositiveUsd("Infinity")).toBeNull();
+  });
+});
+

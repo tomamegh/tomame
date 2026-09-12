@@ -7,6 +7,7 @@ export {
 export { QuoteActionBar } from "./quote-action-bar";
 export { QuoteBreadcrumb } from "./quote-breadcrumb";
 export { QuoteGallery, QuoteThumbRail } from "./quote-gallery";
+export { QuoteGapFillers } from "./quote-gap-fillers";
 export { QuoteMobileHeader } from "./quote-mobile-header";
 export { QuoteReceiptCard } from "./quote-receipt-card";
 export { QuoteSkeleton } from "./quote-skeleton";

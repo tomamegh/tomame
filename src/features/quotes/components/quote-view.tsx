@@ -7,6 +7,7 @@ import { ArrowLeft, WarningCircle } from "@phosphor-icons/react/ssr";
 
 import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { Quote } from "@/features/extraction/types";
+import type { OriginCountry } from "@/features/orders/types";
 import { storeForUrl } from "@/features/extraction/stores";
 import { useCreateOrder } from "@/features/orders/hooks/useCreateOrder";
 import { apiFetch, ApiFetchError } from "@/lib/auth/api-helpers";
@@ -20,6 +21,7 @@ import { QuoteActionBar } from "./quote-action-bar";
 import { QuoteBreadcrumb } from "./quote-breadcrumb";
 import { formatStorePillLabel } from "./format";
 import { QuoteGallery, QuoteThumbRail } from "./quote-gallery";
+import { QuoteGapFillers } from "./quote-gap-fillers";
 import { QuoteMobileHeader } from "./quote-mobile-header";
 import { QuoteReceiptCard } from "./quote-receipt-card";
 import { QuoteSkeleton } from "./quote-skeleton";
@@ -28,6 +30,8 @@ import { QuoteSkeleton } from "./quote-skeleton";
 const QUANTITY_MIN = 1;
 const QUANTITY_MAX = 100;
 const INSTRUCTIONS_MAX = 2000;
+/** `createOrderSchema` rejects a longer product_name outright. */
+const PRODUCT_NAME_MAX = 500;
 
 /** What `GET /api/extractions/:id` adds to the `Quote` it returns. */
 interface QuoteResponse extends Quote {
@@ -79,12 +83,21 @@ export function QuoteView({
   const [watching, setWatching] = useState(false);
   const [watchPending, setWatchPending] = useState(false);
 
+  // What the customer supplies when the extractor could not. Both are only
+  // reachable when the corresponding field is genuinely missing, and the server
+  // honours them only then.
+  const [gapPriceUsd, setGapPriceUsd] = useState("");
+  const [gapCountry, setGapCountry] = useState<OriginCountry | null>(null);
+
   const { mutate: createOrder, isPending: creatingOrder } = useCreateOrder();
 
   // Monotonic guard: a slow quantity=1 response must never overwrite a fast
   // quantity=3 one. `AbortController` alone does not cover a response that is
   // already in flight when the next request starts.
   const requestId = useRef(0);
+  // Read inside the fetch callbacks, which must not re-run when the quote
+  // changes; a ref keeps the effect's dependency list honest.
+  const quoteRef = useRef<QuoteResponse | null>(null);
 
   const signIn = useCallback(() => {
     const next = `/app/orders/review/${extractionId}`;
@@ -102,6 +115,7 @@ export function QuoteView({
     )
       .then((response) => {
         if (id !== requestId.current) return;
+        quoteRef.current = response.data;
         setQuote(response.data);
         setReceivedAt(new Date());
         setWatching(response.data.is_watching);
@@ -109,11 +123,22 @@ export function QuoteView({
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted || id !== requestId.current) return;
-        setLoadError(
+        const message =
           error instanceof Error
             ? error.message
-            : "We could not load this quote.",
-        );
+            : "We could not load this quote.";
+        setLoadError(message);
+        // A failed RE-price is the dangerous case: the previous quantity's
+        // total is still on screen beside the new quantity in the stepper, and
+        // silently leaving it there would let someone consent to one number and
+        // be charged for another. Say so, and let `repriceFailed` below disable
+        // the CTA until a fetch succeeds.
+        if (quoteRef.current) {
+          toast.error({
+            title: "Could not update the price",
+            description: message,
+          });
+        }
       })
       .finally(() => {
         if (id === requestId.current) setRepricing(false);
@@ -123,6 +148,8 @@ export function QuoteView({
   }, [extractionId, quantity]);
 
   const toggleWatch = useCallback(() => {
+    // There is no unwatch endpoint yet, so this adds only. The buttons are
+    // disabled once `watching` is true rather than left live and inert.
     if (!quote || watching) return;
     setWatchPending(true);
     apiFetch(`/api/watches`, {
@@ -177,7 +204,12 @@ export function QuoteView({
     createOrder(
       {
         product_url: quote.product_url,
-        product_name: quote.product.title ?? "Product from link",
+        // Truncated, not rejected: a keyword-stuffed marketplace title over the
+        // schema's 500 is otherwise a 400 the customer has no field to fix.
+        product_name: (quote.product.title ?? "Product from link").slice(
+          0,
+          PRODUCT_NAME_MAX,
+        ),
         ...(isHttpUrl(quote.product.image)
           ? { product_image_url: quote.product.image }
           : {}),
@@ -186,6 +218,13 @@ export function QuoteView({
         ...(quote.extraction_cache_id
           ? { extraction_cache_id: quote.extraction_cache_id }
           : {}),
+        // Only ever sent when the extraction left the gap. The server honours
+        // the price solely when its own snapshot has none, and flags any order
+        // that leans on it for review.
+        ...(priceMissing && gapPriceValue != null
+          ? { estimated_price_usd: gapPriceValue }
+          : {}),
+        ...(countryMissing && gapCountry ? { origin_country: gapCountry } : {}),
       },
       {
         onSuccess: (order) => {
@@ -214,6 +253,24 @@ export function QuoteView({
 
   if (loadError && !quote) return <QuoteLoadError message={loadError} />;
   if (!quote || !receivedAt) return <QuoteSkeleton />;
+
+  // A gap is only a gap when the SERVER could not fill it. `pricing` is null
+  // for several reasons; only the missing-price one is something the customer
+  // can answer, and `country` is the extraction's own verdict on the store.
+  const priceMissing =
+    !quote.pricing &&
+    (quote.product.price == null || !(quote.product.price > 0));
+  const countryMissing = !quote.country;
+  const gapPriceValue = parsePositiveUsd(gapPriceUsd);
+  const gapsFilled =
+    (!priceMissing || gapPriceValue != null) &&
+    (!countryMissing || gapCountry != null);
+  // The last fetch failed, so what is on screen is the PREVIOUS quantity's
+  // price. Block the CTA until a fetch succeeds rather than let the customer
+  // agree to a total that is no longer the one they would be charged.
+  const repriceFailed = loadError != null;
+  const canContinue =
+    (Boolean(quote.pricing) || priceMissing) && gapsFilled && !repriceFailed;
 
   const gallery = quote.product.images.length
     ? quote.product.images
@@ -307,6 +364,7 @@ export function QuoteView({
             onQuantityChange={setQuantity}
             repricing={repricing}
             onContinue={continueToPayment}
+            canContinue={canContinue}
             continuePending={creatingOrder}
             watching={watching}
             watchPending={watchPending}
@@ -322,6 +380,14 @@ export function QuoteView({
             hasRail ? "lg:col-start-2" : "lg:col-start-1",
           )}
         >
+          <QuoteGapFillers
+            priceMissing={priceMissing}
+            countryMissing={countryMissing}
+            priceUsd={gapPriceUsd}
+            onPriceChange={setGapPriceUsd}
+            country={gapCountry}
+            onCountryChange={setGapCountry}
+          />
           <ProductColourCard product={quote.product} />
           <BuyerNoteCard
             value={instructions}
@@ -332,7 +398,7 @@ export function QuoteView({
       </div>
 
       <QuoteActionBar
-        canContinue={Boolean(quote.pricing)}
+        canContinue={canContinue}
         continuePending={creatingOrder}
         repricing={repricing}
         onContinue={continueToPayment}
@@ -384,4 +450,14 @@ function isHttpUrl(value: string | null): value is string {
   } catch {
     return false;
   }
+}
+
+/**
+ * The gap-filler price as a number, or null when it is not a usable one.
+ * Mirrors `createOrderSchema`: positive and at most 50,000.
+ */
+function parsePositiveUsd(raw: string): number | null {
+  const value = Number(raw.trim());
+  if (!Number.isFinite(value) || value <= 0 || value > 50_000) return null;
+  return value;
 }

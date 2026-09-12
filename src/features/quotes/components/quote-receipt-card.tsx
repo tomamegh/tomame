@@ -37,6 +37,8 @@ export interface QuoteReceiptCardProps {
   /** True while a quantity change is being re-priced by the server. */
   repricing: boolean;
   onContinue: () => void;
+  /** False when a gap is unfilled or the last re-price failed. */
+  canContinue: boolean;
   continuePending: boolean;
   watching: boolean;
   watchPending: boolean;
@@ -64,6 +66,7 @@ export function QuoteReceiptCard({
   onQuantityChange,
   repricing,
   onContinue,
+  canContinue,
   continuePending,
   watching,
   watchPending,
@@ -228,7 +231,7 @@ export function QuoteReceiptCard({
         <button
           type="button"
           onClick={onContinue}
-          disabled={!pricing || continuePending || repricing}
+          disabled={!canContinue || continuePending || repricing}
           className={cn(
             "tm-cta-gradient hidden h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold lg:flex",
             "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
@@ -243,7 +246,9 @@ export function QuoteReceiptCard({
         <button
           type="button"
           onClick={onToggleWatch}
-          disabled={watchPending}
+          // Disabled once watching: there is no unwatch endpoint, and a live
+          // button that does nothing is worse than a clearly spent one.
+          disabled={watchPending || watching}
           aria-pressed={watching}
           className={cn(
             "hidden h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border-[1.5px] bg-card text-sm leading-none font-semibold lg:flex",
