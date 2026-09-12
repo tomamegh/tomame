@@ -296,11 +296,36 @@ All five features are done. Phase 3 is closed.
 - **No colour swatches.** Colour renders as text — a colour-name → hex map would be invented.
 - The mock's **"Add to bag" is "Continue to payment"** everywhere until the bag exists (Phase 4).
 
+### The review pass, and what it caught
+
+A code review of the F3–F5 diff found the new screen had silently dropped two
+inputs the old review page carried, **both still supported server-side**:
+
+- **Manual item price.** The extraction pipeline degrades on purpose — a store the
+  registry marks `blocked` returns no price with a clear message, and the
+  documented fallback is manual entry. The new screen rendered the message and
+  disabled the CTA, so those customers could not order at all.
+- **Origin country.** A store outside the registry yields no region, and
+  `buildOrderIntake` answers that with a 400 naming a control the screen no longer had.
+
+Both are back, in `QuoteGapFillers`, rendered only when the gap is real. **If you
+rewrite this screen again, check these two first** — they are invisible on a
+complete extraction (the happy-path fixture never shows them), which is exactly
+why they were lost.
+
+Also fixed: a failed quantity re-price was silent and left the previous
+quantity's total on screen beside the new quantity in the stepper, with the CTA
+re-enabled; `product_name` is now truncated to the schema's 500 rather than
+400ing with no field to fix it; the watch buttons disable once watching, since
+there is no unwatch endpoint and `aria-pressed` on a live button described a
+toggle that could not be un-pressed; and `/app/orders/new` keys its one-shot
+extraction guard by URL.
+
 ### Gates at close
 
 - `npm run typecheck` — clean.
 - `npm run lint` — **exactly 9 pre-existing errors**, unchanged since Phase 2.
-- `npx vitest run` — **62 files / 830 tests** (was 61/786 at the start of F3).
+- `npx vitest run` — **62 files / 832 tests** (was 61/786 at the start of F3).
 - Animation delays confirmed with `getComputedStyle` at 1280px and 390px, not by eye: receipt rows
   `tmUp .45s` at `.25/.4/.55/.7/.85` on `cubic-bezier(.16,1,.3,1)`; breadcrumb `tmIn .5s`; rail
   `.05s`; product column `.1s`; receipt column `.15s`; total `tmPop .6s` at `1.2s`. Desktop grid
