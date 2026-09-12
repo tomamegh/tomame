@@ -19,7 +19,7 @@ import { AssuranceCards } from "./assurance-cards";
 import { BuyerNoteCard, ProductColourCard, ProductFacts } from "./product-facts";
 import { QuoteActionBar } from "./quote-action-bar";
 import { QuoteBreadcrumb } from "./quote-breadcrumb";
-import { formatStorePillLabel } from "./format";
+import { canContinueToPayment, formatStorePillLabel } from "./format";
 import { QuoteGallery, QuoteThumbRail } from "./quote-gallery";
 import { QuoteGapFillers } from "./quote-gap-fillers";
 import { QuoteMobileHeader } from "./quote-mobile-header";
@@ -262,15 +262,16 @@ export function QuoteView({
     (quote.product.price == null || !(quote.product.price > 0));
   const countryMissing = !quote.country;
   const gapPriceValue = parsePositiveUsd(gapPriceUsd);
-  const gapsFilled =
-    (!priceMissing || gapPriceValue != null) &&
-    (!countryMissing || gapCountry != null);
-  // The last fetch failed, so what is on screen is the PREVIOUS quantity's
-  // price. Block the CTA until a fetch succeeds rather than let the customer
-  // agree to a total that is no longer the one they would be charged.
-  const repriceFailed = loadError != null;
-  const canContinue =
-    (Boolean(quote.pricing) || priceMissing) && gapsFilled && !repriceFailed;
+  const canContinue = canContinueToPayment({
+    hasPricing: Boolean(quote.pricing),
+    priceMissing,
+    countryMissing,
+    gapPriceUsd: gapPriceValue,
+    gapCountry,
+    // The last fetch failed, so what is on screen is the PREVIOUS quantity's
+    // price.
+    repriceFailed: loadError != null,
+  });
 
   const gallery = quote.product.images.length
     ? quote.product.images

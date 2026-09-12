@@ -312,3 +312,46 @@ export function formatStorePillLabel(
     return productUrl;
   }
 }
+
+// ── The Continue gate ────────────────────────────────────────────────────────
+
+export interface ContinueGateInput {
+  /** True when the server returned a priced breakdown. */
+  hasPricing: boolean;
+  /** The extraction read no usable price, so the customer may supply one. */
+  priceMissing: boolean;
+  /** The store's region is unknown, so the customer may choose one. */
+  countryMissing: boolean;
+  /** A usable gap-filler price, or null. */
+  gapPriceUsd: number | null;
+  /** The chosen origin country, or null. */
+  gapCountry: string | null;
+  /** The most recent re-price failed, so the total on screen is stale. */
+  repriceFailed: boolean;
+}
+
+/**
+ * Whether "Continue to payment" may be pressed.
+ *
+ * Three separate reasons to block, which is why this is not a one-liner at the
+ * call site:
+ *
+ * 1. There is nothing to buy — no price, and no gap the customer can close.
+ * 2. A gap exists and is still empty.
+ * 3. The last re-price failed, so the total on screen belongs to the PREVIOUS
+ *    quantity. Letting that through means consent to one number and a charge
+ *    for another.
+ *
+ * Note the first clause admits a fillable gap, not just `hasPricing`. A listing
+ * with a readable price but an unrecognised region prices to null, so gating on
+ * `hasPricing` alone would keep the CTA disabled even after the customer picked
+ * a country — disabling the control that exists to fix it.
+ */
+export function canContinueToPayment(input: ContinueGateInput): boolean {
+  if (input.repriceFailed) return false;
+  const hasFillableGap = input.priceMissing || input.countryMissing;
+  if (!input.hasPricing && !hasFillableGap) return false;
+  if (input.priceMissing && input.gapPriceUsd == null) return false;
+  if (input.countryMissing && input.gapCountry == null) return false;
+  return true;
+}

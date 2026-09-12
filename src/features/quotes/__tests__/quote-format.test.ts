@@ -13,6 +13,7 @@ import {
   formatRatingChip,
   formatStorePillLabel,
   pickProductColour,
+  canContinueToPayment,
 } from "../components/format";
 
 function product(overrides: Partial<ScrapedProduct>): ScrapedProduct {
@@ -294,6 +295,63 @@ describe("parsePositiveUsd (gap-filler price)", () => {
     expect(parsePositiveUsd("-5")).toBeNull();
     expect(parsePositiveUsd("50001")).toBeNull();
     expect(parsePositiveUsd("Infinity")).toBeNull();
+  });
+});
+
+// ── The Continue gate ───────────────────────────────────────────────────────
+
+describe("canContinueToPayment", () => {
+  const priced = {
+    hasPricing: true,
+    priceMissing: false,
+    countryMissing: false,
+    gapPriceUsd: null,
+    gapCountry: null,
+    repriceFailed: false,
+  };
+
+  it("allows a fully priced quote", () => {
+    expect(canContinueToPayment(priced)).toBe(true);
+  });
+
+  it("blocks while the last re-price is stale, even when priced", () => {
+    // The total on screen belongs to the previous quantity; the stepper already
+    // shows the new one. Consent and charge would disagree.
+    expect(canContinueToPayment({ ...priced, repriceFailed: true })).toBe(false);
+  });
+
+  it("blocks an unpriceable quote with no gap the customer can close", () => {
+    expect(canContinueToPayment({ ...priced, hasPricing: false })).toBe(false);
+  });
+
+  it("unlocks once a missing price is supplied", () => {
+    const blocked = { ...priced, hasPricing: false, priceMissing: true };
+    expect(canContinueToPayment(blocked)).toBe(false);
+    expect(canContinueToPayment({ ...blocked, gapPriceUsd: 149.99 })).toBe(true);
+  });
+
+  it("unlocks once a missing country is chosen, even though pricing is null", () => {
+    // The regression this helper exists for. A readable price with an
+    // unrecognised region prices to null and priceMissing is FALSE, so a gate
+    // that only admitted `hasPricing || priceMissing` left the country buttons
+    // unable to unlock the CTA they were added to unlock.
+    const blocked = { ...priced, hasPricing: false, countryMissing: true };
+    expect(canContinueToPayment(blocked)).toBe(false);
+    expect(canContinueToPayment({ ...blocked, gapCountry: "UK" })).toBe(true);
+  });
+
+  it("needs both gaps closed when both are open", () => {
+    const both = {
+      ...priced,
+      hasPricing: false,
+      priceMissing: true,
+      countryMissing: true,
+    };
+    expect(canContinueToPayment({ ...both, gapPriceUsd: 20 })).toBe(false);
+    expect(canContinueToPayment({ ...both, gapCountry: "USA" })).toBe(false);
+    expect(
+      canContinueToPayment({ ...both, gapPriceUsd: 20, gapCountry: "USA" }),
+    ).toBe(true);
   });
 });
 
