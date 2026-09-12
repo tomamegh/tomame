@@ -43,6 +43,21 @@ export interface PricingInput {
 
 export type PricingMethod = "flat_rate" | "weight_expression" | "fixed_freight" | "needs_review";
 
+/**
+ * The frozen FX from a `quote_locks` row. Service-internal: it is only ever
+ * built from a lock the server resolved itself, never from anything a client
+ * sent. `exchange_rate` is the buffered USD→GHS rate the customer is charged
+ * at, `mid_market_rate` the rate it was derived from, and `cross_rates` every
+ * X→GHS mid-market rate at mint (USD included) so a GBP/CNY listing converts
+ * through the frozen snapshot rather than today's table. A currency missing
+ * from the snapshot is a 503, never a silent fall-back to live.
+ */
+export interface FxOverride {
+  exchange_rate: number;
+  mid_market_rate: number;
+  cross_rates: Record<string, number>;
+}
+
 export interface PricingBreakdown {
   pricing_method: PricingMethod;
   pricing_group: string | null;
@@ -72,6 +87,12 @@ export interface PricingBreakdown {
   weight_source?: "listed" | "default" | "minimum";
   fixed_freight_item?: string;
   review_reason?: string;
+  /** Set when the FX in this breakdown is held by a quote lock. ISO timestamp. */
+  rate_locked_until?: string;
+  rate_lock_id?: string;
+  /** Pre-purchase delivery estimate, YYYY-MM-DD. Absent when the region has no transit days. */
+  delivery_eta_from?: string;
+  delivery_eta_to?: string;
 }
 
 // ── Calculator ───────────────────────────────────────────────────────────────
@@ -131,22 +152,32 @@ export class PricingCalculator {
   }
 
   /**
-   * Convert a store-currency price to USD via the stored X→GHS and USD→GHS
-   * mid-market rates. Throws 503 when the store currency has no stored rate.
+   * Convert a store-currency price to USD via the X→GHS and USD→GHS mid-market
+   * rates. Live: the stored table (503 when the currency has no rate). Under a
+   * lock: the lock's own snapshot — and a currency the snapshot lacks is a 503
+   * too, because pricing it from today's table would quietly void the lock.
    */
-  private async toUsd(price: number, currency: string): Promise<number> {
+  private async toUsd(price: number, currency: string, midMarketRate: number, fx: FxOverride | null): Promise<number> {
     const cur = currency.toUpperCase();
     if (cur === "USD") return price;
-    let rate = this.crossRates.get(cur);
-    if (rate == null) {
-      const ghs = await getGhsRate(cur);
-      if (ghs == null) {
-        throw new APIError(503, `Exchange rate for ${cur}/GHS not available. Please try again later.`);
+    let rate: number | undefined;
+    if (fx) {
+      rate = fx.cross_rates[cur];
+      if (rate == null || !(rate > 0)) {
+        throw new APIError(503, `Locked exchange rate for ${cur}/GHS is missing from the rate lock. Please try again later.`);
       }
-      rate = ghs;
-      this.crossRates.set(cur, rate);
+    } else {
+      rate = this.crossRates.get(cur);
+      if (rate == null) {
+        const ghs = await getGhsRate(cur);
+        if (ghs == null) {
+          throw new APIError(503, `Exchange rate for ${cur}/GHS not available. Please try again later.`);
+        }
+        rate = ghs;
+        this.crossRates.set(cur, rate);
+      }
     }
-    return PricingCalculator.roundTo2((price * rate) / this.midMarketRate!);
+    return PricingCalculator.roundTo2((price * rate) / midMarketRate);
   }
 
   private lookupCategoryPricing(category: string | null | undefined): {
@@ -208,13 +239,20 @@ export class PricingCalculator {
     return best?.item ?? null;
   }
 
-  /** Calculate the full pricing breakdown for an order. */
-  async calculate(input: PricingInput): Promise<PricingBreakdown> {
-    if (this.appliedRate == null) await this.loadFxRate();
+  /**
+   * Calculate the full pricing breakdown for an order.
+   *
+   * `fx` is required on purpose: pass `null` to price at today's live rate, or
+   * a lock's frozen pair to price at the rate the customer was promised. Making
+   * callers say which one they mean is what stops a lock being silently
+   * forgotten on one code path (see docs/phase-3-handoff.md §5, gotcha 8).
+   */
+  async calculate(input: PricingInput, fx: FxOverride | null): Promise<PricingBreakdown> {
+    if (fx == null && this.appliedRate == null) await this.loadFxRate();
 
     const r2 = PricingCalculator.roundTo2;
-    const fxRate = this.appliedRate!;
-    const midRate = this.midMarketRate!;
+    const fxRate = fx ? r2(fx.exchange_rate) : this.appliedRate!;
+    const midRate = fx ? fx.mid_market_rate : this.midMarketRate!;
 
     const { quantity, category, region } = input;
     const itemCurrency = (input.itemCurrency ?? "USD").toUpperCase();
@@ -222,7 +260,7 @@ export class PricingCalculator {
     if (itemPrice == null || !(itemPrice > 0)) {
       throw new APIError(400, "An item price is required to calculate pricing.");
     }
-    const itemPriceUsd = input.itemPriceUsd ?? (await this.toUsd(itemPrice, itemCurrency));
+    const itemPriceUsd = input.itemPriceUsd ?? (await this.toUsd(itemPrice, itemCurrency, midRate, fx));
 
     const subtotalUsd = r2(itemPriceUsd * quantity);
     const taxPct = this.getTaxPercentage(region);

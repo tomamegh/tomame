@@ -38,7 +38,7 @@ describe("multi-currency item prices", () => {
     calc.setConstants(constants());
     calc.setCategoryPricing(new Map([[TomameCategory.CELL_PHONES, group()]]));
 
-    const r = await calc.calculate({ itemPrice: 100, itemCurrency: "GBP", quantity: 1, category: TomameCategory.CELL_PHONES, region: "uk" });
+    const r = await calc.calculate({ itemPrice: 100, itemCurrency: "GBP", quantity: 1, category: TomameCategory.CELL_PHONES, region: "uk" }, null);
     expect(r.item_price).toBe(100);
     expect(r.item_currency).toBe("GBP");
     expect(r.item_price_usd).toBeCloseTo(133.33, 2); // 100 × 20 / 15
@@ -49,8 +49,8 @@ describe("multi-currency item prices", () => {
   it("USD listings pass through unchanged and itemPriceUsd still works", async () => {
     const calc = new PricingCalculator();
     calc.setCategoryPricing(new Map([[TomameCategory.CELL_PHONES, group()]]));
-    const a = await calc.calculate({ itemPrice: 50, itemCurrency: "USD", quantity: 1, category: TomameCategory.CELL_PHONES });
-    const b = await calc.calculate({ itemPriceUsd: 50, quantity: 1, category: TomameCategory.CELL_PHONES });
+    const a = await calc.calculate({ itemPrice: 50, itemCurrency: "USD", quantity: 1, category: TomameCategory.CELL_PHONES }, null);
+    const b = await calc.calculate({ itemPriceUsd: 50, quantity: 1, category: TomameCategory.CELL_PHONES }, null);
     expect(a.item_price_usd).toBe(50);
     expect(b.item_price_usd).toBe(50);
     expect(b.item_currency).toBe("USD");
@@ -60,7 +60,7 @@ describe("multi-currency item prices", () => {
     const calc = new PricingCalculator();
     calc.setCategoryPricing(new Map([[TomameCategory.CELL_PHONES, group()]]));
     await expect(
-      calc.calculate({ itemPrice: 10, itemCurrency: "EUR", quantity: 1, category: TomameCategory.CELL_PHONES }),
+      calc.calculate({ itemPrice: 10, itemCurrency: "EUR", quantity: 1, category: TomameCategory.CELL_PHONES }, null),
     ).rejects.toMatchObject({ statusCode: 503 });
   });
 });
@@ -77,7 +77,7 @@ describe("fixed freight items", () => {
     const r = await calc.calculate({
       itemPriceUsd: 999, quantity: 1, category: TomameCategory.CELL_PHONES,
       productTitle: "Apple iPhone 15 Pro Max 256GB - Natural Titanium",
-    });
+    }, null);
     expect(r.pricing_method).toBe("fixed_freight");
     expect(r.fixed_freight_item).toBe("iPhone 15 Pro & Max");
     expect(r.flat_rate_ghs).toBe(1000);
@@ -90,7 +90,7 @@ describe("fixed freight items", () => {
     calc.setConstants(constants({ default_value_fee_pct: 0.07 }));
     calc.setCategoryPricing(new Map());
     calc.setFixedFreightItems([{ id: "1", category: "X", product_name: "PS5", freight_rate_ghs: 1500, keywords: ["playstation 5"], sort_order: 0 }]);
-    const r = await calc.calculate({ itemPriceUsd: 500, quantity: 1, category: null, productTitle: "Sony PlayStation 5 Console" });
+    const r = await calc.calculate({ itemPriceUsd: 500, quantity: 1, category: null, productTitle: "Sony PlayStation 5 Console" }, null);
     expect(r.pricing_method).toBe("fixed_freight");
     expect(r.value_fee_percentage).toBe(0.07);
   });
@@ -101,7 +101,7 @@ describe("minimum chargeable weight", () => {
     const calc = new PricingCalculator();
     calc.setConstants(constants({ minimum_chargeable_weight_lbs: 2 }));
     calc.setCategoryPricing(new Map([[TomameCategory.AUTOMOTIVE, group({ slug: "car_parts", name: "Car Parts", flat_rate_ghs: null, flat_rate_expression: "5 + (w / 8)" })]]));
-    const r = await calc.calculate({ itemPriceUsd: 20, quantity: 1, category: TomameCategory.AUTOMOTIVE, weightLbs: 0.5 });
+    const r = await calc.calculate({ itemPriceUsd: 20, quantity: 1, category: TomameCategory.AUTOMOTIVE, weightLbs: 0.5 }, null);
     expect(r.pricing_method).toBe("weight_expression");
     expect(r.weight_lbs).toBe(2);
     expect(r.weight_source).toBe("minimum");
@@ -114,7 +114,7 @@ describe("minimum chargeable weight", () => {
     const calc = new PricingCalculator();
     calc.setConstants(constants({ freight_rate_per_lb: 6, handling_fee_usd: 4 }));
     calc.setCategoryPricing(new Map([[TomameCategory.HOME_KITCHEN, group({ slug: "home_kitchen", name: "Home & Kitchen", flat_rate_ghs: null, flat_rate_expression: "legacy" })]]));
-    const r = await calc.calculate({ itemPriceUsd: 80, quantity: 2, category: TomameCategory.HOME_KITCHEN, weightLbs: 36.2 });
+    const r = await calc.calculate({ itemPriceUsd: 80, quantity: 2, category: TomameCategory.HOME_KITCHEN, weightLbs: 36.2 }, null);
     expect(r.freight_usd).toBeCloseTo(36.2 * 2 * 6 + 4, 2);
     expect(r.flat_rate_ghs).toBeCloseTo((36.2 * 2 * 6 + 4) * 15, 1);
     expect(r.freight_rate_per_lb).toBe(6);
@@ -125,12 +125,12 @@ describe("minimum chargeable weight", () => {
     const calc = new PricingCalculator();
     calc.setConstants(constants());
     calc.setCategoryPricing(new Map([[TomameCategory.CELL_PHONES, group({ flat_rate_ghs: 1200 })]]));
-    const flat = await calc.calculate({ itemPriceUsd: 300, quantity: 3, category: TomameCategory.CELL_PHONES });
+    const flat = await calc.calculate({ itemPriceUsd: 300, quantity: 3, category: TomameCategory.CELL_PHONES }, null);
     expect(flat.flat_rate_ghs).toBe(3600);
     expect(flat.fee_calculation_note).toContain("× 3");
 
     calc.setFixedFreightItems([{ id: "1", category: "IPHONE", product_name: "iPhone 15", freight_rate_ghs: 900, keywords: ["iphone 15"], sort_order: 0 }]);
-    const fixed = await calc.calculate({ itemPriceUsd: 700, quantity: 2, category: TomameCategory.CELL_PHONES, productTitle: "Apple iPhone 15 128GB" });
+    const fixed = await calc.calculate({ itemPriceUsd: 700, quantity: 2, category: TomameCategory.CELL_PHONES, productTitle: "Apple iPhone 15 128GB" }, null);
     expect(fixed.pricing_method).toBe("fixed_freight");
     expect(fixed.flat_rate_ghs).toBe(1800);
   });

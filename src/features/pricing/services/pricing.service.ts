@@ -1,5 +1,5 @@
 import { PricingCalculator } from "@/lib/pricing";
-import type { PricingInput, PricingBreakdown, PricingConstants } from "@/lib/pricing";
+import type { PricingInput, PricingBreakdown, PricingConstants, FxOverride } from "@/lib/pricing";
 import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
 import { getCategoryPricingMap } from "@/db/queries/pricing-groups";
 import { getActiveFixedFreightItems } from "@/db/queries/fixed-freight-items";
@@ -50,7 +50,11 @@ export async function loadPricingCalculator(): Promise<PricingCalculator> {
   return calculator;
 }
 
-export async function calculatePricing(input: PricingInput): Promise<PricingBreakdown> {
+/**
+ * Price one line with every admin knob loaded. `fx` is `null` for the live
+ * rate, or a quote lock's frozen pair — see `PricingCalculator.calculate`.
+ */
+export async function calculatePricing(input: PricingInput, fx: FxOverride | null): Promise<PricingBreakdown> {
   const calculator = await loadPricingCalculator();
-  return calculator.calculate(input);
+  return calculator.calculate(input, fx);
 }

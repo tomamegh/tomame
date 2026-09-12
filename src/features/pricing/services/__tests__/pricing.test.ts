@@ -64,7 +64,7 @@ describe("PricingCalculator (JSON fallback)", () => {
         itemPriceUsd: 799,
         quantity: 1,
         category: TomameCategory.CELL_PHONES,
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("flat_rate");
       expect(result.pricing_group).toBe("phones");
@@ -85,7 +85,7 @@ describe("PricingCalculator (JSON fallback)", () => {
         itemPriceUsd: 100,
         quantity: 3,
         category: TomameCategory.CELL_PHONES,
-      });
+      }, null);
 
       expect(result.subtotal_usd).toBe(300);
       expect(result.tax_usd).toBeCloseTo(30, 1);
@@ -102,7 +102,7 @@ describe("PricingCalculator (JSON fallback)", () => {
         itemPriceUsd: 50,
         quantity: 1,
         category: TomameCategory.HEADPHONES,
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("flat_rate");
       expect(result.pricing_group).toBe("phone_accessories");
@@ -121,7 +121,7 @@ describe("PricingCalculator (JSON fallback)", () => {
         quantity: 1,
         category: TomameCategory.AUTOMOTIVE,
         weightLbs: 16,
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("weight_expression");
       expect(result.pricing_group).toBe("car_parts");
@@ -142,7 +142,7 @@ describe("PricingCalculator (JSON fallback)", () => {
         itemPriceUsd: 200,
         quantity: 1,
         category: TomameCategory.AUTOMOTIVE,
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("needs_review");
       expect(result.pricing_group).toBe("car_parts");
@@ -160,7 +160,7 @@ describe("PricingCalculator (JSON fallback)", () => {
         itemPriceUsd: 200,
         quantity: 1,
         category: "Some Unknown Category",
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("needs_review");
       expect(result.pricing_group).toBeNull();
@@ -176,7 +176,7 @@ describe("PricingCalculator (JSON fallback)", () => {
       const result = await calc.calculate({
         itemPriceUsd: 200,
         quantity: 1,
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("needs_review");
       expect(result.review_reason).toContain("determine the product category");
@@ -193,7 +193,7 @@ describe("PricingCalculator (JSON fallback)", () => {
           itemPriceUsd: 100,
           quantity: 1,
           category: TomameCategory.CELL_PHONES,
-        }),
+        }, null),
       ).rejects.toThrow("Exchange rate for USD/GHS not available");
     });
 
@@ -205,7 +205,7 @@ describe("PricingCalculator (JSON fallback)", () => {
         itemPriceUsd: 100,
         quantity: 1,
         category: TomameCategory.CELL_PHONES,
-      });
+      }, null);
 
       expect(result.mid_market_rate).toBe(15.0);
       expect(result.exchange_rate).toBeCloseTo(15.6, 1);
@@ -215,8 +215,8 @@ describe("PricingCalculator (JSON fallback)", () => {
       vi.mocked(getGhsRate).mockResolvedValue(15.0);
 
       const calc = new PricingCalculator();
-      await calc.calculate({ itemPriceUsd: 100, quantity: 1, category: TomameCategory.CELL_PHONES });
-      await calc.calculate({ itemPriceUsd: 200, quantity: 1, category: TomameCategory.HEADPHONES });
+      await calc.calculate({ itemPriceUsd: 100, quantity: 1, category: TomameCategory.CELL_PHONES }, null);
+      await calc.calculate({ itemPriceUsd: 200, quantity: 1, category: TomameCategory.HEADPHONES }, null);
 
       expect(getGhsRate).toHaveBeenCalledTimes(1);
     });
@@ -241,7 +241,7 @@ describe("PricingCalculator (DB-loaded)", () => {
         itemPriceUsd: 100,
         quantity: 1,
         category: "Custom Category",
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("flat_rate");
       expect(result.pricing_group).toBe("custom");
@@ -260,7 +260,7 @@ describe("PricingCalculator (DB-loaded)", () => {
         itemPriceUsd: 100,
         quantity: 1,
         category: "Unknown",
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("needs_review");
     });
@@ -291,7 +291,7 @@ describe("PricingCalculator (DB-loaded)", () => {
         itemPriceUsd: 50,
         quantity: 1,
         category: "Electronics",
-      });
+      }, null);
 
       expect(result.value_fee_percentage).toBe(0.08);
       expect(result.value_fee_usd).toBeCloseTo(4.0, 2);
@@ -321,7 +321,7 @@ describe("PricingCalculator (DB-loaded)", () => {
         itemPriceUsd: 200,
         quantity: 1,
         category: "Electronics",
-      });
+      }, null);
 
       expect(result.value_fee_percentage).toBe(0.05);
       expect(result.value_fee_usd).toBeCloseTo(10.0, 2);
@@ -349,7 +349,7 @@ describe("PricingCalculator (DB-loaded)", () => {
         itemPriceUsd: 500,
         quantity: 1,
         category: "Electronics",
-      });
+      }, null);
 
       expect(result.value_fee_percentage).toBe(0.06);
     });
@@ -379,7 +379,7 @@ describe("PricingCalculator (DB-loaded)", () => {
         itemPriceUsd: 100,
         quantity: 1,
         category: "Speakers",
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("weight_expression");
       // default 10 lb × $5/lb + $3 = $53
@@ -413,7 +413,7 @@ describe("PricingCalculator (DB-loaded)", () => {
         quantity: 1,
         category: "Speakers",
         weightLbs: 24,
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("weight_expression");
       // 24 lb × $5/lb + $3 = $123
@@ -446,7 +446,7 @@ describe("PricingCalculator (DB-loaded)", () => {
         itemPriceUsd: 100,
         quantity: 1,
         category: "Speakers",
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("needs_review");
       expect(result.review_reason).toContain("weight");
@@ -478,7 +478,7 @@ describe("PricingCalculator (DB-loaded)", () => {
         itemPriceUsd: 200,
         quantity: 1,
         category: "Car Parts",
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("needs_review");
       expect(result.pricing_group).toBe("car_parts");
@@ -511,7 +511,7 @@ describe("PricingCalculator (DB-loaded)", () => {
         quantity: 1,
         category: "Car Parts",
         weightLbs: 16,
-      });
+      }, null);
 
       expect(result.pricing_method).toBe("weight_expression");
       expect(result.freight_usd).toBe(83);

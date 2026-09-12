@@ -133,6 +133,29 @@ export async function fetchAndStoreRates(
   return { success: errors.length === 0, updated, errors };
 }
 
+/**
+ * Every stored X→GHS rate keyed by base currency (USD included), in one SELECT.
+ * A quote lock snapshots this at mint so a non-USD listing is frozen too.
+ * Throws on a failed read: a lock minted with a partial snapshot would be void
+ * for every currency it missed.
+ */
+export async function listGhsRates(): Promise<Record<string, number>> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("exchange_rates")
+    .select("base_currency, rate")
+    .eq("target_currency", "GHS");
+
+  if (error) throw new Error(`Failed to load exchange rates: ${error.message}`);
+
+  const rates: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const rate = Number(row.rate);
+    if (typeof row.base_currency === "string" && Number.isFinite(rate)) rates[row.base_currency.toUpperCase()] = rate;
+  }
+  return rates;
+}
+
 export async function getGhsRate(baseCurrency: string): Promise<number | null> {
   const rate = await getRate(baseCurrency);
   return rate?.rate ?? null;
