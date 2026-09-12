@@ -3,7 +3,11 @@ import { createPublicClient } from "@/lib/supabase/public";
 
 // ── Row types ───────────────────────────────────────────────────────────────
 
-/** Mirrors the `site_content_kind_check` constraint (036_create_marketing_content_tables.sql). */
+/**
+ * Mirrors the `site_content_kind_check` constraint — declared in
+ * 036_create_marketing_content_tables.sql and widened by 047 with
+ * `quote_assurance` (the three cards under the landed-price receipt).
+ */
 export const SITE_CONTENT_KINDS = [
   "faq",
   "testimonial",
@@ -16,6 +20,7 @@ export const SITE_CONTENT_KINDS = [
   "trust_chip",
   "hero_copy",
   "store",
+  "quote_assurance",
 ] as const;
 
 export type SiteContentKind = (typeof SITE_CONTENT_KINDS)[number];
@@ -98,6 +103,21 @@ export async function getSiteContentByKinds(
     grouped[row.kind].push(row);
   }
   return grouped;
+}
+
+/**
+ * The landed-price screen's assurance cards, in display order.
+ *
+ * A named wrapper rather than a bare `getSiteContentByKind` call at the call
+ * site: the kind carries a per-row contract the generic query cannot express
+ * (`data.icon` is a Phosphor glyph name the component resolves through an
+ * explicit map, `data.href` an optional policy link), and naming it keeps that
+ * contract discoverable from the query layer it is stored in.
+ */
+export async function getQuoteAssuranceContent(
+  locale: string = DEFAULT_LOCALE,
+): Promise<SiteContentRow[]> {
+  return getSiteContentByKind("quote_assurance", locale);
 }
 
 /** One row by kind + slug, or null. Used for singletons such as `hero_copy`. */

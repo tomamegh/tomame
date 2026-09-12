@@ -22,3 +22,20 @@ export interface DeliveryWindow {
   from: string;
   to: string;
 }
+
+/**
+ * One assurance card under the receipt, built from a `quote_assurance`
+ * `site_content` row. `icon` is a Phosphor glyph NAME and is resolved through
+ * an explicit map in the component — never used to look up a component from
+ * the database directly.
+ */
+export interface QuoteAssurance {
+  slug: string;
+  title: string;
+  /** The card's subline, e.g. "until we buy it". */
+  body: string | null;
+  /** Phosphor glyph name from `data.icon`, or null when the row omits it. */
+  icon: string | null;
+  /** The policy this card summarises, from `data.href`. */
+  href: string | null;
+}

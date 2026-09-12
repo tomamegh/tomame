@@ -77,6 +77,17 @@ export interface PricingBreakdown {
   flat_rate_ghs: number;
   total_ghs: number;
   total_pesewas: number;
+  /**
+   * The landed total expressed back in USD, for the "GH₵5,041.16 ≈ $349.36"
+   * second line. It is `total_ghs` divided by the rate actually applied, so the
+   * two figures can never disagree, and it is computed HERE because dividing a
+   * total by an exchange rate in the browser is money maths on the client.
+   *
+   * Optional because a breakdown stored in `orders.pricing` before this field
+   * existed will not carry it; render the echo only when it is present rather
+   * than recomputing it.
+   */
+  total_usd?: number;
   /** Human-readable "show the work" line: "36.2 lb × $5/lb + $3 handling", "fixed: iPhone 15 Pro", … */
   fee_calculation_note: string;
   /** Weight-based groups: the USD freight before conversion, and the knobs that produced it. */
@@ -306,6 +317,7 @@ export class PricingCalculator {
         flat_rate_ghs: r2(flatRateGhs),
         total_ghs: totalGhs,
         total_pesewas: Math.round(totalGhs * 100),
+        total_usd: fxRate > 0 ? r2(totalGhs / fxRate) : 0,
         fee_calculation_note: note,
         ...extra,
       };
@@ -411,6 +423,7 @@ export class PricingCalculator {
       flat_rate_ghs: 0,
       total_ghs: 0,
       total_pesewas: 0,
+      total_usd: 0,
       fee_calculation_note: "needs admin review",
       review_reason: reason,
     };

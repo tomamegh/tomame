@@ -1,14 +1,5 @@
 import Image from "next/image";
-import type { Icon } from "@phosphor-icons/react";
-import {
-  AirplaneTilt,
-  ArrowsLeftRight,
-  Bank,
-  HandHeart,
-  LinkSimple,
-  Receipt,
-  Tag,
-} from "@phosphor-icons/react/ssr";
+import { LinkSimple, Receipt } from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/utils";
 import type { HomeReceipt } from "../types";
@@ -19,17 +10,8 @@ import {
   RECEIPT_ROW_DELAYS,
   safeImageSrc,
   splitGhsTotal,
-  type ReceiptRowIcon,
 } from "./format";
-
-/** One duotone glyph per receipt line, keyed by the row the builder emitted. */
-const ROW_ICONS: Record<ReceiptRowIcon, Icon> = {
-  item: Tag,
-  tax: Bank,
-  fee: HandHeart,
-  freight: AirplaneTilt,
-  rate: ArrowsLeftRight,
-};
+import { RECEIPT_ROW_ICONS } from "./receipt-icons";
 
 export interface LiveReceiptCardProps {
   /** Null when the customer has pasted nothing yet — a real, common state. */
@@ -101,7 +83,7 @@ function ReceiptBody({ receipt, now }: { receipt: HomeReceipt; now: Date }) {
       {rows.length > 0 ? (
         <dl className="tm-nums flex flex-col gap-2 text-[13px] leading-none font-medium text-tm-text-2">
           {rows.map((row, index) => {
-            const RowIcon = ROW_ICONS[row.icon];
+            const RowIcon = RECEIPT_ROW_ICONS[row.icon];
             return (
               <div
                 key={row.key}
