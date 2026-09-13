@@ -184,3 +184,21 @@ describe("columnHeadingId", () => {
     expect(columnHeadingId("Returns & refunds")).toBe("footer-returns-refunds");
   });
 });
+
+describe("whatsappHref — customer-typed numbers", () => {
+  it("turns a Ghanaian national number into the international form wa.me needs", () => {
+    // `0245550192` would open a chat with nobody: wa.me has no notion of a
+    // national prefix, so the 0 has to become the country code.
+    expect(whatsappHref("024 555 0192")).toBe("https://wa.me/233245550192");
+    expect(whatsappHref("0594424746")).toBe("https://wa.me/233594424746");
+  });
+
+  it("leaves an already-international number alone", () => {
+    expect(whatsappHref("+233 24 555 0192")).toBe("https://wa.me/233245550192");
+    expect(whatsappHref("233245550192")).toBe("https://wa.me/233245550192");
+  });
+
+  it("still refuses a number with no digits in it", () => {
+    expect(whatsappHref("no digits here")).toBeNull();
+  });
+});

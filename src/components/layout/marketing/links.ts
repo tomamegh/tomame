@@ -46,15 +46,29 @@ export function resolveActiveNavKey(
   return match?.key ?? null;
 }
 
+/** Ghana. Used to turn a local number into the international form wa.me needs. */
+const GH_COUNTRY_CODE = "233";
+
 /**
- * `https://wa.me/<digits>` for a stored number in any human format
- * (`+233 24 555 0192`). Returns `null` when there is nothing dialable, so the
- * caller can fall back to plain text.
+ * `https://wa.me/<digits>` for a number in any human format. Returns `null` when
+ * there is nothing dialable, so the caller can fall back to plain text.
+ *
+ * wa.me needs the INTERNATIONAL form with no plus. `site_settings.whatsapp_number`
+ * is already stored that way (`+233 59 442 4746`), but customers type their own
+ * number the way they say it — `024 555 0192` — and stripping non-digits from
+ * that gives `0245550192`, which opens a WhatsApp chat with nobody. A leading
+ * national `0` is therefore replaced with Ghana's country code, and a number
+ * that is already international is left alone.
  */
 export function whatsappHref(rawNumber: string | null): string | null {
   if (!rawNumber) return null;
   const digits = rawNumber.replace(/\D/g, "");
-  return digits.length > 0 ? `https://wa.me/${digits}` : null;
+  if (digits.length === 0) return null;
+
+  // `0XXXXXXXXX` — the national form, as a Ghanaian writes it.
+  if (digits.startsWith("0")) return `https://wa.me/${GH_COUNTRY_CODE}${digits.slice(1)}`;
+  // `233…` already, or another country's number typed in full: leave it be.
+  return `https://wa.me/${digits}`;
 }
 
 /** `+233 24 555 0192 · 8am–10pm`, dropping either half when it is missing. */

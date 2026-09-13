@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { BookmarkSimple, CircleNotch, Minus, Plus, X } from "@phosphor-icons/react/ssr";
+import { BookmarkSimple, ChatCircleText, CircleNotch, Minus, Plus, X } from "@phosphor-icons/react/ssr";
 
 import { safeImageSrc } from "@/features/app-home/components/format";
 import { formatGhs } from "@/features/marketing/format";
@@ -17,6 +17,8 @@ export interface BagLineRowProps {
   onQuantity: (quantity: number) => void;
   onWatchInstead: () => void;
   onRemove: () => void;
+  /** Offered once waiting stops being reasonable — see `describePendingWait`. */
+  onDescribeIt: () => void;
 }
 
 /** The mock's empty thumb: a diagonal hatch in the tint palette (line 221). */
@@ -45,6 +47,7 @@ export function BagLineRow({
   onQuantity,
   onWatchInstead,
   onRemove,
+  onDescribeIt,
 }: BagLineRowProps) {
   const src = safeImageSrc(line.product.image);
   const meta = formatLineMeta(line);
@@ -175,6 +178,17 @@ export function BagLineRow({
             <Plus className="size-3" aria-hidden />
           </StepperButton>
         </div>
+
+        {wait && (wait.phase === "stuck" || wait.phase === "failed") && (
+          <button
+            type="button"
+            onClick={onDescribeIt}
+            className="inline-flex items-center gap-[5px] text-[13px] leading-none font-semibold text-tm-coral transition-colors hover:underline"
+          >
+            <ChatCircleText weight="bold" className="size-[14px]" aria-hidden />
+            Describe it instead
+          </button>
+        )}
 
         <button
           type="button"

@@ -5,6 +5,7 @@ import {
   CreditCardIcon,
   FileTextIcon,
   LayoutGridIcon,
+  MessageCircleIcon,
   LifeBuoy,
   Send,
   Settings2Icon,
@@ -47,6 +48,11 @@ const NAV_LIST: Array<{ label?: string; links: LinkItem[] }> = [
         title: "Deliveries",
         url: "/admin/deliveries",
         icon: TruckIcon,
+      },
+      {
+        title: "Assisted",
+        url: "/admin/assisted-requests",
+        icon: MessageCircleIcon,
       },
       {
         title: "Transactions",

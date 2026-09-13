@@ -15,6 +15,7 @@ import type { BagLine, BagView as BagViewData, PendingGroupSummary } from "../ty
 import { BagBoxCard } from "./bag-box-card";
 import { BagDeliverToCard } from "./bag-deliver-to-card";
 import { BagEmpty } from "./bag-empty";
+import { AssistedRequestDialog } from "@/features/assisted/components";
 import { BagPasteLinkBar, BagPayBar } from "./bag-pay-bar";
 import { BagPendingGroupCard } from "./bag-pending-group-card";
 import { BagLineRow } from "./bag-line-row";
@@ -63,6 +64,8 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   const removeLine = useRemoveBagLine();
   const createWatch = useCreateWatch();
   const [busyLineId, setBusyLineId] = useState<string | null>(null);
+  // The line whose "Describe it instead" was pressed; null closes the dialog.
+  const [describing, setDescribing] = useState<BagLine | null>(null);
   // The server's clock, not the browser's: a `new Date()` on each side renders
   // two different countdowns and fails hydration. So the first paint is exactly
   // the server's instant, and only AFTER mount does it advance — by elapsed time
@@ -111,6 +114,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   const unpriced = unboxed.filter((l) => l.pending == null);
 
   const refreshChrome = useCallback(() => router.refresh(), [router]);
+  const onDescribeIt = useCallback((line: BagLine) => setDescribing(line), []);
 
   const onQuantity = useCallback(
     (line: BagLine, quantity: number) => {
@@ -223,6 +227,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
             onQuantity={onQuantity}
             onWatchInstead={onWatchInstead}
             onRemove={onRemove}
+            onDescribeIt={onDescribeIt}
           />
         ))}
 
@@ -236,6 +241,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
             onQuantity={onQuantity}
             onWatchInstead={onWatchInstead}
             onRemove={onRemove}
+            onDescribeIt={onDescribeIt}
           />
         )}
 
@@ -249,6 +255,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
             onQuantity={onQuantity}
             onWatchInstead={onWatchInstead}
             onRemove={onRemove}
+            onDescribeIt={onDescribeIt}
           />
         )}
 
@@ -271,6 +278,18 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
         disabled={blocked}
         onPay={payment.payBag}
         countdown={formatLockCountdown(bag.rate_locked_until, now)}
+      />
+
+      {/*
+        Mounted once for the whole bag rather than per line: only one line can be
+        described at a time, and a dialog per row would put N of them in the DOM.
+      */}
+      <AssistedRequestDialog
+        open={describing != null}
+        onOpenChange={(next) => !next && setDescribing(null)}
+        extractionRequestId={describing?.pending?.request_id ?? null}
+        productUrl={describing?.product.url ?? null}
+        displayUrl={describing?.product.url ?? ""}
       />
     </div>
   );
@@ -300,6 +319,7 @@ function UnboxedGroup({
   onQuantity,
   onWatchInstead,
   onRemove,
+  onDescribeIt,
 }: {
   label: string;
   lines: BagLine[];
@@ -309,6 +329,7 @@ function UnboxedGroup({
   onQuantity: (line: BagLine, quantity: number) => void;
   onWatchInstead: (line: BagLine) => void;
   onRemove: (line: BagLine) => void;
+  onDescribeIt: (line: BagLine) => void;
 }) {
   return (
     <section
@@ -327,6 +348,7 @@ function UnboxedGroup({
             onQuantity={(q) => onQuantity(line, q)}
             onWatchInstead={() => onWatchInstead(line)}
             onRemove={() => onRemove(line)}
+            onDescribeIt={() => onDescribeIt(line)}
           />
         ))}
       </ul>
