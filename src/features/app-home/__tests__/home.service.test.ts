@@ -118,6 +118,8 @@ function seededRegions(): RegionRow[] {
     tag_names: [],
     blurb: null,
     photo_key: null,
+    departure_weekday: null,
+    departure_cutoff_hours: 24,
   };
   return [
     {

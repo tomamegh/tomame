@@ -7,6 +7,10 @@ import { gapFillOverrides } from "@/features/extraction/quote.service";
 import { applyRateLock } from "@/features/quotes/services/quote-lock.service";
 import { pickProductColour } from "@/features/quotes/components/format";
 import { findStore } from "@/features/extraction/stores";
+import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
+import { listRegions, type RegionRow } from "@/db/queries/regions";
+import { insertBox, listBoxesByIds, updateOpenBox, type ConsolidationBoxRow } from "@/db/queries/consolidation-boxes";
+import { nextDeparture, packLines, type BoxConstants, type PackedBox } from "./box-packing";
 import type { ExtractionResult } from "@/features/extraction/types";
 import type { Viewer } from "@/features/quotes/types";
 import type { OriginCountry } from "@/features/orders/types";
@@ -29,7 +33,7 @@ import {
   type CartRow,
 } from "@/db/queries/carts";
 import type { AddToBagInput, UpdateBagLineInput } from "../schema";
-import type { AddToBagResult, BagLine, BagView } from "../types";
+import type { AddToBagResult, BagBox, BagLine, BagView } from "../types";
 
 /**
  * The bag: the viewer's open cart, re-priced from the server-owned extraction
@@ -55,7 +59,8 @@ export async function getBag(viewer: Viewer): Promise<BagView> {
   if (!cart) return emptyBag();
   const rows = await listCartItems(cart.id);
   const lines = await Promise.all(rows.map((row) => priceLine(viewer, row)));
-  return summarize(cart.id, lines);
+  const packed = await packIntoBoxes(rows, lines);
+  return summarize(cart.id, lines, packed);
 }
 
 /** `sum(quantity)` for the nav badge. Adoption runs here too, so the badge is right straight after sign-in. */
@@ -211,6 +216,136 @@ async function updateLineRow(id: string, patch: Parameters<typeof updateCartItem
   return row;
 }
 
+// ── Boxes ───────────────────────────────────────────────────────────────────
+
+export class BagConstantsMissingError extends Error {
+  constructor(keys: string[]) {
+    super(`pricing_constants is missing ${keys.join(", ")} — seed them (migrations 035/037) before the bag can pack boxes`);
+    this.name = "BagConstantsMissingError";
+  }
+}
+
+/** The three admin knobs the packer reads. A missing seed is a deploy bug and surfaces. */
+export async function loadBoxConstants(): Promise<BoxConstants> {
+  const map = await getPricingConstantsMap();
+  const keys = ["box_capacity_lbs", "consolidation_saving_pct", "minimum_chargeable_weight_lbs"] as const;
+  const missing = keys.filter((k) => typeof map[k] !== "number" || !Number.isFinite(map[k]));
+  if (missing.length) throw new BagConstantsMissingError([...missing]);
+  return {
+    box_capacity_lbs: map.box_capacity_lbs!,
+    consolidation_saving_pct: map.consolidation_saving_pct!,
+    minimum_chargeable_weight_lbs: map.minimum_chargeable_weight_lbs!,
+  };
+}
+
+interface Packed {
+  boxes: BagBox[];
+  unboxed_line_ids: string[];
+  consolidation_saving_ghs: number;
+  consolidation_saving_pct: number;
+}
+
+/**
+ * Pack the priced lines into this bag's boxes and persist the assignment.
+ *
+ * Boxes are per bag: a `consolidation_boxes` row is opened for each (region,
+ * index) the plan needs, reused across reads through `cart_items.
+ * consolidation_box_id`, and retargeted to the region's next departure when
+ * its cutoff has passed. Nothing here is money the customer is charged yet —
+ * the saving is recomputed at checkout from the same function.
+ */
+async function packIntoBoxes(rows: CartItemRow[], lines: BagLine[]): Promise<Packed> {
+  const [constants, regions] = await Promise.all([loadBoxConstants(), listRegions()]);
+  const regionByCode = new Map(regions.map((r) => [r.code, r]));
+  const plan = packLines(
+    lines.map((l) => ({ id: l.id, quantity: l.quantity, region_code: l.product.country, weight_lbs: l.product.weight_lbs, pricing: l.pricing })),
+    constants,
+  );
+
+  const existingIds = [...new Set(rows.map((r) => r.consolidation_box_id).filter((v): v is string => !!v))];
+  const existing = await listBoxesByIds(existingIds);
+  const openByRegion = new Map<string, ConsolidationBoxRow[]>();
+  for (const box of existing) {
+    if (box.status !== "open") continue;
+    const list = openByRegion.get(box.region_code) ?? [];
+    list.push(box);
+    openByRegion.set(box.region_code, list);
+  }
+
+  const now = new Date();
+  const boxes: BagBox[] = [];
+  for (const packed of plan.boxes) {
+    const region = regionByCode.get(packed.region_code) ?? null;
+    const row = await materializeBox(packed, region, openByRegion, constants, now);
+    boxes.push(toBagBox(row, packed, region));
+    for (const lineId of packed.line_ids) {
+      const item = rows.find((r) => r.id === lineId);
+      if (item && item.consolidation_box_id !== row.id) await updateCartItem(item.id, { consolidation_box_id: row.id });
+    }
+  }
+  for (const lineId of plan.unboxed_line_ids) {
+    const item = rows.find((r) => r.id === lineId);
+    if (item?.consolidation_box_id) await updateCartItem(item.id, { consolidation_box_id: null });
+  }
+
+  return { boxes, unboxed_line_ids: plan.unboxed_line_ids, consolidation_saving_ghs: plan.consolidation_saving_ghs, consolidation_saving_pct: constants.consolidation_saving_pct };
+}
+
+/** Reuse the bag's n-th open box in the region, or open one; keep its schedule current. */
+async function materializeBox(
+  packed: PackedBox,
+  region: RegionRow | null,
+  openByRegion: Map<string, ConsolidationBoxRow[]>,
+  constants: BoxConstants,
+  now: Date,
+): Promise<ConsolidationBoxRow> {
+  const schedule = region?.departure_weekday != null ? nextDeparture(now, region.departure_weekday, region.departure_cutoff_hours) : null;
+  const label = `Box ${packed.index}`;
+  const pool = openByRegion.get(packed.region_code) ?? [];
+  const reused = pool[packed.index - 1];
+  if (reused) {
+    const patch: Parameters<typeof updateOpenBox>[1] = {};
+    if (reused.label !== label) patch.label = label;
+    if (reused.capacity_lbs !== constants.box_capacity_lbs) patch.capacity_lbs = constants.box_capacity_lbs;
+    // Roll forward once the cutoff has passed; never move a box's departure earlier.
+    if (schedule && (!reused.cutoff_at || new Date(reused.cutoff_at).getTime() <= now.getTime())) {
+      patch.departs_at = schedule.departs_at.toISOString();
+      patch.cutoff_at = schedule.cutoff_at.toISOString();
+    }
+    if (Object.keys(patch).length) await updateOpenBox(reused.id, patch);
+    return { ...reused, ...patch };
+  }
+  const created = await insertBox({
+    region_code: packed.region_code,
+    label,
+    capacity_lbs: constants.box_capacity_lbs,
+    departs_at: schedule ? schedule.departs_at.toISOString() : null,
+    cutoff_at: schedule ? schedule.cutoff_at.toISOString() : null,
+  });
+  pool.push(created);
+  openByRegion.set(packed.region_code, pool);
+  return created;
+}
+
+function toBagBox(row: ConsolidationBoxRow, packed: PackedBox, region: RegionRow | null): BagBox {
+  return {
+    id: row.id,
+    label: row.label ?? `Box ${packed.index}`,
+    region_code: packed.region_code,
+    region_name: region?.name ?? packed.region_code,
+    departs_at: row.departs_at,
+    cutoff_at: row.cutoff_at,
+    capacity_lbs: packed.capacity_lbs,
+    weight_lbs: packed.weight_lbs,
+    fill_pct: packed.fill_pct,
+    headroom_lbs: packed.headroom_lbs,
+    line_ids: packed.line_ids,
+    freight_ghs: packed.freight_ghs,
+    saving_ghs: packed.saving_ghs,
+    has_unweighed_lines: packed.has_unweighed_lines,
+  };
+}
+
 // ── Shaping ─────────────────────────────────────────────────────────────────
 
 type Snapshot = { id: string; productUrl: string; result: ExtractionResult } | null;
@@ -242,20 +377,31 @@ function toLine(row: CartItemRow, snapshot: Snapshot, priced: Priced): BagLine {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-export function summarize(cartId: string | null, lines: BagLine[]): BagView {
+const NO_BOXES: Packed = { boxes: [], unboxed_line_ids: [], consolidation_saving_ghs: 0, consolidation_saving_pct: 0 };
+
+export function summarize(cartId: string | null, lines: BagLine[], packed: Packed = NO_BOXES): BagView {
   const priced = lines.map((l) => l.pricing).filter((p): p is NonNullable<BagLine["pricing"]> => p != null);
   const sum = (pick: (p: NonNullable<BagLine["pricing"]>) => number) => r2(priced.reduce((acc, p) => acc + pick(p), 0));
   const locks = priced.map((p) => p.rate_locked_until).filter((v): v is string => !!v).sort();
+  const grossGhs = sum((p) => p.total_ghs);
+  const totalGhs = r2(grossGhs - packed.consolidation_saving_ghs);
+  // The USD echo follows the same ratio the lines were struck at; no rate is applied here.
+  const totalUsd = grossGhs > 0 ? r2((sum((p) => p.total_usd ?? 0) * totalGhs) / grossGhs) : 0;
   return {
     cart_id: cartId,
     lines,
+    boxes: packed.boxes,
+    unboxed_line_ids: packed.unboxed_line_ids,
+    consolidation_saving_ghs: packed.consolidation_saving_ghs,
+    consolidation_saving_pct: packed.consolidation_saving_pct,
     item_count: lines.reduce((acc, l) => acc + l.quantity, 0),
     subtotal_usd: sum((p) => p.subtotal_usd),
     tax_usd: sum((p) => p.tax_usd),
     fee_usd: sum((p) => p.value_fee_usd),
     freight_ghs: sum((p) => p.flat_rate_ghs),
-    total_ghs: sum((p) => p.total_ghs),
-    total_usd: sum((p) => p.total_usd ?? 0),
+    boxed_weight_lbs: r2(packed.boxes.reduce((acc, b) => acc + b.weight_lbs, 0)),
+    total_ghs: totalGhs,
+    total_usd: totalUsd,
     rate_locked_until: locks[0] ?? null,
     has_unpriced_lines: priced.length < lines.length,
   };
@@ -264,3 +410,4 @@ export function summarize(cartId: string | null, lines: BagLine[]): BagView {
 function emptyBag(): BagView {
   return summarize(null, []);
 }
+

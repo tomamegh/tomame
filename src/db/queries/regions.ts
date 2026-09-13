@@ -18,10 +18,14 @@ export interface RegionRow {
   blurb: string | null;
   photo_key: string | null;
   sort_order: number;
+  /** 0 = Sunday … 6 = Saturday; the weekday a consolidation box flies from this region. Null = no schedule. */
+  departure_weekday: number | null;
+  /** Hours before departure after which a bag rolls to the next box. */
+  departure_cutoff_hours: number;
 }
 
 const COLUMNS =
-  "code, name, status, hub_city, transit_days_min, transit_days_max, store_names, tag_names, blurb, photo_key, sort_order";
+  "code, name, status, hub_city, transit_days_min, transit_days_max, store_names, tag_names, blurb, photo_key, sort_order, departure_weekday, departure_cutoff_hours";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
@@ -71,6 +75,8 @@ function normalizeRow(row: Record<string, unknown>): RegionRow {
     blurb: row.blurb != null ? String(row.blurb) : null,
     photo_key: row.photo_key != null ? String(row.photo_key) : null,
     sort_order: Number(row.sort_order),
+    departure_weekday: row.departure_weekday != null ? Number(row.departure_weekday) : null,
+    departure_cutoff_hours: row.departure_cutoff_hours != null ? Number(row.departure_cutoff_hours) : 24,
   };
 }
 

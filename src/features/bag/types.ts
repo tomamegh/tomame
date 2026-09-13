@@ -26,16 +26,47 @@ export interface BagLine {
   gap_origin_country: OriginCountry | null;
 }
 
+/** One consolidation box in the bag, as the customer sees it. All derived server-side. */
+export interface BagBox {
+  id: string;
+  /** "Box 1" — from `consolidation_boxes.label`. */
+  label: string;
+  region_code: string;
+  region_name: string;
+  /** ISO; when the box flies. Null when the region has no departure schedule. */
+  departs_at: string | null;
+  cutoff_at: string | null;
+  capacity_lbs: number;
+  weight_lbs: number;
+  fill_pct: number;
+  headroom_lbs: number;
+  line_ids: string[];
+  /** Freight (ex handling) the box carries, GHS. */
+  freight_ghs: number;
+  saving_ghs: number;
+  has_unweighed_lines: boolean;
+}
+
 export interface BagView {
   cart_id: string | null;
   lines: BagLine[];
+  /** Lines packed into boxes by region, in bag order. */
+  boxes: BagBox[];
+  /** Lines that could not be boxed (no price or no region). */
+  unboxed_line_ids: string[];
+  /** Σ box savings, already subtracted from `total_ghs`. */
+  consolidation_saving_ghs: number;
+  /** `consolidation_saving_pct`, for the label. */
+  consolidation_saving_pct: number;
   /** `sum(quantity)` — the nav badge. */
   item_count: number;
-  /** Money roll-ups over the priced lines. Delivery and the box saving arrive in F2/F3. */
+  /** Money roll-ups over the priced lines. `total_ghs` is net of the box saving; delivery arrives in F3. */
   subtotal_usd: number;
   tax_usd: number;
   fee_usd: number;
   freight_ghs: number;
+  /** Σ chargeable weight over the boxes, for "1 box, 5.4 lb". */
+  boxed_weight_lbs: number;
   total_ghs: number;
   total_usd: number;
   /** Earliest lock expiry across the lines, ISO; null when nothing is locked. */

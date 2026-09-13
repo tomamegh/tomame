@@ -69,6 +69,8 @@ function region(
     blurb: null,
     photo_key: null,
     sort_order: 0,
+    departure_weekday: null,
+    departure_cutoff_hours: 24,
     ...overrides,
   };
 }

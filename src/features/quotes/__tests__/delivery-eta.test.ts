@@ -16,7 +16,7 @@ function region(overrides: Partial<RegionRow> = {}): RegionRow {
   return {
     code: "USA", name: "United States", status: "live", hub_city: "Newark",
     transit_days_min: 14, transit_days_max: 18, store_names: [], tag_names: [],
-    blurb: null, photo_key: null, sort_order: 1, ...overrides,
+    blurb: null, photo_key: null, sort_order: 1, departure_weekday: 5, departure_cutoff_hours: 24, ...overrides,
   };
 }
 
