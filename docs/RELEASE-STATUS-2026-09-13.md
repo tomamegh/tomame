@@ -262,6 +262,47 @@ Bugs the rebuild turned up, all fixed:
 - Hosted dev is sparse (5 orders, 0 assisted requests, 0 contact messages, 0
   price watches), so several admin screens will honestly show empty states.
 
+## 0e. 2026-09-13 (night) — the phone pass, a.co links, and a job-state bug
+
+Deployed to dev at `c2a21ab` (https://dev.tomame.ca).
+
+**Kelvin's phone screenshots**, each traced to a cause:
+
+- **Three screens ran off the right edge** (account, marketing hero, Journeys) —
+  one bug: an implicit CSS grid column is `minmax(auto,1fr)` and its floor is the
+  widest item's min-content; a `truncate`d title or the account rail's pill row is
+  wider than a phone, so the column grew to 424/623/859px. Fix everywhere:
+  `grid-cols-[minmax(0,1fr)]` below `lg` + `min-w-0` on the item; `<main>` gets
+  `overflow-x-clip` as a backstop. **Any new grid holding a `truncate` needs the
+  zero floor.**
+- **Bottom tab bar floating mid-screen** on iOS with blank page under it — it was
+  `sticky`; now `fixed` like `BagPayBar`, with the shell reserving its height via
+  `tm-clear-tab-bar` (a named utility — `pb-[calc(96px_+_env(...))]` is **dropped
+  by tailwind-merge inside `cn()`**, and `calc(96px+env(...))` is invalid CSS).
+- **Back from the review screen asked for login** — the back arrow went to `/app`,
+  which the proxy gates. `quoteBackHref`: visitor → `/app/orders/new`, customer → `/app`.
+- **Nav logo overlapped the bag badge** at 390px — mark only below `md`.
+- "Tell the buyer" → **"Ask us"**; a real 3-row textarea.
+- **"Add another"** after adding to bag (review action bar, desktop receipt card,
+  and an "Add another item" row in the bag).
+
+**Amazon short links (`a.co`) never worked.** Amazon's shortener answers HEAD with
+404 and no `Location`; GET gets the 301. `resolveShortUrl` now uses GET (body
+cancelled; SSRF allowlist unchanged). The regression test found a second bug:
+`social_share`, `rsd`, `edk` were not stripped, so two people sharing one product
+hashed to two cache keys.
+
+**A notification failure could undo a successful extraction.** `notifyPasteFinished`
+was called inside `runExtractionJob`'s `try` after the row was written `ready`; its
+schema-missing rethrow landed in the job's `catch`, which requeued the finished row
+(second vendor charge, "could not read that page" after three rounds). Notification
+now happens after the try/catch and can never change the job's outcome. Test pins it.
+
+Review pass (`/code-review` over the session): the above two, plus three left open —
+`policies` API routes write the table from the handler with **no audit**;
+`orders/[id]/review` uses an inline role check instead of `canAccessAdmin`;
+`listAllNotifications` is dead *and* broken (selects `profiles.email`).
+
 ## 1. What shipped on `v2`
 
 | Slice | Commit | What |
