@@ -47,33 +47,48 @@ export default async function AuthLayout({
   return (
     <main className="relative flex min-h-screen flex-col overflow-hidden lg:flex-row">
       {/* ── Branded panel (desktop) ─────────────────────────────────────── */}
-      <div className="relative hidden overflow-hidden bg-[image:var(--tm-gradient)] lg:flex lg:w-[45%]">
-        {/* Soft depth, not decoration for its own sake — the artwork sits on it. */}
-        <div className="pointer-events-none absolute top-[-10%] left-[-10%] h-[60%] w-[60%] rounded-full bg-white/10" />
-        <div className="pointer-events-none absolute right-[-10%] bottom-[-15%] h-[50%] w-[50%] rounded-full bg-white/10" />
+      {/*
+        The LIGHT treatment, matching the marketing hero — not the coral-to-amber
+        gradient this panel used to be. The logo's lettering is orange, so on the
+        gradient it all but disappeared (Kelvin: "the logo does not blend well
+        with its background"). On the same off-white the storefront uses, with
+        the hero's own radial tints for depth, the mark reads exactly as it does
+        everywhere else, and the headline carries the gradient instead.
+      */}
+      <div className="relative hidden overflow-hidden bg-tm-paper lg:flex lg:w-[45%]">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-[220px] -right-[220px] size-[760px] rounded-full bg-[radial-gradient(circle,var(--tm-tint)_0%,transparent_65%)]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-[260px] -left-[160px] size-[520px] rounded-full bg-[radial-gradient(circle,var(--tm-amber-bg)_0%,transparent_65%)]"
+        />
 
         <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-12">
           <Link href="/" aria-label="Tomame — home" className="w-fit rounded-sm">
-            <Logo variant="wordmark" height={34} decorative priority />
+            <Logo variant="horizontal" height={26} decorative priority />
           </Link>
 
           <div className="flex flex-col gap-7">
-            <h1 className="font-display text-[34px] leading-[1.05] font-bold tracking-[-0.02em] text-white xl:text-[42px]">
+            <h1 className="font-display text-[38px] leading-[1.0] font-bold tracking-[-0.02em] text-tm-ink xl:text-[46px]">
               Shop the world.
               <br />
-              Pay in cedis.
+              <span className="bg-[image:var(--tm-gradient)] bg-clip-text text-transparent">
+                Pay in cedis.
+              </span>
             </h1>
-            <p className="max-w-sm text-base leading-[1.5] text-white/80">
+            <p className="max-w-sm text-base leading-[1.6] text-tm-text-2">
               {DEFAULT_MARKETING_TAGLINE}
             </p>
 
             <ul className="flex flex-col gap-3">
               {PROMISES.map((promise) => (
                 <li key={promise} className="flex items-center gap-3">
-                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-white/20">
-                    <Check weight="bold" className="size-3 text-white" aria-hidden />
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-tm-green-bg">
+                    <Check weight="bold" className="size-3 text-tm-green" aria-hidden />
                   </span>
-                  <span className="text-sm leading-[1.4] text-white/85">{promise}</span>
+                  <span className="text-sm leading-[1.4] text-tm-text-2">{promise}</span>
                 </li>
               ))}
             </ul>
@@ -85,20 +100,23 @@ export default async function AuthLayout({
             it disappears rather than inventing one if the row cannot be read.
           */}
           {channels && (
-            <p className="text-sm leading-[1.5] text-white/70">
-              Pay with <span className="font-semibold text-white">{channels}</span>
+            <p className="text-sm leading-[1.5] text-tm-text-3">
+              Pay with <span className="font-semibold text-tm-ink">{channels}</span>
             </p>
           )}
         </div>
       </div>
 
       {/* ── Branded header (mobile) ─────────────────────────────────────── */}
-      <div className="flex flex-col items-center gap-2 bg-[image:var(--tm-gradient)] px-6 py-6 text-center lg:hidden">
+      <div className="flex flex-col items-center gap-2 border-b border-tm-hairline bg-tm-paper px-6 py-6 text-center lg:hidden">
         <Link href="/" aria-label="Tomame — home" className="rounded-sm">
-          <Logo variant="wordmark" height={26} decorative priority />
+          <Logo variant="horizontal" height={22} decorative priority />
         </Link>
-        <p className="text-sm leading-[1.4] text-white/80">
-          Shop the world. Pay in cedis.
+        <p className="text-sm leading-[1.4] text-tm-text-2">
+          Shop the world.{" "}
+          <span className="bg-[image:var(--tm-gradient)] bg-clip-text font-semibold text-transparent">
+            Pay in cedis.
+          </span>
         </p>
       </div>
 

@@ -1,4 +1,14 @@
 @import "tailwindcss";
+/*
+ * Tailwind v4 scans EVERY non-gitignored file in the repo for class candidates,
+ * Markdown included. A release note that quoted an arbitrary class with an
+ * ellipsis in it (`pb-[calc(…)]`-shaped) compiled into a rule the dev server
+ * could not parse and took every page down with a 500 on 2026-09-13. The docs
+ * and design mocks are prose about classes, never a source of them.
+ */
+@source not "../../docs";
+@source not "../../design";
+@source not "../../specs";
 /* @import "tw-animate-css"; */
 @import "shadcn/tailwind.css";
 @plugin "@tailwindcss/typography";
@@ -726,7 +736,7 @@
 /*
  * Room for the fixed bottom tab bar on a signed-in phone: the bar's height plus
  * the home-indicator inset it grows by. A named utility rather than
- * `pb-[calc(96px_+_env(...))]` because tailwind-merge (`cn()`) did not
+ * an arbitrary padding class, because tailwind-merge (`cn()`) did not
  * recognise that arbitrary value and silently dropped it — the padding measured
  * 0px and the last card sat under the bar. From `lg` the bar is gone and the
  * ordinary bottom rhythm returns.
@@ -735,6 +745,20 @@
   padding-bottom: calc(96px + env(safe-area-inset-bottom));
   @media (min-width: 1024px) {
     padding-bottom: 4rem;
+  }
+}
+/*
+ * A sticky control that must sit ABOVE the fixed tab bar on a phone — a form's
+ * Save row, for one. `bottom` is the bar's height plus the home-indicator inset,
+ * the same sum tm-clear-tab-bar reserves; from `lg` the bar is gone and the
+ * element is left in normal flow.
+ */
+@utility tm-above-tab-bar {
+  position: sticky;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  @media (min-width: 1024px) {
+    position: static;
+    bottom: auto;
   }
 }
 

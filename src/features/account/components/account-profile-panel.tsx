@@ -94,7 +94,12 @@ export function AccountProfilePanel({
   return (
     <AccountPanel title="Profile" blurb={blurb}>
       <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
-        <div className="grid gap-4 sm:grid-cols-2">
+        {/*
+          Two columns at EVERY width. A 390px phone fits two 160px name fields
+          comfortably, and stacking them was one of the reasons this form ran
+          to two screens before it reached its Save button.
+        */}
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <AccountField id="account-first-name" label="First name" error={errors.first_name}>
             <Input
               id="account-first-name"
@@ -118,7 +123,7 @@ export function AccountProfilePanel({
         <AccountField
           id="account-phone"
           label="Phone"
-          hint="We use this to reach you about an order, and it is the number WhatsApp updates go to."
+          hint="For order updates — WhatsApp messages go here too."
           error={errors.phone}
         >
           <Input
@@ -138,7 +143,7 @@ export function AccountProfilePanel({
             id="account-bio"
             value={form.bio}
             onChange={(e) => set("bio", e.target.value)}
-            rows={3}
+            rows={2}
             maxLength={500}
             aria-invalid={!!errors.bio}
           />
@@ -153,24 +158,38 @@ export function AccountProfilePanel({
             </span>
           </div>
           <p className="text-xs leading-[1.45] font-medium text-tm-text-3">
-            This is the address you sign in with. Changing it needs a confirmation
-            on both the old and the new address, so it is not edited here —
-            message us and we will run it with you.
+            You sign in with this address. To change it, message us — it needs a
+            confirmation on both the old and the new one.
           </p>
         </div>
 
-        <button
-          type="submit"
-          disabled={isPending}
-          aria-busy={isPending}
+        {/*
+          On a phone the Save row STICKS just above the tab bar while the form is
+          in view, so the button is never two screens below the field being
+          edited — Kelvin: "the save changes and some important info are below
+          and I have to force scroll past the slider". The negative margins let
+          the bar span the card's full width over its padding; from `lg` it is
+          an ordinary button at the end of the form.
+        */}
+        <div
           className={cn(
-            "tm-cta-gradient mt-1 flex h-[46px] items-center justify-center self-start rounded-xl px-7",
-            "text-sm leading-none font-bold shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)]",
-            "transition-opacity disabled:opacity-60",
+            "tm-above-tab-bar z-10 -mx-[22px] mt-1 border-t border-tm-hairline bg-card/95 px-[22px] py-3 backdrop-blur-[8px]",
+            "sm:-mx-6 sm:px-6 lg:m-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none",
           )}
         >
-          {isPending ? "Saving…" : "Save changes"}
-        </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            aria-busy={isPending}
+            className={cn(
+              "tm-cta-gradient flex h-[46px] w-full items-center justify-center rounded-xl px-7 lg:w-auto",
+              "text-sm leading-none font-bold shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)]",
+              "transition-opacity disabled:opacity-60",
+            )}
+          >
+            {isPending ? "Saving…" : "Save changes"}
+          </button>
+        </div>
       </form>
     </AccountPanel>
   );

@@ -277,14 +277,27 @@ Deployed to dev at `c2a21ab` (https://dev.tomame.ca).
   zero floor.**
 - **Bottom tab bar floating mid-screen** on iOS with blank page under it — it was
   `sticky`; now `fixed` like `BagPayBar`, with the shell reserving its height via
-  `tm-clear-tab-bar` (a named utility — `pb-[calc(96px_+_env(...))]` is **dropped
-  by tailwind-merge inside `cn()`**, and `calc(96px+env(...))` is invalid CSS).
+  `tm-clear-tab-bar` (a named utility — the arbitrary padding class with a `calc()`
+  in it is **dropped by tailwind-merge inside `cn()`**, and `calc()` without spaces
+  round its operator is invalid CSS).
 - **Back from the review screen asked for login** — the back arrow went to `/app`,
   which the proxy gates. `quoteBackHref`: visitor → `/app/orders/new`, customer → `/app`.
 - **Nav logo overlapped the bag badge** at 390px — mark only below `md`.
 - "Tell the buyer" → **"Ask us"**; a real 3-row textarea.
 - **"Add another"** after adding to bag (review action bar, desktop receipt card,
   and an "Add another item" row in the bag).
+
+- **Sign-in panel**: the orange wordmark sat on the coral-to-amber gradient and
+  vanished into it. The panel is now the marketing hero's light treatment (paper
+  ground, radial tints, gradient headline) so the logo reads as it does everywhere.
+- **Profile form on a phone**: Save was two screens down. Names are side by side
+  at every width, hints are shorter, and the Save row is `tm-above-tab-bar` —
+  sticky just above the fixed tab bar while the form is in view.
+- **Tailwind v4 scans every non-gitignored file for class candidates, Markdown
+  included.** A release-note line quoting an arbitrary class with `…` in it
+  compiled to invalid CSS and 500'd every page on the dev server. `globals.css`
+  now `@source not`s `docs/`, `design/` and `specs/`. Never write a bracketed
+  class name in prose inside `src/`.
 
 **Amazon short links (`a.co`) never worked.** Amazon's shortener answers HEAD with
 404 and no `Location`; GET gets the 301. `resolveShortUrl` now uses GET (body

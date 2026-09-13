@@ -46,11 +46,14 @@ interface AppBottomTabsProps {
  * clears the fixed bar: the bar's own height (≈84px) plus the home-indicator
  * inset it grows by on a real device.
  */
-// A named utility in globals.css, not an arbitrary `pb-[calc(...)]`: two
-// spellings of that were tried and both measured 0px in the browser — one was
-// invalid CSS (`calc(96px+env(...))` needs spaces), and the valid one was
-// dropped by tailwind-merge inside `cn()`. The utility also carries its own
-// `lg` reset, so the caller does not pair it with anything.
+// A named utility in globals.css, not an arbitrary padding class. Two arbitrary
+// spellings were tried and both measured 0px in the browser: one was invalid
+// CSS (calc needs spaces around its operator), and the valid one was dropped by
+// tailwind-merge inside cn(). Do not write the arbitrary form even in a
+// comment — Tailwind scans comments for class candidates, and a bracketed
+// class with an ellipsis in it compiled into a rule the dev server could not
+// parse, taking every page down with a 500. The utility carries its own `lg`
+// reset, so the caller pairs it with nothing.
 export const APP_BOTTOM_TABS_PADDING = "tm-clear-tab-bar";
 export function AppBottomTabs({ items, className }: AppBottomTabsProps) {
   const pathname = usePathname();
