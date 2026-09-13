@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { AppNavLinks } from "./app-nav-links";
 import { APP_NAV_ITEMS, avatarInitial, formatRatePill } from "./links";
+import { BagButton } from "./bag-button";
 import { NotificationBell } from "./notification-bell";
 import { FOCUS_RING } from "./styles";
 import type { AppChromeData, AppNavItem } from "./types";
@@ -24,10 +25,10 @@ export interface AppNavProps extends AppChromeData {
  * count — this component never touches Supabase. Only the active-tab highlight
  * and the notification panel are client-side.
  *
- * **Two controls from the mock are deliberately absent.** The bag button with
- * its count badge needs a cart, which is Phase 4 — rendering a badge now would
- * mean inventing a number. The bookmark button is dropped because it goes to
- * the same place as the visible "Price watch" tab.
+ * **One control from the mock is deliberately absent.** The bookmark button is
+ * dropped because it goes to the same place as the visible "Price watch" tab.
+ * The bag tote renders for everyone — the bag is public like the quote flow —
+ * with the real `cart_items` sum from migration 048.
  */
 export function AppNav({
   items = APP_NAV_ITEMS,
@@ -35,6 +36,7 @@ export function AppNav({
   firstName,
   unreadCount,
   rate,
+  bagCount,
   className,
 }: AppNavProps) {
   const ratePill = rate
@@ -118,6 +120,8 @@ export function AppNav({
             and no avatar initial, so they get a way in instead of a bell that
             can only ever be empty.
           */}
+          <BagButton count={bagCount} />
+
           {isAuthenticated ? (
             <>
               <NotificationBell initialUnreadCount={unreadCount} />

@@ -65,4 +65,6 @@ export interface AppChromeData {
   /** `count(*) from notifications where user_id = me and read_at is null`. */
   unreadCount: number;
   rate: AppNavRate | null;
+  /** `sum(cart_items.quantity)` over the viewer's open bag — signed in or via the quote-session cookie. */
+  bagCount: number;
 }

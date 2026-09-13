@@ -331,7 +331,7 @@ export interface ContinueGateInput {
 }
 
 /**
- * Whether "Continue to payment" may be pressed.
+ * Whether "Add to bag" may be pressed.
  *
  * Three separate reasons to block, which is why this is not a one-liner at the
  * call site:

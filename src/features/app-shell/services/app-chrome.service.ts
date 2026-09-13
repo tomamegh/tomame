@@ -5,6 +5,9 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { countUnreadNotifications } from "@/features/notifications/services/notifications.service";
 import { getFxRateQuote } from "@/features/pricing/services/fx-rate.service";
+import { getBagCount } from "@/features/bag/services/bag.service";
+import { readQuoteSessionFromCookies } from "@/lib/quote-session";
+import { cookies } from "next/headers";
 import { logger } from "@/lib/logger";
 
 /**
@@ -13,7 +16,7 @@ import { logger } from "@/lib/logger";
  * The nav is presentational by design — the layout calls this and passes the
  * result down, so no chrome component ever touches Supabase.
  *
- * The three reads are independent and run together. Each degrades on its own:
+ * The reads are independent and run together. Each degrades on its own:
  * a missing FX rate hides the pill, a failed notification count shows no dot.
  * Neither is worth failing a page render over. A **missing table** is different
  * and rethrows, so a deploy that runs ahead of its migrations produces a loud
@@ -21,8 +24,10 @@ import { logger } from "@/lib/logger";
  */
 export async function getAppChrome(): Promise<AppChromeData> {
   const user = await getAuthenticatedUser();
+  const cookieStore = await cookies();
+  const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
 
-  const [unreadCount, rate] = await Promise.all([
+  const [unreadCount, rate, bagCount] = await Promise.all([
     // Signed-out visitors reach this layout on the public quote routes
     // (`/app/orders/new`, `/app/orders/review`), where there is no one to have
     // notifications. Skip the query rather than letting it 401.
@@ -54,6 +59,14 @@ export async function getAppChrome(): Promise<AppChromeData> {
         });
         return null;
       }),
+    // The bag is public like the quote flow: a signed-out visitor's count comes
+    // from the quote-session cookie. A failed count shows an empty tote, never
+    // an invented number.
+    getBagCount(viewer).catch((error: unknown) => {
+      rethrowIfSchemaMissing(error);
+      logger.warn("App chrome: bag count unavailable", { error: String(error) });
+      return 0;
+    }),
   ]);
 
   return {
@@ -61,6 +74,7 @@ export async function getAppChrome(): Promise<AppChromeData> {
     firstName: user?.profile?.first_name ?? null,
     unreadCount,
     rate,
+    bagCount,
   };
 }
 

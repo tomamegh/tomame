@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import {
+  ArrowRight,
   BookmarkSimple,
   LockSimple,
   Minus,
@@ -37,6 +39,8 @@ export interface QuoteReceiptCardProps {
   /** True while a quantity change is being re-priced by the server. */
   repricing: boolean;
   onContinue: () => void;
+  /** Bag count once THIS screen added the line; the CTA then hands off to the bag. */
+  addedCount: number | null;
   /** False when a gap is unfilled or the last re-price failed. */
   canContinue: boolean;
   continuePending: boolean;
@@ -66,6 +70,7 @@ export function QuoteReceiptCard({
   onQuantityChange,
   repricing,
   onContinue,
+  addedCount,
   canContinue,
   continuePending,
   watching,
@@ -226,22 +231,37 @@ export function QuoteReceiptCard({
         {/*
           Desktop only. Below `lg` these two live in `QuoteActionBar`, pinned to
           the bottom edge as the 390px artboard has them — rendering both would
-          give the screen two "Continue to payment" buttons.
+          give the screen two "Add to bag" buttons.
         */}
-        <button
-          type="button"
-          onClick={onContinue}
-          disabled={!canContinue || continuePending || repricing}
-          className={cn(
-            "tm-cta-gradient hidden h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold lg:flex",
-            "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
-            "hover:brightness-105 focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-            "disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none",
-          )}
-        >
-          <Tote weight="bold" className="size-[18px]" aria-hidden />
-          {continuePending ? "Creating your order…" : "Continue to payment"}
-        </button>
+        {addedCount != null ? (
+          <Link
+            href="/app/bag"
+            className={cn(
+              "tm-cta-gradient hidden h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold lg:flex",
+              "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
+              "hover:brightness-105 focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+            )}
+          >
+            <Tote weight="bold" className="size-[18px]" aria-hidden />
+            View bag · {addedCount}
+            <ArrowRight weight="bold" className="size-4" aria-hidden />
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={onContinue}
+            disabled={!canContinue || continuePending || repricing}
+            className={cn(
+              "tm-cta-gradient hidden h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold lg:flex",
+              "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
+              "hover:brightness-105 focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+              "disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none",
+            )}
+          >
+            <Tote weight="bold" className="size-[18px]" aria-hidden />
+            {continuePending ? "Adding to your bag…" : "Add to bag"}
+          </button>
+        )}
 
         <button
           type="button"

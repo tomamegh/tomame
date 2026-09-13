@@ -53,7 +53,7 @@ export async function updateSession(request: NextRequest) {
   const adminRoutes = ["/admin"];        // requires admin role
   // The quote flow (paste link → preview → review) is open to visitors; the
   // order submit API and everything after it still require a session.
-  const publicRoutes = ["/app/orders/new", "/app/orders/review"];
+  const publicRoutes = ["/app/orders/new", "/app/orders/review", "/app/bag"];
 
   const isPublic = publicRoutes.some((p) => pathname.startsWith(p));
   const isProtected = !isPublic && authRoutes.some((p) => pathname.startsWith(p));

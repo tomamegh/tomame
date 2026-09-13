@@ -202,3 +202,10 @@ export function notificationsLabel(unreadCount: number): string {
   const n = Math.floor(unreadCount);
   return `Notifications, ${n} unread`;
 }
+
+/** Accessible name for the nav tote: "Bag" or "Bag, 3 items". */
+export function bagLabel(count: number): string {
+  if (!Number.isFinite(count) || count <= 0) return "Bag";
+  const n = Math.floor(count);
+  return `Bag, ${n} item${n === 1 ? "" : "s"}`;
+}

@@ -9,7 +9,7 @@ import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { Quote } from "@/features/extraction/types";
 import type { OriginCountry } from "@/features/orders/types";
 import { storeForUrl } from "@/features/extraction/stores";
-import { useCreateOrder } from "@/features/orders/hooks/useCreateOrder";
+import { useAddToBag } from "@/features/bag/hooks/useAddToBag";
 import { apiFetch, ApiFetchError } from "@/lib/auth/api-helpers";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
@@ -30,8 +30,6 @@ import { QuoteSkeleton } from "./quote-skeleton";
 const QUANTITY_MIN = 1;
 const QUANTITY_MAX = 100;
 const INSTRUCTIONS_MAX = 2000;
-/** `createOrderSchema` rejects a longer product_name outright. */
-const PRODUCT_NAME_MAX = 500;
 
 /** What `GET /api/extractions/:id` adds to the `Quote` it returns. */
 interface QuoteResponse extends Quote {
@@ -89,7 +87,10 @@ export function QuoteView({
   const [gapPriceUsd, setGapPriceUsd] = useState("");
   const [gapCountry, setGapCountry] = useState<OriginCountry | null>(null);
 
-  const { mutate: createOrder, isPending: creatingOrder } = useCreateOrder();
+  const { mutate: addToBag, isPending: addingToBag } = useAddToBag();
+  // Count in the bag after this screen added the line, so the CTA can hand off
+  // to the bag instead of adding the same product a second time by accident.
+  const [addedCount, setAddedCount] = useState<number | null>(null);
 
   // Monotonic guard: a slow quantity=1 response must never overwrite a fast
   // quantity=3 one. `AbortController` alone does not cover a response that is
@@ -196,60 +197,39 @@ export function QuoteView({
       );
   }, []);
 
-  const continueToPayment = useCallback(() => {
-    if (!quote || !quote.pricing) return;
+  const addLineToBag = useCallback(() => {
+    if (!quote || !quote.extraction_cache_id) return;
 
     // Identity and intent only. Price, currency, weight, region and the whole
-    // breakdown are decided server-side from the stored snapshot.
-    createOrder(
+    // breakdown are decided server-side from the stored snapshot; the two
+    // gap-fillers are honoured only where the extraction left that gap.
+    addToBag(
       {
-        product_url: quote.product_url,
-        // Truncated, not rejected: a keyword-stuffed marketplace title over the
-        // schema's 500 is otherwise a 400 the customer has no field to fix.
-        product_name: (quote.product.title ?? "Product from link").slice(
-          0,
-          PRODUCT_NAME_MAX,
-        ),
-        ...(isHttpUrl(quote.product.image)
-          ? { product_image_url: quote.product.image }
-          : {}),
+        extraction_cache_id: quote.extraction_cache_id,
         quantity,
         ...(instructions.trim() ? { special_instructions: instructions.trim() } : {}),
-        ...(quote.extraction_cache_id
-          ? { extraction_cache_id: quote.extraction_cache_id }
-          : {}),
-        // Only ever sent when the extraction left the gap. The server honours
-        // the price solely when its own snapshot has none, and flags any order
-        // that leans on it for review.
-        ...(priceMissing && gapPriceValue != null
-          ? { estimated_price_usd: gapPriceValue }
-          : {}),
+        ...(priceMissing && gapPriceValue != null ? { estimated_price_usd: gapPriceValue } : {}),
         ...(countryMissing && gapCountry ? { origin_country: gapCountry } : {}),
       },
       {
-        onSuccess: (order) => {
-          // A line the engine could not price outright goes to the order page
-          // for our review; anything fully priced goes straight to Paystack.
-          router.push(
-            order.needs_review
-              ? `/app/orders/${order.id}`
-              : `/app/orders/${order.id}/checkout`,
-          );
+        onSuccess: (result) => {
+          setAddedCount(result.item_count);
+          toast.success({
+            title: result.created ? "Added to your bag" : "Quantity updated in your bag",
+            description: "Items bought the same week travel together in one box.",
+          });
+          // The nav badge is server-rendered; refresh the layout so it reads the new count.
+          router.refresh();
         },
         onError: (error) => {
-          // Quoting is public; placing the order needs an account.
-          if (error instanceof ApiFetchError && error.status === 401) {
-            signIn();
-            return;
-          }
           toast.error({
-            title: "Could not create your order",
+            title: "Could not add to your bag",
             description: error.message,
           });
         },
       },
     );
-  }, [createOrder, instructions, quantity, quote, router, signIn]);
+  }, [addToBag, instructions, quantity, quote, router]);
 
   if (loadError && !quote) return <QuoteLoadError message={loadError} />;
   if (!quote || !receivedAt) return <QuoteSkeleton />;
@@ -364,9 +344,10 @@ export function QuoteView({
             maxQuantity={QUANTITY_MAX}
             onQuantityChange={setQuantity}
             repricing={repricing}
-            onContinue={continueToPayment}
-            canContinue={canContinue}
-            continuePending={creatingOrder}
+            onContinue={addLineToBag}
+            canContinue={canContinue && !!quote.extraction_cache_id}
+            continuePending={addingToBag}
+            addedCount={addedCount}
             watching={watching}
             watchPending={watchPending}
             onToggleWatch={toggleWatch}
@@ -399,10 +380,11 @@ export function QuoteView({
       </div>
 
       <QuoteActionBar
-        canContinue={canContinue}
-        continuePending={creatingOrder}
+        canContinue={canContinue && !!quote.extraction_cache_id}
+        continuePending={addingToBag}
+        addedCount={addedCount}
         repricing={repricing}
-        onContinue={continueToPayment}
+        onContinue={addLineToBag}
         watching={watching}
         watchPending={watchPending}
         onToggleWatch={toggleWatch}
@@ -443,15 +425,6 @@ function QuoteLoadError({ message }: { message: string }) {
   );
 }
 
-function isHttpUrl(value: string | null): value is string {
-  if (!value) return false;
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 /**
  * The gap-filler price as a number, or null when it is not a usable one.

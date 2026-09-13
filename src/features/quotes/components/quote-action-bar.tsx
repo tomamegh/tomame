@@ -1,6 +1,7 @@
 "use client";
 
-import { BookmarkSimple, Tote } from "@phosphor-icons/react/ssr";
+import Link from "next/link";
+import { ArrowRight, BookmarkSimple, Tote } from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/utils";
 
@@ -11,6 +12,8 @@ export interface QuoteActionBarProps {
   /** True while a quantity change is being re-priced by the server. */
   repricing: boolean;
   onContinue: () => void;
+  /** Bag count once THIS screen added the line; the CTA then hands off to the bag. */
+  addedCount: number | null;
   watching: boolean;
   watchPending: boolean;
   onToggleWatch: () => void;
@@ -25,15 +28,16 @@ export interface QuoteActionBarProps {
  * how tall the page's own scroll container ends up, and the spacer the caller
  * reserves keeps the content clear of it.
  *
- * The CTA says "Continue to payment", not the artboard's "Add to bag" — there
- * is no bag until Phase 4, and a button that names one would be inventing a
- * flow. No shadow at this width, per the artboard.
+ * The CTA is the artboard's "Add to bag" (`ph-bold ph-tote`, line 411). Once
+ * the line is in the bag it becomes a link to the bag, so a second tap cannot
+ * add the product twice. No shadow at this width, per the artboard.
  */
 export function QuoteActionBar({
   canContinue,
   continuePending,
   repricing,
   onContinue,
+  addedCount,
   watching,
   watchPending,
   onToggleWatch,
@@ -70,20 +74,35 @@ export function QuoteActionBar({
           />
         </button>
 
-        <button
-          type="button"
-          onClick={onContinue}
-          disabled={!canContinue || continuePending || repricing}
-          className={cn(
-            "tm-cta-gradient flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
-            "transition-[filter,opacity] hover:brightness-105",
-            "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-            "disabled:cursor-not-allowed disabled:opacity-60",
-          )}
-        >
-          <Tote weight="bold" className="size-[18px]" aria-hidden />
-          {continuePending ? "Creating your order…" : "Continue to payment"}
-        </button>
+        {addedCount != null ? (
+          <Link
+            href="/app/bag"
+            className={cn(
+              "tm-cta-gradient flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
+              "transition-[filter,opacity] hover:brightness-105",
+              "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+            )}
+          >
+            <Tote weight="bold" className="size-[18px]" aria-hidden />
+            View bag · {addedCount}
+            <ArrowRight weight="bold" className="size-4" aria-hidden />
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={onContinue}
+            disabled={!canContinue || continuePending || repricing}
+            className={cn(
+              "tm-cta-gradient flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
+              "transition-[filter,opacity] hover:brightness-105",
+              "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+              "disabled:cursor-not-allowed disabled:opacity-60",
+            )}
+          >
+            <Tote weight="bold" className="size-[18px]" aria-hidden />
+            {continuePending ? "Adding to your bag…" : "Add to bag"}
+          </button>
+        )}
       </div>
     </div>
   );
