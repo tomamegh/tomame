@@ -28,6 +28,7 @@ import {
   requeueExtractionRequest,
 } from "@/db/queries/extraction-requests";
 import { getCachedExtractionByHash } from "@/db/queries/extraction-cache";
+import { notifyPasteFinished } from "../paste-notify.service";
 import { extractPrepared } from "../../extraction.service";
 import {
   MAX_EXTRACTION_ATTEMPTS,
@@ -186,5 +187,30 @@ describe("sweepExtractions", () => {
     vi.mocked(claimExtractionRequest).mockResolvedValue(null);
 
     expect(await sweepExtractions()).toMatchObject({ claimed: 0, ran: 0, failed: 0 });
+  });
+});
+
+describe("a notification must not be able to undo the job", () => {
+  it("keeps a successful extraction settled when notifying throws", async () => {
+    // `notifyPasteFinished` rethrows isSchemaMissingError on purpose, so a
+    // deploy ahead of its migrations is loud. That throw used to land in the
+    // job's own catch, which logged "extraction job failed" about an extraction
+    // that had just SUCCEEDED and then requeued the finished row — a second
+    // paid vendor call, and after three rounds a "could not read that page"
+    // about a page that read perfectly.
+    vi.mocked(claimExtractionRequest).mockResolvedValue(job());
+    vi.mocked(extractPrepared).mockResolvedValue({ extraction_cache_id: "cache-1" } as never);
+    vi.mocked(notifyPasteFinished).mockRejectedValueOnce(
+      new Error('relation "public.notifications" does not exist'),
+    );
+
+    const result = await runExtractionJob("req-1");
+
+    expect(result).toBe("ran");
+    expect(completeExtractionRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "ready", extractionCacheId: "cache-1" }),
+    );
+    // The row stays finished. This is the assertion that matters.
+    expect(requeueExtractionRequest).not.toHaveBeenCalled();
   });
 });

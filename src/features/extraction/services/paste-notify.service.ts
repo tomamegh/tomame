@@ -35,9 +35,14 @@ import { isSchemaMissingError } from "@/lib/supabase/errors";
  */
 export type PasteNotifyOutcome = "notified" | "too_quick" | "no_account" | "error";
 
+/** How a job settled, as far as the customer is concerned. */
+export type PasteFinishedResult =
+  | { status: "ready"; extractionCacheId: string }
+  | { status: "failed" };
+
 export async function notifyPasteFinished(
   job: Pick<ExtractionJobRow, "id" | "user_id" | "product_url" | "created_at">,
-  result: { status: "ready"; extractionCacheId: string } | { status: "failed" },
+  result: PasteFinishedResult,
   now: Date = new Date(),
 ): Promise<PasteNotifyOutcome> {
   if (!job.user_id) return "no_account";

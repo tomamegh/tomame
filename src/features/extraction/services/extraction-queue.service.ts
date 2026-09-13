@@ -15,7 +15,7 @@ import { getCachedExtractionByHash } from "@/db/queries/extraction-cache";
 import { EXTRACTION } from "@/config/extraction";
 import { logger } from "@/lib/logger";
 import { extractPrepared, prepareProductUrl } from "../extraction.service";
-import { notifyPasteFinished } from "./paste-notify.service";
+import { notifyPasteFinished, type PasteFinishedResult } from "./paste-notify.service";
 
 /**
  * The paste queue — extraction as a background job (migration 049).
@@ -92,6 +92,13 @@ export async function runExtractionJob(requestId: string): Promise<"ran" | "skip
   if (!claimed) return "skipped";
 
   const attempts = claimed.attempts + 1;
+
+  // What the customer should be told, decided inside the try/catch and acted on
+  // AFTER it. Null means the job has not settled — it is going round again, and
+  // there is nothing to report yet.
+  let finished: PasteFinishedResult | null = null;
+  let outcome: "ran" | "failed";
+
   try {
     const prepared = await prepareProductUrl(claimed.product_url);
     const extraction = await extractPrepared(prepared, { userId: claimed.user_id, sessionId: claimed.session_id });
@@ -103,21 +110,18 @@ export async function runExtractionJob(requestId: string): Promise<"ran" | "skip
         attempts,
         error: "We read the page but could not save a price for it.",
       });
-      await notifyPasteFinished(claimed, { status: "failed" });
-      return "failed";
+      finished = { status: "failed" };
+      outcome = "failed";
+    } else {
+      await completeExtractionRequest({
+        id: claimed.id,
+        status: "ready",
+        extractionCacheId: extraction.extraction_cache_id,
+        attempts,
+      });
+      finished = { status: "ready", extractionCacheId: extraction.extraction_cache_id };
+      outcome = "ran";
     }
-
-    await completeExtractionRequest({
-      id: claimed.id,
-      status: "ready",
-      extractionCacheId: extraction.extraction_cache_id,
-      attempts,
-    });
-    // "Carry on shopping — we'll tell you the moment it's done" is what the
-    // screen says at 5 s. This is the telling; it sends nothing for a paste
-    // that landed before that mark (see the service).
-    await notifyPasteFinished(claimed, { status: "ready", extractionCacheId: extraction.extraction_cache_id });
-    return "ran";
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.warn("extraction job failed", { id: claimed.id, url: claimed.product_url, attempts, error: message });
@@ -131,12 +135,41 @@ export async function runExtractionJob(requestId: string): Promise<"ran" | "skip
         attempts,
         error: "We could not read that page.",
       });
-      await notifyPasteFinished(claimed, { status: "failed" });
+      finished = { status: "failed" };
     } else {
       await requeueExtractionRequest(claimed.id, attempts);
     }
-    return "failed";
+    outcome = "failed";
   }
+
+  // OUTSIDE the try/catch, and that placement is the point.
+  //
+  // These calls used to sit inside it, immediately after the row had been
+  // written `ready`. `notifyPasteFinished` rethrows `isSchemaMissingError` — by
+  // design, so a deploy that runs ahead of its migrations is loud — and that
+  // throw landed in the catch above, which logged "extraction job failed" about
+  // an extraction that had just SUCCEEDED and then called
+  // `requeueExtractionRequest`, resetting a finished row back to `pending`. The
+  // product would be extracted again, at a second vendor charge, the customer's
+  // row would flip from priced back to reading, and after three rounds it would
+  // settle as "We could not read that page" — a lie about a page that read
+  // perfectly. A message we could not send must never undo work we did.
+  //
+  // The missing table is still reported, at error level, because the job's
+  // state is already correct by this point and re-running it cannot fix a
+  // schema problem.
+  if (finished) {
+    try {
+      await notifyPasteFinished(claimed, finished);
+    } catch (error) {
+      logger.error("paste notification failed after the job had already settled", {
+        id: claimed.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return outcome;
 }
 
 export interface SweepSummary {
