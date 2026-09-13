@@ -6,6 +6,7 @@ import { requireAdmin, requireAuth } from "@/lib/auth/guards";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
+import { AUDIT_ENTITY_TYPES } from "@/config/constants";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import {
   getDeliveryZone,
@@ -167,7 +168,7 @@ async function patchSetting(
     // by design — so the edit would succeed with nothing recorded. The key
     // travels in metadata, queryable as metadata->>'key' (the media builder
     // route solves the same problem the same way).
-    entityType: "store",
+    entityType: AUDIT_ENTITY_TYPES.SITE_SETTING,
     entityId: null,
     metadata: {
       table: "site_settings",
@@ -217,7 +218,7 @@ async function patchBlock(
     actorId,
     actorRole: "admin",
     action: "site_content_updated",
-    entityType: "store",
+    entityType: AUDIT_ENTITY_TYPES.SITE_CONTENT,
     entityId: id,
     metadata: {
       table: "site_content",
@@ -251,7 +252,7 @@ async function patchRegion(
     actorRole: "admin",
     action: "region_updated",
     // `regions.code` is TEXT, not a UUID — same reason as the setting above.
-    entityType: "store",
+    entityType: AUDIT_ENTITY_TYPES.REGION,
     entityId: null,
     metadata: {
       table: "regions",
@@ -289,7 +290,7 @@ async function patchZone(
     actorId,
     actorRole: "admin",
     action: feeChanged ? "delivery_zone_fee_updated" : "delivery_zone_updated",
-    entityType: "store",
+    entityType: AUDIT_ENTITY_TYPES.DELIVERY_ZONE,
     entityId: id,
     metadata: {
       table: "delivery_zones",

@@ -17,6 +17,28 @@ export const AUDIT_ENTITY_TYPES = {
   ORDER_GROUP: "order_group",
   ASSISTED_REQUEST: "assisted_request",
   CONTACT_MESSAGE: "contact_message",
+  /**
+   * The admin-owned content layer (036–040) and the bag's physical objects
+   * (048).
+   *
+   * These were missing, and the absence had consequences rather than being
+   * untidy: a site-settings or delivery-zone edit had to be audited as `store`
+   * with the real table hidden in `metadata`, so an audit log could not answer
+   * "who changed the delivery fee" without reading every `store` row; and the
+   * admin's box and bag screens were left READ-ONLY, because CLAUDE.md does not
+   * permit a state change without an audit row and there was no type to write.
+   *
+   * `entity_id` is a UUID column, so a row keyed by TEXT (`site_settings.key`,
+   * `regions.code`) still carries its key in `metadata` — the type says WHAT was
+   * changed, which is the half that was missing.
+   */
+  SITE_SETTING: "site_setting",
+  SITE_CONTENT: "site_content",
+  REGION: "region",
+  DELIVERY_ZONE: "delivery_zone",
+  POLICY: "policy",
+  CONSOLIDATION_BOX: "consolidation_box",
+  CART: "cart",
 } as const;
 
 export type AuditEntityType =
