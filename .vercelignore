@@ -1,0 +1,20 @@
+# Vercel CLI uploads the working tree when deploying without git, and when this
+# file exists it is the ONLY ignore list consulted — .gitignore is not read.
+# Everything the build does not need stays on this machine, and in particular
+# infra/ (Terraform state helpers and the gitignored secrets.auto.tfvars) is
+# never part of a deployment's source bundle.
+node_modules
+.next
+.env
+.env.*
+.vercel
+.claude
+infra
+docs
+design
+supabase
+scripts
+coverage
+*.tfvars
+*.tfvars.json
+*.log
