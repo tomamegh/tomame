@@ -14,6 +14,7 @@ import {
 import type { Delivery } from "../../types";
 import TableGlobalFilter from "@/components/ui/table-global-filter";
 import TableFilter from "@/components/ui/table-filter-select";
+import { ORDER_STATUS_OPTIONS } from "@/features/orders/services/journey-stage";
 
 const COLUMN_LABELS: Record<string, string> = {
   id: "Order ID",
@@ -28,12 +29,13 @@ const COLUMN_LABELS: Record<string, string> = {
   created_at: "Date",
 };
 
-const STATUS_OPTIONS = [
-  { value: "processing", label: "Processing" },
-  { value: "in_transit", label: "In Transit" },
-  { value: "delivered", label: "Delivered" },
-  { value: "completed", label: "Completed" },
-];
+/**
+ * Deliveries only exist from `processing` onwards — nothing is being delivered
+ * before it has been bought — so this is the tail of the one status vocabulary,
+ * filtered rather than retyped. See `journey-stage.ts`.
+ */
+const DELIVERY_STATUSES = new Set(["processing", "in_transit", "delivered", "completed"]);
+const STATUS_OPTIONS = ORDER_STATUS_OPTIONS.filter((o) => DELIVERY_STATUSES.has(o.value));
 
 const COUNTRY_OPTIONS = [
   { value: "USA", label: "🇺🇸 USA" },

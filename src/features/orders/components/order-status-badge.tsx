@@ -1,43 +1,21 @@
 import { Badge } from "@/components/ui/badge";
+import { JOURNEY_TONE_BADGE_CLASS, journeyStageFor } from "../services/journey-stage";
 import type { OrderStatus } from "../types";
 
-const statusConfig: Record<OrderStatus, { label: string; className: string }> =
-  {
-    pending: {
-      label: "Pending",
-      className: "bg-amber-50 text-amber-700 border-amber-200",
-    },
-    paid: {
-      label: "Paid",
-      className: "bg-blue-50 text-blue-700 border-blue-200",
-    },
-    processing: {
-      label: "Processing",
-      className: "bg-purple-50 text-purple-700 border-purple-200",
-    },
-    in_transit: {
-      label: "In Transit",
-      className: "bg-indigo-50 text-indigo-700 border-indigo-200",
-    },
-    delivered: {
-      label: "Delivered",
-      className: "bg-teal-50 text-teal-700 border-teal-200",
-    },
-    completed: {
-      label: "Completed",
-      className: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    },
-    cancelled: {
-      label: "Cancelled",
-      className: "bg-red-50 text-red-700 border-red-200",
-    },
-  };
-
+/**
+ * One order status, in the product's own words and colour.
+ *
+ * Both come from `journey-stage.ts`, which is the single place a status becomes
+ * words. This file used to carry its own seven-entry map — one of five copies
+ * that had already drifted ("In Transit" here, "In the air" on the customer's
+ * journey) — so a buyer and a customer reading the same order saw two different
+ * vocabularies.
+ */
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
-  const config = statusConfig[status] ?? statusConfig.pending;
+  const stage = journeyStageFor(status);
   return (
-    <Badge variant="outline" className={config.className}>
-      {config.label}
+    <Badge variant="outline" className={JOURNEY_TONE_BADGE_CLASS[stage.tone]}>
+      {stage.label}
     </Badge>
   );
 }

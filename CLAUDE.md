@@ -115,21 +115,56 @@ All state transitions must be server-side, explicit, validated against current s
 
 ## Database Schema
 
-Seven core tables (all with RLS enabled): `users`, `orders`, `payments`, `pricing_config`, `notifications`, `audit_logs`, `jobs`. The authoritative schema definitions with exact SQL and RLS policies are in `agent.md` (lines 319–556).
+**`supabase/migrations/` is the authority.** `agent.md`'s schema section describes
+the pre-launch design and several of its tables no longer exist — do not build
+from it.
 
-Key relationships:
-- `users.id` references `auth.users(id)`
-- `orders.payment_id` references `payments(id)`
-- `pricing_config` is admin-only (controls shipping fees, exchange rates, service fee %)
-- Pricing formula: `total_ghs = (item_price_usd + tax_usd + item_price_usd × service_fee_pct) × exchange_rate + freight_ghs`, where freight is per item (× quantity): the group's flat GHS rate, a fixed-freight item rate, or for weight-based groups `(weight_lbs × quantity × freight_rate_per_lb + handling_fee_usd) × exchange_rate` using `pricing_constants`
+RLS is enabled on every table. The ones the customer flow turns on:
+- `profiles` (`profiles.id` references `auth.users(id)`), `orders`,
+  `order_deliveries`, `payments`, `notifications`, `audit_logs`
+- Pricing: `pricing_groups`, `pricing_constants`, `category_pricing_map`,
+  `fixed_freight_items`, `exchange_rates` (migrations 027–032)
+- Quotes and extraction: `extraction_cache` (product-keyed, shared),
+  `extraction_requests` (who pasted what, and the paste queue's job state),
+  `quote_locks`, `store_category_map`, `catalog_queries`, `catalog_products`
+- Bag and pay (048): `carts`, `cart_items`, `consolidation_boxes`,
+  `delivery_addresses`, `order_groups`
+- Paste queue (049): `assisted_requests`, plus job columns on `extraction_requests`
+- Marketing and content: `site_content`, `site_settings`, `regions`,
+  `delivery_zones`, `policies`, `media_overrides`, `waitlist_signups`
+- Watches: `price_watches`, `price_observations`; `job_budgets` caps vendor spend
+
+`pricing_config` and `jobs` do NOT exist. `pricing_config` was dropped in
+migration 021 and replaced by `pricing_groups` + `pricing_constants`; `jobs` was
+never created — background work is pg_cron → pg_net → a Vercel route (see below).
 
 ## Pricing Calculation (Server-Side Only)
 
-All pricing components except item price are **admin-controlled** via `pricing_config` table:
-- `base_shipping_fee_usd` per region (USA/UK/CHINA)
-- `exchange_rate` per region
-- `service_fee_percentage` (e.g., 0.10 = 10%)
-- Item price estimate is user-provided
+Every component except the item price is admin-controlled through
+`pricing_groups` and `pricing_constants`, NOT a `pricing_config` table:
+
+```
+total_ghs = (item_price_usd + tax_usd + item_price_usd × value_fee_pct) × exchange_rate + freight_ghs
+```
+
+Freight is per item (× quantity) and takes one of four shapes: the group's flat
+GHS rate, a fixed-freight item rate, a weight expression
+`(max(weight_lbs, minimum_chargeable_weight_lbs) × quantity × freight_rate_per_lb + handling_fee_usd) × exchange_rate`,
+or `needs_review` when the category cannot be priced. `src/lib/pricing/calculator.ts`
+is the implementation and the only place these rules live.
+
+A bag adds group-level money on `order_groups`: the consolidation saving
+(`consolidation_saving_pct` of a box's freight, only from two lines up) and the
+delivery fee (the chosen zone's `fee_ghs`, charged once per checkout).
+
+## Background Jobs
+
+pg_cron → pg_net → a Vercel route with `Bearer CRON_SECRET`. No workers, no
+Vercel Cron, no queues. Jobs are small idempotent batches fired often (one vendor
+call per run) because Vercel caps a function at 300 s. Follow
+`run_catalog_scrape()` in migration 045: read the vault first and the GUC second,
+and `raise warning` when `app_url` is unset — a function that reads only the GUC
+installs cleanly on hosted Supabase and then silently never calls the app.
 
 ## MVP Phase 1 Exclusions
 

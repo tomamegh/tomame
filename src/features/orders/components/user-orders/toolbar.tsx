@@ -11,7 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Order, OrderStatus } from "../../types";
+import { ORDER_STATUS_OPTIONS } from "@/features/orders/services/journey-stage";
+import type { Order } from "../../types";
 import TableFilter from "@/components/ui/table-filter-select";
 import TableGlobalFilter from "@/components/ui/table-global-filter";
 
@@ -26,15 +27,8 @@ const COLUMN_LABELS: Record<string, string> = {
   created_at: "Date",
 };
 
-const STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
-  { value: "pending", label: "Pending" },
-  { value: "paid", label: "Paid" },
-  { value: "processing", label: "Processing" },
-  { value: "in_transit", label: "In Transit" },
-  { value: "delivered", label: "Delivered" },
-  { value: "completed", label: "Completed" },
-  { value: "cancelled", label: "Cancelled" },
-];
+/** The one status vocabulary — see `journey-stage.ts`. Never typed out here. */
+const STATUS_OPTIONS = [...ORDER_STATUS_OPTIONS];
 
 const COUNTRY_OPTIONS = [
   { value: "USA", label: "🇺🇸 USA" },

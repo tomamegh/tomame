@@ -14,9 +14,13 @@
  * "Lands Sat".
  *
  * Sources: `docs/phase-2-handoff.md` §6 build notes, `docs/redesign-data-map.md`
- * §0.3. Five duplicate label maps still exist elsewhere in the codebase (see the
- * data map); this is the one they should collapse into.
+ * §0.3. This is the ONE place a status becomes words. The five duplicate label
+ * maps the data map recorded as debt now read from `ORDER_STATUS_OPTIONS` and
+ * `journeyStageFor` below, so "In the air" cannot be "In Transit" on one screen
+ * and something else on the next.
  */
+
+import { ORDER_STATUSES, type OrderStatus } from "@/config/constants";
 
 export type JourneyTone = "coral" | "amber" | "green" | "neutral";
 
@@ -186,3 +190,32 @@ function normalizeEta(value: string | null | undefined): string | null {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
+
+// ── The one status vocabulary ────────────────────────────────────────────────
+
+/**
+ * Every order status with the word the product uses for it, in lifecycle order.
+ *
+ * Derived from `ORDER_STATUSES` rather than typed out again, so a status added
+ * to the enum cannot be silently missing from a filter: it appears here, and
+ * `journeyStageFor` answers "Unknown" for it until this file learns its stage —
+ * visible, rather than absent.
+ *
+ * The words are the customer's ("Being purchased", "In the air"), used on admin
+ * screens too. A buyer and a customer talking on WhatsApp should be looking at
+ * the same vocabulary, not translating between two.
+ */
+export const ORDER_STATUS_OPTIONS: readonly { value: OrderStatus; label: string }[] =
+  Object.values(ORDER_STATUSES).map((value) => ({ value, label: journeyStageFor(value).label }));
+
+/**
+ * Badge colouring from the stage's own tone, so a status cannot be amber on one
+ * screen and purple on another. `neutral` covers cancelled and unknown alike:
+ * neither is a position on the track.
+ */
+export const JOURNEY_TONE_BADGE_CLASS: Record<JourneyTone, string> = {
+  coral: "bg-orange-50 text-orange-700 border-orange-200",
+  amber: "bg-amber-50 text-amber-700 border-amber-200",
+  green: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  neutral: "bg-stone-100 text-stone-600 border-stone-200",
+};
