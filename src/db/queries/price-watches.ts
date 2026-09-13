@@ -35,6 +35,13 @@ export interface PriceWatchRow {
   consecutive_failures: number;
   last_error: string | null;
   notify_on_drop: boolean;
+  /** When a price-drop alert last went out for this watch. NULL = never (052). */
+  notified_at: string | null;
+  /**
+   * The USD price that alert quoted. The re-notification rule compares against
+   * THIS, not the baseline — see `price-drop.service.ts`.
+   */
+  notified_price_usd: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -73,7 +80,8 @@ export interface PriceObservationInsert {
 const WATCH_COLUMNS =
   "id, user_id, product_url, url_hash, product_name, product_image_url, extraction_cache_id, " +
   "baseline_price_usd, baseline_total_ghs, last_price_usd, last_total_ghs, last_checked_at, " +
-  "consecutive_failures, last_error, notify_on_drop, is_active, created_at, updated_at";
+  "consecutive_failures, last_error, notify_on_drop, notified_at, notified_price_usd, " +
+  "is_active, created_at, updated_at";
 
 const OBSERVATION_COLUMNS = "id, watch_id, price_usd, total_ghs, exchange_rate, observed_at";
 
@@ -169,6 +177,12 @@ export async function insertPriceWatch(input: PriceWatchInsert): Promise<PriceWa
  * Re-arm a watch the customer had removed (or the job had retired) without
  * violating `UNIQUE (user_id, url_hash)`. Baselines are rewritten because the
  * "since you started watching" delta restarts with the new baseline.
+ *
+ * The notification reference is cleared with them (052). A watch re-armed today
+ * at today's price has told the customer nothing yet, and leaving a stale
+ * `notified_price_usd` from the previous life of the row would measure the next
+ * alert against a price from before the gap — silencing a real drop, or
+ * announcing one that already happened.
  */
 export async function reactivatePriceWatch(
   watchId: string,
@@ -182,6 +196,8 @@ export async function reactivatePriceWatch(
       is_active: true,
       consecutive_failures: 0,
       last_error: null,
+      notified_at: null,
+      notified_price_usd: null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", watchId)
@@ -202,16 +218,34 @@ export async function deletePriceWatch(watchId: string): Promise<void> {
 }
 
 /**
- * The nightly job's claim query: least-recently-checked active watches first,
- * so a per-run cap lengthens the cycle rather than starving anyone. NULLS FIRST
+ * The batch job's claim query: least-recently-checked active watches first, so
+ * a per-batch cap lengthens the cycle rather than starving anyone. NULLS FIRST
  * (new watches) is the index's own ordering — `idx_price_watches_due`.
+ *
+ * `dueBefore` is what makes a 10-minute schedule safe (migration 052). Without
+ * it a small batch fired often would re-check the same head of the queue every
+ * few minutes and burn scraper credit on prices that have not moved; with it a
+ * watch checked inside the window is simply not returned, so once everybody has
+ * had their turn the runs claim nothing. Passing null keeps the old
+ * "everything active, oldest first" behaviour for callers that want it.
  */
-export async function listWatchesDueForCheck(limit: number): Promise<PriceWatchRow[]> {
+export async function listWatchesDueForCheck(
+  limit: number,
+  dueBefore: string | null = null,
+): Promise<PriceWatchRow[]> {
   const client = createAdminClient();
-  const { data, error } = await client
+  let query = client
     .from("price_watches")
     .select(WATCH_COLUMNS)
-    .eq("is_active", true)
+    .eq("is_active", true);
+
+  // A never-checked watch has no `last_checked_at` to compare, and it is the
+  // one most deserving of a turn — `is.null` must stay in the OR.
+  if (dueBefore) {
+    query = query.or(`last_checked_at.is.null,last_checked_at.lt.${dueBefore}`);
+  }
+
+  const { data, error } = await query
     .order("last_checked_at", { ascending: true, nullsFirst: true })
     .limit(limit);
 
@@ -272,6 +306,35 @@ export async function markWatchFailed(
     .eq("id", watchId);
 
   if (error) throw new Error(`Failed to record price watch failure: ${error.message}`);
+}
+
+/**
+ * Move the watch's notification reference point after an alert has been
+ * decided (migration 052).
+ *
+ * This write is what stops a price that simply STAYS low from emailing the
+ * customer on every run: the next alert is measured against
+ * `notified_price_usd`, so the price has to fall by the threshold again, from
+ * the level the customer already knows about. It is deliberately separate from
+ * `markWatchChecked` — a re-check happens every run, a notification almost
+ * never does, and folding them together would make it far too easy to move
+ * this reference point by accident.
+ */
+export async function markWatchNotified(
+  watchId: string,
+  input: { notified_price_usd: number; notified_at: string },
+): Promise<void> {
+  const client = createAdminClient();
+  const { error } = await client
+    .from("price_watches")
+    .update({
+      notified_price_usd: input.notified_price_usd,
+      notified_at: input.notified_at,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", watchId);
+
+  if (error) throw new Error(`Failed to record price watch notification: ${error.message}`);
 }
 
 // ── price_observations ──────────────────────────────────────────────────────
