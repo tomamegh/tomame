@@ -5,7 +5,6 @@ import { apiFetch } from "@/lib/auth/api-helpers";
 import { Order, OrderList } from "../types";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { AuditLog } from "@/features/audit/types";
-import { CreateOrderSchemaType } from "../schema";
 
 // ── Query keys ───────────────────────────────────────────────
 
@@ -38,25 +37,6 @@ export function useOrder(id: string) {
     select: (res) => res.data,
     enabled: !!id,
     retry: 1
-  });
-}
-
-/** Submit a new product order */
-export function useCreateOrder() {
-  const queryClient = useQueryClient();
-
-  return useMutation<Order, Error, CreateOrderSchemaType>({
-    mutationFn: async (data) => {
-      const res = await apiFetch<ApiSuccessResponse<Order>>("/api/orders/new", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: orderKeys.user() });
-    },
   });
 }
 

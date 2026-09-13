@@ -25,9 +25,10 @@ import { getBag, resolveCart, setBagDelivery } from "./bag.service";
  * Checkout: the bag becomes an order group — N one-product orders created
  * together, one delivery, one delivery fee, one Paystack total.
  *
- * Money rule: nothing here is read from the request. `getBag` re-prices every
- * line (lower of locked and live) and re-packs the boxes; the group's columns
- * are those roll-ups plus the zone's fee, and `total_pesewas` is what the
+ * Money rule: nothing here is read from the request. The bag is priced once
+ * below — every line re-priced (lower of locked and live), boxes re-packed —
+ * and the group's columns are those roll-ups plus the zone's fee;
+ * `total_pesewas` is what the
  * payment will ask Paystack for. `createOrder` prices each line again through
  * order-intake and consumes its lock; if that second read landed lower (a rate
  * ratchet between reads), the group is corrected from the orders — the
@@ -38,11 +39,16 @@ import { getBag, resolveCart, setBagDelivery } from "./bag.service";
  * of creating a second one.
  */
 export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: CheckoutInput): Promise<CheckoutResult> {
-  if (input.delivery_address_id) await setBagDelivery(viewer, { delivery_address_id: input.delivery_address_id });
-  else if (input.delivery_zone_id) await setBagDelivery(viewer, { delivery_zone_id: input.delivery_zone_id });
+  // `setBagDelivery` returns the bag it just re-priced (every line under the
+  // rate lock, boxes re-packed and persisted). Keep it: a second `getBag` here
+  // would redo that whole pass for one checkout. Only a body that named no
+  // delivery has to read the bag itself.
+  let delivered: BagView | null = null;
+  if (input.delivery_address_id) delivered = await setBagDelivery(viewer, { delivery_address_id: input.delivery_address_id });
+  else if (input.delivery_zone_id) delivered = await setBagDelivery(viewer, { delivery_zone_id: input.delivery_zone_id });
 
   const cart = await resolveCart(viewer);
-  const bag = cart ? await getBag(viewer) : null;
+  const bag = cart ? (delivered ?? (await getBag(viewer))) : null;
   if (!cart || !bag || bag.lines.length === 0) {
     const pending = await findLatestPendingGroupForUser(user.id);
     if (pending) return toCheckoutResult(pending, await listOrdersByGroup(createAdminClient(), pending.id));

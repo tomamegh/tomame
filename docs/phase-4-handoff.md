@@ -229,3 +229,75 @@ saving row gone; Watch instead signed-out → `/auth/login?next=/app/bag`. Local
    regardless of publish state for this one line).
 6. Tests: checkout service (group totals = Σ lines − saving + delivery, lock consumption per line,
    idempotency), payment fan-out (N orders flip once), address schema.
+
+### F4 shipped 2026-09-13 (commits `51631e0`, `3c248a8`)
+
+- **390px bag.** `/app/bag` joined `MOBILE_ACTION_BAR_ROUTES`, so the tab bar stands down and
+  `BagPayBar` holds the bottom edge in the detail phone's pattern (`12px 20px 30px`, 52 px button),
+  lock countdown above it. Confirmed with `getComputedStyle`. A route that opts in there owns the
+  bar in EVERY state, so the empty bag renders one too — "Finish paying" with a pending group,
+  "Paste a link" without — and the in-flow buttons those duplicate went `lg:`-only.
+- **`useBagPayment`.** The rail's channel selector and the bar's button are two renderings of one
+  action; the selection and both mutations moved up into `BagView` so they cannot disagree.
+- **Bag lines stack below `lg`.** The artboard's `84px 1fr auto` left a five-figure total squeezing
+  the name to an ellipsis with "Remove" off-screen. Now thumb + name, then price, then controls,
+  with `lg:contents` dissolving the mobile cluster back into the artboard's three columns from `lg`
+  up. Desktop unchanged. **`grid-cols-1` on the mobile row is load-bearing** — an implicit `auto`
+  column sized the row to its own max-content and widened the whole page.
+- **Home freight-box card**, on the real open bag, hidden when it is empty. The marginal saving is
+  saving at N+1 minus saving now, projected from the box's own mean freight, and **0 when the
+  projected line would not fit** (it opens a second box and saves nothing). Mean weight averages
+  over the lines that HAVE one, so weightless siblings cannot drag it toward zero.
+- **The mock's crate fill is a mock bug** (phase-2 §5.7): it pairs `transform-origin: bottom` with
+  `tmFill`, which is a `scaleX` keyframe, so the mock's own liquid widens sideways. Added `tmFillY`
+  and kept the literal `1.4s .5s cubic-bezier(.16,1,.3,1)`.
+- **`unweighed_line_count` on boxes.** The copy said "one item's weight" however many were missing,
+  which told the customer the others were known.
+- **WhatsApp number** is `+233 59 442 4746` (037's seed + an idempotent `UPDATE` in 048 for the two
+  hosted databases). `/contact` and `/faq` were pointing at a hardcoded `wa.me/233000000000` — not a
+  Tomame number; both now resolve it from `site_settings` through a thin server wrapper.
+- **Paystack test secret is valid** and in `.env.local`. Verified directly against
+  `transaction/initialize`. The earlier "Invalid key" was the 19-char placeholder.
+- Gates: typecheck clean · lint 9 · vitest **58 files / 754 tests**.
+
+### F5 shipped 2026-09-13 — what the bag replaced, and the deferred cleanups
+
+- **The per-order checkout SCREEN is gone** (`/app/orders/[id]/checkout`, old design, 15 lucide
+  icons). It only ever showed the order again and offered one button, and the order detail page
+  already shows the order. **It was NOT simply deleted**: dev had 1 and prod 2 unpaid `pending`
+  orders created before the bag existed, and that screen was their only way to pay. So the order
+  detail page absorbed its job — `PayButton` charges `initialize {orderId}` in place, and
+  `PaymentOutcomeNotice` renders the `?payment=success|failed|error` notice the deleted screen used
+  to own. `failureUrl` for a legacy order now points at `/app/orders/:id`, not the dead route.
+  Verified live against a cloned legacy pending order: charge built, payment row written, Paystack
+  called with the right reference and order id.
+- **Both `useCreateOrder` copies are gone**, not just the duplicate — the bag replaced that path
+  entirely, so neither `hooks/useOrders.ts`'s nor `hooks/useCreateOrder.ts`'s was reachable.
+  `create-order-form.tsx`, the only component that used one, was itself imported by nothing and
+  went with them.
+- **`getActivePaymentForOrder`/`ForGroup` collapsed** into one `findActivePayment(client, target)`
+  plus `assertNoActivePayment(client, target, noun)`. They differed only in how the payment names
+  its target (`metadata->>order_id` for a legacy order, the real `order_group_id` column for a
+  group); the rest was the same guard, and the two copies had already drifted. `orderCharge` and
+  `groupCharge` stay two functions — the entities genuinely differ, and branching one function over
+  both would read worse than the duplication it removed.
+- **One `site_settings` read per bag render**, was two: `getBagPaymentSettings()` reads the map once
+  and derives both the channels and the hold note through shared pure helpers. Error semantics are
+  unchanged — `isSchemaMissingError` still rethrows (gotcha 8).
+- **`checkoutBag` prices the bag once**, was twice: `setBagDelivery` already returns a fully
+  re-priced `BagView`, so a body that restates the delivery no longer triggers a second `getBag`.
+- Gates: typecheck clean · lint **exactly 9** · vitest **58 files / 757 tests**.
+
+### Phase 4 is closed. Next: Phase 4.5 (decided with Kelvin 2026-09-13)
+
+Ahead of Phase 5, because it touches the same bag and order surfaces:
+1. **Slow-extraction UX** — at 5 s "taking longer than usual, we'll let you know"; at 20 s a form to
+   describe the item, logged for a buyer to pick up **on WhatsApp** (approved: not a phone call).
+2. **Paste and walk away** — a pasted link becomes a **pending bag line** (approved over a separate
+   queue) that prices itself when the extraction lands. Needs `cart_items.extraction_cache_id`
+   nullable with an `extraction_request_id` beside it. Multiple links extract concurrently.
+3. **`/app/orders/new` ("Buy for me") is a dead click today** — with no `?url=` it
+   `router.replace("/app")`, so the nav tab appears to do nothing. It becomes the real screen: paste
+   bar, what is extracting now, and the describe-it form.
+4. **The Home live receipt's failure state has no action** — "Price could not be read from the
+   product page." and nothing to do about it. It needs retry / describe-it / dismiss.

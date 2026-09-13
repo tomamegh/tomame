@@ -7,7 +7,7 @@ import { listAddresses } from "@/features/addresses/services/addresses.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { BagView } from "@/features/bag/components";
 import { getBag } from "@/features/bag/services/bag.service";
-import { getPaymentHoldNote, listPaymentChannels } from "@/features/payments/services/payment-channels.service";
+import { getBagPaymentSettings } from "@/features/payments/services/payment-channels.service";
 import { readQuoteSessionFromCookies } from "@/lib/quote-session";
 
 export const metadata: Metadata = {
@@ -27,12 +27,12 @@ export const metadata: Metadata = {
  */
 export default async function BagPage() {
   const userPromise = getAuthenticatedUser();
-  const [user, cookieStore, zones, paymentChannels, paymentHoldNote, addresses, pendingGroup] = await Promise.all([
+  const [user, cookieStore, zones, payment, addresses, pendingGroup] = await Promise.all([
     userPromise,
     cookies(),
     listActiveDeliveryZones(),
-    listPaymentChannels(),
-    getPaymentHoldNote(),
+    // Channels and the hold note live in the same `site_settings` row: one read, both.
+    getBagPaymentSettings(),
     // Addresses are owner-only: a signed-out viewer has none to load.
     userPromise.then((u) => (u ? listAddresses(u.id) : [])),
     // A checked-out, unpaid bag: shown when the open bag is empty so a declined payment can be retried.
@@ -46,8 +46,8 @@ export default async function BagPage() {
       initialBag={bag}
       zones={zones}
       addresses={addresses}
-      paymentChannels={paymentChannels}
-      paymentHoldNote={paymentHoldNote}
+      paymentChannels={payment.channels}
+      paymentHoldNote={payment.holdNote}
       isSignedIn={!!user}
       pendingGroup={pendingGroup ? { id: pendingGroup.id, item_count: pendingGroup.item_count, total_ghs: pendingGroup.total_ghs } : null}
       renderedAt={new Date().toISOString()}

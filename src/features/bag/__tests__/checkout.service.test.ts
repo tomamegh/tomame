@@ -99,10 +99,22 @@ describe("checkoutBag", () => {
     expect(result).toEqual({ order_group_id: "g1", order_ids: ["o1", "o2"], item_count: 2, total_ghs: 160, total_pesewas: 16000, status: "pending" });
   });
 
-  it("applies a delivery named in the body before pricing", async () => {
-    await checkoutBag(user, viewer, { delivery_zone_id: "z-pick" });
+  it("applies a delivery named in the body and prices the bag once, reusing what setBagDelivery returned", async () => {
+    vi.mocked(setBagDelivery).mockResolvedValue(bag());
+    const result = await checkoutBag(user, viewer, { delivery_zone_id: "z-pick" });
+
     expect(setBagDelivery).toHaveBeenCalledWith(viewer, { delivery_zone_id: "z-pick" });
-    expect(vi.mocked(setBagDelivery).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(getBag).mock.invocationCallOrder[0]!);
+    // The whole point of the reuse: setBagDelivery already re-priced the bag.
+    expect(setBagDelivery).toHaveBeenCalledTimes(1);
+    expect(getBag).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ order_group_id: "g1", total_pesewas: 16000 });
+  });
+
+  it("reads the bag itself when the body named no delivery", async () => {
+    const result = await checkoutBag(user, viewer, {});
+    expect(setBagDelivery).not.toHaveBeenCalled();
+    expect(getBag).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ order_group_id: "g1", total_pesewas: 16000 });
   });
 
   it("follows the orders when their sum came in lower than the bag showed", async () => {

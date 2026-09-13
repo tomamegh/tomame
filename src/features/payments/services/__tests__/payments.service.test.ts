@@ -305,7 +305,7 @@ describe("handlePaymentCallback — verification mismatch (R4, R11)", () => {
     expect(linkOrderToPayment).not.toHaveBeenCalled();
     expect(createOrderNotifications).not.toHaveBeenCalled();
     expect(sendOrderStatusEmail).not.toHaveBeenCalled();
-    expect(redirectUrl).toBe(`https://tomame.test/app/orders/${ORDER_ID}/checkout?payment=failed`);
+    expect(redirectUrl).toBe(`https://tomame.test/app/orders/${ORDER_ID}?payment=failed`);
   });
 
   it("refuses to mark paid when Paystack reports a different currency", async () => {

@@ -21,7 +21,29 @@ const channelSchema = z.object({
 
 /** `site_settings.payment_channels` parsed and validated; invalid entries are dropped with a warning. */
 export async function listPaymentChannels(): Promise<PaymentChannel[]> {
+  return parseChannels(await readSettings());
+}
+
+export async function getPaymentChannel(id: string): Promise<PaymentChannel | null> {
+  return (await listPaymentChannels()).find((c) => c.id === id) ?? null;
+}
+
+/** `site_settings.payment_hold_note` — the one line under the pay button. Null when unset. */
+export async function getPaymentHoldNote(): Promise<string | null> {
+  return parseHoldNote(await readSettings());
+}
+
+/**
+ * Both halves of the pay rail from a single `site_settings` read. The bag page
+ * needs the channels and the note on every render; asking for them separately
+ * cost two round trips for one row, so the page takes this and destructures.
+ */
+export async function getBagPaymentSettings(): Promise<{ channels: PaymentChannel[]; holdNote: string | null }> {
   const settings = await readSettings();
+  return { channels: parseChannels(settings), holdNote: parseHoldNote(settings) };
+}
+
+function parseChannels(settings: Record<string, unknown> | null): PaymentChannel[] {
   if (!settings) return [];
   const raw = settings.payment_channels;
   if (!Array.isArray(raw)) {
@@ -37,13 +59,7 @@ export async function listPaymentChannels(): Promise<PaymentChannel[]> {
   return channels;
 }
 
-export async function getPaymentChannel(id: string): Promise<PaymentChannel | null> {
-  return (await listPaymentChannels()).find((c) => c.id === id) ?? null;
-}
-
-/** `site_settings.payment_hold_note` — the one line under the pay button. Null when unset. */
-export async function getPaymentHoldNote(): Promise<string | null> {
-  const settings = await readSettings();
+function parseHoldNote(settings: Record<string, unknown> | null): string | null {
   const note = settings?.payment_hold_note;
   return typeof note === "string" && note.length > 0 ? note : null;
 }

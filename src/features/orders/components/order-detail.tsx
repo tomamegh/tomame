@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import {
   ExternalLinkIcon,
   PackageIcon,
@@ -17,9 +18,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import Link from "next/link";
 import { OrderStatusBadge } from "./order-status-badge";
 import { useOrder, useCancelOrder, useOrderHistory } from "../hooks/useOrders";
+import { useInitializePayment } from "@/features/payments/hooks/usePayment";
+import { toast } from "@/lib/sonner";
 import type { Order, OrderStatus } from "../types";
 import type { AuditLog } from "@/features/audit/types";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -240,6 +242,74 @@ function PricingBreakdown({ order }: { order: Order }) {
 
 // ── Cancel confirmation ───────────────────────────────────────────────────────
 
+/**
+ * "Complete Payment" for a LEGACY order — one created before the bag existed,
+ * with no `order_group_id`.
+ *
+ * This used to be a link to `/app/orders/[id]/checkout`, a whole second screen
+ * whose only job was to show the order again and offer one button. The order is
+ * already on this page, so F5 deleted that screen and the button charges from
+ * here. Orders that belong to a bag never reach this: the initialize service
+ * refuses them, because paying one line of a group would split the total.
+ *
+ * The amount is never sent — `initializePayment` reads it server-side from the
+ * order's own pricing.
+ */
+function PayButton({ orderId }: { orderId: string }) {
+  const { mutate: initializePayment, isPending } = useInitializePayment();
+
+  const onPay = useCallback(() => {
+    initializePayment(
+      { orderId },
+      {
+        // Paystack owns the next screen; a full navigation, not a router push.
+        onSuccess: (payment) => window.location.assign(payment.authorizationUrl),
+        onError: (error) =>
+          toast.error({ title: "Could not start the payment", description: error.message }),
+      },
+    );
+  }, [initializePayment, orderId]);
+
+  return (
+    <Button size="sm" className="gap-1.5" onClick={onPay} disabled={isPending} aria-busy={isPending}>
+      <CreditCardIcon className="size-3.5" />
+      {isPending ? "Redirecting…" : "Complete Payment"}
+    </Button>
+  );
+}
+
+/**
+ * What Paystack sends the customer back to. The deleted checkout screen used to
+ * render these; the redirect now lands here, so the notice has to live here too
+ * or a declined card returns to a page that says nothing about it.
+ */
+function PaymentOutcomeNotice() {
+  const outcome = useSearchParams().get("payment");
+  if (!outcome) return null;
+
+  if (outcome === "success") {
+    return (
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
+        <CheckCircle2Icon className="size-4 shrink-0" />
+        Payment confirmed. This order is now being processed.
+      </div>
+    );
+  }
+  if (outcome === "error") {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        We could not confirm your payment. If you were charged, this order will update shortly —
+        contact support if it does not.
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      Payment was not completed. You have not been charged — please try again.
+    </div>
+  );
+}
+
 function CancelSection({ orderId }: { orderId: string }) {
   const [confirm, setConfirm] = useState(false);
   const cancelMutation = useCancelOrder();
@@ -396,6 +466,15 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
 
   return (
     <div className="space-y-4">
+      {/*
+        Paystack's return lands here now that the checkout screen is gone.
+        Suspense because `useSearchParams` opts the subtree out of prerendering;
+        without a boundary it opts the WHOLE page out.
+      */}
+      <Suspense fallback={null}>
+        <PaymentOutcomeNotice />
+      </Suspense>
+
       {/* Product info card */}
       <Card>
         <CardContent className="pt-6">
@@ -462,12 +541,7 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
           {!order.payment_id && order.status === "pending" && (
             <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-3 flex-wrap">
               {!order.needs_review && (!!order.reviewed_by || order.review_reasons.length === 0) && (
-                <Link href={`/app/orders/${orderId}/checkout`}>
-                  <Button size="sm" className="gap-1.5">
-                    <CreditCardIcon className="size-3.5" />
-                    Complete Payment
-                  </Button>
-                </Link>
+                <PayButton orderId={orderId} />
               )}
               <CancelSection orderId={orderId} />
             </div>

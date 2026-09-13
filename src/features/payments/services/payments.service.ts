@@ -84,14 +84,28 @@ async function getPaymentsByUserId(
   return (data ?? []) as Payment[];
 }
 
-async function getActivePaymentForOrder(
-  client: SupabaseClient,
-  orderId: string,
-): Promise<Payment | null> {
-  const { data } = await client
-    .from("payments")
-    .select("*")
-    .filter("metadata->>order_id", "eq", orderId)
+/** What a charge is for: one legacy order, or one bag's order group. */
+type ChargeTarget = { orderId: string; groupId?: never } | { groupId: string; orderId?: never };
+
+/**
+ * The newest payment that already has a claim on this target — pending or
+ * successful.
+ *
+ * One query for both shapes. They differ only in how the payment names its
+ * target: a legacy order is reachable only through `metadata->>order_id`
+ * (there was never a column), while a group has the real `order_group_id`
+ * column 048 added. Everything else — the status filter, the ordering, the
+ * limit — is the same guard, and the two copies of it drifted apart once
+ * already.
+ */
+async function findActivePayment(client: SupabaseClient, target: ChargeTarget): Promise<Payment | null> {
+  const base = client.from("payments").select("*");
+  const scoped =
+    target.groupId != null
+      ? base.eq("order_group_id", target.groupId)
+      : base.filter("metadata->>order_id", "eq", target.orderId);
+
+  const { data } = await scoped
     .in("status", [PAYMENT_STATUSES.PENDING, PAYMENT_STATUSES.SUCCESS])
     .order("created_at", { ascending: false })
     .limit(1)
@@ -100,21 +114,20 @@ async function getActivePaymentForOrder(
   return data as Payment | null;
 }
 
-/** Same guard for a group: `payments.order_group_id` is a real column (048), no JSON path. */
-async function getActivePaymentForGroup(
-  client: SupabaseClient,
-  groupId: string,
-): Promise<Payment | null> {
-  const { data } = await client
-    .from("payments")
-    .select("*")
-    .eq("order_group_id", groupId)
-    .in("status", [PAYMENT_STATUSES.PENDING, PAYMENT_STATUSES.SUCCESS])
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  return data as Payment | null;
+/**
+ * Refuse to open a second transaction for something already being paid for.
+ *
+ * `noun` is the customer-facing word for the target ("order" / "bag") so the
+ * two callers share the guard without sharing the wording — a customer paying
+ * for a bag should not be told about an "order" they never made.
+ */
+async function assertNoActivePayment(client: SupabaseClient, target: ChargeTarget, noun: string): Promise<void> {
+  const existing = await findActivePayment(client, target);
+  if (!existing) return;
+  if (existing.status === PAYMENT_STATUSES.SUCCESS) {
+    throw new APIError(409, `This ${noun} has already been paid.`);
+  }
+  throw new APIError(409, `A payment is already in progress for this ${noun}.`);
 }
 
 async function getAllPayments(
@@ -224,9 +237,9 @@ const NO_TARGET: PayTarget = { orderId: null, groupId: null };
  * under /app/orders, and a redirect to a non-existent path turns a declined card
  * into a 404 with no explanation of what happened to their money.
  *
- * A group's failure lands on the bag, where the customer retries. The cart is
- * already `checked_out`, so the bag reads empty there for now — the F5 rail
- * reads the pending group from `?payment=failed` and offers "Pay again".
+ * A group's failure lands on the bag, where the customer retries: the cart is
+ * already `checked_out`, so the bag reads empty and shows the pending-group
+ * card. A legacy order's failure lands on that order's detail page.
  */
 function successUrl(target: PayTarget): string {
   if (target.groupId) return `${env.app.url}/app/orders?payment=success&group=${target.groupId}`;
@@ -240,8 +253,11 @@ function failureUrl(
   reason: "failed" | "error" = "failed"
 ): string {
   if (target.groupId) return `${env.app.url}/app/bag?payment=${reason}`;
+  // The per-order checkout SCREEN is gone (F5) — the order detail page absorbed
+  // its one job. A legacy order's failure therefore lands on the order itself,
+  // which renders the notice and offers the retry.
   return target.orderId
-    ? `${env.app.url}/app/orders/${target.orderId}/checkout?payment=${reason}`
+    ? `${env.app.url}/app/orders/${target.orderId}?payment=${reason}`
     : `${env.app.url}/app/orders?payment=${reason}`;
 }
 
@@ -366,14 +382,7 @@ async function orderCharge(admin: SupabaseClient, user: PlatformUser, orderId: s
   // still links to the per-order checkout, so this is enforced here, not there.
   if (order.order_group_id) throw new APIError(400, "This item is part of a bag. Pay for the bag as one.");
 
-  // Guard against double payment: block if a pending or successful payment already exists
-  const existingPayment = await getActivePaymentForOrder(admin, orderId);
-  if (existingPayment) {
-    if (existingPayment.status === PAYMENT_STATUSES.SUCCESS) {
-      throw new APIError(409, "This order has already been paid.");
-    }
-    throw new APIError(409, "A payment is already in progress for this order.");
-  }
+  await assertNoActivePayment(admin, { orderId }, "order");
 
   // Use admin-set price if available, otherwise use calculated pricing
   const totalGhs = order.admin_total_ghs ?? order.pricing.total_ghs;
@@ -395,13 +404,7 @@ async function groupCharge(admin: SupabaseClient, user: PlatformUser, groupId: s
   if (group.status === "paid") throw new APIError(400, "This bag has already been paid");
   if (group.status !== "pending") throw new APIError(400, "This bag is not awaiting payment");
 
-  const existingPayment = await getActivePaymentForGroup(admin, groupId);
-  if (existingPayment) {
-    if (existingPayment.status === PAYMENT_STATUSES.SUCCESS) {
-      throw new APIError(409, "This bag has already been paid.");
-    }
-    throw new APIError(409, "A payment is already in progress for this bag.");
-  }
+  await assertNoActivePayment(admin, { groupId }, "bag");
 
   // The amount is the group's own column, struck at checkout — never re-read from the bag.
   if (!(group.total_pesewas > 0)) throw new APIError(400, "This bag has nothing to pay for");

@@ -9,7 +9,7 @@ vi.mock("@/db/queries/site-settings", () => ({ getSiteSettingsMap: vi.fn() }));
 
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { logger } from "@/lib/logger";
-import { getPaymentChannel, getPaymentHoldNote, listPaymentChannels } from "../services/payment-channels.service";
+import { getBagPaymentSettings, getPaymentChannel, getPaymentHoldNote, listPaymentChannels } from "../services/payment-channels.service";
 
 const SEEDED = [
   { id: "mtn_momo", label: "MTN MoMo", paystack_channel: "mobile_money", provider: "mtn", dot: "#FFCC00" },
@@ -60,5 +60,23 @@ describe("getPaymentHoldNote", () => {
     expect(await getPaymentHoldNote()).toBeNull();
     vi.mocked(getSiteSettingsMap).mockResolvedValue({});
     expect(await getPaymentHoldNote()).toBeNull();
+  });
+});
+
+describe("getBagPaymentSettings", () => {
+  it("derives both halves of the pay rail from a single settings read", async () => {
+    vi.mocked(getSiteSettingsMap).mockResolvedValue({ payment_channels: SEEDED, payment_hold_note: "Held until every item is bought" });
+    const { channels, holdNote } = await getBagPaymentSettings();
+    expect(channels).toEqual(SEEDED);
+    expect(holdNote).toBe("Held until every item is bought");
+    expect(getSiteSettingsMap).toHaveBeenCalledTimes(1);
+  });
+
+  it("degrades to empty channels and no note on a blip, but rethrows a missing table", async () => {
+    vi.mocked(getSiteSettingsMap).mockRejectedValue(new Error("Failed to load site settings: timeout"));
+    expect(await getBagPaymentSettings()).toEqual({ channels: [], holdNote: null });
+    expect(logger.warn).toHaveBeenCalled();
+    vi.mocked(getSiteSettingsMap).mockRejectedValue(new Error("Could not find the table 'public.site_settings' in the schema cache (PGRST205)"));
+    await expect(getBagPaymentSettings()).rejects.toThrow(/PGRST205/);
   });
 });
