@@ -71,6 +71,7 @@ export function LiveReceiptCard({
 
 function ReceiptBody({ receipt, now }: { receipt: HomeReceipt; now: Date }) {
   const rows = receipt.pricing ? buildReceiptRows(receipt.pricing) : [];
+  const ordered = receipt.fulfilment.kind === "ordered";
   // Guarded exactly like the rows above it. Without this a non-finite total
   // prints "GH₵NaN" as the largest figure on the card, which is worse than
   // showing no total at all beside an honest "we could not read a price".
@@ -115,8 +116,16 @@ function ReceiptBody({ receipt, now }: { receipt: HomeReceipt; now: Date }) {
 
       {total && (
         <div className="tm-pop flex items-baseline justify-between gap-3 border-t border-dashed border-[#E8DDD6] pt-3 [animation-delay:1.1s]">
+          {/*
+            "Landed in Accra" is a QUOTE — what this would cost if you bought it
+            now. Once there is a paid order the figure is no longer a quote but
+            the amount charged, held in the order's own stored breakdown, and
+            calling it a quote invites the customer to wonder why it moved.
+          */}
           <span className="text-sm leading-none font-semibold">
-            Landed in Accra
+            {ordered && receipt.fulfilment.kind === "ordered" && receipt.fulfilment.paid
+              ? "Paid"
+              : "Landed in Accra"}
           </span>
           <span className="tm-nums text-[26px] leading-none font-bold tracking-[-0.02em]">
             {total.whole}
@@ -132,6 +141,7 @@ function ReceiptBody({ receipt, now }: { receipt: HomeReceipt; now: Date }) {
         extractionCacheId={receipt.extractionCacheId}
         unpriced={rows.length === 0}
         assistedOpen={receipt.assistedOpen}
+        fulfilment={receipt.fulfilment}
       />
     </>
   );

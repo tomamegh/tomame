@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
+import { Gauge } from "@phosphor-icons/react/ssr";
+
 import { Logo } from "@/components/brand/logo";
 import { AppNavLinks } from "./app-nav-links";
 import { APP_NAV_ITEMS, avatarInitial, formatRatePill } from "./links";
@@ -38,6 +40,7 @@ export function AppNav({
   unreadCount,
   rate,
   bagCount,
+  isAdmin,
   className,
 }: AppNavProps) {
   const ratePill = rate
@@ -129,6 +132,26 @@ export function AppNav({
 
           {isAuthenticated ? (
             <>
+              {/*
+                The way back. An admin is met with the admin view on sign-in and
+                switches out to the storefront on purpose — without this the
+                switch is one-way and the only route back is retyping `/admin`.
+                Hidden below `md`: the admin is not usable on a phone, so
+                offering it there would lead somewhere unworkable.
+              */}
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className={cn(
+                    "hidden h-9 items-center gap-1.5 rounded-full border border-tm-border px-3 text-[13px] font-semibold text-tm-text-2 transition-colors hover:bg-tm-tint hover:text-tm-ink md:inline-flex",
+                    FOCUS_RING,
+                  )}
+                >
+                  <Gauge weight="duotone" className="size-4 shrink-0" aria-hidden />
+                  Admin
+                </Link>
+              )}
+
               <NotificationBell initialUnreadCount={unreadCount} />
 
               <Link

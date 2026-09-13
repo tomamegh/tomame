@@ -19,6 +19,10 @@ vi.mock("@/db/queries/orders", () => ({
   countMovingOrders: vi.fn(),
   getRecentOrdersForUser: vi.fn(),
 }));
+vi.mock("@/db/queries/receipt-state", () => ({
+  getReceiptFulfilment: vi.fn(async () => ({ kind: "none" })),
+  NO_FULFILMENT: { kind: "none" },
+}));
 vi.mock("@/db/queries/assisted-requests", () => ({
   listOpenAssistedRequestsByUrl: vi.fn(async () => new Map()),
 }));

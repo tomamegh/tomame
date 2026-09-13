@@ -1,3 +1,4 @@
+import type { ReceiptFulfilment } from "@/db/queries/receipt-state";
 import type { PricingBreakdown } from "@/lib/pricing";
 import type { JourneyView } from "@/features/orders/services/journey-stage";
 import type { WatchListResponse } from "@/features/watches/types";
@@ -52,6 +53,16 @@ export interface HomeReceipt {
    * offering "Try again" and "Describe it" a second time.
    */
   assistedOpen: boolean;
+  /**
+   * What has already become of this product: nothing, in the bag, or ordered.
+   *
+   * The receipt used to know only that a link had been pasted, so it offered
+   * "Add to bag" for an item the customer had already PAID for, and quoted a
+   * freshly re-derived price instead of the cedis they were charged. When this
+   * says `ordered`, the card is a real receipt — the order's own stored
+   * breakdown — and the action is to follow the parcel, not to buy it again.
+   */
+  fulfilment: ReceiptFulfilment;
 }
 
 /**

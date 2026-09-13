@@ -3,7 +3,9 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowsClockwise, ChatCircleText, CheckCircle, Tote } from "@phosphor-icons/react/ssr";
+import { ArrowRight, ArrowsClockwise, ChatCircleText, CheckCircle, Path, Tote } from "@phosphor-icons/react/ssr";
+
+import type { ReceiptFulfilment } from "@/db/queries/receipt-state";
 
 import { AssistedRequestDialog } from "@/features/assisted/components";
 import { useCreatePaste } from "@/features/extraction/hooks/usePastes";
@@ -19,6 +21,8 @@ export interface ReceiptActionsProps {
   unpriced: boolean;
   /** True when this customer has already described the link to a buyer and that request is still open. */
   assistedOpen: boolean;
+  /** What has already become of this product — nothing, in the bag, or ordered. */
+  fulfilment: ReceiptFulfilment;
 }
 
 const SECONDARY = cn(
@@ -45,7 +49,13 @@ const SECONDARY = cn(
  * "Describe it" beside that invites a second, duplicate request and a re-read
  * nobody is waiting on. The card says who has it instead.
  */
-export function ReceiptActions({ productUrl, extractionCacheId, unpriced, assistedOpen }: ReceiptActionsProps) {
+export function ReceiptActions({
+  productUrl,
+  extractionCacheId,
+  unpriced,
+  assistedOpen,
+  fulfilment,
+}: ReceiptActionsProps) {
   const router = useRouter();
   const [describing, setDescribing] = useState(false);
   const createPaste = useCreatePaste();
@@ -81,7 +91,44 @@ export function ReceiptActions({ productUrl, extractionCacheId, unpriced, assist
   return (
     <>
       <div className="flex items-center gap-2">
-        {!unpriced && extractionCacheId ? (
+        {/*
+          ORDERED WINS OVER EVERYTHING. The card used to offer "Add to bag" for a
+          product the customer had already paid for, because it only knew a link
+          had been pasted. A bought item's next step is to follow the parcel;
+          an unpaid order's is to finish paying.
+        */}
+        {fulfilment.kind === "ordered" ? (
+          fulfilment.paid ? (
+            <Link
+              href={`/app/orders/${fulfilment.orderId}`}
+              className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-tm-border bg-card px-3 text-[13px] leading-none font-semibold transition-colors hover:bg-tm-tint"
+            >
+              <Path weight="bold" className="size-3.5 text-tm-green" aria-hidden />
+              Track this journey
+              <ArrowRight weight="bold" className="size-3.5" aria-hidden />
+            </Link>
+          ) : (
+            <Link
+              href="/app/bag"
+              className="tm-cta-gradient inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl px-3 text-[13px] leading-none font-bold text-white transition-[filter] hover:brightness-105"
+            >
+              Finish paying
+              <ArrowRight weight="bold" className="size-3.5" aria-hidden />
+            </Link>
+          )
+        ) : fulfilment.kind === "in_bag" ? (
+          // Already a line in the open bag. Pressing "Add to bag" again would
+          // only bump its quantity, which is never what someone means when they
+          // are looking at the receipt for a thing they have just added.
+          <Link
+            href="/app/bag"
+            className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-tm-border bg-card px-3 text-[13px] leading-none font-semibold transition-colors hover:bg-tm-tint"
+          >
+            <Tote weight="bold" className="size-3.5 text-tm-coral" aria-hidden />
+            {fulfilment.quantity > 1 ? `In your bag · ${fulfilment.quantity}` : "In your bag"}
+            <ArrowRight weight="bold" className="size-3.5" aria-hidden />
+          </Link>
+        ) : !unpriced && extractionCacheId ? (
           <Link
             href={`/app/orders/review/${extractionCacheId}`}
             className="tm-cta-gradient inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl px-3 text-[13px] leading-none font-bold text-white transition-[filter] hover:brightness-105"

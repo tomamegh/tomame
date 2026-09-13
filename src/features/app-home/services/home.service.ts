@@ -14,6 +14,7 @@ import {
   type ExtractionRequestRow,
 } from "@/db/queries/extraction-requests";
 import { listOpenAssistedRequestsByUrl, type OpenAssistedRequestSummary } from "@/db/queries/assisted-requests";
+import { getReceiptFulfilment, NO_FULFILMENT } from "@/db/queries/receipt-state";
 import {
   getCachedExtractionByHash,
   getExtractionById,
@@ -209,7 +210,7 @@ async function buildReceipt(
   const snapshot = await loadExtraction(paste);
   if (!snapshot) return null;
 
-  const [{ pricing, reason }, assisted] = await Promise.all([
+  const [{ pricing, reason }, assisted, fulfilment] = await Promise.all([
     priceUnderExistingLock({
       viewer,
       extraction: snapshot.result,
@@ -224,7 +225,17 @@ async function buildReceipt(
       new Map<string, OpenAssistedRequestSummary>(),
       "assisted requests",
     ),
+    // Already bought, or already in the bag? Without this the card offered
+    // "Add to bag" for a product the customer had paid for.
+    degrade(getReceiptFulfilment(viewer, snapshot.id), NO_FULFILMENT, "receipt fulfilment"),
   ]);
+
+  // AN ORDER IS THE SETTLED FACT, so it replaces the live quote outright.
+  // `pricing` above is re-derived on every render under the current rate lock,
+  // which is the right thing for something the customer has not bought — and
+  // the wrong thing for something they have, where the only honest figure is
+  // what they were charged. The order carries its own stored breakdown.
+  const settled = fulfilment.kind === "ordered" ? fulfilment.pricing : null;
 
   return {
     productUrl: paste.product_url,
@@ -232,10 +243,13 @@ async function buildReceipt(
     pastedAt: paste.updated_at,
     productName: snapshot.result.product.title,
     productImageUrl: snapshot.result.product.image,
-    pricing,
-    pricingUnavailableReason: reason,
+    pricing: settled ?? pricing,
+    // A paid order always has a price, so a "we could not price this" reason
+    // from the live quote must not survive onto a receipt that shows one.
+    pricingUnavailableReason: settled ? null : reason,
     extractionCacheId: snapshot.id,
     assistedOpen: assisted.has(paste.product_url),
+    fulfilment,
   };
 }
 

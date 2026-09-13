@@ -2,6 +2,7 @@ import "server-only";
 
 import type { AppChromeData } from "@/components/layout/app/types";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { countUnreadNotifications } from "@/features/notifications/services/notifications.service";
 import { getFxRateQuote } from "@/features/pricing/services/fx-rate.service";
@@ -75,6 +76,9 @@ export async function getAppChrome(): Promise<AppChromeData> {
     unreadCount,
     rate,
     bagCount,
+    // Same predicate the proxy gates `/admin` with, on the same JWT claim, so
+    // the link cannot appear for someone the gate would turn away.
+    isAdmin: canAccessAdmin(user),
   };
 }
 

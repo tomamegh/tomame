@@ -67,4 +67,17 @@ export interface AppChromeData {
   rate: AppNavRate | null;
   /** `sum(cart_items.quantity)` over the viewer's open bag — signed in or via the quote-session cookie. */
   bagCount: number;
+  /**
+   * This viewer may reach `/admin`.
+   *
+   * An admin is met with the admin view when they sign in and switches OUT to
+   * the storefront deliberately, so the storefront needs a visible way back —
+   * otherwise the switch is one-way and they have to retype the URL.
+   *
+   * Decided by `canAccessAdmin` on the JWT claim, which is the SAME predicate
+   * `src/proxy.ts` gates the route with. Reading `profiles.role` here instead
+   * would let the link appear for a session whose token does not yet carry the
+   * claim, and clicking it would bounce straight back to `/app`.
+   */
+  isAdmin: boolean;
 }

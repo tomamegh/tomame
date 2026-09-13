@@ -18,14 +18,13 @@ import { Input } from "@/components/ui/form";
 import { Suspense } from "react";
 import ResetSuccess from "./reset-success";
 import SocialAuthButtons from "./social-auth-button";
+import { postAuthDestination } from "@/lib/auth/post-auth-destination";
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { mutateAsync, error, isPending } = useLogin();
-  // Only same-origin paths; anything else falls back to the dashboard.
   const rawNext = searchParams.get("next");
-  const nextPath = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/app";
 
   const { control, handleSubmit } = useForm<LoginSchemaType>({
     resolver: zodResolver(loginSchema),
@@ -36,9 +35,29 @@ export default function LoginForm() {
   });
 
   const onSubmit = async (data: LoginSchemaType) => {
-    const { error } = await mutateAsync(data);
-    if (error) return;
-    router.push(nextPath);
+    const result = await mutateAsync(data);
+    if (result?.error) return;
+
+    // Where to land is one shared rule (`postAuthDestination`): an explicit
+    // `?next=` wins, otherwise an admin is met with the ADMIN view and everyone
+    // else with the storefront. This used to be a hardcoded "/app", so an
+    // administrator signing in was dropped into the customer app and had to
+    // know to type /admin.
+    //
+    // The role comes from the freshly-signed-in user the server just returned,
+    // not from anything the browser held beforehand.
+    const user = result?.data as { profile?: { role?: string } } | undefined;
+    const destination = postAuthDestination({
+      next: rawNext,
+      isAdmin: user?.profile?.role === "admin",
+    });
+
+    // `replace`, not `push`: the back button should not return to a login form
+    // for a session that now exists.
+    router.replace(destination);
+    // The shell is server-rendered and still holds the signed-out chrome —
+    // without this the nav shows "Sign in" until something else refreshes it.
+    router.refresh();
   };
 
   return (
