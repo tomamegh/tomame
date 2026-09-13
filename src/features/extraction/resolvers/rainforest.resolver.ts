@@ -24,7 +24,6 @@ export function mapRainforestProduct(item: RainforestProduct): PartialProduct {
       break;
     }
   }
-  if (!category && crumbs.length > 0) category = TomameCategory.OTHER;
 
   const price = item.buybox_winner?.price;
   const weightText = item.weight ?? Object.entries(specs).find(([k]) => /weight/i.test(k))?.[1] ?? null;
@@ -55,6 +54,7 @@ export function mapRainforestProduct(item: RainforestProduct): PartialProduct {
     variants: {},
     availability: cleanString(bb?.availability?.raw) ?? humanizeToken(bb?.availability?.type),
     metadata: {
+      breadcrumbs: crumbs,
       images: rawImages,
       asin: item.asin ?? null,
       rating: item.rating ?? null,

@@ -72,7 +72,6 @@ export function mapScraperApiAmazon(item: ScraperApiAmazonProduct, sourceUrl: st
       break;
     }
   }
-  if (!category && crumbs.length > 0) category = TomameCategory.OTHER;
 
   const { price, currency } = parseMoney(item.pricing, defaultCurrencyForUrl(sourceUrl));
   const rawImages = item.high_res_images?.length ? item.high_res_images : item.images ?? [];

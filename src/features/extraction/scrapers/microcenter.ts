@@ -170,37 +170,36 @@ function extractDimensions(specs: Record<string, string>): string | null {
   return null;
 }
 
-function mapCategory(
-  breadcrumb: JsonLdNode | null,
-  productLinkCategory: string | null,
-): TomameCategory | null {
-  // Try breadcrumb chain first (deepest → shallowest) for the most specific match
-  if (breadcrumb) {
-    const items = breadcrumb.itemListElement;
-    if (Array.isArray(items)) {
-      const names: string[] = [];
-      for (const raw of items) {
-        if (raw && typeof raw === "object") {
-          const node = raw as JsonLdNode;
-          const name = typeof node.name === "string" ? node.name : null;
-          if (name && name !== "Home") names.push(name);
-        }
-      }
-      for (let i = names.length - 1; i >= 0; i--) {
-        const mapped = MICROCENTER_CATEGORY_MAP.get(names[i]!);
-        if (mapped) return mapped;
-      }
-      if (names.length > 0) {
-        // Known Micro Center category but no Tomame match
-        return TomameCategory.OTHER;
-      }
+/** Breadcrumb names from the BreadcrumbList JSON-LD, shallowest first, "Home" dropped. */
+function breadcrumbNames(breadcrumb: JsonLdNode | null): string[] {
+  const items = breadcrumb?.itemListElement;
+  if (!Array.isArray(items)) return [];
+  const names: string[] = [];
+  for (const raw of items) {
+    if (raw && typeof raw === "object") {
+      const node = raw as JsonLdNode;
+      const name = typeof node.name === "string" ? node.name : null;
+      if (name && name !== "Home") names.push(name);
     }
   }
-  // Fallback: data-category from ProductLink span
+  return names;
+}
+
+/**
+ * Store taxonomy → Tomame category. Deepest breadcrumb first, then the
+ * ProductLink data-category. An unmapped store category returns null, never
+ * OTHER: a non-null category ends the chain's category search, so "Other"
+ * here would price a gaming PC through the Other group instead of letting the
+ * learned map / classifier read the breadcrumbs.
+ */
+function mapCategory(names: string[], productLinkCategory: string | null): TomameCategory | null {
+  for (let i = names.length - 1; i >= 0; i--) {
+    const mapped = MICROCENTER_CATEGORY_MAP.get(names[i]!);
+    if (mapped) return mapped;
+  }
   if (productLinkCategory) {
     const mapped = MICROCENTER_CATEGORY_MAP.get(productLinkCategory);
     if (mapped) return mapped;
-    return TomameCategory.OTHER;
   }
   return null;
 }
@@ -217,10 +216,7 @@ export function mapApifyMicrocenterProduct(item: ApifyMicrocenterProduct): Scrap
     }
   }
 
-  let category: TomameCategory | null = null;
-  if (item.category) {
-    category = MICROCENTER_CATEGORY_MAP.get(item.category) ?? TomameCategory.OTHER;
-  }
+  const category = item.category ? (MICROCENTER_CATEGORY_MAP.get(item.category) ?? null) : null;
 
   const rawImages = (item.images ?? []).filter((u): u is string => typeof u === "string");
   const images = normalizeImages(rawImages);
@@ -253,6 +249,7 @@ export function mapApifyMicrocenterProduct(item: ApifyMicrocenterProduct): Scrap
       storeLocation: item.store_location ?? null,
       storeInventory: item.store_inventory ?? null,
       originalPrice: item.original_price ?? null,
+      breadcrumbs: item.category ? [item.category] : [],
       source: "apify",
     },
   };
@@ -290,6 +287,7 @@ export class MicrocenterScraper implements PlatformScraper {
     const jsonLd = parseJsonLd($);
     const product = findByType(jsonLd, "Product");
     const breadcrumb = findByType(jsonLd, "BreadcrumbList");
+    const crumbs = breadcrumbNames(breadcrumb);
 
     const linkData = extractFromProductLink($);
 
@@ -351,7 +349,7 @@ export class MicrocenterScraper implements PlatformScraper {
       currency,
       description,
       brand,
-      category: mapCategory(breadcrumb, linkData.category),
+      category: mapCategory(crumbs, linkData.category),
       size: specifications["Size"] ?? null,
       weight: extractWeight(specifications),
       weight_lbs: parseWeight(extractWeight(specifications)),
@@ -370,6 +368,7 @@ export class MicrocenterScraper implements PlatformScraper {
         sku,
         mpn,
         microcenterCategory: linkData.category,
+        breadcrumbs: crumbs.length ? crumbs : linkData.category ? [linkData.category] : [],
       },
     };
   }
