@@ -101,3 +101,289 @@ export async function getLatestExtractionRequest(
 
   return (data as ExtractionRequestRow | null) ?? null;
 }
+
+// ── The paste queue (049) ────────────────────────────────────────────────────
+
+/** Job state of a paste. `ready` means `extraction_cache_id` is usable. */
+export type ExtractionRequestStatus = "pending" | "running" | "ready" | "failed";
+
+/** One viewer — a signed-in customer or a `tm_quote_session` cookie. Exactly one is set. */
+export interface RequestViewer {
+  userId: string | null;
+  sessionId: string | null;
+}
+
+export interface ExtractionJobRow extends ExtractionRequestRow {
+  user_id: string | null;
+  session_id: string | null;
+  status: ExtractionRequestStatus;
+  attempts: number;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+}
+
+const JOB_COLUMNS =
+  "id, url_hash, product_url, extraction_cache_id, created_at, updated_at, user_id, session_id, status, attempts, started_at, finished_at, error";
+
+/** The column that owns a row, and its value. Exactly one identity, enforced by a CHECK in 049. */
+function ownerFilter(viewer: RequestViewer): { column: "user_id" | "session_id"; value: string } | null {
+  if (viewer.userId) return { column: "user_id", value: viewer.userId };
+  if (viewer.sessionId) return { column: "session_id", value: viewer.sessionId };
+  return null;
+}
+
+/**
+ * Put a paste on the queue, or return the row that is already there.
+ *
+ * Upserted on (viewer, url_hash) — the same uniqueness 046 had, restored as two
+ * partial indexes in 049 now that `user_id` can be null. A repeat paste of a link
+ * that is still reading joins the existing job rather than starting a second one;
+ * a repeat paste of one that FAILED resets it to `pending` so the customer's
+ * retry actually retries.
+ *
+ * `cachedId` short-circuits the whole queue: a product-keyed cache hit is already
+ * the answer, so the row is written `ready` and nothing is ever scheduled.
+ */
+export async function enqueueExtractionRequest(input: {
+  viewer: RequestViewer;
+  urlHash: string;
+  productUrl: string;
+  cachedId: string | null;
+}): Promise<ExtractionJobRow | null> {
+  const owner = ownerFilter(input.viewer);
+  if (!owner) return null;
+
+  const db = createAdminClient();
+  const existing = await findExtractionRequestByUrl(input.viewer, input.urlHash);
+
+  // A row that is already `ready` or in flight is left exactly as it is: resetting
+  // a `running` job to `pending` would let the sweeper start a second worker on it.
+  if (existing && (existing.status === "running" || (existing.status === "ready" && existing.extraction_cache_id))) {
+    return existing;
+  }
+
+  const ready = input.cachedId != null;
+  const { data, error } = await db
+    .from("extraction_requests")
+    .upsert(
+      {
+        [owner.column]: owner.value,
+        url_hash: input.urlHash,
+        product_url: input.productUrl,
+        extraction_cache_id: input.cachedId,
+        status: ready ? "ready" : "pending",
+        attempts: 0,
+        error: null,
+        started_at: null,
+        finished_at: ready ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      },
+      // `owner_key` is the generated column 049 added (coalesce(user_id, session_id)).
+      // Conflict is inferred on it rather than on whichever identity column this
+      // viewer uses, because ON CONFLICT needs one plain unique index to point at.
+      { onConflict: "owner_key,url_hash" },
+    )
+    .select(JOB_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    logger.warn("extraction request enqueue failed", { code: error.code, message: error.message });
+    return null;
+  }
+  return data as ExtractionJobRow | null;
+}
+
+/** One viewer's row for a link, whatever state it is in. */
+export async function findExtractionRequestByUrl(
+  viewer: RequestViewer,
+  urlHash: string,
+): Promise<ExtractionJobRow | null> {
+  const owner = ownerFilter(viewer);
+  if (!owner) return null;
+
+  const { data, error } = await createAdminClient()
+    .from("extraction_requests")
+    .select(JOB_COLUMNS)
+    .eq(owner.column, owner.value)
+    .eq("url_hash", urlHash)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to load extraction request: ${error.message}`);
+  return (data as ExtractionJobRow | null) ?? null;
+}
+
+/**
+ * One job by id, scoped to the viewer who owns it.
+ *
+ * Service role with an explicit owner filter rather than the cookie-bound client:
+ * a signed-out viewer is identified by `tm_quote_session`, which PostgREST knows
+ * nothing about. The filter is the authorization — never drop it.
+ */
+export async function getExtractionRequestForViewer(
+  id: string,
+  viewer: RequestViewer,
+): Promise<ExtractionJobRow | null> {
+  const owner = ownerFilter(viewer);
+  if (!owner) return null;
+
+  const { data, error } = await createAdminClient()
+    .from("extraction_requests")
+    .select(JOB_COLUMNS)
+    .eq("id", id)
+    .eq(owner.column, owner.value)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to load extraction request: ${error.message}`);
+  return (data as ExtractionJobRow | null) ?? null;
+}
+
+/**
+ * Claim one job for this worker, atomically.
+ *
+ * `pending → running` guarded on the current status, so two workers racing for
+ * the same row cannot both win: the loser's update matches nothing and returns
+ * null. This is the same `.eq(status, from)` idempotency the payment transitions
+ * use, and it is what makes `after()` and the cron sweep safe to overlap.
+ */
+export async function claimExtractionRequest(id: string): Promise<ExtractionJobRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("extraction_requests")
+    .update({ status: "running", started_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("status", "pending")
+    .select(JOB_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    logger.warn("extraction request claim failed", { id, message: error.message });
+    return null;
+  }
+  return (data as ExtractionJobRow | null) ?? null;
+}
+
+/** Finish a job: `ready` with a cache row, or `failed` with something to show the customer. */
+export async function completeExtractionRequest(input: {
+  id: string;
+  status: "ready" | "failed";
+  extractionCacheId?: string | null;
+  error?: string | null;
+  attempts: number;
+}): Promise<void> {
+  const { error } = await createAdminClient()
+    .from("extraction_requests")
+    .update({
+      status: input.status,
+      extraction_cache_id: input.extractionCacheId ?? null,
+      error: input.error ?? null,
+      attempts: input.attempts,
+      finished_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id);
+
+  if (error) logger.warn("extraction request completion failed", { id: input.id, message: error.message });
+}
+
+/**
+ * Release a job whose worker never came back.
+ *
+ * A `running` row older than `staleAfterMs` means the invocation that held it
+ * died — a deploy, a crash, a function timeout. It goes back to `pending` so the
+ * sweeper can retry it, unless it has already burned its attempts, in which case
+ * it fails with something the customer can read.
+ */
+export async function reclaimStaleExtractionRequests(staleAfterMs: number, maxAttempts: number): Promise<number> {
+  const cutoff = new Date(Date.now() - staleAfterMs).toISOString();
+  const db = createAdminClient();
+
+  const { data, error } = await db
+    .from("extraction_requests")
+    .select("id, attempts")
+    .eq("status", "running")
+    .lt("started_at", cutoff)
+    .limit(50);
+
+  if (error || !data?.length) return 0;
+
+  for (const row of data as { id: string; attempts: number }[]) {
+    const exhausted = row.attempts + 1 >= maxAttempts;
+    await db
+      .from("extraction_requests")
+      .update(
+        exhausted
+          ? {
+              status: "failed",
+              error: "We could not read that page. Tell us what you want instead and a buyer will help.",
+              attempts: row.attempts + 1,
+              finished_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }
+          : { status: "pending", attempts: row.attempts + 1, started_at: null, updated_at: new Date().toISOString() },
+      )
+      .eq("id", row.id)
+      .eq("status", "running");
+  }
+  return data.length;
+}
+
+/** Oldest queued work first. The sweeper's batch; the route bounds how many it takes. */
+export async function listQueuedExtractionRequests(limit: number): Promise<ExtractionJobRow[]> {
+  const { data, error } = await createAdminClient()
+    .from("extraction_requests")
+    .select(JOB_COLUMNS)
+    .eq("status", "pending")
+    .order("updated_at", { ascending: true })
+    .limit(limit);
+
+  if (error) throw new Error(`Failed to list queued extractions: ${error.message}`);
+  return (data ?? []) as ExtractionJobRow[];
+}
+
+/**
+ * Move a session's pastes onto the user at sign-in, mirroring the cart adoption
+ * in 048. Rows the user already has for the same link are left alone — their own
+ * row wins — and the orphaned session row is dropped so the partial unique index
+ * on (session_id, url_hash) cannot collide later.
+ */
+export async function adoptExtractionRequests(sessionId: string, userId: string): Promise<void> {
+  const db = createAdminClient();
+  const { data: mine } = await db.from("extraction_requests").select("url_hash").eq("user_id", userId);
+  const taken = new Set((mine ?? []).map((r) => (r as { url_hash: string }).url_hash));
+
+  const { data: theirs } = await db
+    .from("extraction_requests")
+    .select("id, url_hash")
+    .eq("session_id", sessionId);
+
+  for (const row of (theirs ?? []) as { id: string; url_hash: string }[]) {
+    if (taken.has(row.url_hash)) {
+      await db.from("extraction_requests").delete().eq("id", row.id);
+      continue;
+    }
+    await db.from("extraction_requests").update({ user_id: userId, session_id: null }).eq("id", row.id);
+  }
+}
+
+/**
+ * Put a failed attempt back on the queue for the next sweep.
+ *
+ * Deliberately NOT `completeExtractionRequest({status:'pending'})`: completing a
+ * job stamps `finished_at`, and a job going round again has not finished. It also
+ * clears `started_at`, so the stale-reclaim cutoff cannot fire on a row that is
+ * merely waiting its turn.
+ */
+export async function requeueExtractionRequest(id: string, attempts: number): Promise<void> {
+  const { error } = await createAdminClient()
+    .from("extraction_requests")
+    .update({
+      status: "pending",
+      attempts,
+      started_at: null,
+      finished_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) logger.warn("extraction request requeue failed", { id, message: error.message });
+}
