@@ -121,11 +121,41 @@ export async function resetPassword(
   return { message: "Password has been reset" };
 }
 
+/**
+ * Changes the signed-in user's password.
+ *
+ * **The current password is verified, not merely collected.** This function
+ * previously took the new password alone and ignored everything else: the
+ * endpoint asked for `current_password`, validated that it was non-empty, and
+ * then threw it away — so anyone holding a live session cookie (a borrowed
+ * laptop, a stolen token) could lock the owner out of their own account without
+ * knowing the password. Found while wiring the account screen's Security tab in
+ * Phase 6; the tab is the first customer-facing surface for this endpoint.
+ *
+ * Verification is a sign-in with the current credentials. Supabase has no
+ * "check this password" call, and `signInWithPassword` for the SAME user is the
+ * standard reauthentication: it succeeds only for the right password, and on
+ * success it hands back a session for the user we already are, so a failure
+ * cannot hand the caller anyone else's session. A wrong password leaves the
+ * existing session untouched.
+ */
 export async function changePassword(
-  _userId: string,
+  email: string,
+  currentPassword: string,
   newPassword: string,
 ): Promise<MessageResponse> {
   const supabase = await createClient();
+
+  const { data: reauth, error: reauthError } = await supabase.auth.signInWithPassword({
+    email,
+    password: currentPassword,
+  });
+
+  if (reauthError || !reauth.user) {
+    // 401, not 400: this is "you are not who you say you are", and the message
+    // names the field so the form can be corrected.
+    throw new APIError(401, "Current password is incorrect");
+  }
 
   const { error } = await supabase.auth.updateUser({ password: newPassword });
 

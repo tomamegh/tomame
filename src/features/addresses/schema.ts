@@ -1,7 +1,16 @@
 import { z } from "zod";
 
-/** Ghanaian numbers as customers type them: 024 555 0192, +233 24 555 0192, 0245550192. */
-const PHONE_RE = /^\+?[0-9][0-9 ()-]{7,18}$/;
+/**
+ * Ghanaian numbers as customers type them: 024 555 0192, +233 24 555 0192,
+ * 0245550192.
+ *
+ * Exported because the account screen asks for a phone number too, and two
+ * regexes would eventually disagree about what a number looks like — a form
+ * would accept a value the other form rejects on the same account. One
+ * definition, imported; see `src/features/account/schema.ts`.
+ */
+export const GHANA_PHONE_RE = /^\+?[0-9][0-9 ()-]{7,18}$/;
+const PHONE_RE = GHANA_PHONE_RE;
 /** GhanaPost GPS: two letters, three digits, four digits. */
 const DIGITAL_ADDRESS_RE = /^[A-Z]{2}-\d{3,4}-\d{4}$/i;
 

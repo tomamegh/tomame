@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { bagKeys } from "../hooks/useAddToBag";
 import { useSetBagDelivery } from "../hooks/useBag";
 import type { BagDelivery } from "../types";
-import { AddressFormDialog } from "./address-form-dialog";
+import { AddressFormDialog } from "@/features/addresses/components/address-form-dialog";
 
 const LOGIN_HREF = `/auth/login?next=${encodeURIComponent("/app/bag")}`;
 
