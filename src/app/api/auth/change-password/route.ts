@@ -30,7 +30,18 @@ export async function POST(request: NextRequest) {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
 
-    const data = await changePassword(auth.id, parsed.data.new_password);
+    // The email comes from the verified session, never from the body: the
+    // service reauthenticates with it, and a client-supplied address would turn
+    // this into a password oracle for other accounts.
+    if (!auth.email) {
+      throw new APIError(400, "This account has no email to verify against");
+    }
+
+    const data = await changePassword(
+      auth.email,
+      parsed.data.current_password,
+      parsed.data.new_password,
+    );
 
     await logAuditEvent({
       actorId: auth.id,
