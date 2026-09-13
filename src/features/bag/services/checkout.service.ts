@@ -55,6 +55,12 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
     throw new APIError(400, "Your bag is empty");
   }
   if (!bag.delivery) throw new APIError(400, "Choose where to deliver first");
+  // Checked BEFORE the generic unpriced guard so the customer is told the real
+  // reason: a line still being read is a wait, not a failure, and the answer is
+  // to give it a moment rather than to remove it.
+  if (bag.has_pending_lines) {
+    throw new APIError(409, "We are still reading one of your links. Give it a moment and try again.");
+  }
   if (bag.has_unpriced_lines) {
     throw new APIError(409, "One or more lines could not be priced. Remove them or paste the link again.");
   }
@@ -140,7 +146,9 @@ function orderInputFor(line: BagLine): Parameters<typeof createOrder>[2] {
     ...(image && { product_image_url: image }),
     quantity: line.quantity,
     ...(line.special_instructions && { special_instructions: line.special_instructions }),
-    extraction_cache_id: line.extraction_cache_id,
+    // Non-null by the time checkout runs: `has_pending_lines` is refused above,
+    // and a line without an extraction cannot be priced, so it never gets here.
+    extraction_cache_id: line.extraction_cache_id ?? undefined,
     ...(line.gap_price_usd != null && { estimated_price_usd: line.gap_price_usd }),
     ...(line.gap_origin_country && { origin_country: line.gap_origin_country }),
   };

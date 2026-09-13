@@ -87,6 +87,38 @@ export async function upsertExtractionCache(input: {
 }): Promise<string | null> {
   try {
     const db = createAdminClient();
+
+    // NEVER downgrade a product we already read successfully.
+    //
+    // The upsert is keyed on `url_hash`, so a re-read of a link whose store was
+    // blocked THAT MINUTE would replace a complete product — title, price, weight
+    // — with an empty one. That is money: `cart_items` and `orders` both price
+    // from this row, so a bag line that had a price silently loses it, and the
+    // customer sees "Price could not be read" on something they were about to pay
+    // for. Observed on a real bag line while building the paste queue (049),
+    // which re-extracts far more eagerly than the old synchronous path did.
+    //
+    // A price CAN legitimately vanish (a delisted product), so this is not "never
+    // overwrite": a complete result always wins, and an incomplete one is only
+    // refused while a complete, unexpired row still stands.
+    if (!input.complete) {
+      const { data: existing } = await db
+        .from("extraction_cache")
+        .select("id")
+        .eq("url_hash", input.urlHash)
+        .eq("is_valid", true)
+        .eq("complete", true)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
+
+      if (existing) {
+        logger.info("extraction cache: keeping the complete row over an incomplete re-read", {
+          url: input.productUrl,
+        });
+        return existing.id as string;
+      }
+    }
+
     const { data, error } = await db
       .from("extraction_cache")
       .upsert(

@@ -10,6 +10,8 @@ import { formatBoxFill, formatBoxHeadroom, formatBoxTitle } from "./format";
 export interface BagBoxCardProps {
   box: BagBox;
   lines: BagLine[];
+  /** One clock per render, shared by every pending line. */
+  now: Date;
   busyLineId: string | null;
   onQuantity: (line: BagLine, quantity: number) => void;
   onWatchInstead: (line: BagLine) => void;
@@ -25,7 +27,7 @@ export interface BagBoxCardProps {
  * percentage (`tmFill 1.2s .4s`), the lines, and the dashed footer with the
  * headroom and the price-watch nudge.
  */
-export function BagBoxCard({ box, lines, busyLineId, onQuantity, onWatchInstead, onRemove, index }: BagBoxCardProps) {
+export function BagBoxCard({ box, lines, now, busyLineId, onQuantity, onWatchInstead, onRemove, index }: BagBoxCardProps) {
   const delay = `${(0.08 + index * 0.06).toFixed(2)}s`;
   return (
     <section
@@ -64,6 +66,7 @@ export function BagBoxCard({ box, lines, busyLineId, onQuantity, onWatchInstead,
           <BagLineRow
             key={line.id}
             line={line}
+            now={now}
             busy={busyLineId === line.id}
             onQuantity={(q) => onQuantity(line, q)}
             onWatchInstead={() => onWatchInstead(line)}

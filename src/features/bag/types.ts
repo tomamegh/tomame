@@ -1,10 +1,30 @@
 import type { PricingBreakdown } from "@/lib/pricing";
 import type { OriginCountry } from "@/features/orders/types";
 
+/**
+ * A line whose product is still being read (049).
+ *
+ * The customer added a link before anyone knew what it was, which is the point:
+ * they can walk away. The line holds its place in the bag, shows the URL it came
+ * from, and prices itself the moment the extraction lands.
+ */
+export interface BagLinePending {
+  request_id: string;
+  /** `failed` is a dead end the screen answers with the describe-it form. */
+  status: "pending" | "running" | "failed";
+  /** Customer-readable; set only when `status` is `failed`. */
+  error: string | null;
+  /** When the paste was queued, ISO. The screen strikes its 5 s / 20 s marks from this, not from its own mount. */
+  queued_at: string;
+}
+
 /** One line of the bag, re-priced on every read from the server-owned snapshot. */
 export interface BagLine {
   id: string;
-  extraction_cache_id: string;
+  /** Null until the paste has been read; `pending` then says where it has got to. */
+  extraction_cache_id: string | null;
+  /** Non-null while the product is still unknown. */
+  pending: BagLinePending | null;
   quantity: number;
   special_instructions: string | null;
   product: {
@@ -112,6 +132,8 @@ export interface BagView {
   rate_locked_until: string | null;
   /** True when at least one line has no pricing. */
   has_unpriced_lines: boolean;
+  /** True while any line is still being read. Checkout is refused until it clears. */
+  has_pending_lines: boolean;
 }
 
 export interface AddToBagResult {

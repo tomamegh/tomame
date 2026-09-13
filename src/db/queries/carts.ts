@@ -23,7 +23,14 @@ export interface CartRow {
 export interface CartItemRow {
   id: string;
   cart_id: string;
-  extraction_cache_id: string;
+  /**
+   * Null while the paste is still being read (049). The line then names
+   * `extraction_request_id` instead, and graduates to a cache id when the job
+   * lands. A row must always name one of the two — CHECK `cart_items_names_a_product`.
+   */
+  extraction_cache_id: string | null;
+  /** The paste this line came from, once it was added before its price existed. */
+  extraction_request_id: string | null;
   quantity: number;
   special_instructions: string | null;
   gap_price_usd: number | null;
@@ -38,7 +45,8 @@ export interface CartItemRow {
 
 export interface CartItemInsert {
   cart_id: string;
-  extraction_cache_id: string;
+  extraction_cache_id: string | null;
+  extraction_request_id: string | null;
   quantity: number;
   special_instructions: string | null;
   gap_price_usd: number | null;
@@ -49,7 +57,7 @@ export interface CartItemInsert {
 
 const CART_COLUMNS = "id, user_id, session_id, status, delivery_zone_id, delivery_address_id, order_group_id, created_at, updated_at";
 const ITEM_COLUMNS =
-  "id, cart_id, extraction_cache_id, quantity, special_instructions, gap_price_usd, gap_origin_country, pricing, quote_lock_id, consolidation_box_id, created_at, updated_at";
+  "id, cart_id, extraction_cache_id, extraction_request_id, quantity, special_instructions, gap_price_usd, gap_origin_country, pricing, quote_lock_id, consolidation_box_id, created_at, updated_at";
 
 // ── Carts (service role — every write is the server's) ──────────────────────
 
@@ -166,7 +174,7 @@ export async function insertCartItem(input: CartItemInsert): Promise<CartItemRow
 
 export async function updateCartItem(
   id: string,
-  patch: Partial<Pick<CartItemRow, "quantity" | "special_instructions" | "gap_price_usd" | "gap_origin_country" | "pricing" | "quote_lock_id" | "consolidation_box_id">>,
+  patch: Partial<Pick<CartItemRow, "quantity" | "special_instructions" | "gap_price_usd" | "gap_origin_country" | "pricing" | "quote_lock_id" | "consolidation_box_id" | "extraction_cache_id">>,
 ): Promise<CartItemRow | null> {
   const client = createAdminClient();
   const { data, error } = await client
@@ -186,14 +194,26 @@ export async function deleteCartItem(id: string): Promise<boolean> {
   return (data?.length ?? 0) > 0;
 }
 
+/**
+ * What makes two lines "the same product" when merging carts.
+ *
+ * Not `extraction_cache_id` alone: a line added before its price has none (049),
+ * so keying on it would give every pending line the same `null` key and merge
+ * two unrelated links into one. A pending line is identified by the paste it
+ * came from until the job lands and it graduates to a cache id.
+ */
+function lineIdentity(line: CartItemRow): string {
+  return line.extraction_cache_id ?? `request:${line.extraction_request_id}`;
+}
+
 /** Move every line of one cart into another, summing quantities on the same product. */
 export async function moveCartItems(fromCartId: string, toCartId: string): Promise<number> {
   const source = await listCartItems(fromCartId);
   if (source.length === 0) return 0;
   const target = await listCartItems(toCartId);
-  const byProduct = new Map(target.map((t) => [t.extraction_cache_id, t]));
+  const byProduct = new Map(target.map((t) => [lineIdentity(t), t]));
   for (const line of source) {
-    const existing = byProduct.get(line.extraction_cache_id);
+    const existing = byProduct.get(lineIdentity(line));
     if (existing) {
       await updateCartItem(existing.id, { quantity: Math.min(100, existing.quantity + line.quantity) });
       await deleteCartItem(line.id);
@@ -236,7 +256,10 @@ function normalizeItem(row: Record<string, unknown>): CartItemRow {
   return {
     id: String(row.id),
     cart_id: String(row.cart_id),
-    extraction_cache_id: String(row.extraction_cache_id),
+    // Nullable since 049 — a line added before its price was known. `String(null)`
+    // would quietly become the string "null" and match nothing forever.
+    extraction_cache_id: (row.extraction_cache_id as string | null) ?? null,
+    extraction_request_id: (row.extraction_request_id as string | null) ?? null,
     quantity: Number(row.quantity),
     special_instructions: (row.special_instructions as string | null) ?? null,
     gap_price_usd: row.gap_price_usd == null ? null : Number(row.gap_price_usd),
@@ -247,4 +270,17 @@ function normalizeItem(row: Record<string, unknown>): CartItemRow {
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
+}
+
+/** The line in this cart that came from a given paste, if it is already there. */
+export async function findCartItemByRequest(cartId: string, extractionRequestId: string): Promise<CartItemRow | null> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("cart_items")
+    .select(ITEM_COLUMNS)
+    .eq("cart_id", cartId)
+    .eq("extraction_request_id", extractionRequestId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load cart item: ${error.message}`);
+  return data ? normalizeItem(data) : null;
 }

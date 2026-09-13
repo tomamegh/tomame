@@ -387,3 +387,22 @@ export async function requeueExtractionRequest(id: string, attempts: number): Pr
 
   if (error) logger.warn("extraction request requeue failed", { id, message: error.message });
 }
+
+/**
+ * One job by id, unscoped.
+ *
+ * For server-side callers that already proved ownership by another route — the
+ * bag reaches a request only through a cart line it has just verified belongs to
+ * the viewer, so re-deriving the owner here would be theatre. Never expose this
+ * to a request handler that has not done that check.
+ */
+export async function getExtractionRequestById(id: string): Promise<ExtractionJobRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("extraction_requests")
+    .select(JOB_COLUMNS)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to load extraction request: ${error.message}`);
+  return (data as ExtractionJobRow | null) ?? null;
+}

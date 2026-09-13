@@ -2,6 +2,7 @@ import "server-only";
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
+import { getExtractionRequestById } from "@/db/queries/extraction-requests";
 import { getExtractionSnapshot } from "@/features/extraction/extraction.service";
 import { gapFillOverrides } from "@/features/extraction/quote.service";
 import { applyRateLock } from "@/features/quotes/services/quote-lock.service";
@@ -23,6 +24,7 @@ import {
   countBagItems,
   deleteCartItem,
   findCartItem,
+  findCartItemByRequest,
   findOpenCart,
   findOpenSessionCart,
   getCartItemById,
@@ -38,7 +40,7 @@ import {
   type CartRow,
 } from "@/db/queries/carts";
 import type { AddToBagInput, SetBagDeliveryInput, UpdateBagLineInput } from "../schema";
-import type { AddToBagResult, BagBox, BagDelivery, BagLine, BagView } from "../types";
+import type { AddToBagResult, BagBox, BagDelivery, BagLine, BagLinePending, BagView } from "../types";
 
 /**
  * The bag: the viewer's open cart, re-priced from the server-owned extraction
@@ -83,24 +85,27 @@ export async function getBagCount(viewer: Viewer): Promise<number> {
 
 export async function addToBag(viewer: Viewer, input: AddToBagInput): Promise<AddToBagResult> {
   if (!hasIdentity(viewer)) throw new APIError(400, "No bag to add to");
-  const snapshot = await getExtractionSnapshot(input.extraction_cache_id);
+  if (input.extraction_request_id) return addPasteToBag(viewer, input, input.extraction_request_id);
+
+  const snapshot = await getExtractionSnapshot(input.extraction_cache_id!);
   if (!snapshot) throw new APIError(404, "This quote has expired. Paste the link again for a fresh price.");
 
   const cart = (await resolveCart(viewer)) ?? (await insertCart(viewer));
-  const existing = await findCartItem(cart.id, input.extraction_cache_id);
+  const existing = await findCartItem(cart.id, input.extraction_cache_id!);
 
   const quantity = Math.min(100, (existing?.quantity ?? 0) + input.quantity);
   const gapPrice = input.estimated_price_usd ?? existing?.gap_price_usd ?? null;
   const gapCountry = input.origin_country ?? existing?.gap_origin_country ?? null;
   const note = input.special_instructions?.trim() || existing?.special_instructions || null;
 
-  const priced = await priceSnapshot(viewer, snapshot.result, input.extraction_cache_id, quantity, gapPrice, gapCountry);
+  const priced = await priceSnapshot(viewer, snapshot.result, input.extraction_cache_id!, quantity, gapPrice, gapCountry);
 
   const row = existing
     ? await updateLineRow(existing.id, { quantity, special_instructions: note, gap_price_usd: gapPrice, gap_origin_country: gapCountry, pricing: priced.pricing, quote_lock_id: priced.pricing?.rate_lock_id ?? existing.quote_lock_id })
     : await insertCartItem({
         cart_id: cart.id,
-        extraction_cache_id: input.extraction_cache_id,
+        extraction_cache_id: input.extraction_cache_id!,
+        extraction_request_id: null,
         quantity,
         special_instructions: note,
         gap_price_usd: gapPrice,
@@ -114,8 +119,77 @@ export async function addToBag(viewer: Viewer, input: AddToBagInput): Promise<Ad
   return { line, item_count: await countBagItems(viewer), created: !existing };
 }
 
+/**
+ * Add a link the queue is still reading.
+ *
+ * The whole point of the paste queue: the customer does not wait for a price to
+ * claim their place in the bag. The line names the REQUEST, and `priceLine`
+ * graduates it to the extraction the moment the job lands.
+ *
+ * A paste that is ALREADY finished skips all of this and takes the normal path —
+ * a product-keyed cache hit is the common case, and it would be perverse to
+ * render "still reading" over a price we already hold.
+ */
+async function addPasteToBag(viewer: Viewer, input: AddToBagInput, requestId: string): Promise<AddToBagResult> {
+  const request = await getExtractionRequestById(requestId);
+  if (!request) throw new APIError(404, "We have no record of that link.");
+  if (!ownsRequest(viewer, request)) throw new APIError(404, "We have no record of that link.");
+
+  if (request.status === "ready" && request.extraction_cache_id) {
+    return addToBag(viewer, { ...input, extraction_request_id: undefined, extraction_cache_id: request.extraction_cache_id });
+  }
+
+  const cart = (await resolveCart(viewer)) ?? (await insertCart(viewer));
+  const existing = await findCartItemByRequest(cart.id, requestId);
+  const quantity = Math.min(100, (existing?.quantity ?? 0) + input.quantity);
+  const note = input.special_instructions?.trim() || existing?.special_instructions || null;
+
+  const row = existing
+    ? await updateLineRow(existing.id, { quantity, special_instructions: note })
+    : await insertCartItem({
+        cart_id: cart.id,
+        extraction_cache_id: null,
+        extraction_request_id: requestId,
+        quantity,
+        special_instructions: note,
+        gap_price_usd: input.estimated_price_usd ?? null,
+        gap_origin_country: input.origin_country ?? null,
+        // Nothing to snapshot yet; the line prices itself on the next bag read.
+        pricing: null,
+        quote_lock_id: null,
+      });
+  await touchCart(cart.id);
+
+  const { pending, productUrl } = await pendingStateFor(row);
+  return { line: pendingLine(row, pending, productUrl), item_count: await countBagItems(viewer), created: !existing };
+}
+
+/**
+ * A paste belongs to the viewer asking for it. Checked here because the bag is
+ * the trust boundary: a request id is a bare uuid the browser sends, and without
+ * this a guessed one would attach somebody else's link to your bag.
+ */
+function ownsRequest(viewer: Viewer, request: { user_id: string | null; session_id: string | null }): boolean {
+  if (request.user_id) return request.user_id === viewer.userId;
+  return !!request.session_id && request.session_id === viewer.sessionId;
+}
+
 export async function updateBagLine(viewer: Viewer, lineId: string, input: UpdateBagLineInput): Promise<BagLine> {
   const { row } = await ownedLine(viewer, lineId);
+
+  // A line still being read has nothing to price, but the quantity and the note
+  // are the customer's either way — refusing them would make the line feel
+  // broken rather than merely unfinished. It prices at the quantity it ends on.
+  if (!row.extraction_cache_id) {
+    const updated = await updateLineRow(row.id, {
+      quantity: input.quantity ?? row.quantity,
+      special_instructions: input.special_instructions === undefined ? row.special_instructions : input.special_instructions,
+    });
+    await touchCart(row.cart_id);
+    const { pending, productUrl } = await pendingStateFor(updated);
+    return pendingLine(updated, pending, productUrl);
+  }
+
   const snapshot = await getExtractionSnapshot(row.extraction_cache_id);
   if (!snapshot) throw new APIError(410, "This quote has expired. Remove the line and paste the link again.");
 
@@ -287,12 +361,67 @@ async function priceSnapshot(
 }
 
 async function priceLine(viewer: Viewer, row: CartItemRow): Promise<BagLine> {
-  const snapshot = await getExtractionSnapshot(row.extraction_cache_id);
-  if (!snapshot) {
-    return toLine(row, null, { pricing: null, reason: "This quote has expired. Remove the line and paste the link again." });
+  // A line added before its price existed (049). Try to graduate it first: the
+  // job may well have landed since the last read.
+  const settled = row.extraction_cache_id ? row : await graduatePendingLine(row);
+  if (!settled.extraction_cache_id) {
+    const { pending, productUrl } = await pendingStateFor(settled);
+    return pendingLine(settled, pending, productUrl);
   }
-  const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, row.quantity, row.gap_price_usd, row.gap_origin_country);
-  return toLine(row, snapshot, priced);
+
+  const snapshot = await getExtractionSnapshot(settled.extraction_cache_id);
+  if (!snapshot) {
+    return toLine(settled, null, { pricing: null, reason: "This quote has expired. Remove the line and paste the link again." });
+  }
+  const priced = await priceSnapshot(viewer, snapshot.result, settled.extraction_cache_id, settled.quantity, settled.gap_price_usd, settled.gap_origin_country);
+  return toLine(settled, snapshot, priced);
+}
+
+/**
+ * Point a pending line at its extraction once the job has finished.
+ *
+ * A write inside a read, like the box materialisation below it, and idempotent
+ * for the same reason: the line is only moved when the paste actually carries a
+ * cache id, and moving it twice is the same as moving it once. Doing it here
+ * rather than from the job means a line graduates on the next thing that looks
+ * at the bag — no coupling from the extraction queue back into carts.
+ */
+async function graduatePendingLine(row: CartItemRow): Promise<CartItemRow> {
+  if (!row.extraction_request_id) return row;
+  const request = await getExtractionRequestById(row.extraction_request_id);
+  if (request?.status !== "ready" || !request.extraction_cache_id) return row;
+
+  const updated = await updateCartItem(row.id, { extraction_cache_id: request.extraction_cache_id });
+  return updated ?? row;
+}
+
+/**
+ * How far the paste behind a still-unpriced line has got, and the link it came
+ * from — the one thing the customer can recognise while the rest is unknown.
+ */
+async function pendingStateFor(row: CartItemRow): Promise<{ pending: BagLinePending; productUrl: string }> {
+  const lost: BagLinePending = {
+    request_id: row.extraction_request_id ?? "",
+    status: "failed",
+    error: "We lost track of this link. Remove it and paste it again.",
+    queued_at: row.created_at,
+  };
+  if (!row.extraction_request_id) return { pending: lost, productUrl: "" };
+
+  const request = await getExtractionRequestById(row.extraction_request_id);
+  if (!request) return { pending: lost, productUrl: "" };
+
+  return {
+    pending: {
+      request_id: request.id,
+      // `ready` cannot reach here — graduation would have taken it — so anything
+      // that is not pending or running is a dead end for this line.
+      status: request.status === "pending" || request.status === "running" ? request.status : "failed",
+      error: request.status === "failed" ? request.error : null,
+      queued_at: request.created_at,
+    },
+    productUrl: request.product_url,
+  };
 }
 
 async function updateLineRow(id: string, patch: Parameters<typeof updateCartItem>[1]): Promise<CartItemRow> {
@@ -437,6 +566,38 @@ function toBagBox(row: ConsolidationBoxRow, packed: PackedBox, region: RegionRow
 
 // ── Shaping ─────────────────────────────────────────────────────────────────
 
+/**
+ * A line that has nothing but a link yet.
+ *
+ * Everything the bag normally reads off the extraction is genuinely unknown, so
+ * it is null rather than guessed — the screen shows the URL and says it is still
+ * reading. `pricing` is null for the same reason the pricing failure case is:
+ * there is no price, and the summary leaves it out of the total.
+ */
+function pendingLine(row: CartItemRow, pending: BagLinePending, productUrl: string): BagLine {
+  return {
+    id: row.id,
+    extraction_cache_id: null,
+    pending,
+    quantity: row.quantity,
+    special_instructions: row.special_instructions,
+    product: {
+      title: null,
+      image: null,
+      url: productUrl,
+      store: null,
+      variant: null,
+      weight_lbs: null,
+      country: row.gap_origin_country,
+    },
+    pricing: null,
+    pricing_unavailable_reason: null,
+    gap_price_usd: row.gap_price_usd,
+    gap_origin_country: row.gap_origin_country,
+  };
+}
+
+
 type Snapshot = { id: string; productUrl: string; result: ExtractionResult } | null;
 
 function toLine(row: CartItemRow, snapshot: Snapshot, priced: Priced): BagLine {
@@ -446,6 +607,7 @@ function toLine(row: CartItemRow, snapshot: Snapshot, priced: Priced): BagLine {
   return {
     id: row.id,
     extraction_cache_id: row.extraction_cache_id,
+    pending: null,
     quantity: row.quantity,
     special_instructions: row.special_instructions,
     product: {
@@ -497,6 +659,7 @@ export function summarize(cartId: string | null, lines: BagLine[], packed: Packe
     total_usd: totalUsd,
     rate_locked_until: locks[0] ?? null,
     has_unpriced_lines: priced.length < lines.length,
+    has_pending_lines: lines.some((l) => l.pending != null),
   };
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildBagSummaryRows, formatBoxFill, formatBoxHeadroom, formatBoxTitle, formatDepartureDay, formatLbs, formatLockCountdown } from "../components/format";
-import type { BagBox, BagDelivery, BagView } from "../types";
+import { buildBagSummaryRows, describePendingWait, formatBoxFill, formatBoxHeadroom, formatBoxTitle, formatDepartureDay, formatLbs, formatLockCountdown, hostOf } from "../components/format";
+import type { BagBox, BagDelivery, BagLinePending, BagView } from "../types";
 
 const box: BagBox = { id: "b", label: "Box 1", region_code: "USA", region_name: "United States", departs_at: "2026-09-18T00:00:00.000Z", cutoff_at: null, capacity_lbs: 9, weight_lbs: 5.4, fill_pct: 60, headroom_lbs: 3.6, line_ids: [], freight_ghs: 0, saving_ghs: 0, marginal_saving_ghs: 0, item_count: 2, unweighed_line_count: 0, has_unweighed_lines: false };
 
@@ -42,7 +42,7 @@ describe("buildBagSummaryRows", () => {
     delivery: null, delivery_fee_ghs: 0,
     cart_id: "c", lines: [], boxes: [box], unboxed_line_ids: [], consolidation_saving_ghs: 96, consolidation_saving_pct: 0.2, item_count: 2,
     subtotal_usd: 817, tax_usd: 65.36, fee_usd: 40.85, freight_ghs: 264, boxed_weight_lbs: 5.4, total_ghs: 13489.66, total_usd: 934.84,
-    rate_locked_until: null, has_unpriced_lines: false,
+    rate_locked_until: null, has_unpriced_lines: false, has_pending_lines: false,
   };
   const doorFree: BagDelivery = { kind: "door", address_id: "a1", zone_id: "z1", zone_name: "Greater Accra", label: "Home · East Legon", fee_ghs: 0 };
 
@@ -74,5 +74,58 @@ describe("buildBagSummaryRows", () => {
   it("names a pickup point as a pickup, not a door delivery", () => {
     const pickup: BagDelivery = { kind: "pickup", address_id: null, zone_id: "z9", zone_name: "Osu hub", label: "Osu hub", fee_ghs: 0 };
     expect(deliveryRow({ ...view, delivery: pickup })).toMatchObject({ label: "Pickup · Osu hub", value: "Free", tone: "free" });
+  });
+});
+
+describe("describePendingWait", () => {
+  const at = (queuedSecondsAgo: number, over: Partial<BagLinePending> = {}): BagLinePending => ({
+    request_id: "r1",
+    status: "running",
+    error: null,
+    queued_at: new Date(NOW.getTime() - queuedSecondsAgo * 1000).toISOString(),
+    ...over,
+  });
+  const NOW = new Date("2026-09-13T10:00:00.000Z");
+
+  it("says nothing alarming while the wait is still normal", () => {
+    const wait = describePendingWait(at(2), NOW);
+    expect(wait.phase).toBe("reading");
+    expect(wait.detail).toBeNull();
+  });
+
+  it("admits it is slow at five seconds and promises to follow up", () => {
+    expect(describePendingWait(at(5), NOW).phase).toBe("slow");
+    expect(describePendingWait(at(19), NOW).phase).toBe("slow");
+    expect(describePendingWait(at(6), NOW).detail).toMatch(/carry on/i);
+  });
+
+  it("offers a person at twenty seconds", () => {
+    const wait = describePendingWait(at(20), NOW);
+    expect(wait.phase).toBe("stuck");
+    expect(wait.detail).toMatch(/WhatsApp/);
+  });
+
+  it("shows the job's own reason once it has given up", () => {
+    const wait = describePendingWait(at(3, { status: "failed", error: "We could not read that page." }), NOW);
+    expect(wait.phase).toBe("failed");
+    expect(wait.detail).toBe("We could not read that page.");
+  });
+
+  it("still says something useful when a failure carried no reason", () => {
+    const wait = describePendingWait(at(3, { status: "failed", error: null }), NOW);
+    expect(wait.phase).toBe("failed");
+    expect(wait.detail).toBeTruthy();
+  });
+
+  it("measures from when the paste was queued, not from now", () => {
+    // A customer who reloads must not have their wait restart at "reading".
+    expect(describePendingWait(at(60), NOW).phase).toBe("stuck");
+  });
+});
+
+describe("hostOf", () => {
+  it("names the store a customer recognises before the product does", () => {
+    expect(hostOf("https://www.microcenter.com/product/1")).toBe("microcenter.com");
+    expect(hostOf("not a url")).toBe("not a url");
   });
 });

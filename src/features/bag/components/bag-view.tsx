@@ -64,8 +64,21 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   const createWatch = useCreateWatch();
   const [busyLineId, setBusyLineId] = useState<string | null>(null);
   // The server's clock, not the browser's: a `new Date()` on each side renders
-  // two different countdowns and fails hydration. Fixed for the page's life.
-  const now = useMemo(() => new Date(renderedAt), [renderedAt]);
+  // two different countdowns and fails hydration. So the first paint is exactly
+  // the server's instant, and only AFTER mount does it advance — by elapsed time
+  // since mount rather than by reading the browser's clock, so a device whose
+  // clock is minutes out still counts the wait correctly.
+  const [now, setNow] = useState(() => new Date(renderedAt));
+  const pendingLines = bag.has_pending_lines;
+  useEffect(() => {
+    // Nothing is waiting on the clock unless a line is still being read; the
+    // rate-lock countdown is hours long and does not need a ticking second hand.
+    if (!pendingLines) return;
+    const base = new Date(renderedAt).getTime();
+    const mountedAt = Date.now();
+    const id = setInterval(() => setNow(new Date(base + (Date.now() - mountedAt))), 1_000);
+    return () => clearInterval(id);
+  }, [pendingLines, renderedAt]);
 
   // Paystack sends a failed payment back to `/app/bag?payment=failed`. Say so
   // once per mount — a re-render must not re-toast. Deferred a tick: the
@@ -90,6 +103,12 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
 
   const linesById = useMemo(() => new Map(bag.lines.map((l) => [l.id, l])), [bag.lines]);
   const unboxed = bag.unboxed_line_ids.map((id) => linesById.get(id)).filter((l): l is BagLine => !!l);
+  // Two different states share the "not in a box" bucket: a link still being
+  // read, and one that was read but could not be priced. They get separate
+  // headings because "Still reading" over "Price could not be read" is a
+  // contradiction the customer has to resolve themselves.
+  const stillReading = unboxed.filter((l) => l.pending != null);
+  const unpriced = unboxed.filter((l) => l.pending == null);
 
   const refreshChrome = useCallback(() => router.refresh(), [router]);
 
@@ -199,6 +218,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
             box={box}
             index={i}
             lines={box.line_ids.map((id) => linesById.get(id)).filter((l): l is BagLine => !!l)}
+            now={now}
             busyLineId={busyLineId}
             onQuantity={onQuantity}
             onWatchInstead={onWatchInstead}
@@ -206,26 +226,30 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
           />
         ))}
 
-        {unboxed.length > 0 && (
-          <section
-            aria-label="Not yet boxed"
-            className="tm-up overflow-hidden rounded-[24px] border border-tm-border bg-card [animation-duration:0.5s]"
-            style={{ animationDelay: `${(0.08 + bag.boxes.length * 0.06).toFixed(2)}s` }}
-          >
-            <header className="px-[18px] py-4 text-sm leading-none font-bold text-tm-text-2 lg:px-[22px]">Waiting on a price</header>
-            <ul>
-              {unboxed.map((line) => (
-                <BagLineRow
-                  key={line.id}
-                  line={line}
-                  busy={busyLineId === line.id}
-                  onQuantity={(q) => onQuantity(line, q)}
-                  onWatchInstead={() => onWatchInstead(line)}
-                  onRemove={() => onRemove(line)}
-                />
-              ))}
-            </ul>
-          </section>
+        {stillReading.length > 0 && (
+          <UnboxedGroup
+            label="Still reading"
+            lines={stillReading}
+            delay={0.08 + bag.boxes.length * 0.06}
+            now={now}
+            busyLineId={busyLineId}
+            onQuantity={onQuantity}
+            onWatchInstead={onWatchInstead}
+            onRemove={onRemove}
+          />
+        )}
+
+        {unpriced.length > 0 && (
+          <UnboxedGroup
+            label="Waiting on a price"
+            lines={unpriced}
+            delay={0.08 + (bag.boxes.length + (stillReading.length ? 1 : 0)) * 0.06}
+            now={now}
+            busyLineId={busyLineId}
+            onQuantity={onQuantity}
+            onWatchInstead={onWatchInstead}
+            onRemove={onRemove}
+          />
         )}
 
         <BagDeliverToCard delivery={bag.delivery} zones={zones} addresses={addresses} isSignedIn={isSignedIn} />
@@ -259,5 +283,53 @@ function BagHeader() {
       <h1 className="font-display text-[34px] leading-none font-bold whitespace-nowrap">Your bag</h1>
       <p className="text-[13px] leading-none font-medium text-tm-text-3">Items travel together in one box when bought the same week</p>
     </header>
+  );
+}
+
+/**
+ * A group of lines that are not in a box: either still being read, or read but
+ * unpriceable. Same shape as a box card without the meter, because there is no
+ * weight to measure yet.
+ */
+function UnboxedGroup({
+  label,
+  lines,
+  delay,
+  now,
+  busyLineId,
+  onQuantity,
+  onWatchInstead,
+  onRemove,
+}: {
+  label: string;
+  lines: BagLine[];
+  delay: number;
+  now: Date;
+  busyLineId: string | null;
+  onQuantity: (line: BagLine, quantity: number) => void;
+  onWatchInstead: (line: BagLine) => void;
+  onRemove: (line: BagLine) => void;
+}) {
+  return (
+    <section
+      aria-label={label}
+      className="tm-up overflow-hidden rounded-[24px] border border-tm-border bg-card [animation-duration:0.5s]"
+      style={{ animationDelay: `${delay.toFixed(2)}s` }}
+    >
+      <header className="px-[18px] py-4 text-sm leading-none font-bold text-tm-text-2 lg:px-[22px]">{label}</header>
+      <ul>
+        {lines.map((line) => (
+          <BagLineRow
+            key={line.id}
+            line={line}
+            now={now}
+            busy={busyLineId === line.id}
+            onQuantity={(q) => onQuantity(line, q)}
+            onWatchInstead={() => onWatchInstead(line)}
+            onRemove={() => onRemove(line)}
+          />
+        ))}
+      </ul>
+    </section>
   );
 }

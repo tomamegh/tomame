@@ -14,6 +14,7 @@ vi.mock("@/db/queries/carts", () => ({
   touchCart: vi.fn(async () => undefined),
   listCartItems: vi.fn(async () => []),
   findCartItem: vi.fn(async () => null),
+  findCartItemByRequest: vi.fn(async () => null),
   getCartItemById: vi.fn(),
   insertCartItem: vi.fn(),
   updateCartItem: vi.fn(),
@@ -22,6 +23,8 @@ vi.mock("@/db/queries/carts", () => ({
   countBagItems: vi.fn(async () => 0),
   updateCart: vi.fn(async () => undefined),
 }));
+// The paste queue's query module builds the admin client at module scope.
+vi.mock("@/db/queries/extraction-requests", () => ({ getExtractionRequestById: vi.fn(async () => null) }));
 vi.mock("@/db/queries/delivery-addresses", () => ({
   getDeliveryAddressById: vi.fn(async () => null),
   listDeliveryAddresses: vi.fn(async () => []),
@@ -76,7 +79,7 @@ const cart = (over: Partial<carts.CartRow> = {}): carts.CartRow => ({
   order_group_id: null, created_at: "", updated_at: "", ...over,
 });
 const item = (over: Partial<carts.CartItemRow> = {}): carts.CartItemRow => ({
-  id: "i1", cart_id: "c1", extraction_cache_id: CACHE_ID, quantity: 1, special_instructions: null, gap_price_usd: null,
+  id: "i1", cart_id: "c1", extraction_cache_id: CACHE_ID, extraction_request_id: null, quantity: 1, special_instructions: null, gap_price_usd: null,
   gap_origin_country: null, pricing: null, quote_lock_id: null, consolidation_box_id: null, created_at: "", updated_at: "", ...over,
 });
 const address = (over: Partial<DeliveryAddress> = {}): DeliveryAddress => ({
@@ -270,7 +273,7 @@ describe("line ownership", () => {
 
 describe("summarize", () => {
   it("sums only priced lines and counts every quantity", () => {
-    const priced: BagLine = { id: "a", extraction_cache_id: "x", quantity: 2, special_instructions: null, product: { title: null, image: null, url: "", store: null, variant: null, weight_lbs: null, country: null }, pricing: breakdown({ subtotal_usd: 10, tax_usd: 1, value_fee_usd: 0.5, flat_rate_ghs: 20, total_ghs: 200, total_usd: 13 }), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null };
+    const priced: BagLine = { id: "a", extraction_cache_id: "x", pending: null, quantity: 2, special_instructions: null, product: { title: null, image: null, url: "", store: null, variant: null, weight_lbs: null, country: null }, pricing: breakdown({ subtotal_usd: 10, tax_usd: 1, value_fee_usd: 0.5, flat_rate_ghs: 20, total_ghs: 200, total_usd: 13 }), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null };
     const unpriced: BagLine = { ...priced, id: "b", quantity: 1, pricing: null, pricing_unavailable_reason: "x" };
     expect(summarize("c", [priced, unpriced])).toMatchObject({ item_count: 3, subtotal_usd: 10, tax_usd: 1, fee_usd: 0.5, freight_ghs: 20, total_ghs: 200, total_usd: 13, has_unpriced_lines: true });
   });

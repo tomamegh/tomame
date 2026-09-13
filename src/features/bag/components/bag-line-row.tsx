@@ -1,16 +1,18 @@
 "use client";
 
 import Image from "next/image";
-import { BookmarkSimple, Minus, Plus, X } from "@phosphor-icons/react/ssr";
+import { BookmarkSimple, CircleNotch, Minus, Plus, X } from "@phosphor-icons/react/ssr";
 
 import { safeImageSrc } from "@/features/app-home/components/format";
 import { formatGhs } from "@/features/marketing/format";
 import { cn } from "@/lib/utils";
 import type { BagLine } from "../types";
-import { formatLineMeta, formatLineUsd } from "./format";
+import { describePendingWait, formatLineMeta, formatLineUsd, hostOf } from "./format";
 
 export interface BagLineRowProps {
   line: BagLine;
+  /** One clock for the whole render, so every pending line agrees about how long it has been. */
+  now: Date;
   busy: boolean;
   onQuantity: (quantity: number) => void;
   onWatchInstead: () => void;
@@ -38,6 +40,7 @@ const THUMB_PLACEHOLDER =
  */
 export function BagLineRow({
   line,
+  now,
   busy,
   onQuantity,
   onWatchInstead,
@@ -46,7 +49,8 @@ export function BagLineRow({
   const src = safeImageSrc(line.product.image);
   const meta = formatLineMeta(line);
   const usd = formatLineUsd(line);
-  const title = line.product.title ?? "Product from link";
+  const wait = line.pending ? describePendingWait(line.pending, now) : null;
+  const title = line.product.title ?? (line.pending ? hostOf(line.product.url) : "Product from link");
 
   return (
     <li
@@ -88,10 +92,34 @@ export function BagLineRow({
           >
             {title}
           </a>
-          {meta && (
-            <span className="text-[13px] leading-none text-tm-text-3">
-              {meta}
+          {wait ? (
+            <span className="flex flex-col gap-1">
+              <span
+                className={cn(
+                  "flex items-center gap-1.5 text-[13px] leading-none font-medium",
+                  wait.phase === "failed" ? "text-tm-amber" : "text-tm-text-2",
+                )}
+              >
+                {wait.phase !== "failed" && (
+                  <CircleNotch
+                    className="size-3.5 shrink-0 animate-spin text-tm-coral"
+                    aria-hidden
+                  />
+                )}
+                {wait.title}
+              </span>
+              {wait.detail && (
+                <span className="text-xs leading-[1.4] text-tm-text-3">
+                  {wait.detail}
+                </span>
+              )}
             </span>
+          ) : (
+            meta && (
+              <span className="text-[13px] leading-none text-tm-text-3">
+                {meta}
+              </span>
+            )
           )}
           {line.special_instructions && (
             <span className="truncate text-[12px] leading-none text-tm-text-3">
@@ -102,7 +130,11 @@ export function BagLineRow({
       </div>
 
       <div className="flex flex-col items-start gap-1 lg:col-start-3 lg:row-span-2 lg:items-end lg:self-center lg:text-right">
-        {line.pricing ? (
+        {line.pending ? (
+          <span className="text-xs leading-[1.4] font-medium text-tm-text-3">
+            Price to follow
+          </span>
+        ) : line.pricing ? (
           <>
             <span className="tm-nums text-[18px] leading-none font-bold">
               {formatGhs(line.pricing.total_ghs)}

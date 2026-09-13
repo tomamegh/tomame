@@ -7,15 +7,32 @@ import type { SetBagDeliveryInput, UpdateBagLineInput } from "../schema";
 import type { BagLine, BagView, CheckoutResult } from "../types";
 import { bagKeys, fetchBag } from "./useAddToBag";
 
-/** The bag, seeded from the server render and refetched after every mutation. */
+/**
+ * The bag, seeded from the server render and refetched after every mutation.
+ *
+ * While a line is still being read (049) the bag also polls, because the answer
+ * arrives from a background job that has no way to push. Polling STOPS the moment
+ * nothing is pending — an idle bag must not sit there hitting the server, and the
+ * re-price on every read is not free.
+ */
 export function useBag(initialData: BagView) {
   return useQuery<BagView>({
     queryKey: bagKeys.all,
     queryFn: fetchBag,
     initialData,
     staleTime: 0,
+    refetchInterval: (query) => (query.state.data?.has_pending_lines ? BAG_POLL_MS : false),
   });
 }
+
+/**
+ * How often the bag asks again while something is pending.
+ *
+ * Every two seconds: a paste usually lands in five to twenty, so this is a
+ * handful of requests per link rather than a live feed, and each one costs a
+ * full re-price of the bag.
+ */
+export const BAG_POLL_MS = 2_000;
 
 export function useUpdateBagLine() {
   const queryClient = useQueryClient();

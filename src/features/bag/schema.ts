@@ -6,13 +6,24 @@ import { z } from "zod";
  * extraction left that gap. No price, no rate, no lock id — the server prices
  * from its own snapshot (see `bag.service.ts`).
  */
-export const addToBagSchema = z.object({
-  extraction_cache_id: z.uuid("Unknown quote"),
-  quantity: z.number().int().min(1).max(100).default(1),
-  special_instructions: z.string().trim().max(1000).optional(),
-  estimated_price_usd: z.number().positive().max(1_000_000).optional(),
-  origin_country: z.enum(["USA", "UK", "CHINA"]).optional(),
-});
+/**
+ * Adding to the bag names EITHER a finished quote or a paste that is still being
+ * read (049) — never both, never neither. The pending form is what makes "paste
+ * it and walk away" possible: the line holds its place and prices itself when the
+ * extraction lands.
+ */
+export const addToBagSchema = z
+  .object({
+    extraction_cache_id: z.uuid("Unknown quote").optional(),
+    extraction_request_id: z.uuid("Unknown link").optional(),
+    quantity: z.number().int().min(1).max(100).default(1),
+    special_instructions: z.string().trim().max(1000).optional(),
+    estimated_price_usd: z.number().positive().max(1_000_000).optional(),
+    origin_country: z.enum(["USA", "UK", "CHINA"]).optional(),
+  })
+  .refine((v) => !!v.extraction_cache_id !== !!v.extraction_request_id, {
+    message: "Name either a quote or a pasted link",
+  });
 export type AddToBagInput = z.infer<typeof addToBagSchema>;
 
 export const updateBagLineSchema = z

@@ -1,5 +1,5 @@
 import { formatGhs, formatUsd } from "@/features/marketing/format";
-import type { BagBox, BagLine, BagView } from "../types";
+import type { BagBox, BagLine, BagLinePending, BagView } from "../types";
 
 /** "Fri 12 Sep" — the box's departure day. Null when the region has no schedule. */
 export function formatDepartureDay(iso: string | null): string | null {
@@ -135,4 +135,68 @@ function buildDeliveryRow(view: BagView): BagSummaryRow {
     value: fee > 0 ? formatGhs(fee) : "Free",
     tone: fee > 0 ? undefined : "free",
   };
+}
+
+/**
+ * How long a paste waits before the copy changes, in milliseconds.
+ *
+ * Kelvin's marks: at 5 s stop pretending this is instant and promise to follow
+ * up; at 20 s stop waiting and offer the customer a person. Exported so the bag
+ * line and the Buy-for-me screen cannot drift apart on the timing.
+ */
+export const PENDING_SLOW_MS = 5_000;
+export const PENDING_STUCK_MS = 20_000;
+
+export type PendingPhase = "reading" | "slow" | "stuck" | "failed";
+
+export interface PendingWait {
+  phase: PendingPhase;
+  /** The line the customer reads. */
+  title: string;
+  /** The second line, or null when the title says enough. */
+  detail: string | null;
+}
+
+/**
+ * What to say about a link that is still being read.
+ *
+ * Struck from `queued_at` on the row, NOT from when this component mounted, so
+ * reloading the page does not restart the customer's wait — they would see
+ * "reading this page" again on something that has been going for a minute.
+ */
+export function describePendingWait(pending: BagLinePending, now: Date): PendingWait {
+  if (pending.status === "failed") {
+    return {
+      phase: "failed",
+      title: "We could not read this page",
+      detail: pending.error ?? "Tell us what you want instead and a buyer will sort it out.",
+    };
+  }
+
+  const elapsed = now.getTime() - new Date(pending.queued_at).getTime();
+
+  if (elapsed >= PENDING_STUCK_MS) {
+    return {
+      phase: "stuck",
+      title: "This one is being stubborn",
+      detail: "Tell us what you want and a buyer will sort it out on WhatsApp.",
+    };
+  }
+  if (elapsed >= PENDING_SLOW_MS) {
+    return {
+      phase: "slow",
+      title: "Taking longer than usual",
+      detail: "You can carry on — we'll price it here as soon as we have it.",
+    };
+  }
+  return { phase: "reading", title: "Reading this page…", detail: null };
+}
+
+/** "microcenter.com" — what a customer recognises when there is no product name yet. */
+export function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
 }
