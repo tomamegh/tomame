@@ -1,4 +1,7 @@
+"use client";
+
 import { cn } from "@/lib/utils";
+import { Markdown } from "./markdown";
 
 interface PolicyHtmlProps {
   content: string;
@@ -6,17 +9,34 @@ interface PolicyHtmlProps {
 }
 
 /**
- * Renders HTML produced by the Tiptap rich-text editor on the public policies
- * page. Content is admin-authored only (never user-supplied), so
- * dangerouslySetInnerHTML is appropriate here.
+ * Two things write `policies.content`, and they do not agree on a format.
+ *
+ * The admin editor is Tiptap, which emits HTML. `supabase/seeds/policies.sql`
+ * writes MARKDOWN (`### Heading`, `- **bold**`), and every one of the five
+ * policies on every environment came from that seed. This component only ever
+ * did `dangerouslySetInnerHTML`, so all five rendered as raw markdown source to
+ * customers — literal `###` and `**` on the pages the footer and the bag's pay
+ * button link to.
+ *
+ * So it now renders whichever format the row actually holds. Tiptap always wraps
+ * its output in a block element, so a leading `<` is a reliable tell; anything
+ * else is markdown and goes through `react-markdown`, which is what
+ * `features/policies/types.ts` documented the column as all along.
+ *
+ * Both paths are admin-authored content, never user-supplied, which is what
+ * makes `dangerouslySetInnerHTML` acceptable on the HTML branch.
  */
 export function PolicyHtml({ content, className }: PolicyHtmlProps) {
   if (!content?.trim()) {
     return (
-      <p className="text-sm italic text-stone-400">
+      <p className="text-sm text-stone-400 italic">
         This policy has no content yet.
       </p>
     );
+  }
+
+  if (!isHtml(content)) {
+    return <Markdown content={content} className={className} />;
   }
 
   return (
@@ -38,4 +58,14 @@ export function PolicyHtml({ content, className }: PolicyHtmlProps) {
       dangerouslySetInnerHTML={{ __html: content }}
     />
   );
+}
+
+/**
+ * Tiptap wraps everything it emits — the shortest possible document is
+ * `<p></p>` — so content that opens with a tag came from the editor. Markdown
+ * that happens to open with raw HTML renders as HTML too, which is the same
+ * thing `react-markdown` would have done with it.
+ */
+export function isHtml(content: string): boolean {
+  return /^\s*</.test(content);
 }
