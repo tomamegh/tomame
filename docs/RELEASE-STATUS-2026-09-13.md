@@ -141,6 +141,54 @@ hrefs. `.vercelignore` is committed and root-anchored; the first attempt with a 
 a deploy. Prod's `site_settings.whatsapp_number` is still the placeholder until 048 lands.
 `v2` is still not pushed to GitHub.
 
+## 0c. 2026-09-13 (evening) — a second live hole, this one unauthenticated and on PROD
+
+**`GET /api/admin/dashboard` had no authorization of any kind.** It answered any
+anonymous caller with the business's order count, total revenue, active-user
+count and a 30-day trend series, read through a **service-role** client.
+Verified with a plain `curl` and no credentials against **both** hosted
+projects; prod returned `{"totalOrders":4,...,"activeUsers":3}`.
+
+Aggregates only — no names, addresses, emails or payment details are in that
+payload — but it is the company's trading position served to the open internet.
+
+The cause is an assumption about where the gate is, not one careless file:
+`src/lib/supabase/proxy.ts` protects `adminRoutes = ["/admin"]`, and
+`/api/admin/dashboard` does not start with `/admin` — it starts with `/api`.
+Every other `/api/admin/*` route happens to carry its own
+`getUserSession` + `canAccessAdmin` check, so **nothing else was exposed**.
+
+**Fixed on `v2`** in both places: the route checks for itself like its
+neighbours, and the proxy now gates the whole `/api/admin` prefix so the
+namespace fails closed. API paths are refused with a JSON 401/403 rather than a
+redirect — a 302 to `/auth/login` reaches `fetch()` as a 200 of HTML and
+surfaces as a JSON parse error, which tells the caller nothing.
+
+### A hotfix branch is ready for prod — NOT pushed, NOT deployed
+
+`v2` is nowhere near shippable to production, so the fix is also on
+**`hotfix/admin-api-gate`**, branched off `main`, two files, 51 insertions,
+typecheck clean, carrying nothing from the redesign. It also removes a **second**
+hole that is live on prod and was already fixed on `v2`: `main`'s proxy admits
+anyone whose email ends in `@tomame.ca` to the entire admin **regardless of
+role** — a domain backdoor around the column that decides admin access, on a
+domain the company issues its own mailboxes on.
+
+Deploying it is Kelvin's call (it is a production deploy). Verify after:
+
+```
+curl -s -o /dev/null -w '%{http_code}' https://<host>/api/admin/dashboard   # expect 401, was 200
+```
+
+### The wider sweep was clean
+
+Every API route was checked for a missing auth call. The remaining
+unauthenticated ones are legitimately public (auth, health, policies, the public
+rate, catalogue search, media) and two that looked risky are not:
+`/api/img-proxy` has a strict one-host allowlist, and `/api/payments/callback`
+takes only a `reference` and re-verifies server-side rather than trusting a
+status parameter.
+
 ## 1. What shipped on `v2`
 
 | Slice | Commit | What |
