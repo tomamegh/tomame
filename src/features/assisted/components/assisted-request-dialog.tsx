@@ -14,6 +14,17 @@ import { useCreateAssistedRequest } from "../hooks/useAssisted";
 import { createAssistedRequestSchema } from "../schema";
 import type { AssistedRequest } from "../types";
 
+/**
+ * The v2 field look. `Input` and `Textarea` are the shadcn defaults — 6px radius,
+ * a shadow, and a `text-base md:text-sm` scale — which read as a different
+ * product sitting inside a 24px-radius Tomame dialog.
+ */
+const FIELD = cn(
+  "rounded-[14px] border-tm-border bg-card px-3.5 py-3 text-[15px] leading-[1.5] shadow-none",
+  "focus-visible:border-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral/25",
+  "aria-invalid:border-tm-amber aria-invalid:ring-0",
+);
+
 export interface AssistedRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -104,7 +115,7 @@ export function AssistedRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="sm:max-w-[460px]">
+      <DialogContent className="rounded-[24px] border-tm-border sm:max-w-[480px]">
         {done ? (
           <Confirmation request={done} onClose={() => close(false)} />
         ) : (
@@ -122,7 +133,10 @@ export function AssistedRequestDialog({
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-[13px] leading-none font-semibold">Link</Label>
-                <p className="truncate rounded-xl bg-tm-tint px-3 py-2.5 text-[13px] leading-none text-tm-text-2" title={displayUrl}>
+                <p
+                  className="truncate rounded-[14px] bg-tm-tint px-3.5 py-3 text-[13px] leading-[1.4] text-tm-text-2"
+                  title={displayUrl}
+                >
                   {displayUrl}
                 </p>
               </div>
@@ -135,6 +149,7 @@ export function AssistedRequestDialog({
                   maxLength={2000}
                   placeholder="e.g. the 32GB RAM version, black, and only if it ships from the US"
                   aria-invalid={!!errors.description}
+                  className={FIELD}
                 />
               </Field>
 
@@ -146,6 +161,7 @@ export function AssistedRequestDialog({
                   inputMode="tel"
                   autoComplete="tel"
                   aria-invalid={!!errors.phone}
+                  className={cn(FIELD, "h-12")}
                 />
               </Field>
 

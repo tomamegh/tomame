@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
 import { listPastesForViewer } from "@/db/queries/extraction-requests";
+import { getQuoteFacts } from "@/db/queries/extraction-cache";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { SUPPORTED_STORE_NAMES } from "@/features/extraction/scrapers";
 import { PasteQueueView } from "@/features/extraction/components/paste-queue-view";
@@ -40,10 +41,11 @@ export default async function NewOrderPage({
   const [user, cookieStore] = await Promise.all([getAuthenticatedUser(), cookies()]);
   const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
   const pastes = await listPastesForViewer(viewer);
+  const facts = await getQuoteFacts(pastes.map((p) => p.extraction_cache_id ?? ""));
 
   return (
     <PasteQueueView
-      initialPastes={pastes.map(toPasteStatus)}
+      initialPastes={pastes.map((p) => toPasteStatus(p, facts.get(p.extraction_cache_id ?? "")))}
       stores={SUPPORTED_STORE_NAMES}
       renderedAt={new Date().toISOString()}
     />

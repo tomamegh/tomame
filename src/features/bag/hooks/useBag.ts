@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import type { ApiSuccessResponse } from "@/types/api";
@@ -16,13 +17,26 @@ import { bagKeys, fetchBag } from "./useAddToBag";
  * re-price on every read is not free.
  */
 export function useBag(initialData: BagView) {
-  return useQuery<BagView>({
+  const query = useQuery<BagView>({
     queryKey: bagKeys.all,
     queryFn: fetchBag,
     initialData,
     staleTime: 0,
-    refetchInterval: (query) => (query.state.data?.has_pending_lines ? BAG_POLL_MS : false),
   });
+
+  // Driven from an effect, not `refetchInterval`'s callback form: that form was
+  // measured not to re-arm when a bag with nothing pending gains its first
+  // pending line — which is exactly what adding a still-reading link does, so
+  // the line would never have priced itself without a reload.
+  const pending = query.data.has_pending_lines;
+  const { refetch } = query;
+  useEffect(() => {
+    if (!pending) return;
+    const id = setInterval(() => void refetch(), BAG_POLL_MS);
+    return () => clearInterval(id);
+  }, [pending, refetch]);
+
+  return query;
 }
 
 /**

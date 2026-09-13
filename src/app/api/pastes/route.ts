@@ -1,6 +1,7 @@
 import { NextRequest, after } from "next/server";
 
 import { listPastesForViewer } from "@/db/queries/extraction-requests";
+import { getQuoteFacts } from "@/db/queries/extraction-cache";
 import { extractProductSchema } from "@/features/extraction/schema";
 import { enqueuePaste, runExtractionJob } from "@/features/extraction/services/extraction-queue.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
@@ -56,7 +57,10 @@ export async function POST(request: NextRequest) {
     // The claim is guarded, so this racing the sweeper is safe and expected.
     if (!enqueued.ready) after(() => runExtractionJob(enqueued.request.id));
 
-    return finalize(successResponse(toPasteStatus(enqueued.request), 201));
+    const facts = await getQuoteFacts([enqueued.request.extraction_cache_id ?? ""]);
+    return finalize(
+      successResponse(toPasteStatus(enqueued.request, facts.get(enqueued.request.extraction_cache_id ?? "")), 201),
+    );
   } catch (error) {
     return errorResponse(error);
   }
@@ -80,7 +84,9 @@ export async function GET(request: NextRequest) {
     const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
 
     const rows = await listPastesForViewer(viewer);
-    return finalize(successResponse(rows.map(toPasteStatus)));
+    // One read for the whole page rather than one per row.
+    const facts = await getQuoteFacts(rows.map((r) => r.extraction_cache_id ?? ""));
+    return finalize(successResponse(rows.map((r) => toPasteStatus(r, facts.get(r.extraction_cache_id ?? "")))));
   } catch (error) {
     return errorResponse(error);
   }

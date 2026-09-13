@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { getExtractionRequestForViewer } from "@/db/queries/extraction-requests";
+import { getQuoteFacts } from "@/db/queries/extraction-cache";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { toPasteStatus } from "@/features/extraction/services/paste-status";
 import { resolveViewer } from "@/lib/quote-session";
@@ -33,7 +34,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const row = await getExtractionRequestForViewer(id, viewer);
     if (!row) throw new APIError(404, "We have no record of that link");
 
-    return finalize(successResponse(toPasteStatus(row)));
+    const facts = await getQuoteFacts([row.extraction_cache_id ?? ""]);
+    return finalize(successResponse(toPasteStatus(row, facts.get(row.extraction_cache_id ?? ""))));
   } catch (error) {
     return errorResponse(error);
   }

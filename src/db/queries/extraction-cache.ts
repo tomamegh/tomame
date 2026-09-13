@@ -148,3 +148,55 @@ export async function upsertExtractionCache(input: {
     return null;
   }
 }
+
+/** What a paste can honestly promise about the quote behind it. */
+export interface QuoteFacts {
+  /** The extraction still resolves — exactly `getValidExtractionById`'s rule. */
+  usable: boolean;
+  /** It carries a price. A readable page with no price is not a quote. */
+  priced: boolean;
+}
+
+/**
+ * The state of several extractions at once, by the SAME rule the review screen
+ * applies before it renders.
+ *
+ * The paste queue used to call a link "Priced and ready" whenever its job had
+ * finished and written a cache row. That is three different claims collapsed into
+ * one: the job finished, the row is still valid and unexpired, and the product
+ * actually has a price. A row can be any combination — so customers were offered
+ * "See the landed price" on links that answered "This quote is no longer
+ * available", and on links that were read but never priced.
+ *
+ * Reading the validity rule from here rather than restating it is the point: the
+ * badge and the destination cannot disagree, because they ask the same question.
+ */
+export async function getQuoteFacts(ids: readonly string[]): Promise<Map<string, QuoteFacts>> {
+  const facts = new Map<string, QuoteFacts>();
+  const wanted = [...new Set(ids.filter(Boolean))];
+  if (wanted.length === 0) return facts;
+
+  try {
+    const db = createAdminClient();
+    const { data, error } = await db
+      .from("extraction_cache")
+      .select("id, is_valid, expires_at, result")
+      .in("id", wanted);
+
+    if (error || !data) return facts;
+
+    const now = Date.now();
+    for (const row of data as { id: string; is_valid: boolean; expires_at: string; result: unknown }[]) {
+      const usable = row.is_valid === true && new Date(row.expires_at).getTime() > now;
+      const price = normalizeResult(row.result).product?.price;
+      facts.set(row.id, {
+        usable,
+        priced: usable && typeof price === "number" && Number.isFinite(price) && price > 0,
+      });
+    }
+  } catch {
+    // A read failure must not turn every paste into a false promise; callers
+    // treat a missing entry as "not usable", which is the safe direction.
+  }
+  return facts;
+}

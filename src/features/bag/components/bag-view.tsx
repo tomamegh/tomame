@@ -74,14 +74,17 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   const [now, setNow] = useState(() => new Date(renderedAt));
   const pendingLines = bag.has_pending_lines;
   useEffect(() => {
-    // Nothing is waiting on the clock unless a line is still being read; the
-    // rate-lock countdown is hours long and does not need a ticking second hand.
+    // After mount the clock is the real one. It used to advance from
+    // `renderedAt` plus time-since-mount, which gives NEGATIVE elapsed time for a
+    // line added after the page was rendered — so its wait copy never moved off
+    // "Reading this page…". See `paste-queue-view.tsx` for the same fix.
+    setNow(new Date());
+    // Nothing else is waiting on the clock: the rate-lock countdown is hours
+    // long and does not need a ticking second hand.
     if (!pendingLines) return;
-    const base = new Date(renderedAt).getTime();
-    const mountedAt = Date.now();
-    const id = setInterval(() => setNow(new Date(base + (Date.now() - mountedAt))), 1_000);
+    const id = setInterval(() => setNow(new Date()), 1_000);
     return () => clearInterval(id);
-  }, [pendingLines, renderedAt]);
+  }, [pendingLines]);
 
   // Paystack sends a failed payment back to `/app/bag?payment=failed`. Say so
   // once per mount — a re-render must not re-toast. Deferred a tick: the

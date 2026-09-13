@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { bagKeys } from "@/features/bag/hooks/useAddToBag";
@@ -20,7 +21,7 @@ export const pasteKeys = { all: ["pastes"] as const };
 export const PASTE_POLL_MS = 2_000;
 
 export function usePastes(initialData: PasteStatus[]) {
-  return useQuery<PasteStatus[]>({
+  const query = useQuery<PasteStatus[]>({
     queryKey: pasteKeys.all,
     queryFn: async () => {
       const res = await apiFetch<ApiSuccessResponse<PasteStatus[]>>("/api/pastes");
@@ -28,11 +29,25 @@ export function usePastes(initialData: PasteStatus[]) {
     },
     initialData,
     staleTime: 0,
-    refetchInterval: (query) =>
-      query.state.data?.some((p) => p.status === "pending" || p.status === "running")
-        ? PASTE_POLL_MS
-        : false,
   });
+
+  // Poll while anything is still being read, and stop the moment nothing is.
+  //
+  // Driven from an effect rather than `refetchInterval`'s callback form. That
+  // form was measured NOT to re-arm on the transition that actually matters —
+  // a list with nothing reading gaining its first reading row, which is exactly
+  // what pasting a link does. The screen made one request and then sat there:
+  // the job finished within seconds and the page still said "Reading this
+  // page…" a minute later, until the customer reloaded.
+  const anyReading = query.data.some((p) => p.outcome === "reading");
+  const { refetch } = query;
+  useEffect(() => {
+    if (!anyReading) return;
+    const id = setInterval(() => void refetch(), PASTE_POLL_MS);
+    return () => clearInterval(id);
+  }, [anyReading, refetch]);
+
+  return query;
 }
 
 /** Queue a link. Returns as soon as the row exists; the reading happens behind it. */

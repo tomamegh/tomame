@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
+  ArrowsClockwise,
   ChatCircleText,
   CheckCircle,
   CircleNotch,
@@ -52,18 +53,24 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
   const createPaste = useCreatePaste();
   const addToBag = useAddPasteToBag();
 
-  // Same clock discipline as the bag: the first paint is the server's instant so
-  // hydration matches, and it only advances after mount — by elapsed time rather
-  // than by reading the browser's clock, so a skewed device still counts right.
+  // The first paint is the server's instant so hydration matches; after mount the
+  // clock is simply the real one.
+  //
+  // It used to advance from `renderedAt` plus time-since-mount, to sidestep
+  // client clock skew. That is wrong for anything queued AFTER the page was
+  // rendered: a paste created at 14:39 measured against a clock still reading
+  // 14:35 has NEGATIVE elapsed time, so the copy sat on "Reading this page…"
+  // forever and the 5 s and 20 s marks never arrived. Skew of a few seconds is
+  // the lesser evil, and the customer's own sense of "how long have I waited"
+  // runs on their clock anyway.
   const [now, setNow] = useState(() => new Date(renderedAt));
-  const anyReading = pastes.some((p) => p.status === "pending" || p.status === "running");
+  const anyReading = pastes.some((p) => p.outcome === "reading");
   useEffect(() => {
+    setNow(new Date());
     if (!anyReading) return;
-    const base = new Date(renderedAt).getTime();
-    const mountedAt = Date.now();
-    const id = setInterval(() => setNow(new Date(base + (Date.now() - mountedAt))), 1_000);
+    const id = setInterval(() => setNow(new Date()), 1_000);
     return () => clearInterval(id);
-  }, [anyReading, renderedAt]);
+  }, [anyReading]);
 
   const onPaste = useCallback(() => {
     const trimmed = url.trim();
@@ -75,7 +82,10 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
           setUrl("");
           // Already read? Go straight to the price — making someone wait on a
           // screen for something we already hold would be perverse.
-          if (paste.status === "ready" && paste.extraction_cache_id) {
+          // Only a PRICED quote has somewhere to go. A link that was read but
+          // never priced, or whose quote has lapsed, stays on this screen where
+          // the row says so and offers the way out.
+          if (paste.outcome === "priced" && paste.extraction_cache_id) {
             router.push(`/app/orders/review/${paste.extraction_cache_id}`);
           }
         },
@@ -104,6 +114,24 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
       );
     },
     [addToBag, router],
+  );
+
+  /** A lapsed quote is re-read by pasting it again — same link, fresh job. */
+  const onRetry = useCallback(
+    (paste: PasteStatus) => {
+      createPaste.mutate(
+        { product_url: paste.product_url },
+        {
+          onSuccess: (next) => {
+            if (next.outcome === "priced" && next.extraction_cache_id) {
+              router.push(`/app/orders/review/${next.extraction_cache_id}`);
+            }
+          },
+          onError: (error) => toast.error({ title: "Could not read that link", description: error.message }),
+        },
+      );
+    },
+    [createPaste, router],
   );
 
   const { reading, done } = useMemo(() => splitPastes(pastes), [pastes]);
@@ -163,7 +191,9 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
               now={now}
               onDescribe={() => setDescribing(paste)}
               onAddToBag={() => onAddToBag(paste)}
+              onRetry={() => onRetry(paste)}
               busy={addToBag.isPending}
+              retrying={createPaste.isPending}
             />
           ))}
         </Group>
@@ -178,7 +208,9 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
               now={now}
               onDescribe={() => setDescribing(paste)}
               onAddToBag={() => onAddToBag(paste)}
+              onRetry={() => onRetry(paste)}
               busy={addToBag.isPending}
+              retrying={createPaste.isPending}
             />
           ))}
         </Group>
@@ -209,11 +241,31 @@ function splitPastes(pastes: PasteStatus[]): { reading: PasteStatus[]; done: Pas
   const reading: PasteStatus[] = [];
   const done: PasteStatus[] = [];
   for (const paste of pastes) {
-    if (paste.status === "pending" || paste.status === "running") reading.push(paste);
+    if (paste.outcome === "reading") reading.push(paste);
     else done.push(paste);
   }
   return { reading, done };
 }
+
+/**
+ * What to say about a link whose job has finished. Three settled states, three
+ * different things the customer should be offered — collapsing them into one
+ * "ready" is what let the screen promise a price it did not have.
+ */
+const ROW_ACTION = cn(
+  "inline-flex h-10 items-center gap-1.5 rounded-xl border-[1.5px] border-tm-border bg-card px-4",
+  "text-[13px] leading-none font-semibold transition-colors hover:bg-tm-tint",
+  "disabled:cursor-not-allowed disabled:opacity-50",
+);
+
+const SETTLED_COPY: Record<
+  Exclude<PasteStatus["outcome"], "reading">,
+  { label: string; tone: "green" | "amber" }
+> = {
+  priced: { label: "Priced and ready", tone: "green" },
+  unpriced: { label: "We read the page but found no price", tone: "amber" },
+  expired: { label: "This quote has lapsed", tone: "amber" },
+};
 
 function Group({ label, delay, children }: { label: string; delay: number; children: React.ReactNode }) {
   return (
@@ -239,29 +291,36 @@ function PasteRow({
   now,
   onDescribe,
   onAddToBag,
+  onRetry,
   busy,
+  retrying,
 }: {
   paste: PasteStatus;
   now: Date;
   onDescribe: () => void;
   onAddToBag: () => void;
+  onRetry: () => void;
   busy: boolean;
+  retrying: boolean;
 }) {
-  const ready = paste.status === "ready" && !!paste.extraction_cache_id;
+  const priced = paste.outcome === "priced" && !!paste.extraction_cache_id;
   // The same copy the bag uses, from the same helper, so a link cannot be
-  // described one way here and another way there.
+  // described one way here and another way there. Only a link still being read
+  // has a WAIT; the other outcomes are settled and say so plainly.
   const wait =
-    paste.status === "ready"
-      ? null
-      : describePendingWait(
+    paste.outcome === "reading"
+      ? describePendingWait(
           {
             request_id: paste.id,
-            status: paste.status === "failed" ? "failed" : paste.status,
+            // `outcome === "reading"` already narrowed this to a live job.
+            status: paste.status === "running" ? "running" : "pending",
             error: paste.error,
             queued_at: paste.created_at,
           } satisfies BagLinePending,
           now,
-        );
+        )
+      : null;
+  const settled = paste.outcome === "reading" ? null : SETTLED_COPY[paste.outcome];
 
   return (
     <li className="flex flex-col gap-3 border-t border-tm-hairline px-[18px] py-4 lg:flex-row lg:items-center lg:justify-between lg:px-[22px]">
@@ -275,10 +334,19 @@ function PasteRow({
         >
           {hostOf(paste.product_url)}
         </a>
-        {ready ? (
-          <span className="flex items-center gap-1.5 text-[13px] leading-none font-medium text-tm-green">
-            <CheckCircle weight="fill" className="size-3.5 shrink-0" aria-hidden />
-            Priced and ready
+        {settled ? (
+          <span
+            className={cn(
+              "flex items-center gap-1.5 text-[13px] leading-none font-medium",
+              settled.tone === "green" ? "text-tm-green" : "text-tm-amber",
+            )}
+          >
+            {settled.tone === "green" ? (
+              <CheckCircle weight="fill" className="size-3.5 shrink-0" aria-hidden />
+            ) : (
+              <WarningCircle weight="fill" className="size-3.5 shrink-0" aria-hidden />
+            )}
+            {settled.label}
           </span>
         ) : (
           wait && (
@@ -302,28 +370,38 @@ function PasteRow({
         )}
       </div>
 
+      {/*
+        One action per outcome, and never one that leads nowhere. "See the landed
+        price" appears ONLY for a priced, still-valid quote — it used to appear
+        for any finished job, which is how a link that was never priced offered a
+        price, and a lapsed one led to "This quote is no longer available".
+      */}
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {ready ? (
+        {priced ? (
           <Link
             href={`/app/orders/review/${paste.extraction_cache_id}`}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl border-[1.5px] border-tm-border bg-card px-4 text-[13px] leading-none font-semibold transition-colors hover:bg-tm-tint"
+            className={ROW_ACTION}
           >
             See the landed price
             <ArrowRight weight="bold" className="size-3.5" aria-hidden />
           </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={onAddToBag}
-            disabled={busy || wait?.phase === "failed"}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl border-[1.5px] border-tm-border bg-card px-4 text-[13px] leading-none font-semibold transition-colors hover:bg-tm-tint disabled:cursor-not-allowed disabled:opacity-50"
-          >
+        ) : paste.outcome === "expired" ? (
+          <button type="button" onClick={onRetry} disabled={retrying} className={ROW_ACTION}>
+            <ArrowsClockwise weight="bold" className="size-3.5" aria-hidden />
+            {retrying ? "Reading…" : "Read it again"}
+          </button>
+        ) : paste.outcome === "reading" ? (
+          <button type="button" onClick={onAddToBag} disabled={busy} className={ROW_ACTION}>
             <Tote weight="bold" className="size-3.5" aria-hidden />
             Add to bag
           </button>
-        )}
+        ) : null}
 
-        {(wait?.phase === "stuck" || wait?.phase === "failed") && (
+        {/* A person is the answer once the machine has run out of road. */}
+        {(paste.outcome === "unpriced" ||
+          paste.outcome === "expired" ||
+          wait?.phase === "stuck" ||
+          wait?.phase === "failed") && (
           <button
             type="button"
             onClick={onDescribe}
