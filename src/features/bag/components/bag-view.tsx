@@ -10,13 +10,16 @@ import { useCreateWatch } from "@/features/watches/hooks/useWatches";
 import { ApiFetchError } from "@/lib/auth/api-helpers";
 import { toast } from "@/lib/sonner";
 import { useBag, useRemoveBagLine, useUpdateBagLine } from "../hooks/useBag";
+import { useBagPayment } from "../hooks/useBagPayment";
 import type { BagLine, BagView as BagViewData, PendingGroupSummary } from "../types";
 import { BagBoxCard } from "./bag-box-card";
 import { BagDeliverToCard } from "./bag-deliver-to-card";
 import { BagEmpty } from "./bag-empty";
+import { BagPasteLinkBar, BagPayBar } from "./bag-pay-bar";
 import { BagPendingGroupCard } from "./bag-pending-group-card";
 import { BagLineRow } from "./bag-line-row";
 import { BagSummaryCard } from "./bag-summary-card";
+import { formatLockCountdown } from "./format";
 
 export interface BagViewProps {
   initialBag: BagViewData;
@@ -42,6 +45,11 @@ export interface BagViewProps {
  * 20px. Header `tmUp .5s`, first box card `.08s`, rail `.12s`. Lines and
  * summary rows carry no animation in this artboard.
  *
+ * Below `lg` the grid collapses to one column, the rail stops being sticky and
+ * flows under the boxes, and the pay button leaves it for `BagPayBar` at the
+ * bottom edge — `/app/bag` is in `MOBILE_ACTION_BAR_ROUTES`, so the tab bar
+ * stands down here and the bar is rendered in EVERY state, empty bag included.
+ *
  * The server render seeds the bag; every mutation goes through the API and the
  * whole bag is refetched, because a quantity change moves the box fill, the
  * saving and the total together — nothing here does arithmetic.
@@ -50,6 +58,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: bag } = useBag(initialBag);
+  const payment = useBagPayment({ isSignedIn, channels: paymentChannels });
   const updateLine = useUpdateBagLine();
   const removeLine = useRemoveBagLine();
   const createWatch = useCreateWatch();
@@ -74,6 +83,10 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
     }, 0);
     return () => clearTimeout(timer);
   }, [paymentOutcome]);
+
+  // A signed-out viewer keeps a live button: it sends them to sign in, where
+  // they can then choose a delivery. Everything else is a genuine blocker.
+  const blocked = bag.lines.length === 0 || bag.has_unpriced_lines || (isSignedIn && !bag.delivery);
 
   const linesById = useMemo(() => new Map(bag.lines.map((l) => [l.id, l])), [bag.lines]);
   const unboxed = bag.unboxed_line_ids.map((id) => linesById.get(id)).filter((l): l is BagLine => !!l);
@@ -151,15 +164,32 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
 
   if (bag.lines.length === 0) {
     return (
-      <div className="flex flex-col gap-[18px]">
+      <div className="flex flex-col gap-[18px] pb-[95px] lg:pb-0">
         <BagHeader />
-        {pendingGroup ? <BagPendingGroupCard group={pendingGroup} paymentChannels={paymentChannels} /> : <BagEmpty />}
+        {pendingGroup ? (
+          <>
+            <BagPendingGroupCard group={pendingGroup} paymentChannels={paymentChannels} payment={payment} />
+            <BagPayBar
+              totalGhs={pendingGroup.total_ghs}
+              verb="finish"
+              busy={payment.busy}
+              disabled={false}
+              onPay={() => payment.payGroup(pendingGroup.id)}
+              countdown={null}
+            />
+          </>
+        ) : (
+          <>
+            <BagEmpty />
+            <BagPasteLinkBar />
+          </>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="grid items-start gap-7 lg:grid-cols-[1fr_420px]">
+    <div className="grid items-start gap-7 pb-[95px] lg:grid-cols-[1fr_420px] lg:pb-0">
       <div className="flex flex-col gap-[18px]">
         <BagHeader />
 
@@ -182,7 +212,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
             className="tm-up overflow-hidden rounded-[24px] border border-tm-border bg-card [animation-duration:0.5s]"
             style={{ animationDelay: `${(0.08 + bag.boxes.length * 0.06).toFixed(2)}s` }}
           >
-            <header className="px-[22px] py-4 text-sm leading-none font-bold text-tm-text-2">Waiting on a price</header>
+            <header className="px-[18px] py-4 text-sm leading-none font-bold text-tm-text-2 lg:px-[22px]">Waiting on a price</header>
             <ul>
               {unboxed.map((line) => (
                 <BagLineRow
@@ -206,7 +236,17 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
         now={now}
         paymentChannels={paymentChannels}
         paymentHoldNote={paymentHoldNote}
-        isSignedIn={isSignedIn}
+        payment={payment}
+        blocked={blocked}
+      />
+
+      <BagPayBar
+        totalGhs={bag.total_ghs}
+        verb="pay"
+        busy={payment.busy}
+        disabled={blocked}
+        onPay={payment.payBag}
+        countdown={formatLockCountdown(bag.rate_locked_until, now)}
       />
     </div>
   );

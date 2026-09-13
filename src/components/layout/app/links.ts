@@ -89,8 +89,14 @@ export function resolveActiveAppNavKey(
  * because two stacked bars would eat 180px of an 844px phone and put the
  * screen's own primary action in the middle of it. The screen carries a back
  * button to Home in its place.
+ *
+ * `/app/bag` is the same case. `v2-bag` has no phone artboard, so the approved
+ * reading is the desktop screen rendered responsively with the detail phone's
+ * bar pattern; the rail's "Pay GH₵X" becomes `BagPayBar`. A route that opts in
+ * here must render its bar in EVERY state, because the tab bar is gone
+ * unconditionally — the bag's empty state therefore carries one too.
  */
-const MOBILE_ACTION_BAR_ROUTES = ["/app/orders/review"] as const;
+const MOBILE_ACTION_BAR_ROUTES = ["/app/orders/review", "/app/bag"] as const;
 
 /**
  * True when the current route renders its own bottom bar and the tab bar must

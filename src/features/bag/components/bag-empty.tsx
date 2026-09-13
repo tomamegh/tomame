@@ -12,9 +12,10 @@ export function BagEmpty() {
         <h2 className="font-display text-xl leading-none font-bold">Your bag is empty</h2>
         <p className="text-sm leading-[1.5] text-tm-text-2">Paste a link to see the landed price, then add it here.</p>
       </div>
+      {/* Below `lg` this is `BagPasteLinkBar` at the bottom edge — one primary action, not two. */}
       <Link
         href="/app/orders/new"
-        className="tm-cta-gradient inline-flex h-11 items-center justify-center rounded-[14px] px-5 text-sm leading-none font-bold text-white"
+        className="tm-cta-gradient hidden h-11 items-center justify-center rounded-[14px] px-5 text-sm leading-none font-bold text-white lg:inline-flex"
       >
         Paste a link
       </Link>

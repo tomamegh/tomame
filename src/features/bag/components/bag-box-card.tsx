@@ -34,7 +34,8 @@ export function BagBoxCard({ box, lines, busyLineId, onQuantity, onWatchInstead,
       className="tm-up overflow-hidden rounded-[24px] border border-tm-border bg-card [animation-duration:0.5s]"
       style={{ animationDelay: delay }}
     >
-      <header className="flex items-center justify-between bg-[linear-gradient(90deg,#FFF1EC,#FFF7EA)] px-[22px] py-4">
+      {/* The meter sits beside the title from `sm` up; at 390px it drops beneath it rather than squeezing both. */}
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 bg-[linear-gradient(90deg,#FFF1EC,#FFF7EA)] px-[18px] py-4 lg:px-[22px]">
         <span className="flex items-center gap-2.5 text-sm leading-none font-bold">
           <Package weight="duotone" className="size-5 text-tm-coral" aria-hidden />
           {formatBoxTitle(box)}
@@ -71,8 +72,8 @@ export function BagBoxCard({ box, lines, busyLineId, onQuantity, onWatchInstead,
         ))}
       </ul>
 
-      <footer className="flex items-center justify-between gap-4 border-t border-dashed border-[#E8DDD6] px-[22px] py-3.5 text-[13px] leading-none font-medium text-tm-text-2">
-        <span className="flex items-center gap-2">
+      <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-dashed border-[#E8DDD6] px-[18px] py-3.5 text-[13px] leading-none font-medium text-tm-text-2 lg:px-[22px]">
+        <span className="flex min-w-0 flex-1 items-center gap-2 leading-[1.4]">
           <Lightbulb weight="duotone" className="size-[18px] shrink-0 text-tm-amber" aria-hidden />
           {formatBoxHeadroom(box)}
         </span>

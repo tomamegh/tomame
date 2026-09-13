@@ -189,6 +189,8 @@ describe("ownsMobileBottomBar", () => {
     expect(ownsMobileBottomBar("/app/orders/review/abc-123")).toBe(true);
     expect(ownsMobileBottomBar("/app/orders/review")).toBe(true);
     expect(ownsMobileBottomBar("/app/orders/review/")).toBe(true);
+    expect(ownsMobileBottomBar("/app/bag")).toBe(true);
+    expect(ownsMobileBottomBar("/app/bag/")).toBe(true);
   });
 
   it("leaves the tab bar alone everywhere else in the app", () => {

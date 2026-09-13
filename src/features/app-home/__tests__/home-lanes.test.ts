@@ -24,6 +24,9 @@ vi.mock("@/db/queries/extraction-cache", () => ({
   getCachedExtractionByHash: vi.fn(),
 }));
 vi.mock("@/db/queries/regions", () => ({ listRegions: vi.fn() }));
+// The freight-box card reads the open bag; the bag service reaches Supabase at
+// module scope, so it is stubbed like every other data dependency here.
+vi.mock("@/features/bag/services/bag.service", () => ({ getBag: vi.fn(async () => null) }));
 vi.mock("@/db/queries/site-settings", () => ({ getSiteSettingsMap: vi.fn() }));
 vi.mock("@/features/watches/services/watches.service", () => ({
   listWatches: vi.fn(async () => ({ watches: [], watching_count: 0 })),
@@ -40,9 +43,11 @@ vi.mock("@/features/quotes/services/quote-lock.service", () => ({
 }));
 
 import type { RegionRow, RegionStatus } from "@/db/queries/regions";
+import type { BagView } from "@/features/bag/types";
 import {
   LANE_WAITLIST_HREF,
   buildAskBuyer,
+  buildFreightBox,
   buildLanes,
 } from "../services/home.service";
 
@@ -219,5 +224,35 @@ describe("buildAskBuyer", () => {
 
   it("treats blank support hours as absent, not as an empty clause", () => {
     expect(buildAskBuyer({ support_hours: "  " }).supportHours).toBeNull();
+  });
+});
+
+describe("buildFreightBox", () => {
+  const box = {
+    id: "b1", label: "Box 1", region_code: "USA", region_name: "United States",
+    departs_at: "2026-09-18T00:00:00.000Z", cutoff_at: "2026-09-17T00:00:00.000Z",
+    capacity_lbs: 9, weight_lbs: 5.4, fill_pct: 60, headroom_lbs: 3.6,
+    line_ids: ["a", "b"], freight_ghs: 435, saving_ghs: 87,
+    marginal_saving_ghs: 43.5, item_count: 2, unweighed_line_count: 0, has_unweighed_lines: false,
+  };
+  const bag = (boxes: BagView["boxes"]) => ({ boxes }) as BagView;
+
+  it("hands the card the bag's first box, figure for figure", () => {
+    expect(buildFreightBox(bag([box]))).toEqual({
+      label: "Box 1",
+      departsAt: "2026-09-18T00:00:00.000Z",
+      fillPct: 60,
+      weightLbs: 5.4,
+      capacityLbs: 9,
+      itemCount: 2,
+      unweighedLineCount: 0,
+      marginalSavingGhs: 43.5,
+      href: "/app/bag",
+    });
+  });
+
+  it("shows no card when the bag is empty or could not be read", () => {
+    expect(buildFreightBox(bag([]))).toBeNull();
+    expect(buildFreightBox(null)).toBeNull();
   });
 });

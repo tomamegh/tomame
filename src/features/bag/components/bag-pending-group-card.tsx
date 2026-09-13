@@ -1,19 +1,17 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight, Receipt } from "@phosphor-icons/react/ssr";
 
 import { formatGhs } from "@/features/marketing/format";
-import { useInitializePayment } from "@/features/payments/hooks/usePayment";
 import type { PaymentChannel } from "@/features/payments/types";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
-import { toast } from "@/lib/sonner";
+import type { BagPayment } from "../hooks/useBagPayment";
 import type { PendingGroupSummary } from "../types";
 
 export interface BagPendingGroupCardProps {
   group: PendingGroupSummary;
   paymentChannels: PaymentChannel[];
+  /** Selection and the pay action, owned by `BagView` so the 390px bar shares them. */
+  payment: BagPayment;
 }
 
 /**
@@ -22,27 +20,8 @@ export interface BagPendingGroupCardProps {
  * `order_groups`, and one button that re-initialises the same group. Journeys
  * (Phase 5) will list the group too; until then this is the only retry.
  */
-export function BagPendingGroupCard({ group, paymentChannels }: BagPendingGroupCardProps) {
-  const router = useRouter();
-  const initializePayment = useInitializePayment();
-  const [channelId, setChannelId] = useState<string | null>(paymentChannels[0]?.id ?? null);
-
-  const onPay = useCallback(() => {
-    initializePayment.mutate(
-      { orderGroupId: group.id, channel: channelId ?? undefined },
-      {
-        onSuccess: (payment) => window.location.assign(payment.authorizationUrl),
-        onError: (error) => {
-          if (error instanceof ApiFetchError && error.status === 401) {
-            router.push(`/auth/login?next=${encodeURIComponent("/app/bag")}`);
-            return;
-          }
-          toast.error({ title: "Could not start the payment", description: error.message });
-        },
-      },
-    );
-  }, [channelId, group.id, initializePayment, router]);
-
+export function BagPendingGroupCard({ group, paymentChannels, payment }: BagPendingGroupCardProps) {
+  const { channelId, setChannelId, busy } = payment;
   const n = group.item_count;
   return (
     <section
@@ -68,6 +47,7 @@ export function BagPendingGroupCard({ group, paymentChannels }: BagPendingGroupC
                 key={channel.id}
                 type="button"
                 aria-pressed={selected}
+                disabled={busy}
                 onClick={() => setChannelId(channel.id)}
                 className={
                   selected
@@ -83,13 +63,14 @@ export function BagPendingGroupCard({ group, paymentChannels }: BagPendingGroupC
         </div>
       )}
 
+      {/* Below `lg` this button is `BagPayBar`, pinned to the bottom edge. */}
       <button
         type="button"
-        onClick={onPay}
-        disabled={initializePayment.isPending}
-        className="tm-cta-gradient flex h-[54px] items-center justify-center gap-2 rounded-[14px] text-base leading-none font-bold text-white shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] disabled:opacity-60"
+        onClick={() => payment.payGroup(group.id)}
+        disabled={busy}
+        className="tm-cta-gradient hidden h-[54px] items-center justify-center gap-2 rounded-[14px] text-base leading-none font-bold text-white shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] disabled:opacity-60 lg:flex"
       >
-        {initializePayment.isPending ? "Redirecting to Paystack…" : `Pay ${formatGhs(group.total_ghs)}`}
+        {busy ? "Redirecting to Paystack…" : `Pay ${formatGhs(group.total_ghs)}`}
         <ArrowRight weight="bold" className="size-4" aria-hidden />
       </button>
     </section>

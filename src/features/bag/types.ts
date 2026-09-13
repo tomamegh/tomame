@@ -44,6 +44,12 @@ export interface BagBox {
   /** Freight (ex handling) the box carries, GHS. */
   freight_ghs: number;
   saving_ghs: number;
+  /** What one more line like the ones already in it would add to the saving. 0 when it would not fit. */
+  marginal_saving_ghs: number;
+  /** Σ quantity over the box's lines — "2 items · 5.4 lb of 9 lb". */
+  item_count: number;
+  /** How many of the box's lines have no listed weight; the copy says "one"/"two"/"N items". */
+  unweighed_line_count: number;
   has_unweighed_lines: boolean;
 }
 

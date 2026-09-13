@@ -1,21 +1,14 @@
 "use client";
 
-import { useCallback, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowRight, CreditCard, LockSimple } from "@phosphor-icons/react/ssr";
 
 import { formatGhs, formatUsd } from "@/features/marketing/format";
-import { useInitializePayment } from "@/features/payments/hooks/usePayment";
 import type { PaymentChannel } from "@/features/payments/types";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
-import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
-import { useCheckout } from "../hooks/useBag";
+import type { BagPayment } from "../hooks/useBagPayment";
 import type { BagView } from "../types";
 import { buildBagSummaryRows, formatLockCountdown } from "./format";
-
-const LOGIN_HREF = `/auth/login?next=${encodeURIComponent("/app/bag")}`;
 
 export interface BagSummaryCardProps {
   view: BagView;
@@ -24,7 +17,10 @@ export interface BagSummaryCardProps {
   paymentChannels: PaymentChannel[];
   /** `site_settings.payment_hold_note`; the line under the button disappears when unset. */
   paymentHoldNote: string | null;
-  isSignedIn: boolean;
+  /** Selection and the pay action, owned by `BagView` so the 390px bar shares them. */
+  payment: BagPayment;
+  /** True when nothing here may start a payment — no lines, an unpriced line, or no delivery chosen. */
+  blocked: boolean;
 }
 
 /**
@@ -38,55 +34,15 @@ export interface BagSummaryCardProps {
  * checkout builds the order group, initialize opens the Paystack transaction —
  * and the browser only ever carries ids between them.
  */
-export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, isSignedIn }: BagSummaryCardProps) {
-  const router = useRouter();
+export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, payment, blocked }: BagSummaryCardProps) {
   const rows = buildBagSummaryRows(view);
   const countdown = formatLockCountdown(view.rate_locked_until, now);
-  const [channelId, setChannelId] = useState<string | null>(paymentChannels[0]?.id ?? null);
-
-  const checkout = useCheckout();
-  const initializePayment = useInitializePayment();
-  const busy = checkout.isPending || initializePayment.isPending;
-
-  const onError = useCallback(
-    (title: string) => (error: Error) => {
-      if (error instanceof ApiFetchError && error.status === 401) {
-        router.push(LOGIN_HREF);
-        return;
-      }
-      toast.error({ title, description: error.message });
-    },
-    [router],
-  );
-
-  const onPay = useCallback(() => {
-    if (!isSignedIn) {
-      router.push(LOGIN_HREF);
-      return;
-    }
-    checkout.mutate(undefined, {
-      onSuccess: (result) => {
-        initializePayment.mutate(
-          { orderGroupId: result.order_group_id, channel: channelId ?? undefined },
-          {
-            // Paystack owns the next screen; a full navigation, not a router push.
-            onSuccess: (payment) => window.location.assign(payment.authorizationUrl),
-            onError: onError("Could not start the payment"),
-          },
-        );
-      },
-      onError: onError("Could not start checkout"),
-    });
-  }, [channelId, checkout, initializePayment, isSignedIn, onError, router]);
-
-  // A signed-out viewer keeps a live button: it sends them to sign in, where
-  // they can then choose a delivery. Everything else is a genuine blocker.
-  const blocked = view.lines.length === 0 || view.has_unpriced_lines || (isSignedIn && !view.delivery);
+  const { channelId, setChannelId, busy, payBag } = payment;
 
   return (
     <aside
       data-testid="bag-summary"
-      className="tm-up sticky top-5 flex flex-col gap-4 rounded-[24px] border border-tm-border bg-card p-[22px] [animation-delay:0.12s] [animation-duration:0.5s]"
+      className="tm-up flex flex-col gap-4 rounded-[24px] border border-tm-border bg-card p-[22px] lg:sticky lg:top-5 [animation-delay:0.12s] [animation-duration:0.5s]"
     >
       <h2 className="font-display text-lg leading-none font-bold">Pay once for everything</h2>
 
@@ -163,13 +119,14 @@ export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, is
         </div>
       )}
 
+      {/* Below `lg` this button is `BagPayBar`, pinned to the bottom edge. */}
       <button
         type="button"
-        onClick={onPay}
+        onClick={payBag}
         disabled={blocked || busy}
         aria-busy={busy}
         className={cn(
-          "tm-cta-gradient flex h-[54px] items-center justify-center gap-2 rounded-[14px] text-base leading-none font-bold text-white",
+          "tm-cta-gradient hidden h-[54px] items-center justify-center gap-2 rounded-[14px] text-base leading-none font-bold text-white lg:flex",
           "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-opacity disabled:cursor-not-allowed disabled:opacity-50",
         )}
       >

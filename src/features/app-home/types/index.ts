@@ -80,6 +80,36 @@ export interface HomeAskBuyer {
   supportHours: string | null;
 }
 
+/**
+ * "Your freight box" — the open bag's first consolidation box, on Home.
+ *
+ * Every figure is the bag service's: the box the customer's lines actually
+ * packed into, its chargeable weight against `pricing_constants.box_capacity_lbs`,
+ * and the departure the region's schedule puts it on. The card is null when the
+ * bag is empty — there is no box to be a percentage of.
+ */
+export interface HomeFreightBox {
+  /** `consolidation_boxes.label`, e.g. "Box 1". */
+  label: string;
+  /** When the box flies, ISO. Null when the region has no departure schedule. */
+  departsAt: string | null;
+  /** 0–100, chargeable weight over capacity. */
+  fillPct: number;
+  weightLbs: number;
+  capacityLbs: number;
+  /** Σ quantity over the box's lines. */
+  itemCount: number;
+  /** How many of the box's lines have no listed weight. 0 when every weight is known. */
+  unweighedLineCount: number;
+  /**
+   * GHS one more line like the ones already in the box would add to the
+   * consolidation saving. 0 when nothing more fits; the promise is then not shown.
+   */
+  marginalSavingGhs: number;
+  /** Where the card sends the customer. */
+  href: string;
+}
+
 export interface HomeViewModel {
   greeting: HomeGreeting;
   /** Newest first, cancelled orders excluded. Empty array when there are none. */
@@ -101,4 +131,6 @@ export interface HomeViewModel {
    * because an unbacked number is a false promise.
    */
   rateLockHours: number | null;
+  /** The open bag's first box, or null when the bag is empty. */
+  freightBox: HomeFreightBox | null;
 }

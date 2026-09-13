@@ -44,8 +44,18 @@ export function formatBoxFill(box: BagBox): string {
  * The box footer. "Room for ~3.6 lb more." while there is room; the honest
  * alternative when there is none or a line's weight is unknown.
  */
+/**
+ * "One item's weight" / "2 items' weights" — the number matters. A box holding
+ * two weightless listings that says "one item's weight" tells the customer the
+ * other one is known, which is the opposite of true.
+ */
+export function formatUnweighedCount(box: BagBox): string {
+  const n = box.unweighed_line_count;
+  return n <= 1 ? "One item's weight is" : `${n} items' weights are`;
+}
+
 export function formatBoxHeadroom(box: BagBox): string {
-  if (box.has_unweighed_lines) return "One item's weight is still to be confirmed, so this box may fill sooner.";
+  if (box.has_unweighed_lines) return `${formatUnweighedCount(box)} still to be confirmed, so this box may fill sooner.`;
   if (box.headroom_lbs <= 0) return "This box is full. Anything else starts a new one.";
   return `Room for ~${formatLbs(box.headroom_lbs)} more. Anything else from your price watch?`;
 }

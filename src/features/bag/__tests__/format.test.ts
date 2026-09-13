@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildBagSummaryRows, formatBoxFill, formatBoxHeadroom, formatBoxTitle, formatDepartureDay, formatLbs, formatLockCountdown } from "../components/format";
 import type { BagBox, BagDelivery, BagView } from "../types";
 
-const box: BagBox = { id: "b", label: "Box 1", region_code: "USA", region_name: "United States", departs_at: "2026-09-18T00:00:00.000Z", cutoff_at: null, capacity_lbs: 9, weight_lbs: 5.4, fill_pct: 60, headroom_lbs: 3.6, line_ids: [], freight_ghs: 0, saving_ghs: 0, has_unweighed_lines: false };
+const box: BagBox = { id: "b", label: "Box 1", region_code: "USA", region_name: "United States", departs_at: "2026-09-18T00:00:00.000Z", cutoff_at: null, capacity_lbs: 9, weight_lbs: 5.4, fill_pct: 60, headroom_lbs: 3.6, line_ids: [], freight_ghs: 0, saving_ghs: 0, marginal_saving_ghs: 0, item_count: 2, unweighed_line_count: 0, has_unweighed_lines: false };
 
 describe("box copy", () => {
   it("names the departure day and the fill from the server's numbers", () => {
@@ -16,7 +16,14 @@ describe("box copy", () => {
   it("headroom copy is honest about full boxes and unknown weights", () => {
     expect(formatBoxHeadroom(box)).toBe("Room for ~3.6 lb more. Anything else from your price watch?");
     expect(formatBoxHeadroom({ ...box, headroom_lbs: 0 })).toMatch(/full/);
-    expect(formatBoxHeadroom({ ...box, has_unweighed_lines: true })).toMatch(/confirmed/);
+    expect(formatBoxHeadroom({ ...box, has_unweighed_lines: true, unweighed_line_count: 1 })).toBe(
+      "One item's weight is still to be confirmed, so this box may fill sooner.",
+    );
+    // Two weightless listings must not be described as one: the customer would
+    // read it as "the other one is known".
+    expect(formatBoxHeadroom({ ...box, has_unweighed_lines: true, unweighed_line_count: 2 })).toBe(
+      "2 items' weights are still to be confirmed, so this box may fill sooner.",
+    );
   });
 });
 

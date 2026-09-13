@@ -362,7 +362,7 @@ async function packIntoBoxes(rows: CartItemRow[], lines: BagLine[]): Promise<Pac
   for (const packed of plan.boxes) {
     const region = regionByCode.get(packed.region_code) ?? null;
     const row = await materializeBox(packed, region, openByRegion, constants, now);
-    boxes.push(toBagBox(row, packed, region));
+    boxes.push(toBagBox(row, packed, region, lines));
     for (const lineId of packed.line_ids) {
       const item = rows.find((r) => r.id === lineId);
       if (item && item.consolidation_box_id !== row.id) await updateCartItem(item.id, { consolidation_box_id: row.id });
@@ -412,7 +412,8 @@ async function materializeBox(
   return created;
 }
 
-function toBagBox(row: ConsolidationBoxRow, packed: PackedBox, region: RegionRow | null): BagBox {
+function toBagBox(row: ConsolidationBoxRow, packed: PackedBox, region: RegionRow | null, lines: BagLine[]): BagBox {
+  const inBox = new Set(packed.line_ids);
   return {
     id: row.id,
     label: row.label ?? `Box ${packed.index}`,
@@ -427,6 +428,9 @@ function toBagBox(row: ConsolidationBoxRow, packed: PackedBox, region: RegionRow
     line_ids: packed.line_ids,
     freight_ghs: packed.freight_ghs,
     saving_ghs: packed.saving_ghs,
+    marginal_saving_ghs: packed.marginal_saving_ghs,
+    item_count: lines.reduce((acc, l) => (inBox.has(l.id) ? acc + l.quantity : acc), 0),
+    unweighed_line_count: packed.unweighed_line_count,
     has_unweighed_lines: packed.has_unweighed_lines,
   };
 }

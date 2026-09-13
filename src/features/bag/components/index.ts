@@ -10,3 +10,5 @@ export { AddressFormDialog } from "./address-form-dialog";
 export type { AddressFormDialogProps } from "./address-form-dialog";
 export { BagEmpty } from "./bag-empty";
 export { BagPendingGroupCard } from "./bag-pending-group-card";
+export { BagPasteLinkBar, BagPayBar } from "./bag-pay-bar";
+export type { BagPayBarProps } from "./bag-pay-bar";

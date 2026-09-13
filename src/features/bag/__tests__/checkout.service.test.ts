@@ -45,7 +45,7 @@ const bag = (over: Partial<BagView> = {}): BagView => ({
   delivery_fee_ghs: 20,
   cart_id: "c1",
   lines: [line("a", 100), line("b", 50, { gap_price_usd: 12, gap_origin_country: "UK", special_instructions: "gift" })],
-  boxes: [{ id: "box-1", label: "Box 1", region_code: "USA", region_name: "US", departs_at: null, cutoff_at: null, capacity_lbs: 9, weight_lbs: 2, fill_pct: 22, headroom_lbs: 7, line_ids: ["a", "b"], freight_ghs: 40, saving_ghs: 10, has_unweighed_lines: false }],
+  boxes: [{ id: "box-1", label: "Box 1", region_code: "USA", region_name: "US", departs_at: null, cutoff_at: null, capacity_lbs: 9, weight_lbs: 2, fill_pct: 22, headroom_lbs: 7, line_ids: ["a", "b"], freight_ghs: 40, saving_ghs: 10, marginal_saving_ghs: 4, item_count: 2, unweighed_line_count: 0, has_unweighed_lines: false }],
   unboxed_line_ids: [],
   consolidation_saving_ghs: 10,
   consolidation_saving_pct: 0.2,

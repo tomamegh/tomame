@@ -519,6 +519,21 @@
     transform: scaleX(1);
   }
 }
+/*
+  The vertical twin. The v2 mock's freight-box crate (line 123) animates its
+  fill with `tmFill` over `transform-origin: bottom`, but `tmFill` scales X —
+  so in the mock itself the liquid widens out of the centre instead of rising.
+  That is one of the mock's own bugs (phase-2 handoff §5.7); the crate fills
+  upwards here, on the mock's literal 1.4s .5s curve.
+*/
+@keyframes tmFillY {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
 @keyframes tmFloat {
   0%,
   100% {

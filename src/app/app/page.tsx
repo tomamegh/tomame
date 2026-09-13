@@ -8,6 +8,7 @@ import { SUPPORTED_STORE_NAMES } from "@/features/extraction/scrapers";
 import { getHomeView } from "@/features/app-home/services/home.service";
 import {
   AskBuyerCard,
+  FreightBoxCard,
   GreetingChip,
   HeroPasteBar,
   JourneysInMotion,
@@ -81,12 +82,21 @@ export default async function AppHomePage() {
 
       {/* ── Row B ─────────────────────────────────────────────────────── */}
       {/*
-        One full-width card. The mock's "Your freight box" sits to the right of
-        it; it is not built, because it aggregates weight over a bag that does
-        not exist yet (Phase 4) against a box-capacity constant that has no
-        source. A stubbed "62% full · save GH₵96" would be a fabricated figure.
+        The mock puts "Your freight box" to the right of the journeys. It is
+        only drawn once there is a box: the card is the open bag's first
+        consolidation box, so an empty bag has no percentage to be full of and
+        the journeys take the whole row, as they did before Phase 4.
       */}
-      <JourneysInMotion journeys={view.journeys} />
+      <div
+        className={
+          view.freightBox
+            ? "grid items-stretch gap-5 lg:grid-cols-[1.35fr_1fr]"
+            : "grid"
+        }
+      >
+        <JourneysInMotion journeys={view.journeys} />
+        {view.freightBox && <FreightBoxCard box={view.freightBox} now={now} />}
+      </div>
 
       {/*
         ── Row C ───────────────────────────────────────────────────────

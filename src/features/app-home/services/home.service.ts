@@ -24,11 +24,14 @@ import { priceUnderExistingLock } from "@/features/quotes/services/quote-lock.se
 import { loadQuoteConstants, QuoteConstantsMissingError } from "@/features/quotes/services/quote-constants.service";
 import type { QuoteConstants, Viewer } from "@/features/quotes/types";
 import { describeJourney } from "@/features/orders/services/journey-stage";
+import { getBag } from "@/features/bag/services/bag.service";
+import type { BagView } from "@/features/bag/types";
 import { logger } from "@/lib/logger";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import type { ExtractionResult } from "@/features/extraction/types";
 import type {
   HomeAskBuyer,
+  HomeFreightBox,
   HomeJourney,
   HomeLanes,
   HomeReceipt,
@@ -59,7 +62,7 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
   const viewer: Viewer = { userId: user.id, sessionId: quoteSessionId };
   const client = await createClient();
 
-  const [movingCount, orders, latestPaste, regions, settings, watchList, quoteConstants] =
+  const [movingCount, orders, latestPaste, regions, settings, watchList, quoteConstants, bag] =
     await Promise.all([
       degrade(countMovingOrders(client, user.id), 0, "moving order count"),
       degrade(
@@ -90,6 +93,10 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
       // minted with, so the copy and the behaviour cannot drift. A flaky read
       // drops the chip; a MISSING constant (deploy before migrate) surfaces.
       degrade(loadQuoteConstants(), null as QuoteConstants | null, "quote constants"),
+      // The freight-box card is the open bag's first box. `getBag` is the only
+      // thing that knows how the lines packed, so the card reads the same
+      // object the bag screen renders — no second, drifting calculation.
+      degrade(getBag(viewer), null as BagView | null, "bag"),
     ]);
 
   return {
@@ -104,6 +111,32 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
     askBuyer: buildAskBuyer(settings),
     watches: watchList,
     rateLockHours: quoteConstants?.rate_lock_hours ?? null,
+    freightBox: buildFreightBox(bag),
+  };
+}
+
+// ── Freight box ──────────────────────────────────────────────────────────────
+
+/**
+ * The bag's first consolidation box, or null when there is no bag to show.
+ *
+ * "First" is the box the earliest line landed in — the one the mock draws. A
+ * bag spanning two regions has a second box; the card links to `/app/bag`,
+ * which shows them all, rather than stacking cards on Home.
+ */
+export function buildFreightBox(bag: BagView | null): HomeFreightBox | null {
+  const box = bag?.boxes[0];
+  if (!box) return null;
+  return {
+    label: box.label,
+    departsAt: box.departs_at,
+    fillPct: box.fill_pct,
+    weightLbs: box.weight_lbs,
+    capacityLbs: box.capacity_lbs,
+    itemCount: box.item_count,
+    unweighedLineCount: box.unweighed_line_count,
+    marginalSavingGhs: box.marginal_saving_ghs,
+    href: "/app/bag",
   };
 }
 

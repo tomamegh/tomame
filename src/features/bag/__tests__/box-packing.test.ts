@@ -94,6 +94,32 @@ describe("packLines", () => {
   });
 });
 
+describe("marginal saving — \"add one more and save GH₵X\"", () => {
+  it("projects the next line from the box's own means, and counts the jump into saving at all", () => {
+    // One 0.6 lb line: 1 chargeable lb, freight ex handling $5 × 15 = GH₵75, no
+    // saving yet. A second like it makes the box freight GH₵150, saved at 20%
+    // = GH₵30, so the first addition is worth the whole GH₵30.
+    const one = packLines([weightLine("a", 0.6)], C).boxes[0]!;
+    expect(one.saving_ghs).toBe(0);
+    expect(one.marginal_saving_ghs).toBe(30);
+
+    // Two lines (GH₵75 + GH₵360 ex handling): GH₵435 saved at 20% = GH₵87 now.
+    // A third at the mean GH₵217.50 lifts the box freight to GH₵652.50 →
+    // GH₵130.50, i.e. GH₵43.50 more.
+    const two = packLines([weightLine("a", 0.6), weightLine("b", 4.8)], C).boxes[0]!;
+    expect(two.saving_ghs).toBe(87);
+    expect(two.marginal_saving_ghs).toBe(43.5);
+  });
+
+  it("promises nothing when the next line would not fit in the box", () => {
+    // 5 lb + 3.5 lb = 8.5 of 9; the mean next line is 4.25 lb and spills into a
+    // second box, which holds one line and therefore saves nothing.
+    const box = packLines([weightLine("a", 5), weightLine("b", 3.5)], C).boxes[0]!;
+    expect(box.headroom_lbs).toBe(0.5);
+    expect(box.marginal_saving_ghs).toBe(0);
+  });
+});
+
 describe("nextDeparture", () => {
   it("picks the coming Friday while its cutoff is ahead, else the Friday after", () => {
     // Sunday 13 Sep 2026 10:00Z → Friday 18 Sep, cutoff Thursday 17 Sep 00:00Z

@@ -26,10 +26,23 @@ const THUMB_PLACEHOLDER =
  * 14px radius, name `600 15px/1.3`, meta `400 13px/1`, a 32px stepper pill,
  * "Watch instead" and "Remove", the GH₵ total at `700 18px/1` with the USD echo.
  *
+ * At 390px that grid has nowhere to go: a five-figure cedi total takes a third
+ * of the width and leaves the name as an ellipsis. So the row stacks below
+ * `lg` — thumb beside the name, then the price, then the controls — and
+ * `lg:contents` dissolves the mobile cluster back into the artboard's three
+ * columns from `lg` up, where the thumb and the price span both rows exactly as
+ * they do in the mock.
+ *
  * Every figure is the server's re-priced breakdown for this line; a line the
  * server could not price shows its reason where the money would be.
  */
-export function BagLineRow({ line, busy, onQuantity, onWatchInstead, onRemove }: BagLineRowProps) {
+export function BagLineRow({
+  line,
+  busy,
+  onQuantity,
+  onWatchInstead,
+  onRemove,
+}: BagLineRowProps) {
   const src = safeImageSrc(line.product.image);
   const meta = formatLineMeta(line);
   const usd = formatLineUsd(line);
@@ -38,66 +51,67 @@ export function BagLineRow({ line, busy, onQuantity, onWatchInstead, onRemove }:
   return (
     <li
       data-testid="bag-line"
-      className="grid grid-cols-[84px_1fr_auto] items-center gap-[18px] border-t border-tm-hairline px-[22px] py-[18px]"
+      className={cn(
+        // `grid-cols-1` is load-bearing: an implicit grid column is `auto`, so
+        // a long product name would size the row to its own max-content and
+        // push the whole page wider than the phone.
+        "grid grid-cols-1 gap-3 border-t border-tm-hairline px-[18px] py-4",
+        "lg:grid-cols-[84px_1fr_auto] lg:items-center lg:gap-x-[18px] lg:gap-y-[7px] lg:px-[22px] lg:py-[18px]",
+      )}
     >
-      <div className={cn("relative size-[84px] overflow-hidden rounded-[14px]", !src && THUMB_PLACEHOLDER)}>
-        {src && <Image src={src} alt="" fill sizes="84px" className="object-contain p-1" />}
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-[7px]">
-        <a
-          href={line.product.url || undefined}
-          target="_blank"
-          rel="noreferrer"
-          className="truncate text-[15px] leading-[1.3] font-semibold text-tm-ink hover:underline"
-          title={title}
+      {/* Thumb + name travel together on a phone; from `lg` they are two of the artboard's columns. */}
+      <div className="flex items-start gap-3.5 lg:contents">
+        <div
+          className={cn(
+            "relative size-16 shrink-0 overflow-hidden rounded-[14px] lg:size-[84px] lg:row-span-2 lg:self-center",
+            !src && THUMB_PLACEHOLDER,
+          )}
         >
-          {title}
-        </a>
-        {meta && <span className="text-[13px] leading-none text-tm-text-3">{meta}</span>}
-        {line.special_instructions && (
-          <span className="truncate text-[12px] leading-none text-tm-text-3">Note: {line.special_instructions}</span>
-        )}
+          {src && (
+            <Image
+              src={src}
+              alt=""
+              fill
+              sizes="(min-width: 1024px) 84px, 64px"
+              className="object-contain p-1"
+            />
+          )}
+        </div>
 
-        <div className="mt-0.5 flex items-center gap-[14px]">
-          <div className="flex h-8 items-center rounded-full border border-tm-border px-[3px]">
-            <StepperButton label="Decrease quantity" disabled={busy || line.quantity <= 1} onClick={() => onQuantity(line.quantity - 1)}>
-              <Minus className="size-3" aria-hidden />
-            </StepperButton>
-            <output aria-live="polite" className="tm-nums w-7 text-center text-[13px] leading-none font-semibold">
-              {line.quantity}
-            </output>
-            <StepperButton label="Increase quantity" disabled={busy || line.quantity >= 100} onClick={() => onQuantity(line.quantity + 1)}>
-              <Plus className="size-3" aria-hidden />
-            </StepperButton>
-          </div>
-
-          <button
-            type="button"
-            onClick={onWatchInstead}
-            disabled={busy || !line.product.url}
-            className="inline-flex items-center gap-[5px] text-[13px] leading-none font-medium text-tm-text-2 transition-colors hover:text-tm-ink disabled:opacity-60"
+        <div className="flex min-w-0 flex-1 flex-col gap-[7px] lg:col-start-2 lg:row-start-1 lg:flex-none">
+          <a
+            href={line.product.url || undefined}
+            target="_blank"
+            rel="noreferrer"
+            className="truncate text-[15px] leading-[1.3] font-semibold text-tm-ink hover:underline"
+            title={title}
           >
-            <BookmarkSimple className="size-[14px]" aria-hidden />
-            Watch instead
-          </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={busy}
-            className="inline-flex items-center gap-[5px] text-[13px] leading-none font-medium text-tm-text-2 transition-colors hover:text-tm-ink disabled:opacity-60"
-          >
-            <X className="size-[14px]" aria-hidden />
-            Remove
-          </button>
+            {title}
+          </a>
+          {meta && (
+            <span className="text-[13px] leading-none text-tm-text-3">
+              {meta}
+            </span>
+          )}
+          {line.special_instructions && (
+            <span className="truncate text-[12px] leading-none text-tm-text-3">
+              Note: {line.special_instructions}
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-col items-end gap-1 text-right">
+      <div className="flex flex-col items-start gap-1 lg:col-start-3 lg:row-span-2 lg:items-end lg:self-center lg:text-right">
         {line.pricing ? (
           <>
-            <span className="tm-nums text-[18px] leading-none font-bold">{formatGhs(line.pricing.total_ghs)}</span>
-            {usd && <span className="tm-nums text-[12px] leading-none font-medium text-tm-text-3">{usd}</span>}
+            <span className="tm-nums text-[18px] leading-none font-bold">
+              {formatGhs(line.pricing.total_ghs)}
+            </span>
+            {usd && (
+              <span className="tm-nums text-[12px] leading-none font-medium text-tm-text-3">
+                {usd}
+              </span>
+            )}
           </>
         ) : (
           <span className="max-w-[180px] text-[12px] leading-[1.4] font-medium text-tm-amber">
@@ -105,11 +119,65 @@ export function BagLineRow({ line, busy, onQuantity, onWatchInstead, onRemove }:
           </span>
         )}
       </div>
+
+      <div className="flex flex-wrap items-center gap-x-[14px] gap-y-2.5 lg:col-start-2 lg:row-start-2 lg:mt-0.5 lg:flex-nowrap">
+        <div className="flex h-8 items-center rounded-full border border-tm-border px-[3px]">
+          <StepperButton
+            label="Decrease quantity"
+            disabled={busy || line.quantity <= 1}
+            onClick={() => onQuantity(line.quantity - 1)}
+          >
+            <Minus className="size-3" aria-hidden />
+          </StepperButton>
+          <output
+            aria-live="polite"
+            className="tm-nums w-7 text-center text-[13px] leading-none font-semibold"
+          >
+            {line.quantity}
+          </output>
+          <StepperButton
+            label="Increase quantity"
+            disabled={busy || line.quantity >= 100}
+            onClick={() => onQuantity(line.quantity + 1)}
+          >
+            <Plus className="size-3" aria-hidden />
+          </StepperButton>
+        </div>
+
+        <button
+          type="button"
+          onClick={onWatchInstead}
+          disabled={busy || !line.product.url}
+          className="inline-flex items-center gap-[5px] text-[13px] leading-none font-medium text-tm-text-2 transition-colors hover:text-tm-ink disabled:opacity-60"
+        >
+          <BookmarkSimple className="size-[14px]" aria-hidden />
+          Watch instead
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={busy}
+          className="inline-flex items-center gap-[5px] text-[13px] leading-none font-medium text-tm-text-2 transition-colors hover:text-tm-ink disabled:opacity-60"
+        >
+          <X className="size-[14px]" aria-hidden />
+          Remove
+        </button>
+      </div>
     </li>
   );
 }
 
-function StepperButton({ label, disabled, onClick, children }: { label: string; disabled: boolean; onClick: () => void; children: React.ReactNode }) {
+function StepperButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
