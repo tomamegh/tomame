@@ -211,9 +211,11 @@ export async function getUserSession(): Promise<{
   };
 }
 
-export function canAccessAdmin(user: JwtPayload): boolean {
-  if (!user || !user.email) return false;
-  return (
-    user.app_metadata?.role === "admin" && user.email.endsWith("@tomame.ca")
-  );
-}
+/**
+ * Re-exported so existing callers keep working; the rule itself lives in
+ * `lib/auth/admin-access.ts` because the proxy needs it too and cannot import
+ * this module. It used to require an `@tomame.ca` address ON TOP of the admin
+ * role — which no administrator in the database actually has, so it answered
+ * false for every one of them and hid the Admin link from all of us.
+ */
+export { canAccessAdmin } from "@/lib/auth/admin-access";

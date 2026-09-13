@@ -1,6 +1,8 @@
 import { CookieOptions, createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { canAccessAdmin } from "@/lib/auth/admin-access";
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
@@ -67,9 +69,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Authenticated non-admins → back to app
-  // Role is read from the JWT (set by custom_access_token_hook) — no DB call.
-  if (isAdminRoute && user?.app_metadata?.role !== "admin" && !user?.email?.endsWith("@tomame.ca")) {
+  // Authenticated non-admins → back to app. One rule, shared with the navbars:
+  // `canAccessAdmin`. This used to also admit anyone whose EMAIL ended in
+  // `@tomame.ca`, regardless of role — a domain backdoor around the very column
+  // that decides this.
+  if (isAdminRoute && !canAccessAdmin(user)) {
     const url = request.nextUrl.clone();
     url.pathname = "/app";
     return NextResponse.redirect(url);
