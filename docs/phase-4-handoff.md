@@ -1,0 +1,132 @@
+# Phase 4 — Bag & pay (`v2-bag`) — plan and decisions (drafted 2026-09-13, before code)
+
+Mocks: `id="v2-bag"` in `design/Tomame - New Direction v2.dc.html` and the bag artboard of
+`id="v2-mobile"`. Contract: `docs/redesign-data-map.md` §"Phase 4". Nothing below is built until
+Kelvin approves §1.
+
+## 1. Decisions needed before code (recommendation first)
+
+### 1a. What "9 lb" box capacity means — recommend: the packing unit, not a price tier
+`pricing_constants.box_capacity_lbs` (seeded 9.00 in 037, described as "chargeable weight one
+consolidation box holds") is the **chargeable weight one box carries**. The bag packs lines into
+boxes greedily by chargeable weight (`max(weight_lbs, minimum_chargeable_weight_lbs) × qty`); a
+line heavier than the capacity gets a box of its own. The meter, "62% full" and "room for ~3.6 lb"
+read from the box the line landed in. Capacity has **no pricing meaning by itself** — freight stays
+`$5/lb + $3 handling` per line — it is the unit over which the consolidation saving (1b) is computed
+and the operational unit the admin later closes and flies. Lines whose weight is unknown (flat-rate
+groups with no listed weight) join the box at 0 lb and the meter says "weight to be confirmed".
+Rejected: "freight tier" (nothing in the engine tiers on weight) and "marketing device" (the seed
+already calls it a capacity; a meter that means nothing is static copy in disguise).
+
+### 1b. What `consolidation_saving_pct` 0.20 is a percentage of — recommend: freight only
+Saving = `0.20 × Σ freight of every line in a box`, **only when the box holds two or more lines**;
+freight here is the weight × rate part (`freight_usd − handling_fee_usd`) for weight groups and
+`flat_rate_ghs × qty` / fixed freight for the others. Handling, tax, the service fee and the item
+price are untouched. This is the formula the landing widget already uses
+(`marketing-content.service.ts` `getFeatureDemos`: `boxFreight × savingPct`, approved in Phase 1)
+and the seed's own wording ("share of per-item freight saved when items ship together").
+Rejected: merged handling fees (saves `$3 × (n−1)` — not a percentage, GH₵43 on the mock's bag,
+and `0.20` would mean nothing) and landed price (a discount on the item price and tax, which Tomame
+does not control).
+
+### 1c. Anonymous bag — recommend: the cart carries `tm_quote_session`, sign-in at checkout
+Same shape as the approved quote-lock decision: `carts.session_id` for signed-out visitors,
+adopted onto the user on the first signed-in request (only when the user lookup misses). "Add to
+bag" never forces sign-in; `POST /api/cart/checkout` and `/api/addresses` are signed-in only.
+
+### 1d. Payment for N items — order groups (data-map option A)
+`order_groups` + `orders.order_group_id`; `orders` stays one-product. One Paystack transaction per
+group (`POST /api/payments/initialize { orderGroupId }`), webhook fans `paid` to every order in the
+group idempotently. Each line keeps its own `quote_locks` row; checkout prices each line with
+`priceLowerOf(lock, live)` and consumes every lock (`consumeQuoteLocksForOrder` per line). The bag
+shows the **earliest** lock expiry.
+
+### 1e. Delivery becomes chargeable — once per group
+`order_groups.delivery_fee_ghs` = the chosen address's zone `fee_ghs` (pickup = 0), charged once
+per checkout, not per box or per line. The quote screen's delivery row keeps Phase 3's wording.
+
+### 1f. Box departure date — from a table, not a literal
+"Flies from the US Fri 12 Sep" needs a schedule. Add `regions.departure_weekday` (0–6, USA seeded
+5 = Friday) and `regions.departure_cutoff_hours` (seeded 24); the checkout service opens one
+`consolidation_boxes` row per region per departure (`departs_at` = next departure weekday,
+`cutoff_at` = departs − cutoff hours) and packs into it. The admin box console is a later phase; the
+rows exist now so it has something to manage.
+
+## 2. Schema — migration 048 (v2)
+`carts`, `cart_items`, `consolidation_boxes`, `delivery_addresses`, `order_groups` as specified in
+the data map, plus `orders.order_group_id / consolidation_box_id / delivery_address_id`,
+`payments.order_group_id`, `regions.departure_weekday / departure_cutoff_hours`. RLS owner-only on
+customer tables, admin-read on boxes, explicit GRANTs (phase-2 gotcha 2). Group-level money lives on
+`order_groups` (`freight_ghs`, `consolidation_saving_ghs`, `delivery_fee_ghs`, `total_ghs`,
+`total_pesewas`), computed in a new `bag-pricing.service.ts` — the per-line calculator on `main` is
+not touched, so nothing here needs merging back.
+
+## 3. Endpoints
+`GET/POST /api/cart`, `PATCH/DELETE /api/cart/items/:id`, `POST /api/cart/checkout`,
+`GET/POST /api/addresses`, `PATCH/DELETE /api/addresses/:id`, `POST /api/payments/initialize`
+accepting `orderGroupId` (still accepts `orderId`), `GET /api/app/me` gains `bag_count`.
+
+## 4. Feature slices (each built, shown, approved in turn)
+- **F1** migration 048 + cart service/queries + `/api/cart*` + "Continue to payment" → "Add to bag"
+  on the quote screen + nav bag badge from `GET /api/app/me`.
+- **F2** box packing + consolidation saving + the desktop `v2-bag` screen (lines, meter, summary).
+- **F3** addresses + delivery fee + checkout → order group → Paystack initialize/verify/webhook
+  fan-out + "Pay GH₵X".
+- **F4** mobile bag artboard (390 px, own bottom bar → `ownsMobileBottomBar`) + Home freight-box
+  card on the real open cart.
+- **F5** delete what the bag replaces, gates, append the outcome here.
+
+## 5. Mock facts that shape the build (verified in the source, line numbers in the .dc.html)
+- Desktop grid `1fr 420px`, gap 28, padding `32px 32px 64px`; sticky rail `top:20px` (214, 245).
+- Animations, exhaustive: header `tmUp .5s both` (216); bag card `tmUp .5s .08s both` (217);
+  rail `tmUp .5s .12s both` (245); Deliver-to `tmUp .5s .16s both` (236); meter fill
+  `tmFill 1.2s .4s cubic-bezier(.16,1,.3,1) both` via `scaleX`, `transform-origin:left` (218).
+  Bag lines, summary rows and the pay button carry **no** animation in this artboard.
+- Bag line grid `84px 1fr auto` gap 18; stepper 32 px pill; per-line "Watch instead" and
+  "Remove"; price `font:700 18px/1` + "$x incl. tax & fee" (219–232).
+- Summary rows: items / US sales tax / Tomame fee {pct} / Freight · {boxes}, {lb} / Consolidation
+  saving (green) / Door delivery; total `font:700 30px/1`; "≈ $x · rate locked {hh}h {mm}m" (249–256).
+- Payment selector: MTN MoMo · Telecel Cash · AT Money · Card, 46 px, selected = 2 px coral
+  border (259–264). `site_settings.payment_channels` exists but holds labels only
+  (`["MTN MoMo","Telecel Cash","AT Money","Visa","Mastercard"]`); 048 reshapes it to
+  `{label, paystack_channel, provider}` so the selector can pass `channels` to Paystack. The
+  stale `PAYMENT_METHODS` in `src/config/ui.ts` (Vodafone/AirtelTigo) is deleted.
+- Pay button 54 px gradient `#F43F5E→#F97316`, "Pay GH₵x"; hold line from `policies.payment` (266–267).
+- **There is no mobile bag artboard.** `#v2-mobile` holds Home, Landed price, Journeys only
+  (377–427). The mobile bag is a responsive rendering of the desktop artboard with the detail
+  phone's bottom-bar pattern (`padding:12px 20px 30px`, 52 px buttons, 411) — F4 needs Kelvin's nod
+  on that reading. The mobile "Add to bag" CTA uses `ph-bold ph-tote` (411).
+- The mock's summary figures are static samples that do not even reconcile with its own lines
+  (4,861.16 + 8,460.50 ≠ 13,489.66); every number comes from the bag pricing service.
+
+## 6. Code facts the build hangs on (file:line, verified 2026-09-13)
+- Payment ↔ order link is only `payments.metadata->>order_id` (`payments.service.ts:81-95`) plus
+  `orders.payment_id`; 048 adds `payments.order_group_id`. Amount source today is
+  `order.admin_total_ghs ?? order.pricing.total_ghs` (`:246`); for a group it is
+  `order_groups.total_pesewas`. Idempotency lives in `transitionPaymentStatus` (`:133-164`,
+  `.eq("status", from)`); `linkOrderToPayment` (`orders.service.ts:99-121`) has no status guard
+  and must gain one before it fans out over N orders. `initializeTransaction` sends no `metadata`
+  to Paystack (`lib/paystack/client.ts:72-88`) — the group id goes there too.
+- Order status value in code is `"pending"` (`constants.ts:42-49`), not CLAUDE.md's
+  `pending_payment`. Keep the code's value.
+- `createOrder` inserts one product (`orders.service.ts:298-313`) and consumes the line's lock
+  (`:339-357`); checkout calls it once per line inside the group.
+- **Neither `POST /api/orders` nor `POST /api/orders/new` calls `finalize()`** — a viewer minted
+  there never receives the cookie. `POST /api/cart` must call it; the duplicate-route collapse
+  (Phase 5 list) fixes the other two.
+- Quote CTA: `quote-action-bar.tsx:85` (mobile), `quote-receipt-card.tsx:231-244` (desktop),
+  handler `quote-view.tsx:199-252` → `useCreateOrder` (`hooks/useCreateOrder.ts`; a second copy in
+  `useOrders.ts:45-61` goes). 401 → `/auth/login?next=`; with 1c the bag POST never 401s.
+- Shell: bag button hole at `app-nav.tsx:27-30`, insert between rate pill (`:96-114`) and the
+  bell (`:123`); `AppChromeData` (`layout/app/types.ts:56-68`) gains `bagCount`, produced by
+  `app-chrome.service.ts:22-65` (a third parallel read), so `GET /api/app/me` stays as it is.
+  Bottom tabs are `grid-cols-4` (`app-bottom-tabs.tsx:44`); the bag is not a fifth tab — the mobile
+  bag is reached from the nav tote and the Home freight-box card.
+- Home freight-box card **does not exist** (`app/app/page.tsx:83-89`); F4 builds it beside
+  `JourneysInMotion`, `tm-up` + `[animation-delay:0.2s]` like its siblings, fill via `tmFill` on
+  `transform-origin:bottom` (mock line 123).
+- `box_capacity_lbs` and `consolidation_saving_pct` already exist (037:10-12) and are read only by
+  the landing widget (`marketing-content.service.ts:443-444`).
+- `delivery_zones` (036:123-135) has `fee_ghs` per zone; `pickDefaultDoorZone` in
+  `features/delivery/zones.ts:9-13`. `PricingBreakdown` (`calculator.ts:61-107`) has no delivery
+  field — group-level money stays off the per-line type (see §2).
