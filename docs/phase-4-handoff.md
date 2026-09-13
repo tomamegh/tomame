@@ -130,3 +130,66 @@ accepting `orderGroupId` (still accepts `orderId`), `GET /api/app/me` gains `bag
 - `delivery_zones` (036:123-135) has `fee_ghs` per zone; `pickDefaultDoorZone` in
   `features/delivery/zones.ts:9-13`. `PricingBreakdown` (`calculator.ts:61-107`) has no delivery
   field — group-level money stays off the per-line type (see §2).
+
+## 7. Outcome so far — F1 + F2 shipped 2026-09-13 (commits `1a4a799`, `bee1789`, `c197dee`)
+
+### Built
+| | What | Where |
+|---|---|---|
+| **048** | `carts`, `cart_items`, `consolidation_boxes`, `delivery_addresses`, `order_groups`, `orders.{order_group_id,consolidation_box_id,delivery_address_id}`, `payments.order_group_id`, `regions.{departure_weekday,departure_cutoff_hours}` (USA = 5), cache-cleanup guard for open bags, daily `cleanup-carts` | `supabase/migrations/048_bag_and_pay.sql` — **applied and recorded locally only; NOT on hosted** |
+| **F1** | Bag service (re-prices every line on read under the viewer's lock; add-time `pricing` is informational), anonymous bags on `tm_quote_session` adopted/merged at sign-in, `GET/POST /api/cart`, `PATCH/DELETE /api/cart/items/:id`, quote CTA → "Add to bag" → "View bag · N", nav tote with real count (`AppChromeData.bagCount`) | `src/features/bag/`, `src/db/queries/carts.ts`, `src/app/api/cart/**`, `src/components/layout/app/bag-button.tsx` |
+| **F2** | Pure packing + saving (`box-packing.ts`), per-bag `consolidation_boxes` rows kept on the region's next departure, `/app/bag` (desktop artboard, verified delays), stepper / remove / watch-instead | `src/features/bag/services/box-packing.ts`, `src/features/bag/components/`, `src/app/app/bag/page.tsx`, `src/db/queries/consolidation-boxes.ts` |
+
+Not yet reshaped: `site_settings.payment_channels` (still labels only; F3 edits 048 in place — unreleased).
+`PAYMENT_METHODS` in `src/config/ui.ts` still exists (F3 deletes it).
+
+### Fixed on the way (pre-existing)
+- `src/app/providers.tsx`: module-level `QueryClient` shared across server renders → one viewer's
+  data in every other viewer's HTML. Now `useState(makeQueryClient)`. Verify per-viewer SSR with
+  two cookie jars + curl, not the browser alone.
+- Stale Turbopack cache after a branch switch under a running dev server dropped the whole
+  Tomame CSS section (looked like "animations and colours missing"): `rm -rf .next`, restart.
+- Turbopack did not reload server modules for the RSC page while the API route had them: if SSR
+  disagrees with `/api/cart` for the same cookie, restart before debugging.
+
+### Gates at this point
+typecheck clean · lint exactly 9 · vitest **53 files / 707 tests** (baseline was 49/676; the
+old "62/838" counted a stale worktree, since removed).
+
+### Verified live (local dev)
+Anonymous add → cookie minted → badge 1 → `/app/bag` shows Box 1 with meter, saving, countdown;
+quantity + → PATCH → fill 2.2→3.4 lb, saving 100→150, total updated, badge 3; Remove → 1 line,
+saving row gone; Watch instead signed-out → `/auth/login?next=/app/bag`. Local fixtures:
+`b4c99974-…` (AirPods, revived to expire 2026-09-15), `11111111-…` (Oraimo), `345f5deb-…`
+(Micro Center PC, 21.8 lb → its own full box).
+
+## 8. F3 — what to build next (approved plan §1d/1e, data map §4)
+
+1. **Addresses**: `GET/POST /api/addresses`, `PATCH/DELETE /api/addresses/:id` (signed-in), zod
+   schema, `src/db/queries/delivery-addresses.ts`, owner-only. `delivery_zone_id` chosen from
+   `delivery_zones` (door) or the pickup zone (`kind='pickup'`, no address needed). Default flag.
+   Deliver-to card per mock lines 236–243 (`tmUp .5s .16s`; selected = 2 px coral + check-circle;
+   "+ Pickup point" dashed tile).
+2. **Payment channels**: reshape `site_settings.payment_channels` in 048 to
+   `[{label, paystack_channel:"mobile_money"|"card", provider:"mtn"|"vod"|"atl"|null, dot:"#FFCC00"}]`;
+   keep `readStringArray` consumers working (footer shows labels) or update them. Selector per
+   mock 259–264. Delete `PAYMENT_METHODS` from `src/config/ui.ts`.
+3. **Checkout** `POST /api/cart/checkout {delivery_address_id | delivery_zone_id(pickup), channel}`
+   (signed-in; 401 → `/auth/login?next=/app/bag`): re-price every line (`priceLowerOf`), re-pack,
+   insert `order_groups` (item_count, subtotal/tax/fee, freight, saving, `delivery_fee_ghs` =
+   zone fee once, total, pesewas, address snapshot), `createOrder` per line with
+   `order_group_id`/`consolidation_box_id`/`delivery_address_id` (extend `createOrderSchema` or
+   pass through intake — order-intake needs `estimated_price_usd`/`origin_country` from the
+   line's gap fields), consume each line's lock, set cart `checked_out` + `order_group_id`,
+   audit `order_group_created`. Idempotent: an open cart already `checked_out` returns its group.
+4. **Payment for a group**: `initializePaymentSchema` gains `orderGroupId` (keep `orderId`);
+   amount = `order_groups.total_pesewas`; `payments.order_group_id` + `metadata.order_group_id`;
+   send `channels` from the chosen channel; pass `metadata` to Paystack. Callback/webhook: claim via
+   `transitionPaymentStatus`, then `linkOrderToPayment` for EVERY order in the group (add a
+   `.eq("status","pending")` guard), `order_groups.status='paid'`, audit per order, one email.
+   Success URL → `/app/orders?group=` (Phase 5 will own the journeys list).
+5. **Rail**: "Pay with" selector + "Pay GH₵X" 54 px gradient + hold line from `policies.payment`
+   (`data map` says slug `payment`; it is seeded unpublished — publish it in F, or read the row
+   regardless of publish state for this one line).
+6. Tests: checkout service (group totals = Σ lines − saving + delivery, lock consumption per line,
+   idempotency), payment fan-out (N orders flip once), address schema.
