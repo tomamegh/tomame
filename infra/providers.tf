@@ -23,4 +23,23 @@ provider "restful" {
   }
 }
 
+# Supabase Management API, read through the same generic REST client. The
+# supabase/supabase provider's apikeys data source hard-codes `reveal=true`,
+# which Supabase now answers 403 for every scoped personal access token
+# (supabase/supabase#50244) — and scoped tokens are the only kind that can be
+# created. The plain list endpoint still returns every key value, so the keys
+# are read here instead. Same access token the supabase provider uses.
+provider "restful" {
+  alias    = "supabase"
+  base_url = "https://api.supabase.com"
+
+  security = {
+    http = {
+      token = {
+        token = var.supabase_access_token
+      }
+    }
+  }
+}
+
 provider "random" {}
