@@ -92,4 +92,44 @@ describe("resolveShortUrl (public endpoint — no open redirect follow)", () => 
     expect(await resolveShortUrl("https://www.example.com/x")).toBe("https://www.example.com/x");
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  it("asks with GET, because Amazon's shortener 404s a HEAD", async () => {
+    // The bug this pins: `a.co` answers HEAD with 404 and no Location, and the
+    // same URL under GET with 301 and the real product link. Under HEAD every
+    // a.co link a customer pasted resolved to itself, failed `isProductUrl`,
+    // and was rejected as "not a specific product page" — and a.co is exactly
+    // what Amazon's share sheet produces on a phone.
+    global.fetch = vi.fn().mockResolvedValue({
+      headers: new Headers({ location: "https://www.amazon.com/dp/B0FG2WQHL2" }),
+      body: null,
+    });
+
+    await resolveShortUrl("https://a.co/d/0cTjtuL2");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://a.co/d/0cTjtuL2",
+      expect.objectContaining({ method: "GET", redirect: "manual" }),
+    );
+  });
+
+  it("discards the response body rather than leaving it on the socket", async () => {
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    global.fetch = vi.fn().mockResolvedValue({
+      headers: new Headers({ location: "https://www.amazon.com/dp/B0FG2WQHL2" }),
+      body: { cancel },
+    });
+
+    await resolveShortUrl("https://a.co/d/0cTjtuL2");
+
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it("strips Amazon's share-sheet tracking down to the product itself", async () => {
+    // What a.co actually returns: /dp/<ASIN> plus ref, ref_, social_share, rsd
+    // and edk. The cache is keyed on the normalised URL, so without this two
+    // customers sharing the same product would miss each other's extraction.
+    const shared =
+      "https://www.amazon.com/dp/B0FG2WQHL2?ref=cm_sw_r_cso_cp_apin_dp_X&ref_=cm_sw_r_cso_cp_apin_dp_X&social_share=cm_sw_r_cso_cp_apin_dp_X";
+    expect(hashUrl(shared)).toBe(hashUrl("https://www.amazon.com/dp/B0FG2WQHL2"));
+  });
 });

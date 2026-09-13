@@ -21,6 +21,12 @@ const TRACKING_PARAMS = [
   "ref", "ref_", "tag", "linkCode", "psc", "th", "pd_rd_i", "pd_rd_r", "pd_rd_w", "pd_rd_wg",
   "pf_rd_p", "pf_rd_r", "content-id", "sr", "keywords", "qid", "spm", "aff_id", "mkcid", "mkrid",
   "campid", "toolid", "customid", "hash", "epid", "_trkparms", "_trksid", "var", "fbclid", "gclid",
+  // Amazon's share sheet. A resolved `a.co` link carries these three alongside
+  // `ref`/`ref_`, and two of them are long opaque blobs that differ per share —
+  // so without stripping them, two customers sharing the SAME product hash to
+  // different cache keys and each pays for their own extraction of it. The
+  // cache has been product-keyed since migration 035 precisely to avoid that.
+  "social_share", "rsd", "edk",
 ];
 
 const BROWSER_UA =
@@ -87,6 +93,22 @@ function isAllowedRedirectHost(hostname: string): boolean {
  * a time, and only onto hosts we would scrape anyway. This endpoint is public,
  * so a shortener must not be able to make the server request arbitrary URLs.
  * Returns the input unchanged if resolution fails.
+ *
+ * GET, NOT HEAD, AND THIS IS THE WHOLE BUG. Amazon's own shortener answers a
+ * HEAD request for a perfectly good link with **404 and no `Location`**, while
+ * the same URL under GET answers `301` with the real product URL — verified
+ * against `https://a.co/d/0cTjtuL2` on 2026-09-13. So every `a.co` link a
+ * customer pasted fell out of this loop unresolved, failed `isProductUrl`
+ * (there is no `/dp/<ASIN>` in `a.co/d/<code>`), and the customer was told
+ * "Please paste a link to a specific product page" about a link that pointed at
+ * exactly one product. `a.co` is what Amazon's own share sheet produces on a
+ * phone, so this is the most likely shape of link the app receives.
+ *
+ * `redirect: "manual"` still means one hop per iteration, so the allowlist below
+ * is checked against every host in the chain rather than only the last — the
+ * SSRF guard is unchanged. The body is discarded immediately: a redirect's body
+ * is empty in practice, but a shortener that answered 200 would otherwise leave
+ * a whole page dangling on the socket.
  */
 export async function resolveShortUrl(shortUrl: string, maxHops = 5): Promise<string> {
   let current = shortUrl;
@@ -96,11 +118,15 @@ export async function resolveShortUrl(shortUrl: string, maxHops = 5): Promise<st
     if (!SHORT_URL_HOSTS.has(u.hostname.toLowerCase())) return current; // landed on a store
     try {
       const res = await fetch(current, {
-        method: "HEAD",
+        method: "GET",
         headers: { "User-Agent": BROWSER_UA },
         redirect: "manual",
         signal: AbortSignal.timeout(8_000),
       });
+      // Nothing here ever reads the body, and leaving it unread holds the
+      // connection open until the socket times out.
+      void res.body?.cancel().catch(() => {});
+
       const location = res.headers.get("location");
       if (!location) return current;
       current = new URL(location, current).toString();
