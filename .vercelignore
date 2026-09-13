@@ -1,20 +1,25 @@
 # Vercel CLI uploads the working tree when deploying without git, and when this
 # file exists it is the ONLY ignore list consulted — .gitignore is not read.
 # Everything the build does not need stays on this machine, and in particular
-# infra/ (Terraform state helpers and the gitignored secrets.auto.tfvars) is
-# never part of a deployment's source bundle.
+# infra/ (Terraform helpers and the gitignored secrets.auto.tfvars) is never
+# part of a deployment's source bundle.
+#
+# Directory entries are ANCHORED to the repo root. A bare `supabase` matched
+# src/lib/supabase/ as well and the first deploy failed with 94 "Module not
+# found: @/lib/supabase/admin" errors.
 node_modules
 .next
 .env
 .env.*
 .vercel
 .claude
-infra
-docs
-design
-supabase
-scripts
-coverage
+/infra
+/docs
+/design
+/supabase
+/scripts
+/specs
+/coverage
 *.tfvars
 *.tfvars.json
 *.log
