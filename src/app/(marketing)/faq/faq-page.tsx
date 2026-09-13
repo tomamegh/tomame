@@ -98,7 +98,12 @@ const fadeUp: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } },
 };
 
-export default function FAQPage() {
+export interface FAQPageProps {
+  /** `https://wa.me/<digits>` from `site_settings.whatsapp_number`, or null when none is configured. */
+  whatsappHref: string | null;
+}
+
+export function FAQPage({ whatsappHref }: FAQPageProps) {
   const [activeSlug, setActiveSlug] = useState<string>(CATEGORIES[0]!.slug);
   const sectionsRef = useRef<Map<string, HTMLElement>>(new Map());
 
@@ -314,15 +319,18 @@ export default function FAQPage() {
                     <ArrowRight className="ml-1 h-4 w-4" />
                   </Button>
                 </Link>
-                <Link
-                  href="https://wa.me/233000000000"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex h-11 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 text-sm font-semibold text-white/90 backdrop-blur-md transition-colors hover:bg-white/10 hover:text-white sm:text-base"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  WhatsApp
-                </Link>
+                {/* From `site_settings.whatsapp_number`; hidden when unset. */}
+                {whatsappHref && (
+                  <Link
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-11 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 text-sm font-semibold text-white/90 backdrop-blur-md transition-colors hover:bg-white/10 hover:text-white sm:text-base"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    WhatsApp
+                  </Link>
+                )}
               </motion.div>
             </div>
           </motion.div>

@@ -43,7 +43,7 @@ ON CONFLICT DO NOTHING;
 
 -- ── Site settings ─────────────────────────────────────────────────────────────
 INSERT INTO site_settings (key, value, label, description, is_public) VALUES
-  ('whatsapp_number', '"+233 24 555 0192"'::jsonb, 'WhatsApp number', 'Shown in the marketing footer and support prompts.', true),
+  ('whatsapp_number', '"+233 59 442 4746"'::jsonb, 'WhatsApp number', 'Shown in the marketing footer and support prompts.', true),
   ('support_hours',   '"8am–10pm"'::jsonb,          'Support hours',   'Displayed beside the WhatsApp number.', true),
   ('company_address', '"Accra, Ghana"'::jsonb,      'Company address', 'Footer copyright line.', true),
   ('payment_channels', '["MTN MoMo","Telecel Cash","AT Money","Visa","Mastercard"]'::jsonb,

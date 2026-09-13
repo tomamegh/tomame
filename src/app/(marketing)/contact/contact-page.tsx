@@ -62,7 +62,12 @@ const WHY_TOMAME = [
   'Live order tracking from purchase to delivery',
 ];
 
-export default function ContactPage() {
+export interface ContactPageProps {
+  /** `https://wa.me/<digits>` from `site_settings.whatsapp_number`, or null when none is configured. */
+  whatsappHref: string | null;
+}
+
+export function ContactPage({ whatsappHref }: ContactPageProps) {
   return (
     <main className="bg-white">
       {/* A. Page Header */}
@@ -210,19 +215,26 @@ export default function ContactPage() {
                     Get sourcing tips, exchange-rate updates, and early access to features.
                     Connect with other Tomame shoppers on WhatsApp.
                   </p>
-                  <div className="mt-6">
-                    <a
-                      href="https://wa.me/233000000000"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex"
-                    >
-                      <Button variant="primary" size="lg" className="h-12 px-6 text-base">
-                        Join on WhatsApp
-                        <ArrowRight className="ml-1 h-4 w-4" />
-                      </Button>
-                    </a>
-                  </div>
+                  {/*
+                    The number comes from `site_settings.whatsapp_number`; the
+                    button disappears when none is set, rather than linking to
+                    the placeholder that used to be hardcoded here.
+                  */}
+                  {whatsappHref && (
+                    <div className="mt-6">
+                      <a
+                        href={whatsappHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex"
+                      >
+                        <Button variant="primary" size="lg" className="h-12 px-6 text-base">
+                          Join on WhatsApp
+                          <ArrowRight className="ml-1 h-4 w-4" />
+                        </Button>
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

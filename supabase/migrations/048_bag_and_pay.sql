@@ -245,3 +245,13 @@ INSERT INTO site_settings (key, value, label, description, is_public) VALUES
   ('payment_hold_note', '"Paystack holds it until every item is bought"'::jsonb,
    'Payment hold note', 'Shown under the Pay button in the bag. Explains that the charge is held until purchasing is done.', true)
 ON CONFLICT (key) DO NOTHING;
+
+-- ── site_settings: the real Tomame WhatsApp number ──────────────────────────
+-- 037 seeded a placeholder (+233 24 555 0192) that reached the marketing footer,
+-- the contact page and Home's "Ask a buyer" card. 037 is already applied on both
+-- hosted projects, so editing its seed only helps a fresh `db reset`; this UPDATE
+-- carries the correction to databases that already have the row. Guarded on the
+-- placeholder so an admin edit made in the meantime survives.
+UPDATE site_settings
+SET value = '"+233 59 442 4746"'::jsonb, updated_at = now()
+WHERE key = 'whatsapp_number' AND value = '"+233 24 555 0192"'::jsonb;
