@@ -35,11 +35,3 @@ export const SUPPORTED_STORES = [
     textClassName: "text-stone-700",
   },
 ] as const;
-
-
-export const PAYMENT_METHODS = [
-  'MTN MoMo',
-  'Vodafone Cash',
-  'AirtelTigo',
-  'Visa / Mastercard',
-] as const;

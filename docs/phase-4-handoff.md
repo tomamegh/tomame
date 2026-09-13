@@ -167,6 +167,38 @@ saving row gone; Watch instead signed-out → `/auth/login?next=/app/bag`. Local
 `b4c99974-…` (AirPods, revived to expire 2026-09-15), `11111111-…` (Oraimo), `345f5deb-…`
 (Micro Center PC, 21.8 lb → its own full box).
 
+### F3 built 2026-09-13 (uncommitted at the time of writing — awaiting Kelvin's approval)
+- **048 edited in place**: `site_settings.payment_channels` → `[{id,label,paystack_channel,provider,dot}]`
+  (mtn_momo / telecel_cash / at_money / card); new public `payment_hold_note`. Applied to LOCAL only
+  via PostgREST (`scratchpad/apply-048-site-settings.mts`). `PAYMENT_METHODS` deleted from `src/config/ui.ts`.
+- **Addresses**: `delivery_addresses` queries + `src/features/addresses/` (schema, service, hooks,
+  `format.ts`), `GET/POST /api/addresses`, `PATCH/DELETE /api/addresses/:id`. First address = default;
+  default flag moves atomically; deleting the default promotes the oldest.
+- **Delivery on the cart**: `PATCH /api/cart {delivery_address_id | delivery_zone_id}`; `getBag`
+  re-validates the choice on every read, auto-selects the signed-in default address, and `total_ghs`
+  now includes `delivery_fee_ghs` (zone fee, once per checkout). `BagView.delivery` is the chosen target.
+- **Checkout** `POST /api/cart/checkout` → `order_groups` + N `createOrder` (links: group, box, address;
+  placed-email suppressed) + locks consumed per line + cart `checked_out` + audit `order_group_created`.
+  Group money is corrected from the orders if a ratchet moved between reads. Re-POST → newest pending group.
+- **Group payment**: `POST /api/payments/initialize {orderGroupId, channel}`; amount = `total_pesewas`;
+  `payments.order_group_id`; Paystack gets `channels` + `metadata`. Callback/webhook fan-out flips each
+  order once (`linkOrderToPayment` now guarded on `status='pending'`), group `paid` once, one email.
+  Legacy `{orderId}` refuses an order that has an `order_group_id`. Success → `/app/orders?payment=success&group=`;
+  failure → `/app/bag?payment=failed`, where the empty bag shows the **pending-group card** ("Finish
+  paying") so the customer can retry.
+- **Rail**: Deliver-to card (`tmUp .5s .16s`, 3-col tiles, pickup tile, address dialog), "Pay with"
+  selector from the table (46 px, 2 px coral selected), 54 px gradient "Pay GH₵X", hold line linking
+  `/policies#payment`. Delays confirmed with `getComputedStyle`.
+- **Gates**: typecheck clean · lint 9 · vitest **58 files / 750 tests**.
+- **Blocked**: Paystack `transaction/initialize` answers **"Invalid key"** for the `sk_test_` in
+  `.env.local` — the end-to-end pay redirect could not be exercised locally. Kelvin must supply a valid
+  test secret (dev Vercel state holds a real 48-char one) before F4/F5 can prove the webhook path live.
+- **Local test login**: `kwame@tomame.local` (password set locally this session; see Claude memory).
+  Kwame now has one address (Home · East Legon, Kumasi zone) and one pending group `4a2ae350-…` (2 orders).
+- **Follow-ups noted by review, deferred**: `orderCharge`/`groupCharge` and the two `getActivePaymentFor*`
+  twins should collapse into one pipeline; `checkoutBag` re-prices twice when the body restates the
+  delivery; `listPaymentChannels`/`getPaymentHoldNote` read `site_settings` twice on the bag page.
+
 ## 8. F3 — what to build next (approved plan §1d/1e, data map §4)
 
 1. **Addresses**: `GET/POST /api/addresses`, `PATCH/DELETE /api/addresses/:id` (signed-in), zod

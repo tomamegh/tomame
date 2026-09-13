@@ -1,22 +1,36 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
+import type { DeliveryAddress } from "@/features/addresses/types";
+import type { PaymentChannel } from "@/features/payments/types";
 import { useCreateWatch } from "@/features/watches/hooks/useWatches";
 import { ApiFetchError } from "@/lib/auth/api-helpers";
 import { toast } from "@/lib/sonner";
 import { useBag, useRemoveBagLine, useUpdateBagLine } from "../hooks/useBag";
-import type { BagLine, BagView as BagViewData } from "../types";
+import type { BagLine, BagView as BagViewData, PendingGroupSummary } from "../types";
 import { BagBoxCard } from "./bag-box-card";
+import { BagDeliverToCard } from "./bag-deliver-to-card";
 import { BagEmpty } from "./bag-empty";
+import { BagPendingGroupCard } from "./bag-pending-group-card";
 import { BagLineRow } from "./bag-line-row";
 import { BagSummaryCard } from "./bag-summary-card";
 
 export interface BagViewProps {
   initialBag: BagViewData;
-  deliveryZone: DeliveryZoneRow | null;
+  /** Every active delivery zone; the Deliver-to card splits door from pickup. */
+  zones: DeliveryZoneRow[];
+  /** The viewer's saved addresses — empty for a signed-out viewer. */
+  addresses: DeliveryAddress[];
+  /** `site_settings.payment_channels`, in the order the admin set. */
+  paymentChannels: PaymentChannel[];
+  /** `site_settings.payment_hold_note`; null hides the line under the pay button. */
+  paymentHoldNote: string | null;
+  isSignedIn: boolean;
+  /** The viewer's newest unpaid order group, offered again when the bag is empty. */
+  pendingGroup: PendingGroupSummary | null;
   /** Server render time, ISO — the countdown is struck from it on both sides so hydration agrees. */
   renderedAt: string;
 }
@@ -32,8 +46,9 @@ export interface BagViewProps {
  * whole bag is refetched, because a quantity change moves the box fill, the
  * saving and the total together — nothing here does arithmetic.
  */
-export function BagView({ initialBag, deliveryZone, renderedAt }: BagViewProps) {
+export function BagView({ initialBag, zones, addresses, paymentChannels, paymentHoldNote, isSignedIn, pendingGroup, renderedAt }: BagViewProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: bag } = useBag(initialBag);
   const updateLine = useUpdateBagLine();
   const removeLine = useRemoveBagLine();
@@ -42,6 +57,23 @@ export function BagView({ initialBag, deliveryZone, renderedAt }: BagViewProps) 
   // The server's clock, not the browser's: a `new Date()` on each side renders
   // two different countdowns and fails hydration. Fixed for the page's life.
   const now = useMemo(() => new Date(renderedAt), [renderedAt]);
+
+  // Paystack sends a failed payment back to `/app/bag?payment=failed`. Say so
+  // once per mount — a re-render must not re-toast. Deferred a tick: the
+  // Toaster lives in the root layout and subscribes in its own effect, which
+  // runs AFTER this child's on a fresh page load, so a synchronous toast here
+  // is emitted to nobody and silently lost.
+  const failureAnnounced = useRef(false);
+  const paymentOutcome = searchParams.get("payment");
+  useEffect(() => {
+    if (paymentOutcome !== "failed") return;
+    const timer = setTimeout(() => {
+      if (failureAnnounced.current) return;
+      failureAnnounced.current = true;
+      toast.error({ title: "Payment did not go through — nothing was charged." });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [paymentOutcome]);
 
   const linesById = useMemo(() => new Map(bag.lines.map((l) => [l.id, l])), [bag.lines]);
   const unboxed = bag.unboxed_line_ids.map((id) => linesById.get(id)).filter((l): l is BagLine => !!l);
@@ -121,7 +153,7 @@ export function BagView({ initialBag, deliveryZone, renderedAt }: BagViewProps) 
     return (
       <div className="flex flex-col gap-[18px]">
         <BagHeader />
-        <BagEmpty />
+        {pendingGroup ? <BagPendingGroupCard group={pendingGroup} paymentChannels={paymentChannels} /> : <BagEmpty />}
       </div>
     );
   }
@@ -165,9 +197,17 @@ export function BagView({ initialBag, deliveryZone, renderedAt }: BagViewProps) 
             </ul>
           </section>
         )}
+
+        <BagDeliverToCard delivery={bag.delivery} zones={zones} addresses={addresses} isSignedIn={isSignedIn} />
       </div>
 
-      <BagSummaryCard view={bag} deliveryZone={deliveryZone} now={now} />
+      <BagSummaryCard
+        view={bag}
+        now={now}
+        paymentChannels={paymentChannels}
+        paymentHoldNote={paymentHoldNote}
+        isSignedIn={isSignedIn}
+      />
     </div>
   );
 }

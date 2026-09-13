@@ -96,6 +96,16 @@ async function updateOrderStatus(
   return data as Order;
 }
 
+/**
+ * pending → paid, guarded on the current status.
+ *
+ * A group payment fans this out over N orders, and the callback and the webhook
+ * can both reach the fan-out (the payment-row claim serialises them, but a
+ * partial earlier run can leave some orders already paid). `.eq("status",
+ * "pending")` makes each order flip exactly once; null means "already paid,
+ * skip the follow-on effects" — never a database failure, which logs and also
+ * returns null so a caller cannot tell the two apart by accident: check the log.
+ */
 export async function linkOrderToPayment(
   client: SupabaseClient,
   orderId: string,
@@ -105,8 +115,9 @@ export async function linkOrderToPayment(
     .from("orders")
     .update({ payment_id: paymentId, status: "paid" })
     .eq("id", orderId)
+    .eq("status", "pending")
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     logger.error("linkOrderToPayment failed", {
@@ -117,7 +128,7 @@ export async function linkOrderToPayment(
     });
     return null;
   }
-  return data as Order;
+  return (data as Order | null) ?? null;
 }
 
 async function getOrdersByUserId(
@@ -242,11 +253,21 @@ export async function sendOrderStatusEmail(
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
+/** How a bag checkout ties each order to its group, box and address (048). */
+export interface CreateOrderLinks {
+  order_group_id?: string | null;
+  consolidation_box_id?: string | null;
+  delivery_address_id?: string | null;
+  /** The group's "paid" email covers its orders; skip the per-order "placed" one. */
+  suppress_placed_email?: boolean;
+}
+
 export async function createOrder(
   client: SupabaseClient,
   user: PlatformUser,
   input: CreateOrderSchemaType,
   viewer: Viewer,
+  links: CreateOrderLinks = {},
 ): Promise<Order> {
   // Every money-relevant field is decided server-side from the extraction
   // snapshot and the viewer's rate lock. See order-intake.service.ts — the
@@ -269,6 +290,9 @@ export async function createOrder(
     review_reasons: reviewReasons,
     extraction_metadata: (intake.extraction_metadata ?? null) as Record<string, unknown> | null,
     extraction_cache_id: intake.extraction_cache_id,
+    ...(links.order_group_id !== undefined && { order_group_id: links.order_group_id }),
+    ...(links.consolidation_box_id !== undefined && { consolidation_box_id: links.consolidation_box_id }),
+    ...(links.delivery_address_id !== undefined && { delivery_address_id: links.delivery_address_id }),
   };
 
   const { data: order, error } = await client
@@ -323,6 +347,7 @@ export async function createOrder(
     entityId: order.id,
     metadata: {
       product_url: input.product_url,
+      order_group_id: links.order_group_id ?? null,
       origin_country: intake.origin_country,
       total_ghs: pricing.total_ghs,
       pricing_method: pricing.pricing_method,
@@ -333,6 +358,7 @@ export async function createOrder(
   });
 
   // Fire-and-forget: notify the customer their order was received
+  if (links.suppress_placed_email) return order as Order;
   (async () => {
     try {
       const supabase = createAdminClient();

@@ -24,3 +24,26 @@ export const updateBagLineSchema = z
 export type UpdateBagLineInput = z.infer<typeof updateBagLineSchema>;
 
 export const bagLineIdSchema = z.uuid("Unknown bag line");
+
+/** `PATCH /api/cart` — choose where the bag goes. Exactly one of the two; null clears the choice. */
+export const setBagDeliverySchema = z
+  .object({
+    delivery_address_id: z.uuid("Unknown address").nullable().optional(),
+    delivery_zone_id: z.uuid("Unknown pickup point").nullable().optional(),
+  })
+  .refine((v) => (v.delivery_address_id !== undefined) !== (v.delivery_zone_id !== undefined), {
+    message: "Choose an address or a pickup point",
+  });
+export type SetBagDeliveryInput = z.infer<typeof setBagDeliverySchema>;
+
+/**
+ * `POST /api/cart/checkout`. The body may (re)state the delivery choice; the
+ * cart's stored choice is used when it does not. Nothing about money.
+ */
+export const checkoutSchema = z
+  .object({
+    delivery_address_id: z.uuid("Unknown address").optional(),
+    delivery_zone_id: z.uuid("Unknown pickup point").optional(),
+  })
+  .refine((v) => !(v.delivery_address_id && v.delivery_zone_id), { message: "Choose an address or a pickup point, not both" });
+export type CheckoutInput = z.infer<typeof checkoutSchema>;

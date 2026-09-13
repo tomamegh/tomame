@@ -177,7 +177,7 @@ describe("initializePayment — authorization (R1)", () => {
       makeOrder({ user_id: "99999999-9999-4999-8999-999999999999" }) as never,
     );
 
-    await expectApiError(initializePayment(makeUser(), ORDER_ID), 404);
+    await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 404);
     expect(db.payments).toHaveLength(0);
     expect(initializeTransaction).not.toHaveBeenCalled();
   });
@@ -185,13 +185,13 @@ describe("initializePayment — authorization (R1)", () => {
   it("refuses an order that is not awaiting payment", async () => {
     vi.mocked(getOrderById).mockResolvedValue(makeOrder({ status: "paid" }) as never);
 
-    await expectApiError(initializePayment(makeUser(), ORDER_ID), 400);
+    await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 400);
     expect(initializeTransaction).not.toHaveBeenCalled();
   });
 
   it("refuses an order that does not exist", async () => {
     vi.mocked(getOrderById).mockResolvedValue(null as never);
-    await expectApiError(initializePayment(makeUser(), ORDER_ID), 404);
+    await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 404);
   });
 });
 
@@ -201,7 +201,7 @@ describe("initializePayment — double payment guard (R2)", () => {
   it("refuses when the order already has a successful payment", async () => {
     seedPayment({ status: "success" });
 
-    await expectApiError(initializePayment(makeUser(), ORDER_ID), 409);
+    await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 409);
     expect(initializeTransaction).not.toHaveBeenCalled();
     expect(db.payments).toHaveLength(1);
   });
@@ -209,7 +209,7 @@ describe("initializePayment — double payment guard (R2)", () => {
   it("refuses when a payment for the order is still pending", async () => {
     seedPayment({ status: "pending" });
 
-    await expectApiError(initializePayment(makeUser(), ORDER_ID), 409);
+    await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 409);
     expect(initializeTransaction).not.toHaveBeenCalled();
     expect(db.payments).toHaveLength(1);
   });
@@ -217,7 +217,7 @@ describe("initializePayment — double payment guard (R2)", () => {
   it("allows a retry after the previous attempt failed", async () => {
     seedPayment({ status: "failed", reference: "TOM_1_old" });
 
-    const result = await initializePayment(makeUser(), ORDER_ID);
+    const result = await initializePayment(makeUser(), { orderId: ORDER_ID });
 
     expect(result.authorizationUrl).toBe("https://checkout.paystack.com/xyz");
     expect(db.payments).toHaveLength(2);
@@ -228,7 +228,7 @@ describe("initializePayment — double payment guard (R2)", () => {
 
 describe("initializePayment — amount and customer (R3, R10)", () => {
   it("charges the calculated total in whole pesewas", async () => {
-    await initializePayment(makeUser(), ORDER_ID);
+    await initializePayment(makeUser(), { orderId: ORDER_ID });
 
     expect(initializeArgs().amount).toBe(125_050);
     expect(onlyPayment().amount).toBe(125_050);
@@ -240,7 +240,7 @@ describe("initializePayment — amount and customer (R3, R10)", () => {
       makeOrder({ admin_total_ghs: 900, pricing: { total_ghs: 1250.5 } }) as never,
     );
 
-    await initializePayment(makeUser(), ORDER_ID);
+    await initializePayment(makeUser(), { orderId: ORDER_ID });
 
     expect(initializeArgs().amount).toBe(90_000);
   });
@@ -253,7 +253,7 @@ describe("initializePayment — amount and customer (R3, R10)", () => {
     expect(parsed.success).toBe(true);
     expect(parsed.success && parsed.data).toEqual({ orderId: ORDER_ID });
 
-    await initializePayment(makeUser(), ORDER_ID);
+    await initializePayment(makeUser(), { orderId: ORDER_ID });
     expect(initializeArgs().amount).toBe(125_050);
   });
 
@@ -262,12 +262,12 @@ describe("initializePayment — amount and customer (R3, R10)", () => {
       makeOrder({ pricing: { total_ghs: 0 } }) as never,
     );
 
-    await expectApiError(initializePayment(makeUser(), ORDER_ID), 400);
+    await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 400);
     expect(initializeTransaction).not.toHaveBeenCalled();
   });
 
   it("refuses a user with no email rather than calling Paystack (R10)", async () => {
-    await expectApiError(initializePayment(makeUser({ email: undefined }), ORDER_ID), 400);
+    await expectApiError(initializePayment(makeUser({ email: undefined }), { orderId: ORDER_ID }), 400);
 
     expect(initializeTransaction).not.toHaveBeenCalled();
     expect(db.payments).toHaveLength(0);
@@ -276,7 +276,7 @@ describe("initializePayment — amount and customer (R3, R10)", () => {
   it("records the payment as failed when Paystack cannot be reached", async () => {
     vi.mocked(initializeTransaction).mockRejectedValue(new Error("network down"));
 
-    await expectApiError(initializePayment(makeUser(), ORDER_ID), 502);
+    await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 502);
 
     // Left failed, not pending — otherwise R2 would block the customer's retry.
     expect(onlyPayment().status).toBe("failed");
@@ -284,7 +284,7 @@ describe("initializePayment — amount and customer (R3, R10)", () => {
   });
 
   it("writes an audit event for the initialization (R12)", async () => {
-    await initializePayment(makeUser(), ORDER_ID);
+    await initializePayment(makeUser(), { orderId: ORDER_ID });
 
     expect(logAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({ action: "payment_initialized", entityType: "payment" }),

@@ -224,3 +224,24 @@ SELECT cron.schedule(
     where status = 'open' and user_id is null and updated_at < now() - interval '60 days';
   $$
 );
+
+-- ── site_settings: payment channels become objects; the hold note gets a row ──
+-- 037 seeded `payment_channels` as plain labels for the footer. The bag's
+-- "Pay with" selector needs more than a label: `paystack_channel` is what we
+-- pass to Paystack's `channels[]` (mobile_money vs card), `provider` is the MoMo
+-- network for metadata, `dot` is the brand swatch. Labels stay inside each
+-- object so the footer keeps rendering the same words (readStringArray accepts
+-- both shapes). "Visa"/"Mastercard" collapse into one `card` channel because
+-- that is the one Paystack channel they both ride.
+UPDATE site_settings
+SET value = '[{"id":"mtn_momo","label":"MTN MoMo","paystack_channel":"mobile_money","provider":"mtn","dot":"#FFCC00"},{"id":"telecel_cash","label":"Telecel Cash","paystack_channel":"mobile_money","provider":"vod","dot":"#E60000"},{"id":"at_money","label":"AT Money","paystack_channel":"mobile_money","provider":"atl","dot":"#0033A0"},{"id":"card","label":"Card","paystack_channel":"card","provider":null,"dot":null}]'::jsonb,
+    description = 'Channels offered at checkout and listed in the footer. Each entry: id, label, paystack_channel (mobile_money | card — sent to Paystack), provider (mtn | vod | atl | null), dot (brand colour or null).',
+    updated_at = now()
+WHERE key = 'payment_channels';
+
+-- The one line under the pay button. Public so the signed-out bag can read it
+-- through the anon client; ON CONFLICT so a re-run never overwrites an admin edit.
+INSERT INTO site_settings (key, value, label, description, is_public) VALUES
+  ('payment_hold_note', '"Paystack holds it until every item is bought"'::jsonb,
+   'Payment hold note', 'Shown under the Pay button in the bag. Explains that the charge is held until purchasing is done.', true)
+ON CONFLICT (key) DO NOTHING;

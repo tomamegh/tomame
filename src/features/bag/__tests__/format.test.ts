@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildBagSummaryRows, formatBoxFill, formatBoxHeadroom, formatBoxTitle, formatDepartureDay, formatLbs, formatLockCountdown } from "../components/format";
-import type { BagBox, BagView } from "../types";
+import type { BagBox, BagDelivery, BagView } from "../types";
 
 const box: BagBox = { id: "b", label: "Box 1", region_code: "USA", region_name: "United States", departs_at: "2026-09-18T00:00:00.000Z", cutoff_at: null, capacity_lbs: 9, weight_lbs: 5.4, fill_pct: 60, headroom_lbs: 3.6, line_ids: [], freight_ghs: 0, saving_ghs: 0, has_unweighed_lines: false };
 
@@ -32,20 +32,40 @@ describe("formatLockCountdown", () => {
 
 describe("buildBagSummaryRows", () => {
   const view: BagView = {
+    delivery: null, delivery_fee_ghs: 0,
     cart_id: "c", lines: [], boxes: [box], unboxed_line_ids: [], consolidation_saving_ghs: 96, consolidation_saving_pct: 0.2, item_count: 2,
     subtotal_usd: 817, tax_usd: 65.36, fee_usd: 40.85, freight_ghs: 264, boxed_weight_lbs: 5.4, total_ghs: 13489.66, total_usd: 934.84,
     rate_locked_until: null, has_unpriced_lines: false,
   };
+  const doorFree: BagDelivery = { kind: "door", address_id: "a1", zone_id: "z1", zone_name: "Greater Accra", label: "Home · East Legon", fee_ghs: 0 };
+
   it("prints the mock's rows from the view, with the saving only when non-zero", () => {
-    const rows = buildBagSummaryRows(view, { id: "z", name: "Greater Accra · door delivery", kind: "door", fee_ghs: 0, extra_days: 0, note: null, sort_order: 1 });
+    const rows = buildBagSummaryRows({ ...view, delivery: doorFree });
     expect(rows.map((r) => [r.label, r.value])).toEqual([
       ["2 items", "$817.00"],
       ["Sales tax", "$65.36"],
       ["Tomame fee", "$40.85"],
       ["Freight · 1 box, 5.4 lb", "GH₵264.00"],
       ["Consolidation saving", "− GH₵96.00"],
-      ["Greater Accra · door delivery", "Free"],
+      ["Door delivery · Greater Accra", "Free"],
     ]);
-    expect(buildBagSummaryRows({ ...view, consolidation_saving_ghs: 0 }, null).some((r) => r.key === "saving")).toBe(false);
+    expect(buildBagSummaryRows({ ...view, consolidation_saving_ghs: 0 }).some((r) => r.key === "saving")).toBe(false);
+  });
+
+  const deliveryRow = (v: BagView) => buildBagSummaryRows(v).find((r) => r.key === "delivery")!;
+
+  it("asks for a delivery before quoting one", () => {
+    expect(deliveryRow(view)).toMatchObject({ label: "Delivery", value: "choose below", tone: "muted" });
+  });
+
+  it("marks a free door zone green and prints a paid one at the server's fee", () => {
+    expect(deliveryRow({ ...view, delivery: doorFree })).toMatchObject({ label: "Door delivery · Greater Accra", value: "Free", tone: "free" });
+    const paid = { ...doorFree, zone_name: "Kumasi", fee_ghs: 60 };
+    expect(deliveryRow({ ...view, delivery: paid })).toMatchObject({ label: "Door delivery · Kumasi", value: "GH₵60.00", tone: undefined });
+  });
+
+  it("names a pickup point as a pickup, not a door delivery", () => {
+    const pickup: BagDelivery = { kind: "pickup", address_id: null, zone_id: "z9", zone_name: "Osu hub", label: "Osu hub", fee_ghs: 0 };
+    expect(deliveryRow({ ...view, delivery: pickup })).toMatchObject({ label: "Pickup · Osu hub", value: "Free", tone: "free" });
   });
 });

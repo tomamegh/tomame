@@ -13,6 +13,8 @@ export const AUDIT_ENTITY_TYPES = {
   STORE: "store",
   PRICE_WATCH: "price_watch",
   QUOTE_LOCK: "quote_lock",
+  DELIVERY_ADDRESS: "delivery_address",
+  ORDER_GROUP: "order_group",
 } as const;
 
 export type AuditEntityType =

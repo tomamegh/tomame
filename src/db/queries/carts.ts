@@ -112,6 +112,13 @@ export async function setCartStatus(cartId: string, from: CartStatus, to: CartSt
   return (data?.length ?? 0) > 0;
 }
 
+/** Remember where the bag goes. Callers null the column they are not setting — a cart holds one choice. */
+export async function updateCart(cartId: string, patch: Partial<Pick<CartRow, "delivery_address_id" | "delivery_zone_id">>): Promise<void> {
+  const client = createAdminClient();
+  const { error } = await client.from("carts").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", cartId);
+  if (error) throw new Error(`Failed to update cart: ${error.message}`);
+}
+
 export async function touchCart(cartId: string): Promise<void> {
   const client = createAdminClient();
   const { error } = await client.from("carts").update({ updated_at: new Date().toISOString() }).eq("id", cartId);

@@ -1,6 +1,5 @@
 import { formatGhs, formatUsd } from "@/features/marketing/format";
 import type { BagBox, BagLine, BagView } from "../types";
-import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 
 /** "Fri 12 Sep" — the box's departure day. Null when the region has no schedule. */
 export function formatDepartureDay(iso: string | null): string | null {
@@ -78,7 +77,7 @@ export interface BagSummaryRow {
   key: string;
   label: string;
   value: string;
-  tone?: "saving" | "free";
+  tone?: "saving" | "free" | "muted";
 }
 
 /** A percentage label only when every priced line shares the same rate. */
@@ -93,10 +92,12 @@ function pctLabel(base: string, pct: number | null): string {
 
 /**
  * The right-rail rows, in the mock's order: items, tax, fee, freight (with the
- * box count and weight), the saving (only when non-zero), door delivery (from
- * the default door zone, Phase 3's wording). Every figure is the server's.
+ * box count and weight), the saving (only when non-zero), and the delivery the
+ * customer chose. The delivery row reads `view.delivery` — the cart's own
+ * choice, already priced into `total_ghs` — not a default zone, so an
+ * unchosen delivery says so rather than quoting a fee nobody picked.
  */
-export function buildBagSummaryRows(view: BagView, zone: DeliveryZoneRow | null): BagSummaryRow[] {
+export function buildBagSummaryRows(view: BagView): BagSummaryRow[] {
   const rows: BagSummaryRow[] = [];
   const n = view.item_count;
   rows.push({ key: "items", label: `${n} item${n === 1 ? "" : "s"}`, value: formatUsd(view.subtotal_usd) });
@@ -108,13 +109,20 @@ export function buildBagSummaryRows(view: BagView, zone: DeliveryZoneRow | null)
   if (view.consolidation_saving_ghs > 0) {
     rows.push({ key: "saving", label: "Consolidation saving", value: `− ${formatGhs(view.consolidation_saving_ghs)}`, tone: "saving" });
   }
-  if (zone) {
-    rows.push({
-      key: "delivery",
-      label: /deliver/i.test(zone.name) ? zone.name : `Door delivery · ${zone.name}`,
-      value: zone.fee_ghs > 0 ? `from ${formatGhs(zone.fee_ghs)}, chosen at checkout` : "Free",
-      tone: zone.fee_ghs > 0 ? undefined : "free",
-    });
-  }
+  rows.push(buildDeliveryRow(view));
   return rows;
+}
+
+/** "Door delivery · Greater Accra" / "Pickup · Osu hub" / "Delivery — choose below". */
+function buildDeliveryRow(view: BagView): BagSummaryRow {
+  const delivery = view.delivery;
+  if (!delivery) return { key: "delivery", label: "Delivery", value: "choose below", tone: "muted" };
+  const prefix = delivery.kind === "pickup" ? "Pickup" : "Door delivery";
+  const fee = delivery.fee_ghs;
+  return {
+    key: "delivery",
+    label: `${prefix} · ${delivery.zone_name}`,
+    value: fee > 0 ? formatGhs(fee) : "Free",
+    tone: fee > 0 ? undefined : "free",
+  };
 }

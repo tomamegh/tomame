@@ -20,6 +20,17 @@ vi.mock("@/db/queries/carts", () => ({
   deleteCartItem: vi.fn(async () => true),
   moveCartItems: vi.fn(async () => 0),
   countBagItems: vi.fn(async () => 0),
+  updateCart: vi.fn(async () => undefined),
+}));
+vi.mock("@/db/queries/delivery-addresses", () => ({
+  getDeliveryAddressById: vi.fn(async () => null),
+  listDeliveryAddresses: vi.fn(async () => []),
+}));
+vi.mock("@/db/queries/delivery-zones", () => ({
+  listActiveDeliveryZones: vi.fn(async () => [
+    { id: "z-door", name: "Greater Accra", kind: "door", fee_ghs: 60, extra_days: 0, note: null, sort_order: 1 },
+    { id: "z-pick", name: "Osu hub", kind: "pickup", fee_ghs: 0, extra_days: 0, note: null, sort_order: 2 },
+  ]),
 }));
 vi.mock("@/features/extraction/extraction.service", () => ({ getExtractionSnapshot: vi.fn() }));
 vi.mock("@/features/quotes/services/quote-lock.service", () => ({ applyRateLock: vi.fn() }));
@@ -51,7 +62,9 @@ import type { ExtractionResult } from "@/features/extraction/types";
 import type { PricingBreakdown } from "@/lib/pricing";
 import * as boxes from "@/db/queries/consolidation-boxes";
 import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
-import { addToBag, getBag, removeBagLine, resolveCart, summarize, updateBagLine } from "../services/bag.service";
+import { getDeliveryAddressById, listDeliveryAddresses } from "@/db/queries/delivery-addresses";
+import type { DeliveryAddress } from "@/features/addresses/types";
+import { addToBag, getBag, removeBagLine, resolveCart, setBagDelivery, summarize, updateBagLine } from "../services/bag.service";
 import type { BagLine } from "../types";
 
 const CACHE_ID = "b4c99974-a1b4-4b49-ac8f-42dd0a0626d8";
@@ -65,6 +78,10 @@ const cart = (over: Partial<carts.CartRow> = {}): carts.CartRow => ({
 const item = (over: Partial<carts.CartItemRow> = {}): carts.CartItemRow => ({
   id: "i1", cart_id: "c1", extraction_cache_id: CACHE_ID, quantity: 1, special_instructions: null, gap_price_usd: null,
   gap_origin_country: null, pricing: null, quote_lock_id: null, consolidation_box_id: null, created_at: "", updated_at: "", ...over,
+});
+const address = (over: Partial<DeliveryAddress> = {}): DeliveryAddress => ({
+  id: "a1", user_id: "u1", label: "Home", kind: "door", recipient_name: "K", phone: "0", line1: "1 St", line2: null, area: "East Legon",
+  city: "Accra", region: null, delivery_zone_id: "z-door", digital_address: null, is_default: true, created_at: "", updated_at: "", ...over,
 });
 const extraction: ExtractionResult = {
   extraction_attempted: true, extraction_success: true, platform: "amazon", country: "USA",
@@ -256,5 +273,69 @@ describe("summarize", () => {
     const priced: BagLine = { id: "a", extraction_cache_id: "x", quantity: 2, special_instructions: null, product: { title: null, image: null, url: "", store: null, variant: null, weight_lbs: null, country: null }, pricing: breakdown({ subtotal_usd: 10, tax_usd: 1, value_fee_usd: 0.5, flat_rate_ghs: 20, total_ghs: 200, total_usd: 13 }), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null };
     const unpriced: BagLine = { ...priced, id: "b", quantity: 1, pricing: null, pricing_unavailable_reason: "x" };
     expect(summarize("c", [priced, unpriced])).toMatchObject({ item_count: 3, subtotal_usd: 10, tax_usd: 1, fee_usd: 0.5, freight_ghs: 20, total_ghs: 200, total_usd: 13, has_unpriced_lines: true });
+  });
+});
+
+describe("delivery", () => {
+  beforeEach(() => {
+    vi.mocked(carts.listCartItems).mockResolvedValue([item()]);
+    vi.mocked(applyRateLock).mockResolvedValue({ pricing: breakdown({ total_ghs: 100 }), reason: null });
+  });
+
+  it("charges the address's zone fee once on top of the lines", async () => {
+    vi.mocked(carts.findOpenCart).mockResolvedValue(cart({ delivery_address_id: "a1" }));
+    vi.mocked(getDeliveryAddressById).mockResolvedValue(address());
+    const bag = await getBag(USER);
+    expect(bag.delivery).toMatchObject({ kind: "door", address_id: "a1", zone_id: "z-door", label: "Home · East Legon", fee_ghs: 60 });
+    expect(bag.delivery_fee_ghs).toBe(60);
+    expect(bag.total_ghs).toBe(160);
+    expect(carts.updateCart).not.toHaveBeenCalled();
+  });
+
+  it("pre-selects and remembers the customer's default address when nothing is chosen", async () => {
+    vi.mocked(carts.findOpenCart).mockResolvedValue(cart());
+    vi.mocked(listDeliveryAddresses).mockResolvedValue([address({ id: "a0", label: "Office", is_default: false }), address({ id: "a2" })]);
+    const bag = await getBag(USER);
+    expect(carts.updateCart).toHaveBeenCalledWith("c1", { delivery_address_id: "a2", delivery_zone_id: null });
+    expect(bag.delivery?.address_id).toBe("a2");
+    expect(bag.total_ghs).toBe(160);
+  });
+
+  it("forgets an address that was deleted and falls back to no delivery", async () => {
+    vi.mocked(carts.findOpenCart).mockResolvedValue(cart({ delivery_address_id: "gone" }));
+    vi.mocked(getDeliveryAddressById).mockResolvedValue(null);
+    vi.mocked(listDeliveryAddresses).mockResolvedValue([]);
+    const bag = await getBag(USER);
+    expect(carts.updateCart).toHaveBeenCalledWith("c1", { delivery_address_id: null });
+    expect(bag.delivery).toBeNull();
+    expect(bag.delivery_fee_ghs).toBe(0);
+    expect(bag.total_ghs).toBe(100);
+  });
+
+  it("a pickup zone is a delivery with no address; a door zone is not a pickup point", async () => {
+    vi.mocked(carts.findOpenCart).mockResolvedValue(cart({ delivery_zone_id: "z-pick" }));
+    const bag = await setBagDelivery(ANON, { delivery_zone_id: "z-pick" });
+    expect(carts.updateCart).toHaveBeenCalledWith("c1", { delivery_zone_id: "z-pick", delivery_address_id: null });
+    expect(bag.delivery).toMatchObject({ kind: "pickup", address_id: null, label: "Osu hub", fee_ghs: 0 });
+    await expect(setBagDelivery(ANON, { delivery_zone_id: "z-door" })).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("an address must be the viewer's own, and needs a signed-in viewer", async () => {
+    vi.mocked(carts.findOpenCart).mockResolvedValue(cart());
+    vi.mocked(getDeliveryAddressById).mockResolvedValue(address({ user_id: "u2" }));
+    await expect(setBagDelivery(USER, { delivery_address_id: "a1" })).rejects.toMatchObject({ statusCode: 404 });
+    await expect(setBagDelivery(ANON, { delivery_address_id: "a1" })).rejects.toMatchObject({ statusCode: 401 });
+    vi.mocked(getDeliveryAddressById).mockResolvedValue(address({ delivery_zone_id: null }));
+    await expect(setBagDelivery(USER, { delivery_address_id: "a1" })).rejects.toMatchObject({ statusCode: 400 });
+    expect(carts.updateCart).not.toHaveBeenCalled();
+  });
+
+  it("refuses an address whose zone is retired or is not a door zone, instead of silently forgetting it on the next read", async () => {
+    vi.mocked(carts.findOpenCart).mockResolvedValue(cart());
+    vi.mocked(getDeliveryAddressById).mockResolvedValue(address({ delivery_zone_id: "z-gone" }));
+    await expect(setBagDelivery(USER, { delivery_address_id: "a1" })).rejects.toMatchObject({ statusCode: 400 });
+    vi.mocked(getDeliveryAddressById).mockResolvedValue(address({ delivery_zone_id: "z-pick" }));
+    await expect(setBagDelivery(USER, { delivery_address_id: "a1" })).rejects.toMatchObject({ statusCode: 400 });
+    expect(carts.updateCart).not.toHaveBeenCalled();
   });
 });

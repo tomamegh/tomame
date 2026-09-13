@@ -47,7 +47,40 @@ export interface BagBox {
   has_unweighed_lines: boolean;
 }
 
+/** Where the bag goes, as chosen on the cart (`carts.delivery_address_id` / `delivery_zone_id`). */
+export interface BagDelivery {
+  kind: "door" | "pickup";
+  /** Door only: the `delivery_addresses` row. */
+  address_id: string | null;
+  zone_id: string;
+  zone_name: string;
+  /** "Home · East Legon" or the pickup zone's name. */
+  label: string;
+  fee_ghs: number;
+}
+
+/** A checked-out bag whose payment has not gone through yet — offered again on an empty bag. */
+export interface PendingGroupSummary {
+  id: string;
+  item_count: number;
+  total_ghs: number;
+}
+
+/** What `POST /api/cart/checkout` returns: the group one payment buys. */
+export interface CheckoutResult {
+  order_group_id: string;
+  order_ids: string[];
+  item_count: number;
+  total_ghs: number;
+  total_pesewas: number;
+  status: "pending" | "paid" | "cancelled";
+}
+
 export interface BagView {
+  /** The chosen delivery, or null when the customer has not picked one yet. */
+  delivery: BagDelivery | null;
+  /** The zone's fee, charged once per checkout. 0 when no delivery is chosen. */
+  delivery_fee_ghs: number;
   cart_id: string | null;
   lines: BagLine[];
   /** Lines packed into boxes by region, in bag order. */
@@ -60,7 +93,7 @@ export interface BagView {
   consolidation_saving_pct: number;
   /** `sum(quantity)` — the nav badge. */
   item_count: number;
-  /** Money roll-ups over the priced lines. `total_ghs` is net of the box saving; delivery arrives in F3. */
+  /** Money roll-ups over the priced lines. `total_ghs` is net of the box saving and includes `delivery_fee_ghs`. */
   subtotal_usd: number;
   tax_usd: number;
   fee_usd: number;

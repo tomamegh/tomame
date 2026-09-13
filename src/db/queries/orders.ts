@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { OrderPricingBreakdown, OrderStatus } from "@/features/orders/types";
+import type { Order, OrderPricingBreakdown, OrderStatus } from "@/features/orders/types";
 
 /**
  * Order reads for screens that need a few columns, not the whole row.
@@ -75,4 +75,19 @@ export async function countMovingOrders(
   }
 
   return count ?? 0;
+}
+
+/** Every order one payment buys, in checkout order. Admin client — the payment webhook has no cookie. */
+export async function listOrdersByGroup(client: SupabaseClient, groupId: string): Promise<Order[]> {
+  const { data, error } = await client
+    .from("orders")
+    .select("*")
+    .eq("order_group_id", groupId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load the group's orders: ${error.message}`);
+  }
+
+  return (data ?? []) as Order[];
 }

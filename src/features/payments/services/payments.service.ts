@@ -3,11 +3,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
 import type { Payment } from "@/features/payments/types";
+import type { Order } from "@/features/orders/types";
 import {
   getOrderById,
   linkOrderToPayment,
   sendOrderStatusEmail,
 } from "@/features/orders/services/orders.service";
+import { listOrdersByGroup } from "@/db/queries/orders";
+import { getOrderGroupById, updateOrderGroupStatus } from "@/db/queries/order-groups";
+import { getPaymentChannel } from "@/features/payments/services/payment-channels.service";
 import {
   initializeTransaction,
   verifyTransaction,
@@ -20,9 +24,11 @@ import { PAYMENT_STATUSES } from "@/config/constants";
 import type { PlatformUser } from "@/features/users/types";
 import type {
   InitializePaymentResponse,
+  PaymentChannel,
   PaymentInsert,
   PaymentResponse,
 } from "@/features/payments/types";
+import type { InitializePaymentInput } from "@/features/payments/schema";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
@@ -86,6 +92,23 @@ async function getActivePaymentForOrder(
     .from("payments")
     .select("*")
     .filter("metadata->>order_id", "eq", orderId)
+    .in("status", [PAYMENT_STATUSES.PENDING, PAYMENT_STATUSES.SUCCESS])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data as Payment | null;
+}
+
+/** Same guard for a group: `payments.order_group_id` is a real column (048), no JSON path. */
+async function getActivePaymentForGroup(
+  client: SupabaseClient,
+  groupId: string,
+): Promise<Payment | null> {
+  const { data } = await client
+    .from("payments")
+    .select("*")
+    .eq("order_group_id", groupId)
     .in("status", [PAYMENT_STATUSES.PENDING, PAYMENT_STATUSES.SUCCESS])
     .order("created_at", { ascending: false })
     .limit(1)
@@ -182,25 +205,43 @@ function orderIdOf(payment: Payment): string | null {
   return typeof orderId === "string" ? orderId : null;
 }
 
+/** What a payment buys: one legacy order, or a bag's order group. */
+interface PayTarget {
+  orderId: string | null;
+  groupId: string | null;
+}
+
+function targetOf(payment: Payment): PayTarget {
+  return { orderId: orderIdOf(payment), groupId: payment.order_group_id ?? null };
+}
+
+const NO_TARGET: PayTarget = { orderId: null, groupId: null };
+
 /**
  * Where to send the customer back to after Paystack.
  *
  * These must resolve to routes that actually exist — the customer's orders live
  * under /app/orders, and a redirect to a non-existent path turns a declined card
  * into a 404 with no explanation of what happened to their money.
+ *
+ * A group's failure lands on the bag, where the customer retries. The cart is
+ * already `checked_out`, so the bag reads empty there for now — the F5 rail
+ * reads the pending group from `?payment=failed` and offers "Pay again".
  */
-function successUrl(orderId: string | null): string {
-  return orderId
-    ? `${env.app.url}/app/orders/${orderId}?payment=success`
+function successUrl(target: PayTarget): string {
+  if (target.groupId) return `${env.app.url}/app/orders?payment=success&group=${target.groupId}`;
+  return target.orderId
+    ? `${env.app.url}/app/orders/${target.orderId}?payment=success`
     : `${env.app.url}/app/orders?payment=success`;
 }
 
 function failureUrl(
-  orderId: string | null,
+  target: PayTarget,
   reason: "failed" | "error" = "failed"
 ): string {
-  return orderId
-    ? `${env.app.url}/app/orders/${orderId}/checkout?payment=${reason}`
+  if (target.groupId) return `${env.app.url}/app/bag?payment=${reason}`;
+  return target.orderId
+    ? `${env.app.url}/app/orders/${target.orderId}/checkout?payment=${reason}`
     : `${env.app.url}/app/orders?payment=${reason}`;
 }
 
@@ -210,14 +251,15 @@ function failureUrl(
  * order they were paying for.
  */
 export function unresolvedPaymentUrl(): string {
-  return failureUrl(null, "error");
+  return failureUrl(NO_TARGET, "error");
 }
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
+/** One transaction for one order (legacy) or one order group (the bag). */
 export async function initializePayment(
   user: PlatformUser,
-  orderId: string,
+  input: InitializePaymentInput,
 ): Promise<InitializePaymentResponse> {
   const admin = createAdminClient();
 
@@ -228,10 +270,101 @@ export async function initializePayment(
     throw new APIError(400, "Your account has no email address. Please contact support.");
   }
 
+  const charge = input.orderGroupId
+    ? await groupCharge(admin, user, input.orderGroupId, input.channel)
+    : await orderCharge(admin, user, input.orderId!);
+
+  const reference = generatePaymentReference();
+  const payment = await insertPayment(admin, {
+    user_id: user.id,
+    reference,
+    amount: charge.amountPesewas,
+    currency: "GHS",
+    status: PAYMENT_STATUSES.PENDING,
+    metadata: charge.metadata,
+    ...(charge.target.groupId && { order_group_id: charge.target.groupId }),
+  });
+
+  if (!payment) {
+    throw new APIError(500, "Failed to create payment");
+  }
+
+  let authorizationUrl: string;
+  try {
+    const callbackUrl = `${env.app.url}/api/payments/callback`;
+    const paystackResponse = await initializeTransaction({
+      email: user.email,
+      amount: charge.amountPesewas,
+      reference,
+      callbackUrl,
+      channels: charge.channels,
+      ...(charge.paystackMetadata && { metadata: charge.paystackMetadata }),
+    });
+    authorizationUrl = paystackResponse.data.authorization_url;
+  } catch (error) {
+    // Best effort: if this write also fails, the Paystack error below is the
+    // more useful thing to report, so swallow rather than mask it. The payment
+    // is left pending and the customer's retry is blocked by R2 until it is
+    // reconciled — logged loudly for that reason.
+    await transitionPaymentStatus(
+      admin,
+      payment.id,
+      PAYMENT_STATUSES.PENDING,
+      PAYMENT_STATUSES.FAILED,
+      { ...charge.metadata, error: "Paystack initialization failed" },
+    ).catch((markError: unknown) => {
+      logger.error("Could not mark payment failed after Paystack error", {
+        paymentId: payment.id,
+        reference,
+        error: markError instanceof Error ? markError.message : String(markError),
+      });
+    });
+
+    logger.error("Paystack initializeTransaction failed", {
+      reference,
+      ...charge.target,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new APIError(502, "Payment provider error. Please try again.");
+  }
+
+  await logAuditEvent({
+    actorId: user.id,
+    actorRole: "user",
+    action: "payment_initialized",
+    entityType: "payment",
+    entityId: payment.id,
+    metadata: {
+      ...(charge.target.groupId ? { orderGroupId: charge.target.groupId } : { orderId: charge.target.orderId }),
+      reference,
+      amount: charge.amountPesewas,
+      channel: charge.channels,
+    },
+  });
+
+  return { payment: toPaymentResponse(payment), authorizationUrl };
+}
+
+/** Everything the Paystack call and the payment row need, decided server-side. */
+interface Charge {
+  target: PayTarget;
+  amountPesewas: number;
+  channels: string[];
+  metadata: Record<string, unknown>;
+  paystackMetadata: Record<string, unknown> | null;
+}
+
+const DEFAULT_CHANNELS = ["card", "mobile_money"];
+
+async function orderCharge(admin: SupabaseClient, user: PlatformUser, orderId: string): Promise<Charge> {
   const order = await getOrderById(admin, orderId);
   if (!order) throw new APIError(404, "Order not found");
   if (order.user_id !== user.id) throw new APIError(404, "Order not found");
   if (order.status !== "pending") throw new APIError(400, "Order is not awaiting payment");
+  // A bag's orders are paid once, as a group: charging one line on its own would
+  // split the total and leave the group half-paid. The old order-detail page
+  // still links to the per-order checkout, so this is enforced here, not there.
+  if (order.order_group_id) throw new APIError(400, "This item is part of a bag. Pay for the bag as one.");
 
   // Guard against double payment: block if a pending or successful payment already exists
   const existingPayment = await getActivePaymentForOrder(admin, orderId);
@@ -247,70 +380,47 @@ export async function initializePayment(
   if (!totalGhs || totalGhs <= 0) {
     throw new APIError(400, "Order pricing has not been determined yet. Please wait for admin review.");
   }
-  const totalPesewas = Math.round(totalGhs * 100);
-  const reference = generatePaymentReference();
-
-  const payment = await insertPayment(admin, {
-    user_id: user.id,
-    reference,
-    amount: totalPesewas,
-    currency: "GHS",
-    status: PAYMENT_STATUSES.PENDING,
+  return {
+    target: { orderId, groupId: null },
+    amountPesewas: Math.round(totalGhs * 100),
+    channels: DEFAULT_CHANNELS,
     metadata: { order_id: orderId },
-  });
+    paystackMetadata: null,
+  };
+}
 
-  if (!payment) {
-    throw new APIError(500, "Failed to create payment");
+async function groupCharge(admin: SupabaseClient, user: PlatformUser, groupId: string, channelId?: string): Promise<Charge> {
+  const group = await getOrderGroupById(groupId);
+  if (!group || group.user_id !== user.id) throw new APIError(404, "Order group not found");
+  if (group.status === "paid") throw new APIError(400, "This bag has already been paid");
+  if (group.status !== "pending") throw new APIError(400, "This bag is not awaiting payment");
+
+  const existingPayment = await getActivePaymentForGroup(admin, groupId);
+  if (existingPayment) {
+    if (existingPayment.status === PAYMENT_STATUSES.SUCCESS) {
+      throw new APIError(409, "This bag has already been paid.");
+    }
+    throw new APIError(409, "A payment is already in progress for this bag.");
   }
 
-  let authorizationUrl: string;
-  try {
-    const callbackUrl = `${env.app.url}/api/payments/callback`;
-    const paystackResponse = await initializeTransaction({
-      email: user.email,
-      amount: totalPesewas,
-      reference,
-      callbackUrl,
-      channels: ["card", "mobile_money"],
-    });
-    authorizationUrl = paystackResponse.data.authorization_url;
-  } catch (error) {
-    // Best effort: if this write also fails, the Paystack error below is the
-    // more useful thing to report, so swallow rather than mask it. The payment
-    // is left pending and the customer's retry is blocked by R2 until it is
-    // reconciled — logged loudly for that reason.
-    await transitionPaymentStatus(
-      admin,
-      payment.id,
-      PAYMENT_STATUSES.PENDING,
-      PAYMENT_STATUSES.FAILED,
-      { order_id: orderId, error: "Paystack initialization failed" },
-    ).catch((markError: unknown) => {
-      logger.error("Could not mark payment failed after Paystack error", {
-        paymentId: payment.id,
-        reference,
-        error: markError instanceof Error ? markError.message : String(markError),
-      });
-    });
+  // The amount is the group's own column, struck at checkout — never re-read from the bag.
+  if (!(group.total_pesewas > 0)) throw new APIError(400, "This bag has nothing to pay for");
 
-    logger.error("Paystack initializeTransaction failed", {
-      reference,
-      orderId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    throw new APIError(502, "Payment provider error. Please try again.");
+  let channel: PaymentChannel | null = null;
+  if (channelId) {
+    channel = await getPaymentChannel(channelId);
+    if (!channel) throw new APIError(400, "Choose a payment method");
   }
 
-  await logAuditEvent({
-    actorId: user.id,
-    actorRole: "user",
-    action: "payment_initialized",
-    entityType: "payment",
-    entityId: payment.id,
-    metadata: { orderId, reference, amount: totalPesewas },
-  });
-
-  return { payment: toPaymentResponse(payment), authorizationUrl };
+  const orderIds = (await listOrdersByGroup(admin, groupId)).map((o) => o.id);
+  const ids = { order_group_id: groupId, order_ids: orderIds };
+  return {
+    target: { orderId: null, groupId },
+    amountPesewas: group.total_pesewas,
+    channels: channel ? [channel.paystack_channel] : DEFAULT_CHANNELS,
+    metadata: { ...ids, requested_channel: channel?.id ?? null, provider: channel?.provider ?? null },
+    paystackMetadata: ids,
+  };
 }
 
 export async function handlePaymentCallback(
@@ -324,15 +434,16 @@ export async function handlePaymentCallback(
     throw new APIError(404, "Payment not found");
   }
 
-  const orderId = orderIdOf(payment);
+  const target = targetOf(payment);
+  const { orderId } = target;
 
   // Already finalized — by the other delivery channel, or by an earlier attempt.
   // Report the outcome; never re-run the effects.
   if (payment.status === PAYMENT_STATUSES.SUCCESS) {
-    return { redirectUrl: successUrl(orderId) };
+    return { redirectUrl: successUrl(target) };
   }
   if (payment.status === PAYMENT_STATUSES.FAILED) {
-    return { redirectUrl: failureUrl(orderId) };
+    return { redirectUrl: failureUrl(target) };
   }
 
   let verification: Awaited<ReturnType<typeof verifyTransaction>>;
@@ -363,7 +474,7 @@ export async function handlePaymentCallback(
   if (paystackStatus === "success" && !isSuccess) {
     logger.error("Paystack verification mismatch — refusing to mark paid", {
       reference,
-      orderId,
+      ...target,
       expectedAmount: payment.amount,
       actualAmount: verification.data.amount,
       expectedCurrency: payment.currency,
@@ -383,30 +494,15 @@ export async function handlePaymentCallback(
 
     // Lost the race to the other delivery channel — it owns the side effects.
     if (!claimed) {
-      return { redirectUrl: successUrl(orderId) };
+      return { redirectUrl: successUrl(target) };
     }
 
-    if (orderId) {
-      const order = await linkOrderToPayment(admin, orderId, payment.id);
-
-      await logAuditEvent({
-        actorId: payment.user_id,
-        actorRole: "system",
-        action: "order_status_changed",
-        entityType: "order",
-        entityId: orderId,
-        metadata: { from: "pending", to: "paid", paymentId: payment.id },
-      });
-
-      if (order) {
-        await createOrderNotifications(
-          payment.user_id,
-          orderId,
-          order.product_name,
-          order.admin_total_ghs ?? order.pricing.total_ghs,
-        );
-        sendOrderStatusEmail(payment.user_id, order, "paid");
-      }
+    if (target.groupId) {
+      await settleGroup(admin, payment, target.groupId);
+    } else if (orderId) {
+      const order = await settleOrder(admin, payment, orderId);
+      // One order, one email — the group path sends its own.
+      if (order) sendOrderStatusEmail(payment.user_id, order, "paid");
     }
 
     await logAuditEvent({
@@ -415,10 +511,10 @@ export async function handlePaymentCallback(
       action: "payment_successful",
       entityType: "payment",
       entityId: payment.id,
-      metadata: { reference, orderId },
+      metadata: { reference, ...target },
     });
 
-    return { redirectUrl: successUrl(orderId) };
+    return { redirectUrl: successUrl(target) };
   }
 
   const failed = await transitionPaymentStatus(
@@ -431,19 +527,77 @@ export async function handlePaymentCallback(
 
   // Lost the race to the other delivery channel — it owns the audit trail.
   if (!failed) {
-    return { redirectUrl: failureUrl(orderId) };
+    return { redirectUrl: failureUrl(target) };
   }
 
+  // A failed group payment leaves the group pending: the customer retries from
+  // the bag with a fresh transaction. Nothing is cancelled here.
   await logAuditEvent({
     actorId: payment.user_id,
     actorRole: "system",
     action: "payment_failed",
     entityType: "payment",
     entityId: payment.id,
-    metadata: { reference, orderId, paystackStatus, amountMatches, currencyMatches },
+    metadata: { reference, ...target, paystackStatus, amountMatches, currencyMatches },
   });
 
-  return { redirectUrl: failureUrl(orderId) };
+  return { redirectUrl: failureUrl(target) };
+}
+
+/**
+ * pending → paid for one order. Null when the order had already flipped (the
+ * status guard in `linkOrderToPayment` matched nothing) — then no audit row, no
+ * notification, so a re-run of the fan-out never repeats an effect.
+ */
+async function settleOrder(admin: SupabaseClient, payment: Payment, orderId: string): Promise<Order | null> {
+  const order = await linkOrderToPayment(admin, orderId, payment.id);
+  if (!order) return null;
+
+  await logAuditEvent({
+    actorId: payment.user_id,
+    actorRole: "system",
+    action: "order_status_changed",
+    entityType: "order",
+    entityId: orderId,
+    metadata: { from: "pending", to: "paid", paymentId: payment.id, orderGroupId: payment.order_group_id ?? null },
+  });
+  await createOrderNotifications(
+    payment.user_id,
+    orderId,
+    order.product_name,
+    order.admin_total_ghs ?? order.pricing.total_ghs,
+  );
+  return order;
+}
+
+/**
+ * Fan `paid` out over every order in the group, then flip the group itself.
+ * Each step is guarded on its own current status, so a second pass (a webhook
+ * after a callback that died halfway) finishes what is left and repeats nothing.
+ */
+async function settleGroup(admin: SupabaseClient, payment: Payment, groupId: string): Promise<void> {
+  const orders = await listOrdersByGroup(admin, groupId);
+  let first: Order | null = null;
+  for (const order of orders) {
+    const settled = await settleOrder(admin, payment, order.id);
+    if (settled) first ??= settled;
+  }
+
+  const flipped = await updateOrderGroupStatus(groupId, "pending", "paid", { payment_id: payment.id });
+  if (flipped) {
+    await logAuditEvent({
+      actorId: payment.user_id,
+      actorRole: "system",
+      action: "order_group_paid",
+      entityType: "order_group",
+      entityId: groupId,
+      metadata: { paymentId: payment.id, order_ids: orders.map((o) => o.id) },
+    });
+  }
+
+  // One email per group. A group template is Phase 5+; until then the first
+  // order's "paid" mail stands in for the whole bag.
+  if (first) sendOrderStatusEmail(payment.user_id, first, "paid");
 }
 
 /**

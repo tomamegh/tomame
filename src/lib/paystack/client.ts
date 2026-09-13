@@ -11,6 +11,8 @@ interface PaystackInitializeParams {
   reference: string;
   callbackUrl: string;
   channels?: string[];
+  /** Echoed back on verify and in the dashboard — the order/group ids live here. */
+  metadata?: Record<string, unknown>;
 }
 
 interface PaystackInitializeResponse {
@@ -82,6 +84,7 @@ export async function initializeTransaction(
         reference: params.reference,
         callback_url: params.callbackUrl,
         channels: params.channels ?? ["card", "mobile_money"],
+        ...(params.metadata ? { metadata: params.metadata } : {}),
       }),
     }
   );

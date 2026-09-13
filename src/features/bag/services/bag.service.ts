@@ -10,9 +10,13 @@ import { findStore } from "@/features/extraction/stores";
 import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
 import { listRegions, type RegionRow } from "@/db/queries/regions";
 import { insertBox, listBoxesByIds, updateOpenBox, type ConsolidationBoxRow } from "@/db/queries/consolidation-boxes";
+import { getDeliveryAddressById, listDeliveryAddresses } from "@/db/queries/delivery-addresses";
+import { listActiveDeliveryZones, type DeliveryZoneRow } from "@/db/queries/delivery-zones";
+import type { DeliveryAddress } from "@/features/addresses/types";
 import { nextDeparture, packLines, type BoxConstants, type PackedBox } from "./box-packing";
 import type { ExtractionResult } from "@/features/extraction/types";
 import type { Viewer } from "@/features/quotes/types";
+import { formatAddressLabel } from "@/features/addresses/format";
 import type { OriginCountry } from "@/features/orders/types";
 import {
   adoptCart,
@@ -28,12 +32,13 @@ import {
   moveCartItems,
   setCartStatus,
   touchCart,
+  updateCart,
   updateCartItem,
   type CartItemRow,
   type CartRow,
 } from "@/db/queries/carts";
-import type { AddToBagInput, UpdateBagLineInput } from "../schema";
-import type { AddToBagResult, BagBox, BagLine, BagView } from "../types";
+import type { AddToBagInput, SetBagDeliveryInput, UpdateBagLineInput } from "../schema";
+import type { AddToBagResult, BagBox, BagDelivery, BagLine, BagView } from "../types";
 
 /**
  * The bag: the viewer's open cart, re-priced from the server-owned extraction
@@ -50,6 +55,11 @@ import type { AddToBagResult, BagBox, BagLine, BagView } from "../types";
  * bag is adopted onto the user, or merged into the user's own open bag when
  * both exist. The browser never names a cart or a line it does not own — every
  * line is looked up through the viewer's cart.
+ *
+ * Delivery rule: the cart remembers ONE choice — a saved address (door) or a
+ * pickup zone — and the zone's `fee_ghs` is charged once per checkout, on top
+ * of the lines. A signed-in customer with no choice yet gets their default
+ * address pre-selected. Ownership is checked on every read, not just on write.
  */
 
 // ── Reads ───────────────────────────────────────────────────────────────────
@@ -57,10 +67,10 @@ import type { AddToBagResult, BagBox, BagLine, BagView } from "../types";
 export async function getBag(viewer: Viewer): Promise<BagView> {
   const cart = await resolveCart(viewer);
   if (!cart) return emptyBag();
-  const rows = await listCartItems(cart.id);
+  const [rows, delivery] = await Promise.all([listCartItems(cart.id), resolveDelivery(viewer, cart)]);
   const lines = await Promise.all(rows.map((row) => priceLine(viewer, row)));
   const packed = await packIntoBoxes(rows, lines);
-  return summarize(cart.id, lines, packed);
+  return summarize(cart.id, lines, packed, delivery);
 }
 
 /** `sum(quantity)` for the nav badge. Adoption runs here too, so the badge is right straight after sign-in. */
@@ -124,6 +134,35 @@ export async function removeBagLine(viewer: Viewer, lineId: string): Promise<{ i
   return { item_count: await countBagItems(viewer) };
 }
 
+/**
+ * Choose where the bag goes. An address needs a signed-in owner; a zone must be
+ * an active pickup point. Exactly one column is set, the other nulled; `null`
+ * clears both. Returns the re-priced bag with the fee applied.
+ */
+export async function setBagDelivery(viewer: Viewer, input: SetBagDeliveryInput): Promise<BagView> {
+  if (!hasIdentity(viewer)) throw new APIError(400, "No bag to deliver");
+  const cart = (await resolveCart(viewer)) ?? (await insertCart(viewer));
+
+  if (input.delivery_address_id === null || input.delivery_zone_id === null) {
+    await updateCart(cart.id, { delivery_address_id: null, delivery_zone_id: null });
+  } else if (input.delivery_address_id !== undefined) {
+    if (!viewer.userId) throw new APIError(401, "Sign in to choose an address");
+    const address = await getDeliveryAddressById(input.delivery_address_id);
+    if (!address || address.user_id !== viewer.userId) throw new APIError(404, "Address not found");
+    if (!address.delivery_zone_id) throw new APIError(400, "This address has no delivery zone yet");
+    // Validated here, not only on read: otherwise a retired zone makes the PATCH
+    // "succeed" and the very next getBag silently forgets the choice.
+    const zone = (await listActiveDeliveryZones()).find((z) => z.id === address.delivery_zone_id);
+    if (!zone || zone.kind !== "door") throw new APIError(400, "We no longer deliver to this address's zone");
+    await updateCart(cart.id, { delivery_address_id: address.id, delivery_zone_id: null });
+  } else if (input.delivery_zone_id !== undefined) {
+    const zone = (await listActiveDeliveryZones()).find((z) => z.id === input.delivery_zone_id);
+    if (!zone || zone.kind !== "pickup") throw new APIError(400, "Choose a pickup point");
+    await updateCart(cart.id, { delivery_zone_id: zone.id, delivery_address_id: null });
+  }
+  return getBag(viewer);
+}
+
 // ── Identity ────────────────────────────────────────────────────────────────
 
 /**
@@ -162,6 +201,52 @@ async function ownedLine(viewer: Viewer, lineId: string): Promise<{ cart: CartRo
   const row = cart ? await getCartItemById(lineId) : null;
   if (!cart || !row || row.cart_id !== cart.id) throw new APIError(404, "That line is not in your bag");
   return { cart, row };
+}
+
+// ── Delivery ────────────────────────────────────────────────────────────────
+
+/**
+ * The cart's delivery choice, re-validated: an address that was deleted, lost
+ * its zone or belongs to someone else is forgotten; a zone that is no longer an
+ * active pickup point likewise. With nothing left, a signed-in customer's
+ * default address is chosen and remembered so the bag lands with it selected.
+ */
+async function resolveDelivery(viewer: Viewer, cart: CartRow): Promise<BagDelivery | null> {
+  const zones = await listActiveDeliveryZones();
+  const zoneById = (id: string | null) => (id ? zones.find((z) => z.id === id) ?? null : null);
+
+  if (cart.delivery_address_id) {
+    const address = await getDeliveryAddressById(cart.delivery_address_id);
+    const zone = address && address.user_id === viewer.userId ? zoneById(address.delivery_zone_id) : null;
+    if (address && zone) return doorDelivery(address, zone);
+    await updateCart(cart.id, { delivery_address_id: null });
+  } else if (cart.delivery_zone_id) {
+    const zone = zoneById(cart.delivery_zone_id);
+    if (zone?.kind === "pickup") return pickupDelivery(zone);
+    await updateCart(cart.id, { delivery_zone_id: null });
+  }
+
+  if (!viewer.userId) return null;
+  const fallback = (await listDeliveryAddresses(viewer.userId)).find((a) => a.is_default && a.delivery_zone_id);
+  const zone = fallback ? zoneById(fallback.delivery_zone_id) : null;
+  if (!fallback || !zone) return null;
+  await updateCart(cart.id, { delivery_address_id: fallback.id, delivery_zone_id: null });
+  return doorDelivery(fallback, zone);
+}
+
+function doorDelivery(address: DeliveryAddress, zone: DeliveryZoneRow): BagDelivery {
+  return {
+    kind: "door",
+    address_id: address.id,
+    zone_id: zone.id,
+    zone_name: zone.name,
+    label: formatAddressLabel(address),
+    fee_ghs: zone.fee_ghs,
+  };
+}
+
+function pickupDelivery(zone: DeliveryZoneRow): BagDelivery {
+  return { kind: "pickup", address_id: null, zone_id: zone.id, zone_name: zone.name, label: zone.name, fee_ghs: zone.fee_ghs };
 }
 
 // ── Pricing ─────────────────────────────────────────────────────────────────
@@ -379,15 +464,19 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 
 const NO_BOXES: Packed = { boxes: [], unboxed_line_ids: [], consolidation_saving_ghs: 0, consolidation_saving_pct: 0 };
 
-export function summarize(cartId: string | null, lines: BagLine[], packed: Packed = NO_BOXES): BagView {
+export function summarize(cartId: string | null, lines: BagLine[], packed: Packed = NO_BOXES, delivery: BagDelivery | null = null): BagView {
   const priced = lines.map((l) => l.pricing).filter((p): p is NonNullable<BagLine["pricing"]> => p != null);
   const sum = (pick: (p: NonNullable<BagLine["pricing"]>) => number) => r2(priced.reduce((acc, p) => acc + pick(p), 0));
   const locks = priced.map((p) => p.rate_locked_until).filter((v): v is string => !!v).sort();
   const grossGhs = sum((p) => p.total_ghs);
-  const totalGhs = r2(grossGhs - packed.consolidation_saving_ghs);
+  // The delivery fee is charged only when there is something to deliver.
+  const deliveryFeeGhs = delivery && priced.length > 0 ? r2(delivery.fee_ghs) : 0;
+  const totalGhs = r2(grossGhs - packed.consolidation_saving_ghs + deliveryFeeGhs);
   // The USD echo follows the same ratio the lines were struck at; no rate is applied here.
   const totalUsd = grossGhs > 0 ? r2((sum((p) => p.total_usd ?? 0) * totalGhs) / grossGhs) : 0;
   return {
+    delivery,
+    delivery_fee_ghs: deliveryFeeGhs,
     cart_id: cartId,
     lines,
     boxes: packed.boxes,

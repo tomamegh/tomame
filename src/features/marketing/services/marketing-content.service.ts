@@ -387,10 +387,21 @@ function readString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+/**
+ * Plain strings, or objects carrying a string `label` — `payment_channels`
+ * became objects in 048 so the bag can pass `paystack_channel` to Paystack,
+ * while the footer keeps showing the labels.
+ */
 function readStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === "string")
-    : [];
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const entry of value) {
+    if (typeof entry === "string") out.push(entry);
+    else if (entry && typeof entry === "object" && typeof (entry as { label?: unknown }).label === "string") {
+      out.push((entry as { label: string }).label);
+    }
+  }
+  return out;
 }
 
 function trimNumber(value: number): string {
