@@ -11,6 +11,7 @@ import {
 } from "@/db/queries/notifications";
 import { markWatchNotified, type PriceWatchRow } from "@/db/queries/price-watches";
 import { sendEmail } from "@/lib/email/transport";
+import { mayEmailUser } from "@/lib/email/notify-preference";
 import { priceDropTemplate } from "@/lib/email/templates/price-drop";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import type { PriceDropDecision, PriceDropOutcome, PriceDropReading } from "../types";
@@ -148,6 +149,10 @@ export async function notifyPriceDrop(
   if (!decision.notify || decision.reference_price_usd === null || decision.drop_pct === null) {
     return { notified: false, reason: decision.reason };
   }
+
+  // The account-wide "Email" toggle. `notify_on_drop` is this watch's own switch;
+  // this is the customer saying "no email at all", and it outranks it.
+  if (!(await mayEmailUser(watch.user_id))) return { notified: false, reason: "email_off" };
 
   const email = await getRecipientEmail(watch.user_id);
   if (!email) {

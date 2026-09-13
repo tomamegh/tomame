@@ -152,6 +152,12 @@ export interface PriceWatchJobSummary {
 export type PriceDropReason =
   /** The customer turned `notify_on_drop` off. */
   | "muted"
+  /**
+   * `profiles.notify_email` is off — the account-wide "Email" toggle. Distinct
+   * from `muted`, which is this one watch's switch: this customer wants no email
+   * at all, and that outranks any per-watch setting.
+   */
+  | "email_off"
   /** No usable threshold in `pricing_constants` — alerts are off platform-wide. */
   | "no_threshold"
   /** The reading itself is unusable (non-finite or non-positive). */

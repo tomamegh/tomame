@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// The email-preference gate reaches the admin client at module scope.
+vi.mock("@/lib/email/notify-preference", () => ({ mayEmailUser: vi.fn(async () => true) }));
 
 vi.mock("@/lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -35,6 +37,7 @@ import {
   markNotificationDelivered,
 } from "@/db/queries/notifications";
 import { markWatchNotified, type PriceWatchRow } from "@/db/queries/price-watches";
+import { mayEmailUser } from "@/lib/email/notify-preference";
 import {
   decidePriceDrop,
   notifyPriceDrop,
@@ -370,5 +373,25 @@ describe("tryNotifyPriceDrop", () => {
     await expect(tryNotifyPriceDrop(watchRow(), reading(360), THRESHOLD)).rejects.toThrow(
       /could not find the table/i,
     );
+  });
+});
+
+describe("the account-wide email preference outranks the per-watch switch", () => {
+  it("does not alert when the customer turned email off entirely", async () => {
+    // `notify_on_drop` is this watch's switch; `profiles.notify_email` is the
+    // customer saying "no email at all". Before this gate existed the toggle on
+    // the account screen was written and read by nothing, so every price drop
+    // mailed regardless of it.
+    vi.mocked(mayEmailUser).mockResolvedValue(false);
+
+    const outcome = await tryNotifyPriceDrop(
+      watchRow({ notify_on_drop: true, baseline_price_usd: 400 }),
+      reading(300),
+      THRESHOLD,
+    );
+
+    expect(outcome.notified).toBe(false);
+    expect(outcome.reason).toBe("email_off");
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 });

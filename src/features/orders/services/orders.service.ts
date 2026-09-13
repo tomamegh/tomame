@@ -22,6 +22,7 @@ import { consumeQuoteLocksForOrder } from "@/features/quotes/services/quote-lock
 import { eventForStatus, recordOrderEvent } from "./order-events.service";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import type { Viewer } from "@/features/quotes/types";
+import { mayEmailUser } from "@/lib/email/notify-preference";
 
 export async function getOrderById(
   client: SupabaseClient,
@@ -205,6 +206,11 @@ export async function sendOrderStatusEmail(
   },
 ): Promise<void> {
   try {
+    // `profiles.notify_email` — the account screen's "Email" toggle, whose own
+    // description names these messages. Checked here rather than at each call
+    // site so no future sender can forget it.
+    if (!(await mayEmailUser(userId))) return;
+
     const supabase = createAdminClient();
     const { data: userData, error } =
       await supabase.auth.admin.getUserById(userId);
