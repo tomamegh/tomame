@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { SignOut } from "@phosphor-icons/react/ssr";
 
@@ -19,14 +18,16 @@ import { cn } from "@/lib/utils";
  *
  * Two things happen on the way out, in this order. `signOut()` on the browser
  * client clears the Supabase cookies (`@supabase/ssr` writes them from here).
- * Then the React Query cache is emptied BEFORE navigating: the bag, the pastes
- * and the notification list are all cached by key with no viewer in the key,
- * so the next person to sign in on this browser would briefly see the previous
- * customer's bag until the first refetch landed. `router.refresh()` last, so
- * the server components re-render with no session.
+ * Then the React Query cache is emptied and the browser does a FULL navigation
+ * to the marketing home. Not `router.replace("/")` + `router.refresh()`: the
+ * refresh re-rendered the account page — the route the customer was still on —
+ * with no session, and its own `redirect("/auth/login?next=/app/account")` won
+ * the race, so signing out landed on a login form instead of the front door.
+ * A hard navigation also drops every client cache with the page, which is what
+ * a shared phone needs: the next person to sign in must not glimpse the
+ * previous customer's bag.
  */
 export function SignOutButton({ className }: { className?: string }) {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
 
@@ -36,8 +37,7 @@ export function SignOutButton({ className }: { className?: string }) {
       const { error } = await createClient().auth.signOut();
       if (error) throw error;
       queryClient.clear();
-      router.replace("/");
-      router.refresh();
+      window.location.assign("/");
     } catch (error) {
       setBusy(false);
       toast.error({
@@ -45,7 +45,7 @@ export function SignOutButton({ className }: { className?: string }) {
         description: error instanceof Error ? error.message : "Try again in a moment.",
       });
     }
-  }, [queryClient, router]);
+  }, [queryClient]);
 
   return (
     <button

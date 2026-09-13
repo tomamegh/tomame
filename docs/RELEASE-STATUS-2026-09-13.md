@@ -101,6 +101,46 @@ has been touched. That is deliberate — see §3.
 
 </details>
 
+## 0b. 2026-09-13 (evening) — Kelvin's test findings fixed; hosted DEV migrated to 053 and deployed
+
+**Fixed on `v2`** (commits `4902691`, `bcebb76`, plus `.vercelignore`): dead footer links
+(`/blog`, `/careers`, `/how-it-works`); the Legal page's contact block now names the WhatsApp
+line from `site_settings`; a Sign out button on the account rail (hard navigation to `/` —
+`router.refresh()` after `replace("/")` raced the account page's own redirect and landed on
+the login form); the assisted channel closes once used — an open `assisted_request` for a link
+shows "A buyer is on it" and withdraws Describe it / Read it again / Add to bag on the paste
+list, the bag and the Home receipt; the `?url=` path (Home paste bar, shared links) now
+queues through `/api/pastes` and lands on the list as `?watch=<id>` with a visible reading
+indicator, the 5 s / 20 s copy, auto-forward to the price, and a bell + email
+(`paste_priced` / `paste_unreadable`) for signed-in customers whose paste crossed the 5 s
+mark; "Read it again" on a lapsed quote was a silent no-op (`enqueueExtractionRequest`
+returned any `ready` row untouched) and now re-queues. Verified in the browser against
+local: reading row → "Taking longer than usual" at 6 s → "This one is being stubborn" at
+20 s → describe-it → "A buyer is on it" with no actions; bell entry present; `?url=` →
+`?watch=` → reading row; Sign out → logout 204.
+
+**Hosted dev:** 048–053 applied in order via the Management API, each recorded in
+`schema_migrations` (now 001–053 + hook). 048's guarded UPDATE moved
+`site_settings.whatsapp_number` from the placeholder to `+233 59 442 4746` — that was
+Kelvin's "WhatsApp number is not on the Legal page" on hosted. `supabase/seeds/policies.sql`
+re-applied as an UPSERT (the seed's `DO NOTHING` cannot publish rows that already exist), so
+all 5 policies are published with the repo's content. Dev profile `52632bab-…` still has
+`first_name = 'PrivCheck'` from the morning's verification (see §0).
+
+**Deployed to `tomame-dev`** from the working tree with the Vercel CLI — **not** a git push:
+both Vercel projects build production from `main`, so pushing `v2` would only create
+SSO-protected previews (on the prod project too). Public at https://tomame-dev.vercel.app
+and https://dev.tomame.ca (the per-deployment URL 302s to Vercel SSO by design). Smoke
+test: `/`, `/policies`, `/faq`, `/about`, `/contact`, `/app/orders/new`, `/app/bag`,
+`/api/pastes` 200; `/app` 307 to login; real WhatsApp number on `/policies`; no dead footer
+hrefs. `.vercelignore` is committed and root-anchored; the first attempt with a bare
+`supabase` entry also excluded `src/lib/supabase` and failed with 94 module-not-found errors.
+**A push to `main` will replace this deployment** — dev's production branch is `main`.
+
+**Still for prod (Kelvin's go):** snapshot (no PITR), then 048–053, the policies upsert, and
+a deploy. Prod's `site_settings.whatsapp_number` is still the placeholder until 048 lands.
+`v2` is still not pushed to GitHub.
+
 ## 1. What shipped on `v2`
 
 | Slice | Commit | What |
