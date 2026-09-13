@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { bagKeys } from "@/features/bag/hooks/useAddToBag";
 import type { AddToBagResult } from "@/features/bag/types";
 import { apiFetch } from "@/lib/auth/api-helpers";
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { PasteStatus } from "../services/paste-status";
 
@@ -41,11 +41,7 @@ export function usePastes(initialData: PasteStatus[]) {
   // page…" a minute later, until the customer reloaded.
   const anyReading = query.data.some((p) => p.outcome === "reading");
   const { refetch } = query;
-  useEffect(() => {
-    if (!anyReading) return;
-    const id = setInterval(() => void refetch(), PASTE_POLL_MS);
-    return () => clearInterval(id);
-  }, [anyReading, refetch]);
+  useVisibleInterval(() => void refetch(), PASTE_POLL_MS, anyReading);
 
   return query;
 }

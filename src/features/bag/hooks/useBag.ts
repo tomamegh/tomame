@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { SetBagDeliveryInput, UpdateBagLineInput } from "../schema";
 import type { BagLine, BagView, CheckoutResult } from "../types";
@@ -30,11 +30,7 @@ export function useBag(initialData: BagView) {
   // the line would never have priced itself without a reload.
   const pending = query.data.has_pending_lines;
   const { refetch } = query;
-  useEffect(() => {
-    if (!pending) return;
-    const id = setInterval(() => void refetch(), BAG_POLL_MS);
-    return () => clearInterval(id);
-  }, [pending, refetch]);
+  useVisibleInterval(() => void refetch(), BAG_POLL_MS, pending);
 
   return query;
 }

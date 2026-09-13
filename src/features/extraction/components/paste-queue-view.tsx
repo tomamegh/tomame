@@ -48,6 +48,10 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [describing, setDescribing] = useState<PasteStatus | null>(null);
+  // WHICH row is being re-read, not merely that one is: `createPaste.isPending`
+  // is one mutation shared by the screen, so keying the spinner off it put every
+  // lapsed row into the reading state at once.
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   const { data: pastes } = usePastes(initialPastes);
   const createPaste = useCreatePaste();
@@ -119,6 +123,7 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
   /** A lapsed quote is re-read by pasting it again — same link, fresh job. */
   const onRetry = useCallback(
     (paste: PasteStatus) => {
+      setRetryingId(paste.id);
       createPaste.mutate(
         { product_url: paste.product_url },
         {
@@ -128,6 +133,7 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
             }
           },
           onError: (error) => toast.error({ title: "Could not read that link", description: error.message }),
+          onSettled: () => setRetryingId(null),
         },
       );
     },
@@ -193,7 +199,7 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
               onAddToBag={() => onAddToBag(paste)}
               onRetry={() => onRetry(paste)}
               busy={addToBag.isPending}
-              retrying={createPaste.isPending}
+              retrying={retryingId === paste.id}
             />
           ))}
         </Group>
@@ -210,7 +216,7 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
               onAddToBag={() => onAddToBag(paste)}
               onRetry={() => onRetry(paste)}
               busy={addToBag.isPending}
-              retrying={createPaste.isPending}
+              retrying={retryingId === paste.id}
             />
           ))}
         </Group>
