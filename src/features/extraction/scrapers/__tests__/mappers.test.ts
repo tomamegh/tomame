@@ -143,3 +143,25 @@ describe("microcenterScraper.extract — typed facts", () => {
     expect(p.image).toBe(p.images[0]);
   });
 });
+
+describe("unmapped store categories are left null for the classifier", () => {
+  it("mapApifyMicrocenterProduct: unknown category → null, breadcrumbs exposed", () => {
+    const p = mapApifyMicrocenterProduct({ product_name: "PowerSpec G528 Gaming PC", price: 1099, category: "Gaming Desktops" });
+    expect(p.category).toBeNull();
+    expect(p.metadata.breadcrumbs).toEqual(["Gaming Desktops"]);
+  });
+
+  it("microcenterScraper.extract: unknown breadcrumb chain → null, chain exposed in metadata", () => {
+    const html = `<html><head><script type="application/ld+json">${JSON.stringify([
+      { "@context": "https://schema.org", "@type": "Product", name: "PowerSpec G528 Gaming PC", offers: { "@type": "Offer", price: "1099.99", priceCurrency: "USD" } },
+      { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home" },
+        { "@type": "ListItem", position: 2, name: "Gaming" },
+        { "@type": "ListItem", position: 3, name: "Gaming PCs" },
+      ] },
+    ])}</script></head><body><h1>PowerSpec G528 Gaming PC</h1></body></html>`;
+    const p = microcenterScraper.extract(cheerio.load(html));
+    expect(p.category).toBeNull();
+    expect(p.metadata.breadcrumbs).toEqual(["Gaming", "Gaming PCs"]);
+  });
+});

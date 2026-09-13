@@ -197,9 +197,6 @@ function extractCategory($: CheerioAPI): TomameCategory | null {
     if (mapped) return mapped;
   }
 
-  const firstBreadcrumb = $(breadcrumbSelectors[0]!).text().trim();
-  if (firstBreadcrumb) return TomameCategory.OTHER;
-
   return null;
 }
 
@@ -249,7 +246,6 @@ export function mapApifyAmazonProduct(item: ApifyAmazonProduct, sourceUrl: strin
       for (const [key, mapped] of AMAZON_CATEGORY_MAP) {
         if (bsr.includes(key)) { category = mapped; break; }
       }
-      if (!category) category = TomameCategory.OTHER;
     }
   }
 

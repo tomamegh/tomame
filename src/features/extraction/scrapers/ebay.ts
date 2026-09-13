@@ -167,10 +167,6 @@ function extractCategory($: CheerioAPI): TomameCategory | null {
       const mapped = EBAY_CATEGORY_MAP.get(crumb);
       if (mapped) return mapped;
     }
-    if (els.length > 0) {
-      const firstCrumb = els.first().text().trim();
-      if (firstCrumb) return TomameCategory.OTHER;
-    }
   }
 
   return null;
@@ -223,7 +219,6 @@ export function mapApifyEbayProduct(item: ApifyEbayProduct): ScrapedProduct {
     const mapped = EBAY_CATEGORY_MAP.get(c);
     if (mapped) { category = mapped; break; }
   }
-  if (!category && crumbs.length > 0) category = TomameCategory.OTHER;
 
   const rawImages = item.imageUrlList ?? item.images ?? [];
   const images = normalizeImages(rawImages, item.mainImage ?? null);
@@ -259,6 +254,7 @@ export function mapApifyEbayProduct(item: ApifyEbayProduct): ScrapedProduct {
     variants: {},
     availability: null,
     metadata: {
+      breadcrumbs: crumbs,
       images: rawImages,
       itemId: itemId != null ? String(itemId) : null,
       condition: item.condition ?? specs["Condition"] ?? null,

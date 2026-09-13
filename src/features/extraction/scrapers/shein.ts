@@ -185,7 +185,6 @@ function extractCategoryFromBreadcrumb($: CheerioAPI, jsonLd: JsonLdNode[]): Tom
         const mapped = SHEIN_CATEGORY_MAP.get(n);
         if (mapped) return mapped;
       }
-      if (names.length > 0) return TomameCategory.OTHER;
     }
   }
 
@@ -199,7 +198,6 @@ function extractCategoryFromBreadcrumb($: CheerioAPI, jsonLd: JsonLdNode[]): Tom
     const mapped = SHEIN_CATEGORY_MAP.get(c);
     if (mapped) return mapped;
   }
-  if (crumbs.length > 0) return TomameCategory.OTHER;
 
   return null;
 }
@@ -275,7 +273,6 @@ export function mapApifySheinProduct(item: ApifySheinProduct): ScrapedProduct {
     const mapped = SHEIN_CATEGORY_MAP.get(c);
     if (mapped) { category = mapped; break; }
   }
-  if (!category && crumbs.length > 0) category = TomameCategory.OTHER;
 
   const rawImages = (item.images ?? []).map((u) => toHttps(u)).filter((u): u is string => !!u);
   const images = normalizeImages(rawImages, toHttps(item.main_image));
@@ -322,6 +319,7 @@ export function mapApifySheinProduct(item: ApifySheinProduct): ScrapedProduct {
     variants,
     availability: null,
     metadata: {
+      breadcrumbs: crumbs,
       images: rawImages,
       goodsId: goodsId != null ? String(goodsId) : null,
       sku: item.sku ?? null,
