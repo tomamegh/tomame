@@ -87,10 +87,20 @@ export async function getLatestExtractionRequest(
   client: SupabaseClient,
   userId: string,
 ): Promise<ExtractionRequestRow | null> {
+  // The newest paste that actually HAS an extraction.
+  //
+  // Since 049 a row exists the instant a link is pasted, not once it has been
+  // read. Taking the newest row outright would hand Home a paste with nothing
+  // behind it, `buildReceipt` would return null, and the Live receipt card the
+  // customer was just looking at would VANISH the moment they pasted something
+  // new — reappearing only when the job landed. Showing the previous receipt
+  // until the new one is ready is the honest behaviour; the pending paste has
+  // its own place in the bag.
   const { data, error } = await client
     .from("extraction_requests")
     .select(COLUMNS)
     .eq("user_id", userId)
+    .not("extraction_cache_id", "is", null)
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -297,11 +307,15 @@ export async function reclaimStaleExtractionRequests(staleAfterMs: number, maxAt
   const cutoff = new Date(Date.now() - staleAfterMs).toISOString();
   const db = createAdminClient();
 
+  // `started_at IS NULL` would fail the `<` comparison and leave such a row
+  // running forever, showing "still reading" on a line nothing will ever retry.
+  // A claim always writes both, so this is belt and braces — but the failure it
+  // guards against is silent and permanent.
   const { data, error } = await db
     .from("extraction_requests")
     .select("id, attempts")
     .eq("status", "running")
-    .lt("started_at", cutoff)
+    .or(`started_at.lt.${cutoff},started_at.is.null`)
     .limit(50);
 
   if (error || !data?.length) return 0;

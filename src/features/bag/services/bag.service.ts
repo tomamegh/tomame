@@ -69,7 +69,8 @@ import type { AddToBagResult, BagBox, BagDelivery, BagLine, BagLinePending, BagV
 export async function getBag(viewer: Viewer): Promise<BagView> {
   const cart = await resolveCart(viewer);
   if (!cart) return emptyBag();
-  const [rows, delivery] = await Promise.all([listCartItems(cart.id), resolveDelivery(viewer, cart)]);
+  const [allRows, delivery] = await Promise.all([listCartItems(cart.id), resolveDelivery(viewer, cart)]);
+  const rows = await reconcilePendingLines(allRows);
   const lines = await Promise.all(rows.map((row) => priceLine(viewer, row)));
   const packed = await packIntoBoxes(rows, lines);
   return summarize(cart.id, lines, packed, delivery);
@@ -361,20 +362,54 @@ async function priceSnapshot(
 }
 
 async function priceLine(viewer: Viewer, row: CartItemRow): Promise<BagLine> {
-  // A line added before its price existed (049). Try to graduate it first: the
-  // job may well have landed since the last read.
-  const settled = row.extraction_cache_id ? row : await graduatePendingLine(row);
-  if (!settled.extraction_cache_id) {
-    const { pending, productUrl } = await pendingStateFor(settled);
-    return pendingLine(settled, pending, productUrl);
+  // Graduation already happened in `reconcilePendingLines`; a row still without
+  // an extraction here is genuinely still being read.
+  if (!row.extraction_cache_id) {
+    const { pending, productUrl } = await pendingStateFor(row);
+    return pendingLine(row, pending, productUrl);
   }
 
-  const snapshot = await getExtractionSnapshot(settled.extraction_cache_id);
+  const snapshot = await getExtractionSnapshot(row.extraction_cache_id);
   if (!snapshot) {
-    return toLine(settled, null, { pricing: null, reason: "This quote has expired. Remove the line and paste the link again." });
+    return toLine(row, null, { pricing: null, reason: "This quote has expired. Remove the line and paste the link again." });
   }
-  const priced = await priceSnapshot(viewer, snapshot.result, settled.extraction_cache_id, settled.quantity, settled.gap_price_usd, settled.gap_origin_country);
-  return toLine(settled, snapshot, priced);
+  const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, row.quantity, row.gap_price_usd, row.gap_origin_country);
+  return toLine(row, snapshot, priced);
+}
+
+/**
+ * Point every landed paste at its extraction, before anything is priced.
+ *
+ * Done over the whole list rather than per line because a graduating line can
+ * MERGE into one that is already there, which removes a row: doing that inside
+ * the per-line pricing map would emit the surviving line twice, once for each
+ * row that resolved to it. Returns the rows that still exist, in bag order.
+ */
+async function reconcilePendingLines(rows: CartItemRow[]): Promise<CartItemRow[]> {
+  if (!rows.some((r) => !r.extraction_cache_id)) return rows;
+
+  const surviving: CartItemRow[] = [];
+  const absorbed = new Set<string>();
+
+  for (const row of rows) {
+    if (row.extraction_cache_id) {
+      if (!absorbed.has(row.id)) surviving.push(row);
+      continue;
+    }
+    const settled = await graduatePendingLine(row);
+    // Folded into a twin: this row is gone and the twin is already in the list.
+    if (settled.id !== row.id) {
+      absorbed.add(settled.id);
+      continue;
+    }
+    surviving.push(settled);
+  }
+
+  // A twin that absorbed a pending line has a new quantity; re-read those rather
+  // than returning the stale copy the first pass captured.
+  return Promise.all(
+    surviving.map(async (row) => (absorbed.has(row.id) ? ((await getCartItemById(row.id)) ?? row) : row)),
+  );
 }
 
 /**
@@ -390,6 +425,19 @@ async function graduatePendingLine(row: CartItemRow): Promise<CartItemRow> {
   if (!row.extraction_request_id) return row;
   const request = await getExtractionRequestById(row.extraction_request_id);
   if (request?.status !== "ready" || !request.extraction_cache_id) return row;
+
+  // The bag may ALREADY hold this product: the customer pasted the link and also
+  // added the finished quote, or an anonymous bag carrying the pending line was
+  // merged into a user bag that had it priced. `uq_cart_items_cache` is a unique
+  // index on (cart_id, extraction_cache_id), so writing the id here would throw
+  // straight out of getBag and take the whole bag page down with it. Fold the two
+  // into one line instead — which is what the customer meant by adding it twice.
+  const twin = await findCartItem(row.cart_id, request.extraction_cache_id);
+  if (twin && twin.id !== row.id) {
+    await updateCartItem(twin.id, { quantity: Math.min(100, twin.quantity + row.quantity) });
+    await deleteCartItem(row.id);
+    return (await getCartItemById(twin.id)) ?? twin;
+  }
 
   const updated = await updateCartItem(row.id, { extraction_cache_id: request.extraction_cache_id });
   return updated ?? row;

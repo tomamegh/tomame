@@ -59,6 +59,7 @@ vi.mock("@/db/queries/consolidation-boxes", () => ({
 }));
 
 import * as carts from "@/db/queries/carts";
+import { getExtractionRequestById } from "@/db/queries/extraction-requests";
 import { getExtractionSnapshot } from "@/features/extraction/extraction.service";
 import { applyRateLock } from "@/features/quotes/services/quote-lock.service";
 import type { ExtractionResult } from "@/features/extraction/types";
@@ -340,5 +341,33 @@ describe("delivery", () => {
     vi.mocked(getDeliveryAddressById).mockResolvedValue(address({ delivery_zone_id: "z-pick" }));
     await expect(setBagDelivery(USER, { delivery_address_id: "a1" })).rejects.toMatchObject({ statusCode: 400 });
     expect(carts.updateCart).not.toHaveBeenCalled();
+  });
+});
+
+describe("pending lines graduate without colliding", () => {
+  it("folds into the line that already holds the extraction instead of throwing", async () => {
+    // The reachable case: an anonymous bag carrying a pending paste is merged
+    // into a user bag that already has the same product priced. Writing the
+    // cache id onto the pending row would violate uq_cart_items_cache and take
+    // the whole bag read down with it.
+    const CACHE = "cache-shared";
+    const pendingRow = item({ id: "pending-1", extraction_cache_id: null, extraction_request_id: "req-1", quantity: 2 });
+    const twinRow = item({ id: "twin-1", extraction_cache_id: CACHE, quantity: 1 });
+
+    vi.mocked(carts.findOpenCart).mockResolvedValue(cart());
+    vi.mocked(carts.listCartItems).mockResolvedValue([pendingRow, twinRow]);
+    vi.mocked(getExtractionRequestById).mockResolvedValue({
+      id: "req-1", status: "ready", extraction_cache_id: CACHE,
+    } as never);
+    vi.mocked(carts.findCartItem).mockResolvedValue(twinRow);
+    vi.mocked(carts.getCartItemById).mockResolvedValue({ ...twinRow, quantity: 3 });
+
+    await getBag({ userId: "u1", sessionId: null });
+
+    // Quantities are summed onto the surviving line and the pending row is gone.
+    expect(carts.updateCartItem).toHaveBeenCalledWith("twin-1", { quantity: 3 });
+    expect(carts.deleteCartItem).toHaveBeenCalledWith("pending-1");
+    // The cache id is never written onto the pending row — that is the collision.
+    expect(carts.updateCartItem).not.toHaveBeenCalledWith("pending-1", expect.objectContaining({ extraction_cache_id: CACHE }));
   });
 });

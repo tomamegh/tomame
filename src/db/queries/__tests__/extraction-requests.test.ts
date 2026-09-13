@@ -76,6 +76,9 @@ describe("getLatestExtractionRequest", () => {
       eq: (...args: unknown[]) => ((calls.eq = args), chain),
       order: (...args: unknown[]) => ((calls.order = args), chain),
       limit: (...args: unknown[]) => ((calls.limit = args), chain),
+      // Since 049 the newest row may be a paste that has not been read yet, so
+      // the query skips rows with no extraction behind them.
+      not: (...args: unknown[]) => ((calls.not = args), chain),
       maybeSingle: async () => result,
     };
     const client = { from: (...args: unknown[]) => ((calls.from = args), chain) };
