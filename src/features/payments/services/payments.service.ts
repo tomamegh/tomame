@@ -378,8 +378,8 @@ async function orderCharge(admin: SupabaseClient, user: PlatformUser, orderId: s
   if (order.user_id !== user.id) throw new APIError(404, "Order not found");
   if (order.status !== "pending") throw new APIError(400, "Order is not awaiting payment");
   // A bag's orders are paid once, as a group: charging one line on its own would
-  // split the total and leave the group half-paid. The old order-detail page
-  // still links to the per-order checkout, so this is enforced here, not there.
+  // split the total and leave the group half-paid. The order detail page sends
+  // these to the bag instead, but the rule is money, so it is enforced here too.
   if (order.order_group_id) throw new APIError(400, "This item is part of a bag. Pay for the bag as one.");
 
   await assertNoActivePayment(admin, { orderId }, "order");

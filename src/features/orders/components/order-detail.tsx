@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useState } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
+import NextLink from "next/link";
 import {
   ExternalLinkIcon,
   PackageIcon,
@@ -283,6 +284,21 @@ function PayButton({ orderId }: { orderId: string }) {
  * render these; the redirect now lands here, so the notice has to live here too
  * or a declined card returns to a page that says nothing about it.
  */
+/**
+ * Where a bag's order sends the customer instead of a dead charge: the bag,
+ * whose pending-group card finishes the one payment that covers every line.
+ */
+function PayBagLink() {
+  return (
+    <Button asChild size="sm" className="gap-1.5">
+      <NextLink href="/app/bag">
+        <CreditCardIcon className="size-3.5" />
+        Pay for this bag
+      </NextLink>
+    </Button>
+  );
+}
+
 function PaymentOutcomeNotice() {
   const outcome = useSearchParams().get("payment");
   if (!outcome) return null;
@@ -541,7 +557,12 @@ export function OrderDetail({ orderId, isAdmin }: OrderDetailProps) {
           {!order.payment_id && order.status === "pending" && (
             <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-3 flex-wrap">
               {!order.needs_review && (!!order.reviewed_by || order.review_reasons.length === 0) && (
-                <PayButton orderId={orderId} />
+                /*
+                  An order that belongs to a bag is paid for as a group, so
+                  charging it on its own is refused server-side. Offering a
+                  button that can only 400 is worse than saying where to go.
+                */
+                order.order_group_id ? <PayBagLink /> : <PayButton orderId={orderId} />
               )}
               <CancelSection orderId={orderId} />
             </div>
