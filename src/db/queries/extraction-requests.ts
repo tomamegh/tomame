@@ -122,11 +122,18 @@ export async function enqueueExtractionRequest(input: {
   const db = createAdminClient();
   const existing = await findExtractionRequestByUrl(input.viewer, input.urlHash);
 
-  // A row that is already `ready` or in flight is left exactly as it is: resetting
-  // a `running` job to `pending` would let the sweeper start a second worker on it.
-  if (existing && (existing.status === "running" || (existing.status === "ready" && existing.extraction_cache_id))) {
-    return existing;
-  }
+  // A row in flight is left exactly as it is: resetting a `running` job to
+  // `pending` would let the sweeper start a second worker on it.
+  if (existing?.status === "running") return existing;
+
+  // A row that is `ready` is only final while its answer still stands. `cachedId`
+  // is the product-keyed cache row that is VALID right now; when it is null the
+  // quote this row points at has lapsed or been pruned, and the paste must go
+  // round again. This guard used to return any `ready` row untouched, which made
+  // "Read it again" on a lapsed quote — and re-pasting the same link — a silent
+  // no-op: the same expired row came back, no job was scheduled, and the screen
+  // did not so much as blink.
+  if (existing?.status === "ready" && existing.extraction_cache_id && input.cachedId) return existing;
 
   const ready = input.cachedId != null;
   const { data, error } = await db
