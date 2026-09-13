@@ -1,374 +1,322 @@
-"use client";
-
-import { use } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  ArrowLeftIcon,
-  PackageIcon,
-  UserIcon,
-  ExternalLinkIcon,
-  CopyIcon,
-} from "lucide-react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
-import { TransactionStatusBadge } from "@/features/transactions/components/transaction-status-badge";
-import { useAdminTransaction, useSyncTransaction } from "@/features/transactions/hooks/useTransactions";
-import { toast } from "@/lib/sonner";
-import TransactionChannelBadge from "@/features/transactions/components/transaction-channel-badge";
+import { notFound } from "next/navigation";
+import { ArrowLeft, ArrowRight, Package } from "@phosphor-icons/react/ssr";
 
-interface Props {
+import {
+  ADMIN_TD,
+  ADMIN_TH,
+  ADMIN_TR,
+  AdminBadge,
+  AdminCard,
+  AdminEmpty,
+  AdminPage,
+  AdminTableScroller,
+} from "@/components/layout/admin";
+import { getAdminTransaction } from "@/db/queries/admin-money";
+import { formatGhs, formatUsd } from "@/features/marketing/format";
+import { AdminCopyValue } from "@/features/payments/components/admin-copy-value";
+import {
+  channelLabel,
+  customerName,
+  describeVerification,
+  formatDateTime,
+  formatPesewas,
+  transactionStatusLabel,
+  transactionTone,
+} from "@/features/payments/components/admin-money-format";
+import { AdminTransactionVerify } from "@/features/payments/components/admin-transaction-verify";
+import { cn } from "@/lib/utils";
+
+/**
+ * `/admin/transactions/[id]` — one Paystack charge, told honestly.
+ *
+ * TWO THINGS THIS SCREEN GOT WRONG BEFORE. It showed "Linked Order", singular,
+ * which has been incorrect since 048 made a checkout an `order_groups` row that
+ * one transaction can pay for several orders at once — the other lines simply
+ * vanished. And it dumped the raw Paystack payload as JSON under a heading that
+ * implied verification had happened, even for a pending payment that nothing
+ * has ever verified. Both are fixed here: the group and all its orders are
+ * listed, and the verification panel says plainly when there is nothing to show
+ * because no check has ever run.
+ */
+export const metadata: Metadata = {
+  title: "Transaction · Tomame admin",
+};
+
+/** Never cached: this screen exists to answer "what is true right now". */
+export const dynamic = "force-dynamic";
+
+export default async function AdminTransactionDetailPage({
+  params,
+}: {
   params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const txn = await getAdminTransaction(id);
+  if (!txn) notFound();
+
+  const name = customerName(txn.customer);
+  const channel = channelLabel(txn.channel);
+  const initiated = formatDateTime(txn.created_at);
+  const verificationLines = describeVerification(txn.paystack_verification, txn.amount);
+
+  // The group was billed `total_pesewas`; the payment charged `amount`. They
+  // are the same figure in the same unit, and a divergence means the bag moved
+  // after the charge was raised — worth saying out loud, never worth hiding.
+  const billingMismatch =
+    txn.group != null && txn.group.total_pesewas !== txn.amount ? txn.group.total_pesewas : null;
+
+  return (
+    <AdminPage
+      title={formatPesewas(txn.amount)}
+      blurb={
+        initiated
+          ? `Paystack charge initiated ${initiated}${channel ? ` · ${channel}` : ""}`
+          : "Paystack charge"
+      }
+      action={
+        <AdminBadge tone={transactionTone(txn.status)}>
+          {transactionStatusLabel(txn.status)}
+        </AdminBadge>
+      }
+    >
+      <Link
+        href="/admin/transactions"
+        className="tm-up inline-flex w-fit items-center gap-1.5 text-[13px] font-semibold text-tm-text-2 transition-colors [animation-duration:0.5s] hover:text-tm-ink"
+      >
+        <ArrowLeft size={14} weight="bold" />
+        All transactions
+      </Link>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.15fr_1fr]">
+        {/* ── Verification ───────────────────────────────────────────────── */}
+        <AdminCard
+          title="Verification"
+          blurb="What Paystack said about this reference, and when. Verification is server-side only — nothing on this screen is taken from the browser."
+          index={0}
+        >
+          <div className="flex flex-col gap-5">
+            <dl className="flex flex-col gap-2">
+              <DetailRow label="Reference">
+                <AdminCopyValue value={txn.reference} />
+              </DetailRow>
+              <DetailRow label="Charged">
+                <span className="tm-nums font-semibold">{formatPesewas(txn.amount)}</span>
+                <span className="ml-1.5 text-[12px] font-medium text-tm-text-3">
+                  ({txn.amount.toLocaleString("en-GH")} pesewas, {txn.currency})
+                </span>
+              </DetailRow>
+              {verificationLines.map((line) => (
+                <DetailRow key={line.label} label={line.label}>
+                  <span
+                    className={cn(
+                      "tm-nums font-semibold",
+                      line.tone === "amber" ? "text-tm-amber" : "text-tm-ink",
+                    )}
+                  >
+                    {line.value}
+                  </span>
+                </DetailRow>
+              ))}
+            </dl>
+
+            {verificationLines.length === 0 ? (
+              <AdminEmpty
+                title="Nothing has verified this charge"
+                body="No Paystack verification has ever been stored against this reference, so we do not know what happened to it. Check with Paystack to find out."
+              />
+            ) : null}
+
+            <AdminTransactionVerify paymentId={txn.id} status={txn.status} />
+
+            {txn.paystack_verification ? (
+              <details className="rounded-[14px] border border-tm-hairline">
+                <summary className="cursor-pointer px-4 py-3 text-[13px] font-semibold text-tm-text-2">
+                  Raw Paystack payload
+                </summary>
+                <pre className="max-h-80 overflow-auto border-t border-tm-hairline px-4 py-3 text-[11px] leading-relaxed text-tm-text-2">
+                  {JSON.stringify(txn.paystack_verification, null, 2)}
+                </pre>
+              </details>
+            ) : null}
+          </div>
+        </AdminCard>
+
+        {/* ── Customer ───────────────────────────────────────────────────── */}
+        <AdminCard title="Customer" index={1}>
+          {txn.customer ? (
+            <dl className="flex flex-col gap-2">
+              <DetailRow label="Name">
+                {name ?? <span className="text-tm-text-3">Not set</span>}
+              </DetailRow>
+              <DetailRow label="Email">
+                {txn.customer.email ?? <span className="text-tm-text-3">Not available</span>}
+              </DetailRow>
+              <DetailRow label="Profile">
+                <Link
+                  href={`/admin/users/${txn.customer.id}`}
+                  className="inline-flex items-center gap-1 text-[13px] font-semibold text-tm-coral-strong hover:underline"
+                >
+                  Open profile
+                  <ArrowRight size={13} weight="bold" />
+                </Link>
+              </DetailRow>
+            </dl>
+          ) : (
+            <AdminEmpty
+              title="No profile on this payment"
+              body="The payment row points at a user who no longer has a profile. The charge itself is unaffected."
+            />
+          )}
+        </AdminCard>
+      </div>
+
+      {/* ── What it bought ──────────────────────────────────────────────── */}
+      <AdminCard
+        title={txn.group ? "What this paid for" : "Linked order"}
+        blurb={
+          txn.group
+            ? `One checkout, ${txn.group.item_count} ${txn.group.item_count === 1 ? "line" : "lines"}, paid by this single transaction.`
+            : "A pre-048 payment, raised before a checkout could span several orders."
+        }
+        flush
+        index={2}
+      >
+        {txn.orders.length === 0 ? (
+          <div className="p-5">
+            <AdminEmpty
+              title="Nothing is linked to this charge"
+              body="No order points at this payment. For an unsettled charge that is expected — the orders are linked when it settles."
+            />
+          </div>
+        ) : (
+          <AdminTableScroller>
+            <table className="w-full min-w-[720px] border-collapse">
+              <thead>
+                <tr>
+                  <th className={ADMIN_TH}>Product</th>
+                  <th className={ADMIN_TH}>From</th>
+                  <th className={cn(ADMIN_TH, "text-right")}>Qty</th>
+                  <th className={cn(ADMIN_TH, "text-right")}>Line total</th>
+                  <th className={ADMIN_TH}>Status</th>
+                  <th className={ADMIN_TH}>
+                    <span className="sr-only">Open</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {txn.orders.map((order) => (
+                  <tr key={order.id} className={ADMIN_TR}>
+                    <td className={ADMIN_TD}>
+                      <div className="flex items-center gap-3">
+                        {order.product_image_url ? (
+                          <span className="relative size-9 shrink-0 overflow-hidden rounded-[10px] border border-tm-hairline bg-card">
+                            <Image
+                              src={order.product_image_url}
+                              alt=""
+                              fill
+                              sizes="36px"
+                              className="object-contain"
+                            />
+                          </span>
+                        ) : (
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-tm-paper text-tm-text-3">
+                            <Package size={16} weight="bold" />
+                          </span>
+                        )}
+                        <span className="line-clamp-2 max-w-[280px] font-medium">
+                          {order.product_name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className={cn(ADMIN_TD, "text-tm-text-2")}>{order.origin_country}</td>
+                    <td className={cn(ADMIN_TD, "tm-nums text-right")}>{order.quantity}</td>
+                    <td className={cn(ADMIN_TD, "tm-nums text-right font-semibold")}>
+                      {order.total_ghs != null ? (
+                        formatGhs(order.total_ghs)
+                      ) : (
+                        <span className="font-medium text-tm-text-3">No snapshot</span>
+                      )}
+                    </td>
+                    <td className={cn(ADMIN_TD, "text-tm-text-2 capitalize")}>
+                      {order.status.replace(/_/g, " ")}
+                    </td>
+                    <td className={cn(ADMIN_TD, "text-right")}>
+                      <Link
+                        href={`/admin/orders/${order.id}`}
+                        className="inline-flex items-center gap-1 text-[13px] font-semibold text-tm-coral-strong hover:underline"
+                      >
+                        Open
+                        <ArrowRight size={13} weight="bold" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </AdminTableScroller>
+        )}
+      </AdminCard>
+
+      {/* ── The group's money ───────────────────────────────────────────── */}
+      {txn.group ? (
+        <AdminCard
+          title="How the total was built"
+          blurb="The group's frozen figures, exactly as checkout wrote them. Nothing here is recalculated for display."
+          index={3}
+        >
+          <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-x-8">
+            <DetailRow label="Items (USD)">
+              <span className="tm-nums font-semibold">{formatUsd(txn.group.subtotal_usd)}</span>
+            </DetailRow>
+            <DetailRow label="Tax (USD)">
+              <span className="tm-nums font-semibold">{formatUsd(txn.group.tax_usd)}</span>
+            </DetailRow>
+            <DetailRow label="Tomame fee (USD)">
+              <span className="tm-nums font-semibold">{formatUsd(txn.group.fee_usd)}</span>
+            </DetailRow>
+            <DetailRow label="Freight">
+              <span className="tm-nums font-semibold">{formatGhs(txn.group.freight_ghs)}</span>
+            </DetailRow>
+            <DetailRow label="Consolidation saving">
+              <span className="tm-nums font-semibold text-tm-green">
+                −{formatGhs(txn.group.consolidation_saving_ghs)}
+              </span>
+            </DetailRow>
+            <DetailRow label="Delivery fee">
+              <span className="tm-nums font-semibold">{formatGhs(txn.group.delivery_fee_ghs)}</span>
+            </DetailRow>
+            <DetailRow label="Group total">
+              <span className="tm-nums font-semibold">{formatGhs(txn.group.total_ghs)}</span>
+            </DetailRow>
+            <DetailRow label="Group status">
+              <span className="capitalize">{txn.group.status}</span>
+            </DetailRow>
+          </dl>
+
+          {billingMismatch != null ? (
+            <p className="mt-4 rounded-[14px] bg-tm-amber-bg px-4 py-3 text-[13px] leading-[1.55] font-medium text-[#7a4a06]">
+              This group was billed {formatPesewas(billingMismatch)} but the charge was raised for{" "}
+              {formatPesewas(txn.amount)}. The two should be identical — the difference means the
+              group moved after the transaction was initialised, and the charge is the figure the
+              customer actually paid.
+            </p>
+          ) : null}
+        </AdminCard>
+      ) : null}
+    </AdminPage>
+  );
 }
+
+// ── Row ──────────────────────────────────────────────────────────────────────
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-stone-100 last:border-0">
-      <span className="text-sm text-stone-500 shrink-0 w-36">{label}</span>
-      <div className="text-sm text-stone-800 text-right">{children}</div>
-    </div>
-  );
-}
-
-function CopyButton({ value }: { value: string }) {
-  return (
-    <button
-      onClick={() => {
-        navigator.clipboard.writeText(value);
-        toast.success({ title: "Copied to clipboard" });
-      }}
-      className="ml-1.5 text-stone-400 hover:text-stone-600 transition-colors inline-flex"
-    >
-      <CopyIcon className="size-3.5" />
-    </button>
-  );
-}
-
-// ── Page ─────────────────────────────────────────────────────────────────────
-
-export default function TransactionDetailPage({ params }: Props) {
-  const { id } = use(params);
-  const { data: txn, isLoading, error } = useAdminTransaction(id);
-  const { mutate: syncStatus, isPending: isSyncing } = useSyncTransaction(id);
-
-  const handleSync = () => {
-    syncStatus(undefined, {
-      onSuccess: (result) => {
-        if (result.updated) {
-          toast.success({ title: "Transaction synced", description: result.message });
-        } else {
-          toast.info({ title: "Already up to date", description: result.message });
-        }
-      },
-      onError: (err) => {
-        toast.error({ title: "Sync failed", description: err.message });
-      },
-    });
-  };
-
-  const fmtGhs = (n: number) =>
-    new Intl.NumberFormat("en-GH", {
-      style: "currency",
-      currency: "GHS",
-      minimumFractionDigits: 2,
-    }).format(n);
-
-  const fmtDate = (s: string) =>
-    new Date(s).toLocaleString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-  if (error) {
-    return (
-      <div className="space-y-4">
-        <Link href="/admin/transactions" className="inline-flex items-center gap-1 text-sm text-stone-400 hover:text-stone-600">
-          <ArrowLeftIcon className="size-4" />
-          Back to transactions
-        </Link>
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-          {error.message}
-        </div>
-      </div>
-    );
-  }
-
-  const paidAt = txn?.paystack_data?.paid_at as string | null | undefined;
-  const paystackEmail = (txn?.paystack_data?.customer as { email?: string } | null)?.email;
-  const paystackId = txn?.paystack_data?.id as number | null | undefined;
-
-  return (
-    <div className="space-y-6">
-      {/* Back */}
-      <Link
-        href="/admin/transactions"
-        className="inline-flex items-center gap-1 text-sm text-stone-400 hover:text-stone-600"
-      >
-        <ArrowLeftIcon className="size-4" />
-        Back to transactions
-      </Link>
-
-      {/* ── Header card ──────────────────────────────────────────── */}
-      <Card className="overflow-hidden p-0 gap-0">
-        <div
-          className="h-1.5 bg-linear-to-r from-stone-300 to-stone-400 data-[status=success]:from-emerald-400 data-[status=success]:to-green-500 data-[status=failed]:from-rose-400 data-[status=failed]:to-red-500"
-          data-status={txn?.status}
-        />
-        <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          {isLoading ? (
-            <>
-              <div className="space-y-2">
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-6 w-56" />
-                <Skeleton className="h-3 w-40" />
-              </div>
-              <div className="flex flex-col items-start sm:items-end gap-2">
-                <Skeleton className="h-5 w-16 rounded-full" />
-                <Skeleton className="h-8 w-32" />
-                <Skeleton className="h-6 w-28 rounded-full" />
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-stone-400 mb-1">
-                  Transaction
-                </p>
-                <h1 className="text-xl font-bold text-stone-900 font-mono">
-                  {txn!.reference}
-                </h1>
-                <p className="text-xs text-stone-400 mt-0.5">
-                  ID: {txn!.id}
-                  <CopyButton value={txn!.id} />
-                </p>
-              </div>
-              <div className="flex flex-col items-start sm:items-end gap-2">
-                <div className="flex items-center gap-2">
-                  <TransactionStatusBadge status={txn!.status} />
-                  {txn!.status === "pending" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 gap-1.5 text-xs"
-                      onClick={handleSync}
-                      disabled={isSyncing}
-                    >
-                      {isSyncing ? (
-                        <>Syncing <Spinner className="size-3" /></>
-                      ) : (
-                        "Sync with Paystack"
-                      )}
-                    </Button>
-                  )}
-                </div>
-                <p className="text-3xl font-bold text-stone-900 tabular-nums">
-                  {fmtGhs(txn!.amount_ghs)}
-                </p>
-              </div>
-            </>
-          )}
-        </div>
-      </Card>
-
-      {/* ── Details + Customer grid ───────────────────────────────── */}
-      <div className="grid md:grid-cols-3 gap-6">
-        {/* Payment details */}
-        <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold text-stone-700">Payment Details</h2>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {isLoading ? (
-              <div className="space-y-1">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="flex justify-between gap-4 py-3 border-b border-stone-100 last:border-0">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-4 w-28" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <>
-                <DetailRow label="Reference">
-                  <span className="font-mono text-xs bg-stone-100 px-1.5 py-0.5 rounded">
-                    {txn!.reference}
-                  </span>
-                  <CopyButton value={txn!.reference} />
-                </DetailRow>
-                <DetailRow label="Status">
-                  <TransactionStatusBadge status={txn!.status} />
-                </DetailRow>
-                <DetailRow label="Channel">
-                  <TransactionChannelBadge channel={txn!.channel} />
-                </DetailRow>
-                <DetailRow label="Amount">
-                  <span className="font-semibold">{fmtGhs(txn!.amount_ghs)}</span>
-                </DetailRow>
-                <DetailRow label="Currency">
-                  <span className="uppercase">{txn!.currency}</span>
-                </DetailRow>
-                <DetailRow label="Initiated">
-                  {fmtDate(txn!.created_at)}
-                </DetailRow>
-                {paidAt && (
-                  <DetailRow label="Paid at">{fmtDate(paidAt)}</DetailRow>
-                )}
-                {paystackId && (
-                  <DetailRow label="Paystack ID">
-                    <span className="font-mono text-xs">{paystackId}</span>
-                  </DetailRow>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Customer */}
-        <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold text-stone-700">Customer</h2>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {isLoading ? (
-              <>
-                <div className="flex items-center gap-3 mb-4">
-                  <Skeleton className="size-10 rounded-full shrink-0" />
-                  <div className="space-y-1.5 flex-1">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-3 w-40" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  {Array.from({ length: 2 }).map((_, i) => (
-                    <div key={i} className="flex justify-between gap-4 py-3 border-b border-stone-100 last:border-0">
-                      <Skeleton className="h-4 w-16" />
-                      <Skeleton className="h-4 w-28" />
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : txn!.customer ? (
-              <>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="size-10 rounded-full bg-stone-100 flex items-center justify-center shrink-0">
-                    <UserIcon className="size-5 text-stone-400" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-stone-800">
-                      {txn!.customer.profile.first_name || txn!.customer.profile.last_name
-                        ? `${txn!.customer.profile.first_name ?? ""} ${txn!.customer.profile.last_name ?? ""}`.trim()
-                        : "—"}
-                    </p>
-                    <p className="text-xs text-stone-400 truncate">{txn!.customer.email}</p>
-                  </div>
-                </div>
-                <DetailRow label="User ID">
-                  <span className="font-mono text-xs">{txn!.customer.id.slice(0, 16)}…</span>
-                  <CopyButton value={txn!.customer.id} />
-                </DetailRow>
-                {paystackEmail && paystackEmail !== txn!.customer.email && (
-                  <DetailRow label="Paystack email">
-                    <span className="text-xs">{paystackEmail}</span>
-                  </DetailRow>
-                )}
-                <DetailRow label="View profile">
-                  <Link
-                    href={`/admin/users/${txn!.customer.id}`}
-                    className="inline-flex items-center gap-1 text-blue-600 hover:underline text-xs"
-                  >
-                    Open profile
-                    <ExternalLinkIcon className="size-3" />
-                  </Link>
-                </DetailRow>
-              </>
-            ) : (
-              <p className="text-sm text-stone-400">Customer not found.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Linked order ─────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-sm font-semibold text-stone-700">Linked Order</h2>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {isLoading ? (
-            <div className="flex items-center gap-4">
-              <Skeleton className="size-14 rounded-lg shrink-0" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-3 w-24" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-40" />
-              </div>
-              <Skeleton className="h-8 w-24 rounded-lg shrink-0" />
-            </div>
-          ) : txn!.order ? (
-            <div className="flex items-center gap-4">
-              {txn!.order.product_image_url ? (
-                <div className="relative size-14 shrink-0 rounded-lg overflow-hidden border border-stone-200">
-                  <Image
-                    src={txn!.order.product_image_url}
-                    alt={txn!.order.product_name}
-                    fill
-                    className="object-contain"
-                  />
-                </div>
-              ) : (
-                <div className="size-14 rounded-lg bg-stone-100 flex items-center justify-center shrink-0">
-                  <PackageIcon className="size-6 text-stone-400" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-stone-400 uppercase tracking-wide mb-0.5">
-                  {txn!.order.origin_country} · Qty {txn!.order.quantity}
-                </p>
-                <p className="text-sm font-semibold text-stone-800 line-clamp-1">
-                  {txn!.order.product_name}
-                </p>
-                <p className="text-xs text-stone-400 font-mono mt-0.5">{txn!.order.id}</p>
-              </div>
-              <Link
-                href={`/admin/orders/${txn!.order.id}`}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-600 hover:text-stone-800 border border-stone-200 rounded-lg px-3 py-1.5 shrink-0"
-              >
-                View order
-                <ExternalLinkIcon className="size-3" />
-              </Link>
-            </div>
-          ) : (
-            <p className="text-sm text-stone-400">No linked order.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ── Paystack verification data ────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-sm font-semibold text-stone-700">Paystack Verification Data</h2>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className={`h-3 ${i % 3 === 0 ? "w-1/2" : i % 3 === 1 ? "w-3/4" : "w-2/3"}`} />
-              ))}
-            </div>
-          ) : txn!.paystack_data ? (
-            <pre className="text-xs bg-stone-50 rounded-lg border border-stone-200 p-4 overflow-x-auto text-stone-600 leading-relaxed">
-              {JSON.stringify(txn!.paystack_data, null, 2)}
-            </pre>
-          ) : (
-            <p className="text-sm text-stone-400">No verification data available.</p>
-          )}
-        </CardContent>
-      </Card>
+    <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-tm-hairline pb-2 last:border-0">
+      <dt className="text-[12px] leading-none font-semibold text-tm-text-2">{label}</dt>
+      <dd className="text-right text-[13px] font-medium text-tm-ink">{children}</dd>
     </div>
   );
 }

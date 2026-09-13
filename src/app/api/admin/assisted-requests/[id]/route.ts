@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { transitionAssistedRequestSchema } from "@/features/assisted/schema";
 import { moveAssistedRequest } from "@/features/assisted/services/assisted.service";
 import { getUserSession } from "@/features/auth/services/auth.service";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
@@ -29,7 +30,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // `handled_by` then stays null on every request a buyer picks up — so the
     // queue cannot say who took it.
     const { session, user } = await getUserSession();
-    if (session.app_metadata?.role !== "admin") throw new APIError(403, "Admin access required");
+    if (!canAccessAdmin(session)) throw new APIError(403, "Admin access required");
 
     const { id } = await params;
     const body: unknown = await request.json().catch(() => {

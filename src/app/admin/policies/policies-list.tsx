@@ -1,80 +1,72 @@
-"use client";
-
 import Link from "next/link";
-import { motion, type Variants, useReducedMotion } from "motion/react";
-import { ChevronRightIcon, FileTextIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
+
+import { AdminBadge } from "@/components/layout/admin";
+import {
+  policyLinkBadge,
+  policyLinkState,
+  policyWordCount,
+} from "@/features/policies/format";
 import type { PolicyRow } from "@/features/policies/types";
-import { cn } from "@/lib/utils";
 
-const listVariants: Variants = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.05 } },
-};
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.25, ease: "easeOut" } },
-};
-
-function formatUpdated(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-interface PoliciesListProps {
-  policies: PolicyRow[];
-}
-
-export function PoliciesList({ policies }: PoliciesListProps) {
-  const reduceMotion = useReducedMotion();
-
+/**
+ * The policy list.
+ *
+ * A SERVER component now. It was a client component whose only interactivity
+ * was a Motion stagger over a list of links — a whole hydration boundary spent
+ * on an entrance animation the v2 `tm-up` keyframe does in CSS. Nothing here
+ * has state, so nothing here needs to ship.
+ *
+ * Each row leads with what the policy IS to a customer — live, a dead link, a
+ * draft — rather than with the raw `is_published` boolean, because the two are
+ * not the same fact: an unpublished policy nothing links to is a harmless
+ * draft, and an unpublished `payment` is a broken link under the Pay button.
+ */
+export function PoliciesList({ policies }: { policies: readonly PolicyRow[] }) {
   return (
-    <motion.ul
-      initial={reduceMotion ? false : "hidden"}
-      animate="show"
-      variants={listVariants}
-      className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xs"
-    >
-      {policies.map((policy) => (
-        <motion.li key={policy.slug} variants={itemVariants}>
-          <Link
-            href={`/admin/policies/${policy.slug}`}
-            className="group flex items-center gap-4 px-4 py-4 transition-colors hover:bg-stone-50 focus-visible:bg-stone-50 focus-visible:outline-none sm:px-5"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-500 transition-colors group-hover:bg-white group-hover:text-stone-700">
-              <FileTextIcon className="size-5" />
-            </span>
+    <ul className="divide-y divide-tm-hairline">
+      {policies.map((policy) => {
+        const state = policyLinkState(policy);
+        const badge = policyLinkBadge(state);
+        const words = policyWordCount(policy.content);
 
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <p className="truncate text-sm font-semibold text-stone-800">
-                  {policy.label}
-                </p>
-                <span
-                  className={cn(
-                    "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                    policy.is_published
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-slate-100 text-slate-500",
+        return (
+          <li key={policy.slug}>
+            <Link
+              href={`/admin/policies/${policy.slug}`}
+              className="group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-tm-paper focus-visible:bg-tm-paper focus-visible:outline-none"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate text-[14px] leading-none font-semibold text-tm-ink">
+                    {policy.label}
+                  </p>
+                  <AdminBadge tone={badge.tone}>{badge.label}</AdminBadge>
+                </div>
+                <p className="mt-1.5 truncate text-[12px] leading-[1.4] font-medium text-tm-text-3">
+                  <span className="tm-nums">/policies#{policy.slug}</span>
+                  {" · "}
+                  {words === 0 ? (
+                    // An empty policy that is published is worse than a draft:
+                    // the anchor exists and the section is blank.
+                    <span className="font-semibold text-tm-coral-strong">Nothing written yet</span>
+                  ) : (
+                    <span className="tm-nums">
+                      {words.toLocaleString("en-GB")} {words === 1 ? "word" : "words"}
+                    </span>
                   )}
-                >
-                  {policy.is_published ? "Published" : "Draft"}
-                </span>
+                  {policy.effective_date ? ` · Effective ${policy.effective_date}` : null}
+                </p>
               </div>
-              <p className="mt-0.5 truncate text-xs text-stone-400">
-                /{policy.slug} · Updated {formatUpdated(policy.last_updated)}
-              </p>
-            </div>
 
-            <ChevronRightIcon className="size-4 shrink-0 text-stone-300 transition-colors group-hover:text-stone-500" />
-          </Link>
-        </motion.li>
-      ))}
-    </motion.ul>
+              <ChevronRightIcon
+                className="size-4 shrink-0 text-tm-text-3 transition-colors group-hover:text-tm-ink"
+                aria-hidden
+              />
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

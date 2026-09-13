@@ -1,432 +1,222 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import {
-  BellIcon,
-  MailIcon,
-  MessageCircleIcon,
-  SearchIcon,
-  ArrowLeftIcon,
-  CheckCircle2Icon,
-  ClockIcon,
-  XCircleIcon,
-  BellOffIcon,
-} from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useState } from "react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { BellIcon, MailIcon, MessageCircleIcon } from "lucide-react";
+
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AdminBadge } from "@/components/layout/admin/admin-page";
 import {
-  Item,
-  ItemMedia,
-  ItemContent,
-  ItemTitle,
-  ItemDescription,
-  ItemHeader,
-  ItemGroup,
-  ItemSeparator,
-} from "@/components/ui/item";
+  notificationEventLabel,
+  notificationStatusBadge,
+  recipientLabel,
+  relativeTime,
+} from "@/features/notifications/components/admin-notification-format";
+import { apiFetch } from "@/lib/auth/api-helpers";
 import { cn } from "@/lib/utils";
-import { useAdminNotifications } from "@/features/notifications/hooks/useNotifications";
-import { Notification  } from "@/features/notifications/types"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { Field } from "@/components/ui/field";
+import type { ApiSuccessResponse } from "@/types/api";
 
-function formatEvent(event: string) {
-  return event
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+/**
+ * The admin header's bell — the delivery log at a glance.
+ *
+ * WHAT IT MEANS. Unlike the customer's bell, this one is not about unread
+ * messages: an admin is not the recipient of most of these rows. The badge
+ * counts what is WRONG — failed and pending sends — because those are the rows
+ * that represent a customer sitting with no email. When nothing is wrong the
+ * badge is absent rather than zero, the same rule the sidebar's queue badges
+ * follow.
+ *
+ * WHY IT HAS ITS OWN QUERY. The shared `useAdminNotifications` hook is typed
+ * around `NotificationWithUser`, whose `user.email` comes from a select that
+ * cannot succeed — `profiles` has no email column, so the endpoint behind it
+ * returned an empty list on every environment and this bell was permanently,
+ * silently empty. The route now answers from
+ * `db/queries/admin-notifications`, and this reads that shape directly.
+ *
+ * The panel deliberately does not render `payload`. It is arbitrary JSON
+ * written by jobs, and a popover is not the place to print it; the row links to
+ * the recipient and the footer links to the full log.
+ */
+
+const PANEL_LIMIT = 12;
+
+/**
+ * The endpoint's response, declared here rather than imported from
+ * `db/queries/admin-notifications`.
+ *
+ * That module is `server-only`, and even a type-only import of it from a client
+ * component is a trap waiting for the first person who deletes the `type`
+ * keyword while tidying an import list. This is the HTTP contract of
+ * `/api/admin/notifications`, which is the client's business anyway — the query
+ * module's row type is the database's.
+ */
+interface AdminNotificationFeedRow {
+  id: string;
+  user_id: string;
+  channel: "email" | "whatsapp";
+  event: string;
+  status: "pending" | "sent" | "failed";
+  created_at: string;
+  sent_at: string | null;
+  recipient: { id: string; first_name: string | null; last_name: string | null } | null;
 }
 
-function relativeTime(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+interface AdminNotificationFeed {
+  notifications: AdminNotificationFeedRow[];
+  count: number;
+  counts: { pending: number; sent: number; failed: number; total: number; failedLast24h: number };
 }
 
-// "unread" for admin = pending or failed (needs attention)
-function isUnread(n: Notification) {
-  return n.status !== "sent";
+function useAdminNotificationFeed(enabled: boolean) {
+  return useQuery<ApiSuccessResponse<AdminNotificationFeed>, Error, AdminNotificationFeed>({
+    queryKey: ["notifications", "admin", "bell", PANEL_LIMIT],
+    queryFn: () =>
+      apiFetch<ApiSuccessResponse<AdminNotificationFeed>>(
+        `/api/admin/notifications?limit=${PANEL_LIMIT}`,
+      ),
+    select: (res) => res.data,
+    staleTime: 30_000,
+    // The counts drive the badge, so this one runs on every admin page; the
+    // panel's rows come back in the same response rather than a second request
+    // when it opens.
+    enabled,
+  });
 }
-
-// ── Status indicator ──────────────────────────────────────────────────────────
-
-function StatusDot({ status }: { status: string }) {
-  if (status === "sent")
-    return <CheckCircle2Icon className="size-3 shrink-0 text-emerald-500" />;
-  if (status === "pending")
-    return <ClockIcon className="size-3 shrink-0 text-amber-500" />;
-  return <XCircleIcon className="size-3 shrink-0 text-red-500" />;
-}
-
-// ── Detail view ───────────────────────────────────────────────────────────────
-
-function NotificationDetail({
-  notification,
-  onBack,
-}: {
-  notification: Notification;
-  onBack: () => void;
-}) {
-  const payload = notification.payload;
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-100">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7 shrink-0"
-          onClick={onBack}
-        >
-          <ArrowLeftIcon className="size-3.5" />
-        </Button>
-        <span className="text-sm font-semibold text-stone-800 truncate">
-          {formatEvent(notification.event)}
-        </span>
-      </div>
-
-      <div className="overflow-y-auto flex-1 p-4 space-y-4">
-        {/* Status row */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            <StatusDot status={notification.status} />
-            <span className="text-xs font-medium capitalize text-stone-600">
-              {notification.status}
-            </span>
-          </div>
-          <span className="text-stone-300">·</span>
-          <span className="text-xs text-stone-500 capitalize">
-            {notification.channel}
-          </span>
-          <span className="text-stone-300">·</span>
-          <span className="text-xs text-stone-400">
-            {relativeTime(notification.created_at)}
-          </span>
-        </div>
-
-        {/* Timestamps */}
-        <div className="rounded-lg bg-stone-50 border border-stone-100 divide-y divide-stone-100 text-xs overflow-hidden">
-          <Row label="Created" value={new Date(notification.created_at).toLocaleString()} />
-          {notification.sent_at && (
-            <Row label="Sent at" value={new Date(notification.sent_at).toLocaleString()} />
-          )}
-          <Row
-            label="User ID"
-            value={
-              <span className="font-mono text-stone-600">
-                {notification.user_id.slice(0, 16)}…
-              </span>
-            }
-          />
-          <Row
-            label="Notification ID"
-            value={
-              <span className="font-mono text-stone-600">
-                #{notification.id.slice(0, 8)}
-              </span>
-            }
-          />
-        </div>
-
-        {/* Payload */}
-        {Object.keys(payload).length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
-              Payload
-            </p>
-            <div className="rounded-lg bg-stone-50 border border-stone-100 divide-y divide-stone-100 text-xs overflow-hidden">
-              {Object.entries(payload).map(([key, val]) => (
-                <Row
-                  key={key}
-                  label={key}
-                  value={
-                    <span className="font-mono break-all text-right text-stone-600">
-                      {typeof val === "object"
-                        ? JSON.stringify(val)
-                        : String(val)}
-                    </span>
-                  }
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Row({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div className="flex justify-between gap-3 px-3 py-2">
-      <span className="text-stone-400 shrink-0">{label}</span>
-      <span className="text-stone-700 text-right min-w-0">{value}</span>
-    </div>
-  );
-}
-
-// ── List item ─────────────────────────────────────────────────────────────────
-
-function NotifItem({
-  notification,
-  onClick,
-}: {
-  notification: Notification;
-  onClick: () => void;
-}) {
-  const Icon =
-    notification.channel === "email" ? MailIcon : MessageCircleIcon;
-  const unread = isUnread(notification);
-
-  return (
-    <>
-      <Item
-        size="sm"
-        className={cn(
-          "cursor-pointer hover:bg-stone-50 rounded-none transition-colors",
-          unread && "bg-amber-50/40 hover:bg-amber-50"
-        )}
-        onClick={onClick}
-      >
-        <ItemMedia variant="icon" className="shrink-0">
-          <Icon />
-        </ItemMedia>
-        <ItemContent>
-          <ItemHeader>
-            <ItemTitle className="gap-1.5 text-sm leading-snug">
-              {unread && (
-                <span className="size-1.5 rounded-full bg-amber-500 shrink-0 mt-px" />
-              )}
-              {formatEvent(notification.event)}
-            </ItemTitle>
-            <div className="flex items-center gap-1 shrink-0 text-xs text-stone-400">
-              <StatusDot status={notification.status} />
-              {relativeTime(notification.created_at)}
-            </div>
-          </ItemHeader>
-          <ItemDescription className="text-xs capitalize">
-            {notification.channel}
-            {" · "}
-            <span className="font-mono">#{notification.user_id.slice(0, 8)}</span>
-          </ItemDescription>
-        </ItemContent>
-      </Item>
-      <ItemSeparator />
-    </>
-  );
-}
-
-// ── Skeleton loader ───────────────────────────────────────────────────────────
-
-function NotifSkeleton() {
-  return (
-    <>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 px-4 py-3">
-          <Skeleton className="size-8 rounded-sm shrink-0" />
-          <div className="flex-1 space-y-1.5">
-            <Skeleton className="h-3.5 w-36" />
-            <Skeleton className="h-3 w-24" />
-          </div>
-          <Skeleton className="h-3 w-10 shrink-0" />
-        </div>
-      ))}
-    </>
-  );
-}
-
-// ── Main component ────────────────────────────────────────────────────────────
 
 function AdminNotifications() {
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "unread" | "read">("all");
-  const [selected, setSelected] = useState<Notification | null>(null);
+  const { data, isPending, error } = useAdminNotificationFeed(true);
 
-  // Fetch all; filter client-side
-  const { data, isPending, error } = useAdminNotifications();
-
-  const notifications = data?.notifications ?? [];
-  const unreadCount = notifications.filter(isUnread).length;
-
-  const filtered = useMemo(() => {
-    let list = notifications;
-
-    if (filter === "unread") list = list.filter(isUnread);
-    else if (filter === "read") list = list.filter((n) => !isUnread(n));
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (n) =>
-          n.event.toLowerCase().includes(q) ||
-          n.channel.toLowerCase().includes(q) ||
-          n.status.toLowerCase().includes(q) ||
-          n.user_id.toLowerCase().includes(q)
-      );
-    }
-
-    return list;
-  }, [notifications, filter, search]);
-
-  function handleOpenChange(v: boolean) {
-    setOpen(v);
-    if (!v) {
-      // Reset detail view when closing
-      setTimeout(() => setSelected(null), 200);
-    }
-  }
+  const rows = data?.notifications ?? [];
+  const needsAttention = (data?.counts.failed ?? 0) + (data?.counts.pending ?? 0);
+  // One instant per render pass, so two rows cannot disagree about "now".
+  const now = new Date();
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          className="bg-slate-100 rounded-full relative"
+        <button
+          type="button"
+          aria-label={
+            needsAttention > 0
+              ? `Notifications — ${needsAttention} needing attention`
+              : "Notifications"
+          }
+          className="relative flex size-9 items-center justify-center rounded-full border border-tm-border bg-card text-tm-text-2 transition-colors hover:bg-tm-paper hover:text-tm-ink"
         >
-          <BellIcon className="size-5" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 size-4.5 min-w-4.5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
-              {unreadCount > 99 ? "99+" : unreadCount}
+          <BellIcon className="size-[18px]" aria-hidden />
+          {needsAttention > 0 ? (
+            <span className="tm-nums absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-tm-coral px-1 text-[10px] leading-none font-bold text-white">
+              {needsAttention > 99 ? "99+" : needsAttention}
             </span>
-          )}
-        </Button>
+          ) : null}
+        </button>
       </PopoverTrigger>
 
       <PopoverContent
         align="end"
-        sideOffset={8}
-        className="w-96 p-0 overflow-hidden flex flex-col"
-        style={{ maxHeight: "min(560px, 80vh)" }}
+        sideOffset={10}
+        className="flex w-[360px] flex-col overflow-hidden rounded-[18px] border-tm-border bg-card p-0"
+        style={{ maxHeight: "min(520px, 78vh)" }}
       >
-        {selected ? (
-          /* ── Detail view ── */
-          <NotificationDetail
-            notification={selected}
-            onBack={() => setSelected(null)}
-          />
-        ) : (
-          /* ── List view ── */
-          <div className="flex flex-col h-full" style={{ maxHeight: "inherit" }}>
-            {/* Header */}
-            <div className="px-4 pt-4 pb-3 border-b border-stone-100 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-stone-900 text-sm">
-                  Notifications
-                </h3>
-                {unreadCount > 0 && (
-                  <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
-                    {unreadCount} unread
-                  </span>
-                )}
-              </div>
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-tm-hairline px-4 py-3">
+          <h2 className="font-display text-[15px] leading-none font-bold text-tm-ink">
+            Delivery log
+          </h2>
+          {needsAttention > 0 ? (
+            <AdminBadge tone="coral">{needsAttention} to look at</AdminBadge>
+          ) : (
+            <AdminBadge tone="green">All delivered</AdminBadge>
+          )}
+        </header>
 
-              {/* Search */}
-              <Field orientation={'horizontal'}>
-                <InputGroup>
-                <InputGroupAddon>
-                <SearchIcon />
-                </InputGroupAddon>
-                <InputGroupInput
-                  placeholder="Search notifications..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8 h-8 text-sm"
-                />
-                </InputGroup>
-              {/* Filter */}
-              <Select
-                value={filter}
-                onValueChange={(v) =>
-                  setFilter(v as "all" | "unread" | "read")
-                }
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    All ({notifications.length})
-                  </SelectItem>
-                  <SelectItem value="unread">
-                    Unread ({unreadCount})
-                  </SelectItem>
-                  <SelectItem value="read">
-                    Read ({notifications.length - unreadCount})
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              </Field>
-
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {isPending ? (
+            <ul aria-busy="true" className="flex flex-col">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <li key={index} className="flex items-center gap-3 px-4 py-3">
+                  <Skeleton className="size-8 shrink-0 rounded-full" />
+                  <div className="flex flex-1 flex-col gap-1.5">
+                    <Skeleton className="h-3 w-36" />
+                    <Skeleton className="h-2.5 w-24" />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : error ? (
+            <p className="px-4 py-8 text-center text-[13px] leading-[1.5] font-medium text-tm-coral-strong">
+              {error.message}
+            </p>
+          ) : rows.length === 0 ? (
+            <div className="flex flex-col items-start gap-2 px-4 py-8">
+              <p className="font-display text-[15px] leading-[1.25] font-bold text-tm-ink">
+                Nothing sent yet
+              </p>
+              <p className="text-[13px] leading-[1.5] font-medium text-tm-text-2">
+                A row is written here before any message is attempted, so an empty log means
+                nothing has triggered one.
+              </p>
             </div>
+          ) : (
+            <ul className="flex flex-col divide-y divide-tm-hairline">
+              {rows.map((row) => {
+                const badge = notificationStatusBadge(row.status);
+                const Icon = row.channel === "email" ? MailIcon : MessageCircleIcon;
+                const age = relativeTime(row.created_at, now);
 
-            {/* Scrollable list */}
-            <div className="overflow-y-auto flex-1 min-h-0">
-              {isPending ? (
-                <NotifSkeleton />
-              ) : error ? (
-                <div className="px-4 py-8 text-center text-sm text-red-500">
-                  {error.message}
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 py-14 text-stone-400">
-                  <BellOffIcon className="size-8" />
-                  <p className="text-sm">No notifications found</p>
-                </div>
-              ) : (
-                <ItemGroup>
-                  {filtered.map((n) => (
-                    <NotifItem
-                      key={n.id}
-                      notification={n}
-                      onClick={() => setSelected(n)}
-                    />
-                  ))}
-                </ItemGroup>
-              )}
-            </div>
+                return (
+                  <li key={row.id}>
+                    <Link
+                      href={`/admin/users/${row.user_id}`}
+                      onClick={() => setOpen(false)}
+                      className={cn(
+                        "flex items-start gap-3 px-4 py-3 transition-colors hover:bg-tm-paper",
+                        row.status !== "sent" && "bg-tm-pill-bg/50",
+                      )}
+                    >
+                      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-tm-paper text-tm-text-2">
+                        <Icon className="size-4" aria-hidden />
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[13px] leading-none font-semibold text-tm-ink">
+                            {notificationEventLabel(row.event)}
+                          </span>
+                          {age ? (
+                            <span className="tm-nums shrink-0 text-[11px] leading-none font-medium text-tm-text-3">
+                              {age}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <AdminBadge tone={badge.tone}>{badge.label}</AdminBadge>
+                          <span className="truncate text-[12px] leading-none font-medium text-tm-text-2">
+                            {recipientLabel(row.recipient, row.user_id)}
+                          </span>
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
 
-            {/* Footer */}
-            <div className="px-4 py-2.5 border-t border-stone-100 flex items-center justify-between">
-              <span className="text-xs text-stone-400">
-                {filtered.length} of {notifications.length}
-              </span>
-              {(search || filter !== "all") && (
-                <button
-                  className="text-xs text-stone-400 hover:text-stone-700 transition-colors"
-                  onClick={() => {
-                    setSearch("");
-                    setFilter("all");
-                  }}
-                >
-                  Clear filters
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-tm-hairline px-4 py-2.5">
+          <span className="tm-nums text-[11px] leading-none font-medium text-tm-text-3">
+            {data ? `${rows.length} of ${data.count.toLocaleString("en-GB")}` : ""}
+          </span>
+          <Link
+            href="/admin/notifications"
+            onClick={() => setOpen(false)}
+            className="text-[12px] leading-none font-semibold text-tm-coral-strong underline underline-offset-2"
+          >
+            Open the full log
+          </Link>
+        </footer>
       </PopoverContent>
     </Popover>
   );

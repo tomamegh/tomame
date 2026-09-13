@@ -30,7 +30,10 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
+import { useRouter } from "next/navigation";
+import { toast } from "@/lib/sonner";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { roleGrantSummary } from "./admin-user-format";
 
 interface FormProps {
   onSuccess?: (data: User) => void;
@@ -38,6 +41,7 @@ interface FormProps {
 }
 
 const AddUserForm = ({ ...props }: FormProps) => {
+  const router = useRouter();
   const { mutate, isPending } = useCreateUser();
   const [open, setOpen] = React.useState(false);
 
@@ -59,9 +63,26 @@ const AddUserForm = ({ ...props }: FormProps) => {
     form.handleSubmit((data) =>
       mutate(data, {
         onSuccess(res) {
-          if (props.onSuccess) {
-            props.onSuccess(res.data);
-          }
+          toast.success({
+            title: "Account created",
+            description:
+              data.role === "admin"
+                ? `${data.email} can now reach every admin screen and endpoint.`
+                : `${data.email} can sign in to the storefront.`,
+          });
+          form.reset();
+          setOpen(false);
+          // The users list is a server component; without this it keeps
+          // rendering the page that was built before this account existed.
+          router.refresh();
+          props.onSuccess?.(res.data);
+        },
+        onError(error) {
+          toast.error({
+            title: "Could not create the account",
+            description: error instanceof Error ? error.message : "Please try again.",
+          });
+          props.onError?.(error);
         },
       }),
     )();
@@ -71,17 +92,21 @@ const AddUserForm = ({ ...props }: FormProps) => {
     <Dialog open={open} onOpenChange={setOpen}>
       <form id="admin-create-user-form" aria-disabled={isPending}>
         <DialogTrigger asChild>
-          <Button size="sm" className="gap-1.5">
-            <PlusIcon className="size-4" />
-            Add User
-          </Button>
+          <button
+            type="button"
+            className="tm-cta-gradient inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <PlusIcon className="size-4" aria-hidden />
+            Add a user
+          </button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New User</DialogTitle>
+            <DialogTitle>Create an account</DialogTitle>
             <DialogDescription>
-              Create a new user account. The account is immediately active with
-              email confirmation bypassed.
+              The account is active immediately and its email is treated as
+              confirmed — nobody has to click a link. Send the password to the
+              person yourself; this screen is the only place it is ever shown.
             </DialogDescription>
           </DialogHeader>
           <FieldGroup className="my-5">
@@ -169,6 +194,18 @@ const AddUserForm = ({ ...props }: FormProps) => {
                 )}
               />
             </div>
+            {/*
+              A promotion made at creation time is still a promotion, and it is
+              the one that gets least scrutiny — an admin filling in four fields
+              is not thinking about the blast radius of the fifth. The grant is
+              spelled out where the choice is made, in the same words the role
+              control on a user's page uses.
+            */}
+            {form.watch("role") === "admin" && (
+              <p className="rounded-[12px] bg-tm-amber-bg px-3.5 py-2.5 text-[12px] leading-[1.5] font-medium text-[#7a4a06]">
+                {roleGrantSummary("admin")}
+              </p>
+            )}
             <Controller
               control={form.control}
               name="password"

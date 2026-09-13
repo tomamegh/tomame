@@ -1,30 +1,30 @@
-import { Badge } from "@/components/ui/badge";
-import { PlatformRoles } from "@/features/auth/types";
 import { ShieldIcon, UserIcon } from "lucide-react";
 
-interface UserRoleBadgeProps {
-  role: PlatformRoles
-}
+import { AdminBadge } from "@/components/layout/admin";
+import type { PlatformRoles } from "@/features/auth/types";
 
-export function UserRoleBadge({ role }: UserRoleBadgeProps) {
-  if (role === "admin") {
-    return (
-      <Badge
-        variant="outline"
-        className="bg-rose-500/10 text-rose-600 border-rose-500/30 gap-1"
-      >
-        <ShieldIcon className="size-3" />
-        Admin
-      </Badge>
-    );
-  }
+import { roleBadge } from "./admin-user-format";
+
+/**
+ * A role chip, on the admin kit's tone vocabulary.
+ *
+ * It was a shadcn `Badge` with a hand-rolled rose/stone palette — a third
+ * colour language next to the storefront's and the admin's. `AdminBadge` is the
+ * one spelling of a status chip, and `roleBadge` is the one place that decides
+ * what a role is called and which tone it gets, so this component now only
+ * chooses the glyph.
+ *
+ * Kept as a named export with the same props because `admin-order-detail.tsx`
+ * renders it beside the customer on an order.
+ */
+export function UserRoleBadge({ role }: { role: PlatformRoles }) {
+  const { label, tone } = roleBadge(role);
+  const Icon = role === "admin" ? ShieldIcon : UserIcon;
+
   return (
-    <Badge
-      variant="outline"
-      className="bg-stone-100 text-stone-600 border-stone-200 gap-1"
-    >
-      <UserIcon className="size-3" />
-      User
-    </Badge>
+    <AdminBadge tone={tone}>
+      <Icon className="size-3" aria-hidden />
+      {label}
+    </AdminBadge>
   );
 }

@@ -1,954 +1,838 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+
 import {
-  ExternalLinkIcon,
-  PackageIcon,
-  TruckIcon,
-  ClipboardListIcon,
-  UserIcon,
-  AlertTriangleIcon,
-  CheckCircle2Icon,
-  XCircleIcon,
-  CircleIcon,
-  ImageIcon,
-  CheckIcon,
-  XIcon,
-  CreditCardIcon,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { toast } from "sonner";
-import { OrderStatusBadge } from "./order-status-badge";
-import { UserRoleBadge } from "@/features/users/components/user-role-badge";
-import {
-  useAdminOrderDetail,
-  useReviewOrder,
-  useOrderHistory,
-} from "../hooks/useOrders";
-import { useAdminUserDetail } from "@/features/users/hooks/useUsers";
-import type { Order, OrderStatus, OriginCountry } from "../types";
+  AdminBadge,
+  AdminCard,
+  AdminEmpty,
+  type AdminTone,
+} from "@/components/layout/admin/admin-page";
+import type { AdminOrderCustomer, AdminPaymentRow } from "@/db/queries/admin-orders";
+import type { OrderEventRow } from "@/db/queries/order-events";
+import type { OrderGroupRow } from "@/db/queries/order-groups";
+import { paidRows } from "@/features/journeys/format";
+import { formatGhs, formatPercent, formatUsd } from "@/features/marketing/format";
 import type { AuditLog } from "@/features/audit/types";
+import type { OrderDelivery } from "@/features/deliveries/types";
+import { cn } from "@/lib/utils";
+import { describeJourney, JOURNEY_STOPS } from "../services/journey-stage";
+import type { Order } from "../types";
+import {
+  formatAdminDate,
+  formatAdminDateTime,
+  orderEtaDisplay,
+  orderTotalDisplay,
+} from "./admin-order-display";
+import { adminStatusLabel, adminStatusTone } from "./admin-transitions";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+/**
+ * `/admin/orders/[id]` — everything about one order, on one screen.
+ *
+ * A SERVER COMPONENT. The screen this replaces was a 950-line client island on
+ * the pre-redesign stone palette that fetched the order, the audit log and the
+ * customer through three react-query hooks, rendered its own six-status timeline
+ * from a hardcoded list of labels, and could do exactly one thing: review a
+ * flagged order. It could not move an order through the state machine, could not
+ * show the extraction snapshot the price came from, and had no idea the delivery
+ * ETA had become a window.
+ *
+ * Everything here is read from a row. Nothing is derived, estimated or
+ * recomputed: `journey-stage.ts` supplies the customer's word for a status,
+ * `paidRows` reads the STORED breakdown, and the two logs are printed as they
+ * were written. The only interactive parts are the two client islands — the
+ * review decision and the state-machine controls.
+ */
 
-function fmt(n: number | null | undefined, decimals = 2) {
-  return (n ?? 0).toFixed(decimals);
+export interface AdminOrderDetailProps {
+  order: Order;
+  customer: AdminOrderCustomer | null;
+  payment: AdminPaymentRow | null;
+  delivery: OrderDelivery | null;
+  group: OrderGroupRow | null;
+  siblings: Order[];
+  events: OrderEventRow[];
+  auditLogs: AuditLog[];
 }
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function fmtDateTime(iso: string) {
-  return new Date(iso).toLocaleString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-// ── Status timeline ───────────────────────────────────────────────────────────
-
-const STATUS_SEQUENCE: { status: OrderStatus; label: string; description: string }[] = [
-  { status: "pending",    label: "Order Placed",      description: "Awaiting payment" },
-  { status: "paid",       label: "Payment Confirmed", description: "Payment received" },
-  { status: "processing", label: "Processing",        description: "Sourcing the item" },
-  { status: "in_transit", label: "In Transit",        description: "On its way" },
-  { status: "delivered",  label: "Delivered",         description: "Package delivered" },
-  { status: "completed",  label: "Completed",         description: "Order complete" },
-];
-
-function getTs(logs: AuditLog[], status: string): string | null {
-  if (status === "pending") {
-    return logs.find((l) => l.action === "order_created")?.created_at ?? null;
-  }
+export function AdminOrderDetail({
+  order,
+  customer,
+  payment,
+  delivery,
+  group,
+  siblings,
+  events,
+  auditLogs,
+}: AdminOrderDetailProps) {
   return (
-    logs.find(
-      (l) =>
-        l.action === "order_status_changed" &&
-        (l.metadata as Record<string, unknown>)?.to === status
-    )?.created_at ?? null
-  );
-}
-
-function OrderTimeline({
-  orderId,
-  currentStatus,
-}: {
-  orderId: string;
-  currentStatus: OrderStatus;
-}) {
-  const { data: logs, isPending } = useOrderHistory(orderId);
-
-  if (isPending) {
-    return (
-      <div className="space-y-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="flex gap-3">
-            <Skeleton className="size-5 rounded-full shrink-0" />
-            <div className="space-y-1 flex-1">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-3 w-20" />
-            </div>
-          </div>
-        ))}
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+      <div className="flex flex-col gap-5">
+        <JourneyCard order={order} index={0} />
+        <ProductCard order={order} index={1} />
+        <TimelineCard events={events} auditLogs={auditLogs} index={2} />
       </div>
-    );
-  }
 
-  const isCancelled = currentStatus === "cancelled";
-  const currentIndex = STATUS_SEQUENCE.findIndex((s) => s.status === currentStatus);
-  const cancelLog = logs?.find(
-    (l) =>
-      (l.action === "order_status_changed" || l.action === "order_cancelled_by_user") &&
-      (l.metadata as Record<string, unknown>)?.to === "cancelled"
-  );
-
-  return (
-    <div>
-      {STATUS_SEQUENCE.map((step, index) => {
-        const ts = logs ? getTs(logs, step.status) : null;
-        const isCompleted = ts !== null;
-        const isCurrent = step.status === currentStatus;
-        const isReachable = !isCancelled || index <= currentIndex;
-
-        if (!isReachable) return null;
-
-        const state: "completed" | "current" | "upcoming" =
-          isCompleted ? "completed" : isCurrent ? "current" : "upcoming";
-        const isLast = index === STATUS_SEQUENCE.length - 1 && !isCancelled;
-
-        return (
-          <div key={step.status} className="flex gap-4">
-            <div className="flex flex-col items-center">
-              {state === "completed" ? (
-                <CheckCircle2Icon className="size-5 text-emerald-500 shrink-0" />
-              ) : state === "current" ? (
-                <div className="size-5 rounded-full bg-rose-500 shrink-0 flex items-center justify-center">
-                  <div className="size-2 rounded-full bg-white" />
-                </div>
-              ) : (
-                <CircleIcon className="size-5 text-stone-300 shrink-0" />
-              )}
-              {!isLast && (
-                <div
-                  className={`w-px flex-1 min-h-8 mt-1 ${
-                    state === "completed" ? "bg-emerald-300" : "bg-stone-200"
-                  }`}
-                />
-              )}
-            </div>
-            <div className="pb-6 min-w-0">
-              <p
-                className={`text-sm font-medium leading-5 ${
-                  state === "upcoming" ? "text-stone-400" : "text-stone-800"
-                }`}
-              >
-                {step.label}
-              </p>
-              <p className="text-xs text-stone-400 mt-0.5">{step.description}</p>
-              {ts && (
-                <p className="text-xs text-stone-400 mt-0.5">{fmtDateTime(ts)}</p>
-              )}
-            </div>
-          </div>
-        );
-      })}
-
-      {isCancelled && (
-        <div className="flex gap-4">
-          <div className="flex flex-col items-center">
-            <XCircleIcon className="size-5 text-red-500 shrink-0" />
-          </div>
-          <div className="pb-6">
-            <p className="text-sm font-medium text-red-600">Cancelled</p>
-            <p className="text-xs text-stone-400 mt-0.5">Order was cancelled</p>
-            {cancelLog && (
-              <p className="text-xs text-stone-400 mt-0.5">
-                {fmtDateTime(cancelLog.created_at)}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Pricing breakdown ─────────────────────────────────────────────────────────
-
-function PricingBreakdown({ order }: { order: Order }) {
-  const p = order.pricing;
-  const fmtGhs = (n: number) =>
-    new Intl.NumberFormat("en-GH", {
-      style: "currency",
-      currency: "GHS",
-      minimumFractionDigits: 2,
-    }).format(n);
-
-  if (!p) {
-    return <p className="text-sm text-stone-400">Pricing not available</p>;
-  }
-
-  // Admin-set price (overrides calculated pricing)
-  if (order.admin_total_ghs != null) {
-    return (
-      <div className="space-y-2">
-        {p.pricing_method !== "needs_review" && (
-          <>
-            {[
-              { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
-              { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex justify-between text-sm gap-4 text-stone-400">
-                <span>{label}</span>
-                <span className="tabular-nums">{value}</span>
-              </div>
-            ))}
-          </>
-        )}
-        <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-700 mt-2">
-          <p className="font-medium">Price set by admin</p>
-          {order.admin_pricing_note && (
-            <p className="text-xs mt-1 text-blue-600">{order.admin_pricing_note}</p>
-          )}
-          {order.pricing_set_at && (
-            <p className="text-xs mt-1 text-blue-500">
-              Set on {fmtDateTime(order.pricing_set_at)}
-            </p>
-          )}
-        </div>
-        <div className="flex justify-between font-bold text-base text-stone-900 pt-2 border-t border-stone-200">
-          <span>Total (GHS)</span>
-          <span className="tabular-nums">{fmtGhs(order.admin_total_ghs)}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (p.pricing_method === "needs_review") {
-    return (
-      <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
-        <p className="font-medium">Pricing pending review</p>
-        {p.review_reason && <p className="text-xs mt-1 text-amber-600">{p.review_reason}</p>}
-      </div>
-    );
-  }
-
-  const rows = [
-    { label: "Item price (USD)", value: `$${fmt(p.item_price_usd)}` },
-    { label: `Qty × price (×${p.quantity})`, value: `$${fmt(p.subtotal_usd)}` },
-    { label: `Tax (${(p.tax_percentage * 100).toFixed(0)}%)`, value: `$${fmt(p.tax_usd)}` },
-    { label: `Value fee (${(p.value_fee_percentage * 100).toFixed(0)}%)`, value: `$${fmt(p.value_fee_usd)}` },
-    { label: "Freight", value: `GH₵ ${fmt(p.flat_rate_ghs)}` },
-    { label: "Exchange rate", value: `1 USD = ${p.exchange_rate} GHS` },
-  ];
-
-  return (
-    <div className="space-y-2">
-      {rows.map(({ label, value }) => (
-        <div
-          key={label}
-          className="flex justify-between text-sm gap-4 text-stone-600"
-        >
-          <span>{label}</span>
-          <span className="tabular-nums">{value}</span>
-        </div>
-      ))}
-      <div className="flex justify-between font-bold text-base text-stone-900 pt-2 border-t border-stone-200">
-        <span>Total (GHS)</span>
-        <span className="tabular-nums">{fmtGhs(p.total_ghs)}</span>
+      <div className="flex flex-col gap-5">
+        <PricingCard order={order} index={0} />
+        <CustomerCard customer={customer} index={1} />
+        <PaymentCard payment={payment} group={group} index={2} />
+        <DeliveryCard order={order} delivery={delivery} group={group} index={3} />
+        {group ? <BagCard group={group} siblings={siblings} index={4} /> : null}
       </div>
     </div>
   );
 }
 
-// ── Review panel ──────────────────────────────────────────────────────────────
+// ── Journey ─────────────────────────────────────────────────────────────────
 
-function ReviewPanel({ order }: { order: Order }) {
-  const [mode, setMode] = useState<null | "approve" | "reject" | "set_price">(null);
-
-  // Approve fields
-  const [productName, setProductName] = useState(order.product_name);
-  const [estimatedPriceUsd, setEstimatedPriceUsd] = useState(
-    String(order.estimated_price_usd)
-  );
-  const [originCountry, setOriginCountry] = useState<OriginCountry>(order.origin_country);
-
-  // Reject field
-  const [rejectReason, setRejectReason] = useState("");
-
-  // Set price fields
-  const [adminTotalGhs, setAdminTotalGhs] = useState("");
-  const [adminPricingNote, setAdminPricingNote] = useState("");
-
-  const reviewMutation = useReviewOrder();
-
-  if (order.reviewed_by) {
-    return (
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-2 text-sm text-emerald-700">
-        <CheckCircle2Icon className="size-4 shrink-0" />
-        Reviewed on {order.reviewed_at ? fmtDate(order.reviewed_at) : "—"}
-      </div>
-    );
-  }
-
-  function handleApprove() {
-    const price = parseFloat(estimatedPriceUsd);
-    if (isNaN(price) || price <= 0) {
-      toast.error("Enter a valid price");
-      return;
-    }
-    reviewMutation.mutate(
-      {
-        id: order.id,
-        action: "approve",
-        updates: {
-          productName: productName !== order.product_name ? productName : undefined,
-          estimatedPriceUsd: price !== order.estimated_price_usd ? price : undefined,
-          originCountry:
-            originCountry !== order.origin_country ? originCountry : undefined,
-        },
-      },
-      {
-        onSuccess: () => {
-          toast.success("Order approved");
-          setMode(null);
-        },
-        onError: (err) => toast.error(err.message),
-      }
-    );
-  }
-
-  function handleReject() {
-    reviewMutation.mutate(
-      {
-        id: order.id,
-        action: "reject",
-        reason: rejectReason || undefined,
-      },
-      {
-        onSuccess: () => {
-          toast.success("Order rejected and cancelled");
-          setMode(null);
-        },
-        onError: (err) => toast.error(err.message),
-      }
-    );
-  }
+/**
+ * The five-stop track, drawn from `describeJourney` — the SAME derivation the
+ * customer's journey screen uses.
+ *
+ * Reused rather than reimplemented on purpose: an admin ringing a customer must
+ * be looking at the stop the customer is looking at. The track is a stage
+ * position, not progress through time (see `journey-stage.ts`), so nothing here
+ * interpolates a percentage from a date.
+ */
+function JourneyCard({ order, index }: { order: Order; index: number }) {
+  const journey = describeJourney({
+    status: order.status,
+    estimatedDeliveryDate: order.estimated_delivery_date,
+  });
+  const eta = orderEtaDisplay(order);
+  const litIndex = JOURNEY_STOPS.findIndex((stop) => stop.key === journey.stopKey);
 
   return (
-    <Card className="border-amber-200 bg-amber-50/50">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2 text-amber-700">
-          <AlertTriangleIcon className="size-4" />
-          Needs Review
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Review reasons */}
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">
-            Flagged reasons
+    <AdminCard
+      index={index}
+      title="Where it is"
+      blurb="Exactly what the customer sees on their own journey screen."
+      action={<AdminBadge tone={adminStatusTone(order.status)}>{journey.label}</AdminBadge>}
+    >
+      <div className="flex flex-col gap-5">
+        {journey.isCancelled ? (
+          <p className="text-[13px] leading-[1.5] font-medium text-tm-text-2">
+            This order is off the track entirely. Nothing further will happen to it.
           </p>
-          <ul className="space-y-1">
-            {order.review_reasons.map((r, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-amber-800">
-                <AlertTriangleIcon className="size-3.5 mt-0.5 shrink-0 text-amber-500" />
-                {r}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Action buttons */}
-        {mode === null && (
-          <div className="flex gap-2 pt-1">
-            <Button
-              size="sm"
-              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => setMode("approve")}
-            >
-              <CheckIcon className="size-3.5" />
-              Approve
-            </Button>
-            <Button
-              size="sm"
-              className="gap-1.5 bg-blue-600 hover:bg-blue-700"
-              onClick={() => setMode("set_price")}
-            >
-              <CreditCardIcon className="size-3.5" />
-              Set Price
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              className="gap-1.5"
-              onClick={() => setMode("reject")}
-            >
-              <XIcon className="size-3.5" />
-              Decline
-            </Button>
-          </div>
-        )}
-
-        {/* Approve form */}
-        {mode === "approve" && (
-          <div className="space-y-3 pt-1">
-            <p className="text-xs font-medium text-stone-600">
-              Optionally correct details before approving:
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1 sm:col-span-2">
-                <Label className="text-xs">Product Name</Label>
-                <Input
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Estimated Price (USD)</Label>
-                <Input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={estimatedPriceUsd}
-                  onChange={(e) => setEstimatedPriceUsd(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Origin Country</Label>
-                <Select
-                  value={originCountry}
-                  onValueChange={(v) => setOriginCountry(v as OriginCountry)}
-                >
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USA">🇺🇸 USA</SelectItem>
-                    <SelectItem value="UK">🇬🇧 UK</SelectItem>
-                    <SelectItem value="CHINA">🇨🇳 China</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 gap-1.5"
-                onClick={handleApprove}
-                disabled={reviewMutation.isPending}
-              >
-                <CheckIcon className="size-3.5" />
-                {reviewMutation.isPending ? "Approving..." : "Confirm Approval"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setMode(null)}
-                disabled={reviewMutation.isPending}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Reject form */}
-        {mode === "reject" && (
-          <div className="space-y-3 pt-1">
-            <div className="space-y-1">
-              <Label className="text-xs">Reason (optional)</Label>
-              <Textarea
-                placeholder="Why is this order being declined?"
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                className="text-sm resize-none"
-                rows={3}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="destructive"
-                className="gap-1.5"
-                onClick={handleReject}
-                disabled={reviewMutation.isPending}
-              >
-                <XIcon className="size-3.5" />
-                {reviewMutation.isPending ? "Declining..." : "Confirm Decline"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setMode(null)}
-                disabled={reviewMutation.isPending}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Set Price form */}
-        {mode === "set_price" && (
-          <div className="space-y-3 pt-1">
-            <p className="text-xs font-medium text-stone-600">
-              Set the total GHS price for this order:
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Total Price (GHS)</Label>
-                <Input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={adminTotalGhs}
-                  onChange={(e) => setAdminTotalGhs(e.target.value)}
-                  placeholder="e.g. 1500.00"
-                  className="h-8 text-sm"
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Note (optional)</Label>
-                <Input
-                  value={adminPricingNote}
-                  onChange={(e) => setAdminPricingNote(e.target.value)}
-                  placeholder="Pricing rationale..."
-                  className="h-8 text-sm"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                className="gap-1.5 bg-blue-600 hover:bg-blue-700"
-                onClick={() => {
-                  const price = parseFloat(adminTotalGhs);
-                  if (isNaN(price) || price <= 0) {
-                    toast.error("Enter a valid GHS price");
-                    return;
-                  }
-                  reviewMutation.mutate(
-                    {
-                      id: order.id,
-                      action: "set_price",
-                      admin_total_ghs: price,
-                      admin_pricing_note: adminPricingNote || undefined,
-                    },
-                    {
-                      onSuccess: () => {
-                        toast.success("Price set successfully");
-                        setMode(null);
-                      },
-                      onError: (err) => toast.error(err.message),
-                    },
-                  );
-                }}
-                disabled={reviewMutation.isPending}
-              >
-                <CreditCardIcon className="size-3.5" />
-                {reviewMutation.isPending ? "Setting price..." : "Confirm Price"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setMode(null)}
-                disabled={reviewMutation.isPending}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── User card ─────────────────────────────────────────────────────────────────
-
-function UserCard({ userId }: { userId: string }) {
-  const { data, isLoading } = useAdminUserDetail(userId);
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <UserIcon className="size-4 text-stone-500" />
-          Customer
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-24" />
-          </div>
-        ) : !data ? (
-          <p className="text-stone-400 text-xs">Could not load user info</p>
         ) : (
-          <>
-            <div className="space-y-0.5">
-              <p className="text-xs text-stone-400">Email</p>
-              <Link
-                href={`/admin/users/${userId}`}
-                className="font-medium text-stone-800 hover:text-rose-600 hover:underline truncate block"
-              >
-                {data.user.email}
-              </Link>
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs text-stone-400">Role</p>
-              <UserRoleBadge role={data.user.profile.role} />
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs text-stone-400">Member since</p>
-              <p className="text-stone-700">{fmtDate(data.user.created_at)}</p>
-            </div>
-            <div className="pt-1">
-              <Button variant="outline" size="sm" className="w-full text-xs" asChild>
-                <Link href={`/admin/users/${userId}`}>View profile</Link>
-              </Button>
-            </div>
-          </>
+          <ol className="flex items-start justify-between gap-1">
+            {JOURNEY_STOPS.map((stop, position) => {
+              const reached = litIndex >= 0 && position <= litIndex;
+              const current = position === litIndex;
+              return (
+                <li key={stop.key} className="flex flex-1 flex-col items-center gap-2 text-center">
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-2.5 rounded-full",
+                      current
+                        ? "bg-tm-coral ring-4 ring-tm-pill-bg"
+                        : reached
+                          ? "bg-tm-green"
+                          : "bg-tm-border",
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "text-[11.5px] leading-[1.3] font-semibold",
+                      current ? "text-tm-ink" : reached ? "text-tm-text-2" : "text-tm-text-3",
+                    )}
+                  >
+                    {stop.label}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
         )}
-      </CardContent>
-    </Card>
+
+        <dl className="grid grid-cols-2 gap-4 border-t border-tm-hairline pt-4">
+          <Fact
+            label="Delivery window"
+            value={eta}
+            // `hint` is the journey's own copy for "no date yet" — "Date set when
+            // it ships", not an invented date.
+            fallback={journey.hint}
+            tone={eta ? "neutral" : "muted"}
+          />
+          <Fact
+            label="Delivered"
+            value={formatAdminDateTime(order.delivered_at)}
+            fallback="Not yet"
+            tone={order.delivered_at ? "green" : "muted"}
+          />
+        </dl>
+      </div>
+    </AdminCard>
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Product and the snapshot it was priced from ─────────────────────────────
 
-interface AdminOrderDetailProps {
-  orderId: string;
-}
-
-export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
-  const { data: order, isPending, error } = useAdminOrderDetail(orderId);
-
-  if (error) {
-    return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-        {error.message}
-      </div>
-    );
-  }
-
-  const hasImage = !!order?.product_image_url;
-  const hasTracking =
-    order?.tracking_number || order?.carrier || order?.estimated_delivery_date || order?.tracking_url;
+/**
+ * The product, and the extraction snapshot the order was priced from.
+ *
+ * `orders.extraction_metadata` is the server-side snapshot
+ * (`order-intake.service.ts` copies it off `extraction_cache` at order
+ * creation), and it is the evidence behind every figure on the pricing card. An
+ * admin arguing with a customer about a price needs to see what the machine
+ * actually read off the page — including what it could NOT read, which is what
+ * `messages` holds and what usually explains a `needs_review` flag.
+ */
+function ProductCard({ order, index }: { order: Order; index: number }) {
+  const snapshot = order.extraction_metadata;
+  const product = snapshot?.product;
 
   return (
-    <div className="space-y-5">
-      {/* ── Product card ──────────────────────────────────────── */}
-      <Card>
-        <CardContent className="pt-6">
-          {isPending ? (
-            <div className="flex gap-4 items-start">
-              <Skeleton className="shrink-0 size-20 sm:size-28 rounded-xl" />
-              <div className="flex-1 space-y-3">
-                <div className="space-y-1.5">
-                  <Skeleton className="h-5 w-2/3" />
-                  <Skeleton className="h-3 w-32" />
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-4">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="space-y-1">
-                      <Skeleton className="h-3 w-12" />
-                      <Skeleton className="h-4 w-16" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="flex gap-4 items-start">
-                <div className="shrink-0 size-20 sm:size-28 rounded-xl border border-stone-200/60 bg-stone-50 flex items-center justify-center overflow-hidden">
-                  {hasImage ? (
-                    <Image
-                      src={order!.product_image_url!}
-                      alt={order!.product_name}
-                      width={112}
-                      height={112}
-                      className="w-full h-full object-contain p-1"
-                      unoptimized
-                    />
-                  ) : (
-                    <ImageIcon className="size-8 text-stone-300" />
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2 flex-wrap">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-stone-900 leading-snug text-lg">
-                        {order!.product_name}
-                      </p>
-                      <a
-                        href={order!.product_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-rose-500 hover:underline mt-0.5"
-                      >
-                        <ExternalLinkIcon className="size-3" />
-                        View product
-                      </a>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {order!.needs_review && !order!.reviewed_by && (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-700 border border-amber-300 px-2 py-0.5 rounded-full">
-                          <AlertTriangleIcon className="size-3" />
-                          Needs Review
-                        </span>
-                      )}
-                      <OrderStatusBadge status={order!.status} />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-4 text-sm">
-                    {[
-                      ["Origin", order!.origin_country],
-                      ["Qty", String(order!.quantity)],
-                      ["Est. price", `$${fmt(order!.estimated_price_usd)}`],
-                      ["Placed", fmtDate(order!.created_at)],
-                    ].map(([label, value]) => (
-                      <div key={label}>
-                        <p className="text-xs text-stone-400">{label}</p>
-                        <p className="font-medium text-stone-800">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {order!.special_instructions && (
-                    <div className="mt-3 rounded-lg bg-stone-50 border border-stone-100 px-3 py-2 text-xs text-stone-600">
-                      <span className="font-medium text-stone-700">Notes: </span>
-                      {order!.special_instructions}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-2 text-xs text-stone-400">
-                <span>Order ID</span>
-                <span className="font-mono bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded">
-                  {order!.id}
-                </span>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ── Review panel (only when flagged) ───────────────────── */}
-      {!isPending && order?.needs_review && <ReviewPanel order={order} />}
-
-      {/* ── Main grid ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Left: timeline + pricing */}
-        <div className="lg:col-span-2 space-y-5">
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base flex items-center gap-2">
-                <PackageIcon className="size-4 text-stone-500" />
-                Order Timeline
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isPending ? (
-                <div className="space-y-4">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="flex gap-3">
-                      <Skeleton className="size-5 rounded-full shrink-0" />
-                      <div className="space-y-1.5 flex-1">
-                        <Skeleton className="h-4 w-28" />
-                        <Skeleton className="h-3 w-20" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <OrderTimeline orderId={orderId} currentStatus={order!.status} />
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base flex items-center gap-2">
-                <ClipboardListIcon className="size-4 text-stone-500" />
-                Pricing Breakdown
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isPending ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex justify-between">
-                      <Skeleton className="h-4 w-36" />
-                      <Skeleton className="h-4 w-16" />
-                    </div>
-                  ))}
-                  <div className="flex justify-between pt-2 border-t border-stone-100">
-                    <Skeleton className="h-5 w-24" />
-                    <Skeleton className="h-5 w-20" />
-                  </div>
-                </div>
-              ) : (
-                <PricingBreakdown order={order!} />
-              )}
-            </CardContent>
-          </Card>
+    <AdminCard
+      index={index}
+      title="What was bought"
+      blurb="The product, and the snapshot the price was struck from."
+    >
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-1.5">
+          <h3 className="text-[15px] leading-[1.35] font-semibold text-tm-ink">
+            {order.product_name}
+          </h3>
+          <a
+            href={order.product_url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="line-clamp-1 max-w-full text-[12.5px] font-medium break-all text-tm-coral-strong hover:underline"
+          >
+            {order.product_url}
+          </a>
         </div>
 
-        {/* Right: customer + order metadata */}
-        <div className="space-y-5">
-          {isPending ? (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <UserIcon className="size-4 text-stone-500" />
-                  Customer
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-32" />
-              </CardContent>
-            </Card>
-          ) : (
-            <UserCard userId={order!.user_id} />
-          )}
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <Fact label="Quantity" value={String(order.quantity)} />
+          <Fact label="Buying from" value={order.origin_country} />
+          <Fact
+            label="Listed price"
+            value={
+              order.estimated_price_usd != null ? formatUsd(order.estimated_price_usd) : null
+            }
+            fallback="Not recorded"
+          />
+          <Fact label="Category" value={product?.category ?? null} fallback="Not read" />
+          <Fact label="Brand" value={product?.brand ?? null} fallback="Not read" />
+          <Fact
+            label="Weight"
+            value={product?.weight_lbs != null ? `${product.weight_lbs} lb` : null}
+            fallback="Not listed"
+          />
+          <Fact label="Seller" value={product?.seller ?? null} fallback="Not read" />
+          <Fact label="Condition" value={product?.condition ?? null} fallback="Not read" />
+          <Fact label="Availability" value={product?.availability ?? null} fallback="Not read" />
+        </dl>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-stone-500 font-medium">
-                Order Metadata
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {isPending ? (
-                <>
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="flex justify-between gap-3">
-                      <Skeleton className="h-4 w-16" />
-                      <Skeleton className="h-4 w-24" />
-                    </div>
+        {order.special_instructions ? (
+          <div className="rounded-[14px] bg-tm-paper px-4 py-3">
+            <p className="mb-1 text-[11.5px] leading-none font-semibold text-tm-text-2">
+              Customer's note
+            </p>
+            <p className="text-[13px] leading-[1.5] font-medium text-tm-ink">
+              {order.special_instructions}
+            </p>
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-2 border-t border-tm-hairline pt-4">
+          <p className="text-[11.5px] leading-none font-semibold text-tm-text-2">
+            Extraction snapshot
+          </p>
+          {snapshot ? (
+            <>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <AdminBadge tone={snapshot.extraction_success ? "green" : "amber"}>
+                  {snapshot.extraction_success ? "Read cleanly" : "Partly read"}
+                </AdminBadge>
+                {snapshot.platform ? (
+                  <AdminBadge tone="muted">{snapshot.platform}</AdminBadge>
+                ) : null}
+                {snapshot.source ? (
+                  <AdminBadge tone="muted">via {snapshot.source}</AdminBadge>
+                ) : null}
+                {snapshot.fetched_at ? (
+                  <span className="tm-nums text-[11.5px] font-medium text-tm-text-3">
+                    read {formatAdminDateTime(snapshot.fetched_at)}
+                  </span>
+                ) : null}
+              </div>
+              {snapshot.messages?.length ? (
+                <ul className="flex flex-col gap-1">
+                  {snapshot.messages.map((message) => (
+                    <li
+                      key={message}
+                      className="text-[12.5px] leading-[1.5] font-medium text-tm-text-2"
+                    >
+                      {message}
+                    </li>
                   ))}
-                </>
-              ) : (
-                <>
-                  {[
-                    ["Status", <OrderStatusBadge key="s" status={order!.status} />],
-                    ["Created", fmtDateTime(order!.created_at)],
-                    ["Updated", fmtDateTime(order!.updated_at)],
-                    ...(order!.reviewed_at
-                      ? [["Reviewed", fmtDateTime(order!.reviewed_at)] as [string, React.ReactNode]]
-                      : []),
-                  ].map(([label, value]) => (
-                    <div key={String(label)} className="flex justify-between gap-3">
-                      <span className="text-stone-400 shrink-0">{label}</span>
-                      <span className="text-stone-700 text-right">{value}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-            </CardContent>
-          </Card>
+                </ul>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-[12.5px] leading-[1.5] font-medium text-tm-text-3">
+              No snapshot was stored with this order. It predates the snapshot
+              column, or the price came from the customer rather than the listing.
+            </p>
+          )}
         </div>
       </div>
+    </AdminCard>
+  );
+}
 
-      {/* ── Tracking card ──────────────────────────────────────── */}
-      {!isPending && hasTracking && (
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base flex items-center gap-2">
-              <TruckIcon className="size-4 text-stone-500" />
-              Tracking Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-              {order!.carrier && (
-                <div>
-                  <p className="text-xs text-stone-400 mb-0.5">Carrier</p>
-                  <p className="font-medium text-stone-800">{order!.carrier}</p>
-                </div>
-              )}
-              {order!.tracking_number && (
-                <div>
-                  <p className="text-xs text-stone-400 mb-0.5">Tracking #</p>
-                  <p className="font-medium text-stone-800 font-mono text-xs">
-                    {order!.tracking_number}
-                  </p>
-                </div>
-              )}
-              {order!.estimated_delivery_date && (
-                <div>
-                  <p className="text-xs text-stone-400 mb-0.5">Est. Delivery</p>
-                  <p className="font-medium text-stone-800">
-                    {fmtDate(order!.estimated_delivery_date)}
-                  </p>
-                </div>
-              )}
-              {order!.delivered_at && (
-                <div>
-                  <p className="text-xs text-stone-400 mb-0.5">Delivered At</p>
-                  <p className="font-medium text-stone-800">
-                    {fmtDateTime(order!.delivered_at)}
-                  </p>
-                </div>
-              )}
-              {order!.tracking_url && (
-                <div>
-                  <p className="text-xs text-stone-400 mb-0.5">Track Shipment</p>
-                  <a
-                    href={order!.tracking_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm font-medium text-rose-500 hover:text-rose-600 hover:underline"
-                  >
-                    <ExternalLinkIcon className="size-3.5" />
-                    Track package
-                  </a>
-                </div>
-              )}
-            </div>
-            {order!.delivery_notes && (
-              <div className="mt-4 pt-4 border-t border-stone-100">
-                <p className="text-xs text-stone-400 mb-1">Delivery Notes</p>
-                <p className="text-sm text-stone-700">{order!.delivery_notes}</p>
+// ── Pricing ─────────────────────────────────────────────────────────────────
+
+/**
+ * The stored breakdown, line by line.
+ *
+ * `paidRows` is the customer's receipt, reused verbatim so the two screens can
+ * never print different numbers for the same order. Under it are the admin-only
+ * facts — which rule priced it, and what the engine wrote down while doing so.
+ *
+ * NOTHING IS CALCULATED HERE, including the total: `orderTotalDisplay` picks
+ * between the hand-set override and the stored figure and formats the one it
+ * picked.
+ */
+function PricingCard({ order, index }: { order: Order; index: number }) {
+  const total = orderTotalDisplay(order);
+  const pricing = order.pricing;
+
+  return (
+    <AdminCard index={index} title="What it cost">
+      {pricing ? (
+        <div className="flex flex-col gap-4">
+          <dl className="flex flex-col gap-2">
+            {paidRows(pricing).map((row) => (
+              <div key={row.key} className="flex items-baseline justify-between gap-3">
+                <dt
+                  className={cn(
+                    "text-[12.5px] font-medium",
+                    row.tone === "muted" ? "text-tm-text-3" : "text-tm-text-2",
+                  )}
+                >
+                  {row.label}
+                </dt>
+                <dd
+                  className={cn(
+                    "tm-nums text-[12.5px] font-semibold",
+                    row.tone === "muted" ? "text-tm-text-3" : "text-tm-ink",
+                  )}
+                >
+                  {row.value}
+                </dd>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            ))}
+          </dl>
+
+          <div className="flex items-baseline justify-between gap-3 border-t border-tm-hairline pt-3">
+            <span className="text-[13px] font-bold text-tm-ink">Total</span>
+            <span
+              className={cn(
+                "tm-nums font-display text-[20px] leading-none font-bold",
+                total.isUnpriced ? "text-tm-amber" : "text-tm-ink",
+              )}
+            >
+              {total.text}
+            </span>
+          </div>
+
+          {total.isOverride ? (
+            <div className="rounded-[14px] bg-tm-amber-bg px-4 py-3">
+              <p className="text-[12.5px] leading-[1.5] font-semibold text-[#7a4a06]">
+                Priced by hand — this overrides the breakdown above.
+              </p>
+              {order.admin_pricing_note ? (
+                <p className="mt-1 text-[12.5px] leading-[1.5] font-medium text-[#7a4a06]">
+                  {order.admin_pricing_note}
+                </p>
+              ) : null}
+              {order.pricing_set_at ? (
+                <p className="tm-nums mt-1 text-[11.5px] font-medium text-[#7a4a06]">
+                  Set {formatAdminDateTime(order.pricing_set_at)}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <dl className="grid grid-cols-2 gap-4 border-t border-tm-hairline pt-4">
+            <Fact label="Rule" value={pricing.pricing_method} />
+            <Fact label="Group" value={pricing.pricing_group} fallback="—" />
+            {pricing.weight_lbs != null ? (
+              <Fact
+                label="Charged weight"
+                value={`${pricing.weight_lbs} lb`}
+                hint={pricing.weight_source ?? undefined}
+              />
+            ) : null}
+            {pricing.rate_locked_until ? (
+              <Fact
+                label="Rate locked until"
+                value={formatAdminDateTime(pricing.rate_locked_until)}
+              />
+            ) : null}
+          </dl>
+
+          {pricing.fee_calculation_note ? (
+            <p className="rounded-[14px] bg-tm-paper px-4 py-3 text-[12.5px] leading-[1.5] font-medium text-tm-text-2">
+              {pricing.fee_calculation_note}
+            </p>
+          ) : null}
+
+          {pricing.mid_market_rate ? (
+            <p className="tm-nums text-[11.5px] font-medium text-tm-text-3">
+              Mid-market {pricing.mid_market_rate.toFixed(2)}, charged at{" "}
+              {pricing.exchange_rate.toFixed(2)} (
+              {formatPercent(pricing.exchange_rate / pricing.mid_market_rate - 1)} buffer).
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <AdminEmpty
+          title="No breakdown stored"
+          body="This order carries no pricing row at all. It cannot be paid for until somebody sets a price."
+        />
       )}
+    </AdminCard>
+  );
+}
+
+// ── Customer, payment, delivery, bag ────────────────────────────────────────
+
+function CustomerCard({
+  customer,
+  index,
+}: {
+  customer: AdminOrderCustomer | null;
+  index: number;
+}) {
+  return (
+    <AdminCard index={index} title="Customer">
+      {customer ? (
+        <dl className="flex flex-col gap-3">
+          <Fact label="Name" value={customer.name} fallback="Not given" />
+          <Fact label="Email" value={customer.email} fallback="Not on file" />
+          <Fact label="Phone" value={customer.phone} fallback="Not given" />
+          <Fact
+            label="Customer since"
+            value={formatAdminDate(customer.created_at)}
+            fallback="—"
+          />
+          <Link
+            href={`/admin/users/${customer.id}`}
+            className="text-[12.5px] font-semibold text-tm-coral-strong hover:underline"
+          >
+            Open their account
+          </Link>
+        </dl>
+      ) : (
+        <AdminEmpty
+          title="No profile"
+          body="The account behind this order could not be read. It may have been deleted."
+        />
+      )}
+    </AdminCard>
+  );
+}
+
+/**
+ * The payment.
+ *
+ * Pesewas are converted to cedis for display only — `amount / 100` is the unit
+ * change Paystack's own field implies, not a price calculation. When the order
+ * belongs to a bag, the group's total is shown beside it, because the payment
+ * covers every order in the group and reading it as this order's price would be
+ * wrong.
+ */
+function PaymentCard({
+  payment,
+  group,
+  index,
+}: {
+  payment: AdminPaymentRow | null;
+  group: OrderGroupRow | null;
+  index: number;
+}) {
+  return (
+    <AdminCard index={index} title="Payment">
+      {payment ? (
+        <dl className="flex flex-col gap-3">
+          <Fact
+            label="Status"
+            value={PAYMENT_STATUS_LABEL[payment.status] ?? payment.status}
+            tone={PAYMENT_STATUS_TONE[payment.status] ?? "neutral"}
+          />
+          <Fact label="Amount charged" value={formatGhs(payment.amount / 100)} />
+          <Fact label="Channel" value={payment.channel} fallback="Not recorded" />
+          <Fact label="Reference" value={payment.reference} />
+          <Fact label="Taken" value={formatAdminDateTime(payment.created_at)} fallback="—" />
+          {group ? (
+            <Fact
+              label="Covers"
+              value={`${group.item_count} ${group.item_count === 1 ? "order" : "orders"} · ${formatGhs(group.total_ghs)}`}
+              hint="One payment for the whole bag"
+            />
+          ) : null}
+        </dl>
+      ) : (
+        <AdminEmpty
+          title="Nothing paid yet"
+          body="No payment row points at this order. It has not been paid for, or the attempt never reached Paystack."
+        />
+      )}
+    </AdminCard>
+  );
+}
+
+const PAYMENT_STATUS_LABEL: Record<string, string> = {
+  pending: "Started, not confirmed",
+  success: "Paid",
+  failed: "Failed",
+};
+
+const PAYMENT_STATUS_TONE: Record<string, AdminTone> = {
+  pending: "amber",
+  success: "green",
+  failed: "coral",
+};
+
+/**
+ * Where it is going, and what the 017 row says about getting it there.
+ *
+ * The address is the CHECKOUT SNAPSHOT on `order_groups.delivery_address`, never
+ * the customer's current address book — a customer who moves house must not
+ * change where a shipped order was sent.
+ */
+function DeliveryCard({
+  order,
+  delivery,
+  group,
+  index,
+}: {
+  order: Order;
+  delivery: OrderDelivery | null;
+  group: OrderGroupRow | null;
+  index: number;
+}) {
+  const address = group?.delivery_address ?? null;
+  const lines = address ? addressLines(address) : [];
+
+  return (
+    <AdminCard index={index} title="Delivery">
+      <div className="flex flex-col gap-4">
+        {lines.length > 0 ? (
+          <div>
+            <p className="mb-1 text-[11.5px] leading-none font-semibold text-tm-text-2">
+              Deliver to
+            </p>
+            <address className="text-[13px] leading-[1.5] font-medium text-tm-ink not-italic">
+              {lines.map((line) => (
+                <span key={line} className="block">
+                  {line}
+                </span>
+              ))}
+            </address>
+          </div>
+        ) : (
+          <p className="text-[12.5px] leading-[1.5] font-medium text-tm-text-3">
+            No address was snapshotted with this order. It was placed before the
+            bag existed, so the address was never captured at checkout.
+          </p>
+        )}
+
+        <dl className="flex flex-col gap-3 border-t border-tm-hairline pt-4">
+          <Fact label="Carrier" value={order.carrier} fallback="Not set" />
+          <Fact label="Tracking number" value={order.tracking_number} fallback="Not set" />
+          {delivery?.tracking_url ? (
+            <div className="flex flex-col gap-1">
+              <dt className="text-[11.5px] leading-none font-semibold text-tm-text-2">
+                Tracking link
+              </dt>
+              <dd>
+                <a
+                  href={delivery.tracking_url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-[12.5px] font-semibold break-all text-tm-coral-strong hover:underline"
+                >
+                  Open with the carrier
+                </a>
+              </dd>
+            </div>
+          ) : null}
+          {delivery?.notes ? <Fact label="Operator's note" value={delivery.notes} /> : null}
+        </dl>
+
+        {!delivery ? (
+          <p className="text-[11.5px] leading-[1.5] font-medium text-tm-text-3">
+            No `order_deliveries` row exists for this order. Every upsert into
+            that table failed silently until migration 050 added the unique index
+            it needed, so orders that shipped before then have their carrier on
+            the order and nothing here. Setting the delivery window will create
+            one.
+          </p>
+        ) : null}
+      </div>
+    </AdminCard>
+  );
+}
+
+/**
+ * A checkout address snapshot is JSONB, so its shape is whatever checkout wrote.
+ * Read defensively, field by field — a missing line is simply not printed rather
+ * than rendering "undefined" into an address.
+ */
+function addressLines(address: Record<string, unknown>): string[] {
+  const get = (key: string): string | null => {
+    const value = address[key];
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  };
+  return [
+    get("recipient_name"),
+    get("phone"),
+    get("line1"),
+    get("line2"),
+    [get("area"), get("city")].filter(Boolean).join(", ") || null,
+    get("region"),
+    get("digital_address"),
+  ].filter((line): line is string => !!line);
+}
+
+/** The rest of the bag this order was bought with (048). */
+function BagCard({
+  group,
+  siblings,
+  index,
+}: {
+  group: OrderGroupRow;
+  siblings: Order[];
+  index: number;
+}) {
+  return (
+    <AdminCard
+      index={index}
+      title="Bought with"
+      blurb={`One payment of ${formatGhs(group.total_ghs)} covered ${group.item_count} ${group.item_count === 1 ? "order" : "orders"}.`}
+    >
+      {siblings.length > 0 ? (
+        <ul className="flex flex-col gap-2.5">
+          {siblings.map((sibling) => (
+            <li key={sibling.id}>
+              <Link
+                href={`/admin/orders/${sibling.id}`}
+                className="flex items-start justify-between gap-3 rounded-[12px] px-2 py-1.5 -mx-2 transition-colors hover:bg-tm-paper"
+              >
+                <span className="flex flex-col gap-0.5">
+                  <span className="tm-nums text-[12.5px] leading-none font-bold text-tm-ink">
+                    {sibling.order_no}
+                  </span>
+                  <span className="line-clamp-1 max-w-[22ch] text-[12px] leading-[1.35] font-medium text-tm-text-2">
+                    {sibling.product_name}
+                  </span>
+                </span>
+                <AdminBadge tone={adminStatusTone(sibling.status)}>
+                  {adminStatusLabel(sibling.status)}
+                </AdminBadge>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[12.5px] leading-[1.5] font-medium text-tm-text-3">
+          This was the only order in its bag.
+        </p>
+      )}
+
+      <dl className="mt-4 flex flex-col gap-3 border-t border-tm-hairline pt-4">
+        {group.consolidation_saving_ghs > 0 ? (
+          <Fact
+            label="Consolidation saving"
+            value={`− ${formatGhs(group.consolidation_saving_ghs)}`}
+            tone="green"
+          />
+        ) : null}
+        {group.delivery_fee_ghs > 0 ? (
+          <Fact label="Delivery fee" value={formatGhs(group.delivery_fee_ghs)} />
+        ) : null}
+        <Fact label="Bag total" value={formatGhs(group.total_ghs)} />
+      </dl>
+    </AdminCard>
+  );
+}
+
+// ── The two logs ────────────────────────────────────────────────────────────
+
+/**
+ * Both histories, side by side.
+ *
+ * They are NOT the same log and the screen says so. `order_events` (050) is the
+ * customer's narrative — human wording, and only the visible rows ever reach
+ * them. `audit_logs` (002) is the compliance record: machine-worded,
+ * append-only, admin-only. Migration 050 explains at length why two tables
+ * rather than one, and an admin investigating a complaint needs both.
+ */
+function TimelineCard({
+  events,
+  auditLogs,
+  index,
+}: {
+  events: OrderEventRow[];
+  auditLogs: AuditLog[];
+  index: number;
+}) {
+  return (
+    <AdminCard
+      index={index}
+      title="History"
+      blurb="What the customer was told, and what the system recorded."
+    >
+      <div className="grid gap-6 md:grid-cols-2">
+        <section className="flex flex-col gap-3">
+          <h3 className="text-[11.5px] leading-none font-semibold tracking-wide text-tm-text-2 uppercase">
+            Customer updates
+          </h3>
+          {events.length > 0 ? (
+            <ol className="flex flex-col gap-3.5">
+              {events.map((event) => (
+                <li key={event.id} className="flex gap-3">
+                  <span
+                    aria-hidden
+                    className="mt-[6px] size-2 shrink-0 rounded-full bg-tm-coral"
+                  />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[13px] leading-[1.35] font-semibold text-tm-ink">
+                      {event.title}
+                    </span>
+                    {event.detail ? (
+                      <span className="text-[12px] leading-[1.4] font-medium text-tm-text-2">
+                        {event.detail}
+                      </span>
+                    ) : null}
+                    <span className="tm-nums text-[11.5px] font-medium text-tm-text-3">
+                      {formatAdminDateTime(event.occurred_at)}
+                      {event.location ? ` · ${event.location}` : ""}
+                      {event.weight_lbs != null ? ` · ${event.weight_lbs} lb` : ""}
+                      {event.is_customer_visible ? "" : " · internal"}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-[12.5px] leading-[1.5] font-medium text-tm-text-3">
+              Nothing has been said to the customer about this order yet.
+            </p>
+          )}
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <h3 className="text-[11.5px] leading-none font-semibold tracking-wide text-tm-text-2 uppercase">
+            Audit log
+          </h3>
+          {auditLogs.length > 0 ? (
+            <ol className="flex flex-col gap-3.5">
+              {[...auditLogs].reverse().map((log) => (
+                <li key={log.id} className="flex gap-3">
+                  <span
+                    aria-hidden
+                    className="mt-[6px] size-2 shrink-0 rounded-full bg-tm-border"
+                  />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[13px] leading-[1.35] font-semibold text-tm-ink">
+                      {log.action}
+                    </span>
+                    <span className="tm-nums text-[11.5px] font-medium text-tm-text-3">
+                      {formatAdminDateTime(log.created_at)} · {log.actor_role}
+                    </span>
+                    {auditSummary(log) ? (
+                      <span className="text-[12px] leading-[1.4] font-medium text-tm-text-2">
+                        {auditSummary(log)}
+                      </span>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-[12.5px] leading-[1.5] font-medium text-tm-text-3">
+              No audit rows for this order.
+            </p>
+          )}
+        </section>
+      </div>
+    </AdminCard>
+  );
+}
+
+/**
+ * One readable line out of an audit row's metadata.
+ *
+ * Only the two shapes that actually carry meaning to a human — a status
+ * transition and a hand-set price. Everything else is left to the action name
+ * rather than dumped as JSON, which is noise in a column this narrow.
+ */
+function auditSummary(log: AuditLog): string | null {
+  const metadata = log.metadata ?? {};
+  const from = typeof metadata.from === "string" ? metadata.from : null;
+  const to = typeof metadata.to === "string" ? metadata.to : null;
+  if (from && to) return `${from} → ${to}`;
+
+  const total = metadata.admin_total_ghs;
+  if (typeof total === "number") return `Priced at ${formatGhs(total)}`;
+
+  return null;
+}
+
+// ── A labelled fact ─────────────────────────────────────────────────────────
+
+/**
+ * One `<dt>/<dd>` pair.
+ *
+ * `fallback` is required thinking, not a convenience: every caller has to say
+ * what an absent value means ("Not set", "Not read", "Not yet"), because the
+ * alternative — an empty cell — reads as a rendering bug rather than as a fact
+ * about the order.
+ */
+function Fact({
+  label,
+  value,
+  fallback,
+  hint,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string | null | undefined;
+  fallback?: string;
+  hint?: string;
+  tone?: AdminTone;
+}) {
+  const missing = !value;
+  return (
+    <div className="flex flex-col gap-1">
+      <dt className="text-[11.5px] leading-none font-semibold text-tm-text-2">{label}</dt>
+      <dd
+        className={cn(
+          "tm-nums text-[13px] leading-[1.35] font-semibold break-words",
+          missing
+            ? "text-tm-text-3"
+            : tone === "green"
+              ? "text-tm-green"
+              : tone === "amber"
+                ? "text-tm-amber"
+                : tone === "coral"
+                  ? "text-tm-coral-strong"
+                  : tone === "muted"
+                    ? "text-tm-text-3"
+                    : "text-tm-ink",
+        )}
+      >
+        {value ?? fallback ?? "—"}
+      </dd>
+      {hint ? (
+        <span className="text-[11px] leading-[1.3] font-medium text-tm-text-3">{hint}</span>
+      ) : null}
     </div>
   );
 }

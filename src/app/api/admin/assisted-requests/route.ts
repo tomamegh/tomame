@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 import { listAssistedQueue } from "@/features/assisted/services/assisted.service";
 import { getUserSession } from "@/features/auth/services/auth.service";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { session } = await getUserSession();
-    if (session.app_metadata?.role !== "admin") throw new APIError(403, "Admin access required");
+    if (!canAccessAdmin(session)) throw new APIError(403, "Admin access required");
 
     const raw = request.nextUrl.searchParams.get("status");
     const status = STATUSES.find((s) => s === raw) as AssistedRequestStatus | undefined;
