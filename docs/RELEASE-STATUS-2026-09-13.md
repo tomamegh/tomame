@@ -189,6 +189,79 @@ rate, catalogue search, media) and two that looked risky are not:
 takes only a `reference` and re-verifies server-side rather than trusting a
 status parameter.
 
+## 0d. 2026-09-13 (late) — the logo, the admin redesign, and two more of Kelvin's findings
+
+Deployed to hosted dev at `6f6c5c4`. **https://dev.tomame.ca** — use that host,
+not `tomame-dev.vercel.app`: Supabase's redirect allow-list has
+`tomame-dev-*.vercel.app` (with a dash), which does **not** match, so Google
+sign-in only completes on `dev.tomame.ca`.
+
+**The logo.** It was absent from every signed-in screen and from login/signup —
+the app nav rendered the word "Tomame" as CSS gradient text and the auth panel
+as a plain `<h2>`, while the marketing site carried the real artwork. Both now
+use `components/brand/logo.tsx`. The auth panel's invented copy went with it:
+"Trusted by 5,000+ businesses", "50+ countries supported" and four fake avatars
+are gone (Tomame ships one lane to one country), replaced by three promises the
+platform enforces and the real payment channels from `site_settings`.
+
+**The admin, rebuilt.** Five agents, one slice each, on a shared admin kit
+(`components/layout/admin/admin-page.tsx`). 21 admin routes build; every
+sidebar entry resolves. Five screens are new — `/admin/bags`, `/admin/boxes`,
+`/admin/pastes`, `/admin/content`, `/admin/watches` — because bags, boxes, the
+paste queue, price watches and the whole marketing content layer each shipped
+with a table, a customer screen and **no administration at all**. The sidebar
+badges what is waiting on a person (`/api/admin/queue-counts`).
+
+Bugs the rebuild turned up, all fixed:
+
+- **Revenue was not revenue.** The dashboard summed order totals across every
+  order in `paid|processing|in_transit|delivered|completed`. Status is settable
+  by hand and `admin_total_ghs` is an admin re-price, so neither is evidence a
+  cedi arrived; group-level fees on `order_groups` were missing entirely. Now
+  `sum(payments.amount) where status='success'`.
+- **The admin notification log has been empty in every environment since it
+  shipped.** `listAllNotifications` selects `profiles.email`, a column that
+  does not exist; PostgREST answers 42703, the service swallows it and returns
+  `[]`. A delivery log that looked clean because it was blank.
+- **`/api/admin/orders/[id]/status` has never existed** and `useUpdateOrderStatus`
+  has been PATCHing it. `useReviewOrder` sent camelCase keys the schema rejects,
+  so admin price corrections were silently dropped.
+- A transaction detail showed "Linked Order", singular — since 048 one payment
+  settles a whole `order_groups` checkout, so every other line was invisible.
+- The FX card's "Refresh" sent `Bearer ${process.env.CRON_SECRET}` from the
+  browser (always `undefined`), and showed the USD-only buffer against GBP/CNY.
+- `RATE_LIMIT.admin` was 20/15min — a **third** of a customer's `general` — and
+  the new sidebar poll alone would have spent 15 of them.
+
+**Kelvin's two findings, fixed:**
+
+1. *"As an admin once I login, I should be met with the admin view."* Login, the
+   Google callback and confirm each hardcoded `/app`. One shared rule now
+   (`lib/auth/post-auth-destination.ts`, unit tested): `?next=` wins for both
+   roles, otherwise an admin goes to `/admin` and everyone else to `/app`. The
+   storefront nav carries an "Admin" pill so the switch is two-way.
+2. *"I have paid for a product … now I am being asked to add to bag again … why
+   are we not converting it straight to cedis and keeping it."* The Home receipt
+   resolved from `extraction_requests` alone, so it knew a link had been pasted
+   and nothing of what became of it. `getReceiptFulfilment` now answers both: an
+   **order outranks everything** — the card shows the order's own stored
+   breakdown, labels the total **"Paid"**, and offers "Track this journey" (or
+   "Finish paying" when money has not settled). A line already in the bag reads
+   "In your bag". Verified in the browser end to end.
+
+### Still open
+
+- **`hotfix/admin-api-gate` is not deployed to prod** (see §0c). Kelvin's call.
+- `listAllNotifications` is dead *and* broken — remove it.
+- Box and bag **mutations** are unbuilt: they needed `CONSOLIDATION_BOX`/`CART`
+  in `AUDIT_ENTITY_TYPES`, which now exist, so this is a small follow-up.
+- `pricing.service.ts` still invents defaults (`?? 5`, `?? 0.04`) against the
+  "never invent a constant" rule. The console surfaces the gap; someone has to
+  decide which surface wins.
+- `/faq`, `/contact` and `/policies` are still the pre-redesign layouts.
+- Hosted dev is sparse (5 orders, 0 assisted requests, 0 contact messages, 0
+  price watches), so several admin screens will honestly show empty states.
+
 ## 1. What shipped on `v2`
 
 | Slice | Commit | What |
