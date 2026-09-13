@@ -386,11 +386,16 @@
   --border: var(--tm-border);
   --input: var(--tm-border);
   --ring: var(--tm-coral);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  /* Chart series — the brand's own palette, not the shadcn starter's blues.
+     These were five shades of cornflower that appear nowhere else in Tomame, so
+     every chart in the admin read as a component borrowed from another product.
+     Ordered by how often a series is the "main" one: coral leads, green is
+     money that settled, amber is something waiting. */
+  --chart-1: var(--tm-coral);
+  --chart-2: var(--tm-green);
+  --chart-3: var(--tm-amber);
+  --chart-4: var(--tm-coral-strong);
+  --chart-5: var(--tm-text-3);
   --radius: 0.875rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -430,11 +435,16 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  /* Chart series — the brand's own palette, not the shadcn starter's blues.
+     These were five shades of cornflower that appear nowhere else in Tomame, so
+     every chart in the admin read as a component borrowed from another product.
+     Ordered by how often a series is the "main" one: coral leads, green is
+     money that settled, amber is something waiting. */
+  --chart-1: var(--tm-coral);
+  --chart-2: var(--tm-green);
+  --chart-3: var(--tm-amber);
+  --chart-4: var(--tm-coral-strong);
+  --chart-5: var(--tm-text-3);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
