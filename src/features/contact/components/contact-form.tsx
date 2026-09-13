@@ -6,18 +6,43 @@ import { useForm, Controller } from "react-hook-form";
 import { motion, AnimatePresence } from "motion/react";
 import { Send, CheckCircle2 } from "lucide-react";
 import { contactSchema, type ContactFormData } from "../schema";
+import { useSendContactMessage } from "../hooks/useContact";
+import { ApiFetchError } from "@/lib/auth/api-helpers";
 import { Input, Textarea } from "@/components/ui/form";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 
+/**
+ * The contact form.
+ *
+ * It used to be a no-op: `handleSubmit(() => setSent(true))`, with no endpoint
+ * behind it and no table to land in. It then told the customer "Message sent!
+ * We'll get back to you within a few hours." Every enquiry typed into it was
+ * discarded at the moment the success screen appeared.
+ *
+ * It now posts to `/api/contact`, and — the part that matters — it only shows
+ * the success screen when the server confirms the message was stored. A failure
+ * says so and keeps what they wrote.
+ */
 function ContactForm() {
   const [sent, setSent] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const send = useSendContactMessage();
   const form = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
   });
 
-  const onSubmit = form.handleSubmit(() => {
-    setSent(true);
+  const onSubmit = form.handleSubmit((values) => {
+    setError(null);
+    send.mutate(values, {
+      onSuccess: () => setSent(true),
+      onError: (err) =>
+        setError(
+          err instanceof ApiFetchError && err.status === 429
+            ? "You have sent a few of these already — give us a moment to reply."
+            : "We could not send that just now. Try again, or reach us on WhatsApp.",
+        ),
+    });
   });
 
   return (
@@ -60,6 +85,15 @@ function ContactForm() {
                 We respond within a few hours during business hours.
               </p>
             </div>
+
+            {error && (
+              <div
+                role="alert"
+                className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              >
+                {error}
+              </div>
+            )}
 
             <form onSubmit={onSubmit} className="space-y-5">
               <FieldGroup>
@@ -150,10 +184,10 @@ function ContactForm() {
                 variant="primary"
                 size="lg"
                 className="w-full"
-                disabled={form.formState.isSubmitting}
+                disabled={send.isPending}
               >
                 <Send className="h-4 w-4" />
-                {form.formState.isSubmitting ? "Sending…" : "Send Message"}
+                {send.isPending ? "Sending…" : "Send Message"}
               </Button>
             </form>
           </motion.div>

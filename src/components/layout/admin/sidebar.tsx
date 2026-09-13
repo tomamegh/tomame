@@ -5,6 +5,7 @@ import {
   CreditCardIcon,
   FileTextIcon,
   LayoutGridIcon,
+  MailIcon,
   MessageCircleIcon,
   LifeBuoy,
   Send,
@@ -53,6 +54,11 @@ const NAV_LIST: Array<{ label?: string; links: LinkItem[] }> = [
         title: "Assisted",
         url: "/admin/assisted-requests",
         icon: MessageCircleIcon,
+      },
+      {
+        title: "Messages",
+        url: "/admin/contact-messages",
+        icon: MailIcon,
       },
       {
         title: "Transactions",

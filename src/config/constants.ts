@@ -16,6 +16,7 @@ export const AUDIT_ENTITY_TYPES = {
   DELIVERY_ADDRESS: "delivery_address",
   ORDER_GROUP: "order_group",
   ASSISTED_REQUEST: "assisted_request",
+  CONTACT_MESSAGE: "contact_message",
 } as const;
 
 export type AuditEntityType =
