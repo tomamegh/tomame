@@ -35,6 +35,14 @@ vi.mock("@/features/audit/services/audit.service", () => ({
   logAuditEvent: vi.fn(),
 }));
 
+// The drop rule is exercised in price-drop.service.test.ts. Here it is stubbed
+// so these tests stay about the BATCH — what is claimed, what is retried, what
+// is retired — and cannot start failing because an alert's wording changed.
+vi.mock("../services/price-drop.service", () => ({
+  resolveDropThreshold: vi.fn(),
+  tryNotifyPriceDrop: vi.fn(),
+}));
+
 vi.mock("@/db/queries/regions", () => ({ listRegions: vi.fn(), getRegionByCode: vi.fn() }));
 vi.mock("@/db/queries/delivery-zones", () => ({ listActiveDeliveryZones: vi.fn() }));
 vi.mock("@/db/queries/pricing-constants", () => ({ getPricingConstantsMap: vi.fn() }));
@@ -68,6 +76,7 @@ import {
 import { extractPrepared, prepareProductUrl } from "@/features/extraction/extraction.service";
 import { priceExtraction } from "@/features/extraction/quote.service";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { resolveDropThreshold, tryNotifyPriceDrop } from "../services/price-drop.service";
 import { APIError } from "@/lib/auth/api-helpers";
 import { PRICE_WATCH_JOB } from "@/config/security";
 import {
@@ -95,6 +104,9 @@ const mockListObservationsMany = vi.mocked(listObservationsForWatches);
 const mockPrepare = vi.mocked(prepareProductUrl);
 const mockExtract = vi.mocked(extractPrepared);
 const mockPrice = vi.mocked(priceExtraction);
+const mockThreshold = vi.mocked(resolveDropThreshold);
+const mockNotify = vi.mocked(tryNotifyPriceDrop);
+const mockLogAudit = vi.mocked(logAuditEvent);
 
 const USER = "11111111-1111-1111-1111-111111111111";
 const OTHER_USER = "22222222-2222-2222-2222-222222222222";
@@ -117,6 +129,8 @@ function watchRow(overrides: Partial<PriceWatchRow> = {}): PriceWatchRow {
     consecutive_failures: 0,
     last_error: null,
     notify_on_drop: true,
+    notified_at: null,
+    notified_price_usd: null,
     is_active: true,
     created_at: "2026-09-01T06:00:00.000Z",
     updated_at: "2026-09-11T06:00:00.000Z",
@@ -156,7 +170,9 @@ beforeEach(() => {
   mockInsertObservation.mockResolvedValue({} as never);
   mockMarkChecked.mockResolvedValue(undefined);
   mockMarkFailed.mockResolvedValue(undefined);
-  vi.mocked(logAuditEvent).mockResolvedValue(undefined);
+  mockLogAudit.mockResolvedValue(undefined);
+  mockThreshold.mockResolvedValue(0.03);
+  mockNotify.mockResolvedValue({ notified: false, reason: "no_drop" });
 });
 
 describe("listWatches", () => {
@@ -445,14 +461,39 @@ describe("runPriceWatchJob", () => {
   it("does nothing, cheaply, when nothing is due", async () => {
     mockListDue.mockResolvedValue([]);
 
-    expect(await runPriceWatchJob()).toEqual({ checked: 0, updated: 0, failed: 0, deactivated: 0 });
+    expect(await runPriceWatchJob()).toEqual({
+      checked: 0,
+      updated: 0,
+      failed: 0,
+      deactivated: 0,
+      notified: 0,
+      more_due: false,
+    });
     expect(mockPrepare).not.toHaveBeenCalled();
+    // Nothing due is the common case ten minutes out of ten; it must not cost
+    // a constants read or an audit row.
+    expect(mockThreshold).not.toHaveBeenCalled();
+    expect(mockLogAudit).not.toHaveBeenCalled();
   });
 
-  it("claims at most the configured per-run budget", async () => {
+  it("claims one batch, and only watches whose last check is outside the due window", async () => {
     mockListDue.mockResolvedValue([]);
-    await runPriceWatchJob();
-    expect(mockListDue).toHaveBeenCalledWith(PRICE_WATCH_JOB.maxPerRun);
+    await runPriceWatchJob(new Date("2026-09-13T12:00:00.000Z"));
+
+    // 20 hours before noon on the 13th.
+    expect(mockListDue).toHaveBeenCalledWith(
+      PRICE_WATCH_JOB.batchSize,
+      "2026-09-12T16:00:00.000Z",
+    );
+  });
+
+  it("flags more_due when the batch came back full, so a backlog is visible", async () => {
+    arrangeResolution();
+    mockListDue.mockResolvedValue(
+      Array.from({ length: PRICE_WATCH_JOB.batchSize }, (_, i) => watchRow({ id: `watch-${i}` })),
+    );
+
+    expect((await runPriceWatchJob()).more_due).toBe(true);
   });
 
   it("appends exactly one observation per watch and clears the failure counter", async () => {
@@ -461,7 +502,14 @@ describe("runPriceWatchJob", () => {
 
     const summary = await runPriceWatchJob();
 
-    expect(summary).toEqual({ checked: 2, updated: 2, failed: 0, deactivated: 0 });
+    expect(summary).toEqual({
+      checked: 2,
+      updated: 2,
+      failed: 0,
+      deactivated: 0,
+      notified: 0,
+      more_due: false,
+    });
     expect(mockInsertObservation).toHaveBeenCalledTimes(2);
     expect(mockMarkChecked).toHaveBeenCalledTimes(2);
     expect(mockMarkFailed).not.toHaveBeenCalled();
@@ -517,7 +565,14 @@ describe("runPriceWatchJob", () => {
 
     const summary = await runPriceWatchJob();
 
-    expect(summary).toEqual({ checked: 2, updated: 0, failed: 2, deactivated: 0 });
+    expect(summary).toEqual({
+      checked: 2,
+      updated: 0,
+      failed: 2,
+      deactivated: 0,
+      notified: 0,
+      more_due: false,
+    });
     expect(mockMarkFailed).toHaveBeenCalledWith(
       "watch-1",
       expect.objectContaining({
@@ -544,6 +599,8 @@ describe("runPriceWatchJob", () => {
       updated: 1,
       failed: 1,
       deactivated: 0,
+      notified: 0,
+      more_due: false,
     });
   });
 
@@ -556,7 +613,14 @@ describe("runPriceWatchJob", () => {
 
     const summary = await runPriceWatchJob();
 
-    expect(summary).toEqual({ checked: 1, updated: 0, failed: 1, deactivated: 1 });
+    expect(summary).toEqual({
+      checked: 1,
+      updated: 0,
+      failed: 1,
+      deactivated: 1,
+      notified: 0,
+      more_due: false,
+    });
     expect(mockMarkFailed).toHaveBeenCalledWith(
       "watch-1",
       expect.objectContaining({
@@ -604,9 +668,67 @@ describe("runPriceWatchJob", () => {
         actorRole: "system",
         action: "price_watch_job_run",
         entityType: "job",
-        metadata: { checked: 1, updated: 1, failed: 0, deactivated: 0 },
+        metadata: {
+          checked: 1,
+          updated: 1,
+          failed: 0,
+          deactivated: 0,
+          notified: 0,
+          more_due: false,
+        },
       }),
     );
+  });
+
+  it("reads the drop threshold once per batch, not once per watch", async () => {
+    // Two watches in one batch must be judged by the same number. Re-reading
+    // it mid-run would let an admin edit land between them.
+    arrangeResolution();
+    mockListDue.mockResolvedValue([watchRow(), watchRow({ id: "watch-2" })]);
+
+    await runPriceWatchJob();
+
+    expect(mockThreshold).toHaveBeenCalledTimes(1);
+    expect(mockNotify).toHaveBeenCalledTimes(2);
+    expect(mockNotify).toHaveBeenCalledWith(expect.anything(), expect.anything(), 0.03);
+  });
+
+  it("offers the alert the PRE-CHECK row and the fresh reading", async () => {
+    // The rule compares against `notified_price_usd` as it stood before this
+    // check. Handing it the post-check row would compare the price to itself.
+    arrangeResolution(250, 3750, 15);
+    mockListDue.mockResolvedValue([watchRow({ notified_price_usd: 349 })]);
+
+    await runPriceWatchJob();
+
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "watch-1", notified_price_usd: 349 }),
+      { priceUsd: 250, totalGhs: 3750, exchangeRate: 15 },
+      0.03,
+    );
+  });
+
+  it("counts the alerts it decided", async () => {
+    arrangeResolution();
+    mockListDue.mockResolvedValue([watchRow(), watchRow({ id: "watch-2" })]);
+    mockNotify
+      .mockResolvedValueOnce({ notified: true, reason: "drop", delivered: true })
+      .mockResolvedValueOnce({ notified: false, reason: "below_threshold" });
+
+    expect((await runPriceWatchJob()).notified).toBe(1);
+  });
+
+  it("a broken alert does not fail the check that found it", async () => {
+    // tryNotifyPriceDrop absorbs delivery problems; the watch was re-checked
+    // successfully and must not collect a failure for a mail server's sake.
+    arrangeResolution();
+    mockListDue.mockResolvedValue([watchRow()]);
+    mockNotify.mockResolvedValue({ notified: false, reason: "error" });
+
+    const summary = await runPriceWatchJob();
+
+    expect(summary).toMatchObject({ updated: 1, failed: 0, notified: 0 });
+    expect(mockMarkFailed).not.toHaveBeenCalled();
   });
 });
 

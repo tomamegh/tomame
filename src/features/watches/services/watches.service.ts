@@ -25,6 +25,7 @@ import {
   type PriceWatchRow,
 } from "@/db/queries/price-watches";
 import { clampHistoryDays } from "../schema";
+import { resolveDropThreshold, tryNotifyPriceDrop } from "./price-drop.service";
 import { deriveWatchStats, emptyWatchStats } from "./watch-stats";
 import type {
   CreateWatchResult,
@@ -214,37 +215,66 @@ export async function deleteWatch(userId: string, watchId: string): Promise<Dele
   return { id: row.id, deleted: true };
 }
 
-// ── Nightly job ─────────────────────────────────────────────────────────────
+// ── Re-check batch ──────────────────────────────────────────────────────────
 
 /**
- * Re-check the watches that have gone longest without one.
+ * Re-check one batch of the watches that have gone longest without one.
  *
- * COST. Every check is a full extraction, which is the most scraper-credit
- * -hungry thing the platform does, so the run is capped at
- * `PRICE_WATCH_JOB.maxPerRun` and runs `concurrency` at a time. The claim is
- * ordered oldest-check-first (`idx_price_watches_due`), so the cap lengthens the
- * cycle instead of starving anyone: with 600 watches and a cap of 200, every
- * watch is still checked every third night.
+ * SHAPE (migration 052). This used to be a single nightly sweep of 200
+ * watches. Every check is a full extraction with a 25 s vendor budget, so that
+ * run is one Vercel invocation held open for minutes — past the 300 s function
+ * cap, where it is killed mid-sweep with no way to resume: the next night
+ * starts from the same claim query and the same watches lose again.
+ *
+ * It is a BATCH now — `PRICE_WATCH_JOB.batchSize` watches, `concurrency` at a
+ * time, finished well inside the cap, fired every ten minutes by pg_cron. What
+ * keeps the higher frequency from multiplying scraper spend is the due window:
+ * the claim only returns watches last checked more than `recheckAfterHours`
+ * ago, so once everyone has had their turn the runs claim nothing and return
+ * immediately. Resumption is free because `last_checked_at` is stamped per
+ * watch and not per sweep — a killed batch costs one batch, and the next run
+ * ten minutes later picks up exactly where it stopped.
  *
  * BACKOFF. A failure bumps `consecutive_failures` and stamps `last_checked_at`
  * anyway — without that stamp a dead URL stays at the head of the queue and
- * eats the whole budget every night. At `maxConsecutiveFailures` the watch is
- * deactivated: a delisted product stops costing money and the customer can see
- * `last_error`.
+ * eats every batch. At `maxConsecutiveFailures` the watch is deactivated: a
+ * delisted product stops costing money and the customer can see `last_error`.
  *
- * A single watch never fails the run. A MISSING TABLE does — that is a deploy
- * ordering bug, not a bad link, and it must be loud.
+ * ALERTS. The drop threshold is read ONCE per batch and handed down, never
+ * per watch: it is a single admin-controlled number, and re-reading it mid-run
+ * would let two watches in the same batch be judged by different rules.
+ *
+ * A single watch never fails the run, and neither does a failed alert. A
+ * MISSING TABLE does — that is a deploy-ordering bug, not a bad link, and it
+ * must be loud.
  */
-export async function runPriceWatchJob(): Promise<PriceWatchJobSummary> {
-  const due = await listWatchesDueForCheck(PRICE_WATCH_JOB.maxPerRun);
-  const summary: PriceWatchJobSummary = { checked: due.length, updated: 0, failed: 0, deactivated: 0 };
+export async function runPriceWatchJob(now: Date = new Date()): Promise<PriceWatchJobSummary> {
+  const dueBefore = new Date(now.getTime() - PRICE_WATCH_JOB.recheckAfterHours * 60 * 60 * 1000);
+  const due = await listWatchesDueForCheck(PRICE_WATCH_JOB.batchSize, dueBefore.toISOString());
+
+  const summary: PriceWatchJobSummary = {
+    checked: due.length,
+    updated: 0,
+    failed: 0,
+    deactivated: 0,
+    notified: 0,
+    // A full batch means the queue very likely still holds due work.
+    more_due: due.length >= PRICE_WATCH_JOB.batchSize,
+  };
+  // Nothing due is the COMMON case on a ten-minute schedule and must stay
+  // cheap: no threshold read, no audit row, no log line every ten minutes.
   if (due.length === 0) return summary;
 
-  const outcomes = await mapWithConcurrency(due, PRICE_WATCH_JOB.concurrency, checkOneWatch);
+  const threshold = await resolveDropThreshold();
+
+  const outcomes = await mapWithConcurrency(due, PRICE_WATCH_JOB.concurrency, (watch) =>
+    checkOneWatch(watch, threshold),
+  );
   for (const outcome of outcomes) {
     if (outcome.ok) summary.updated++;
     else summary.failed++;
     if (outcome.deactivated) summary.deactivated++;
+    if (outcome.notified) summary.notified++;
   }
 
   await logAuditEvent({
@@ -263,9 +293,10 @@ export async function runPriceWatchJob(): Promise<PriceWatchJobSummary> {
 interface CheckOutcome {
   ok: boolean;
   deactivated: boolean;
+  notified: boolean;
 }
 
-async function checkOneWatch(watch: PriceWatchRow): Promise<CheckOutcome> {
+async function checkOneWatch(watch: PriceWatchRow, threshold: number | null): Promise<CheckOutcome> {
   try {
     const resolved = await resolveAndPrice(watch.product_url, null);
     await appendObservation(watch.id, resolved);
@@ -278,9 +309,21 @@ async function checkOneWatch(watch: PriceWatchRow): Promise<CheckOutcome> {
       product_image_url: resolved.productImageUrl ?? watch.product_image_url,
       checked_at: resolved.checkedAt,
     });
-    // NOTE: `notify_on_drop` is honoured by the notifications feature, not
-    // here — the drop is already derivable from the series this appends.
-    return { ok: true, deactivated: false };
+    // `watch` is the row as it stood BEFORE this check, which is exactly what
+    // the drop rule needs: its `notified_price_usd` is the price the customer
+    // was last told about, and `markWatchChecked` above deliberately leaves
+    // that column alone. `notify_on_drop` is honoured inside `decidePriceDrop`.
+    const alert = await tryNotifyPriceDrop(
+      watch,
+      {
+        priceUsd: resolved.priceUsd,
+        totalGhs: resolved.totalGhs,
+        exchangeRate: resolved.exchangeRate,
+      },
+      threshold,
+    );
+
+    return { ok: true, deactivated: false, notified: alert.notified };
   } catch (error) {
     if (isSchemaMissingError(error)) throw error;
 
@@ -310,11 +353,11 @@ async function checkOneWatch(watch: PriceWatchRow): Promise<CheckOutcome> {
       });
     }
 
-    return { ok: false, deactivated };
+    return { ok: false, deactivated, notified: false };
   }
 }
 
-/** Fixed-size worker pool — `Promise.all` over 200 extractions would not end well. */
+/** Fixed-size worker pool — `Promise.all` over a whole batch would not end well. */
 async function mapWithConcurrency<T, R>(
   items: readonly T[],
   limit: number,

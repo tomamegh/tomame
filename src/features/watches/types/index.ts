@@ -130,10 +130,72 @@ export interface DeleteWatchResult {
   deleted: true;
 }
 
-/** What the nightly job reports back. */
+/** What one batch of the re-check job reports back. */
 export interface PriceWatchJobSummary {
   checked: number;
   updated: number;
   failed: number;
   deactivated: number;
+  /** Price-drop alerts decided this batch (052). Almost always 0. */
+  notified: number;
+  /**
+   * True when the batch claimed a full `PRICE_WATCH_JOB.batchSize` — there is
+   * very likely more due work waiting for the next run ten minutes later. Makes
+   * "we are behind" visible instead of guessable from the counts.
+   */
+  more_due: boolean;
+}
+
+// ── Price-drop alerts (migration 052) ───────────────────────────────────────
+
+/** Why a reading did or did not produce an alert. */
+export type PriceDropReason =
+  /** The customer turned `notify_on_drop` off. */
+  | "muted"
+  /** No usable threshold in `pricing_constants` — alerts are off platform-wide. */
+  | "no_threshold"
+  /** The reading itself is unusable (non-finite or non-positive). */
+  | "no_reading"
+  /** Nothing to compare against yet: no baseline and no alert ever sent. */
+  | "no_reference"
+  /** The price rose or held. */
+  | "no_drop"
+  /** It fell, but not far enough below the last price we quoted. */
+  | "below_threshold"
+  /** A real drop. */
+  | "drop"
+  /** The recipient has no address (deleted between claim and send). */
+  | "no_recipient"
+  /** The notification write or send blew up; the price check still stands. */
+  | "error";
+
+/** The verdict on one reading. Pure output of `decidePriceDrop`. */
+export interface PriceDropDecision {
+  notify: boolean;
+  reason: PriceDropReason;
+  /**
+   * What the drop was measured against: `notified_price_usd` if an alert has
+   * ever been sent, otherwise the baseline. null when there was nothing to
+   * compare against.
+   */
+  reference_price_usd: number | null;
+  /** Fall as a fraction of the reference. Negative means the price rose. */
+  drop_pct: number | null;
+}
+
+/** The freshly-observed figures an alert would quote. All server-computed. */
+export interface PriceDropReading {
+  priceUsd: number;
+  totalGhs: number;
+  exchangeRate: number;
+}
+
+export interface PriceDropOutcome {
+  /** True when an alert was decided and recorded — not a promise it arrived. */
+  notified: boolean;
+  reason: PriceDropReason;
+  /** Whether the transport accepted it. Only present when `notified`. */
+  delivered?: boolean;
+  drop_pct?: number;
+  reference_price_usd?: number;
 }

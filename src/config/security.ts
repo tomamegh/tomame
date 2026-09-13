@@ -42,21 +42,35 @@ export const RATE_LIMIT = {
 } as const;
 
 /**
- * Daily price-watch re-check budget.
+ * Price-watch re-check batch.
  *
- * A re-check is a full extraction, so the nightly job is the most
- * scraper-credit-hungry thing the platform runs. The job takes the
- * least-recently-checked active watches first, so a cap still gives every watch
- * a turn — it lengthens the cycle rather than starving anyone.
+ * A re-check is a full extraction, so this job is the most
+ * scraper-credit-hungry thing the platform runs. It used to be one nightly
+ * sweep of 200 watches, which is a single Vercel invocation held open for
+ * minutes — past the 300 s function cap, where the run is killed mid-sweep and
+ * the watches it never reached simply wait another day with no way to resume.
+ *
+ * It is a BATCH now (migration 052): `batchSize` watches per invocation,
+ * `concurrency` at a time, fired every 10 minutes by pg_cron. What stops the
+ * higher frequency from multiplying scraper spend is `recheckAfterHours` — a
+ * watch checked inside that window is not due, so once everybody has had their
+ * turn today the runs claim nothing and return immediately. A killed run costs
+ * one batch, and the next one resumes exactly where it stopped because
+ * `last_checked_at` is stamped per watch, not per sweep.
  *
  * `maxConsecutiveFailures` retires a watch that has gone permanently bad (a
- * delisted product, a dead URL) instead of paying to re-fetch it every night.
+ * delisted product, a dead URL) instead of paying to re-fetch it forever.
  */
 export const PRICE_WATCH_JOB = {
-  /** Watches re-checked per nightly run. */
-  maxPerRun: 200,
-  /** Concurrent extractions inside one run. */
+  /** Watches re-checked per invocation. Two waves of a 25 s vendor budget. */
+  batchSize: 8,
+  /** Concurrent extractions inside one batch. */
   concurrency: 4,
+  /**
+   * A watch is due again this long after its last check. Roughly daily, set
+   * short of 24 h so a watch does not drift an hour later every day.
+   */
+  recheckAfterHours: 20,
   /** Deactivate a watch after this many consecutive failed checks. */
   maxConsecutiveFailures: 5,
 } as const;
