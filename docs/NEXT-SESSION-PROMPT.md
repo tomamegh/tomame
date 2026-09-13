@@ -28,8 +28,10 @@ Environment notes: dev server via the `design-kit`/`tomame-dev` launch configs (
 stop the dev server before switching branches; if the served CSS lacks `tmPop`, `rm -rf .next`
 and restart; if SSR disagrees with `/api/cart` for the same cookie, restart the server; verify
 per-viewer pages with two cookie jars via curl. Local fixtures are listed in phase-4-handoff §7.
-Ask Kelvin for the real `pk_test_` Paystack public key (dev Vercel still has a placeholder) and
-apply it per runbook §8 when it is in .env.local.
+The real `pk_test_` Paystack public key is already in `.env.local` (Kelvin supplied it
+2026-09-13); dev Vercel still holds `DUMMY-not-a-real-key`. Apply it to tomame-dev per runbook §8
+(tfvars.json, `-target=module.vercel -refresh=false`, Paystack SECRET from state — `.env.local`'s
+secret is still a 19-char placeholder). Prod's LIVE pair is untouched.
 
 Then, in order, stopping for approval after each:
 A. Phase 4 F3 per docs/phase-4-handoff.md §8: addresses, payment channels reshaped in 048 (edit

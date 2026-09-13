@@ -152,6 +152,10 @@ Not yet reshaped: `site_settings.payment_channels` (still labels only; F3 edits 
 - Turbopack did not reload server modules for the RSC page while the API route had them: if SSR
   disagrees with `/api/cart` for the same cookie, restart before debugging.
 
+### Paystack dev key
+`NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` in `.env.local` is now the real `pk_test_…` (gitignored; value not
+recorded here). Not yet applied to tomame-dev on Vercel — runbook §8 procedure, secret key from state.
+
 ### Gates at this point
 typecheck clean · lint exactly 9 · vitest **53 files / 707 tests** (baseline was 49/676; the
 old "62/838" counted a stale worktree, since removed).
