@@ -129,7 +129,7 @@ Ghana Revenue Authority may levy import duties on certain goods. Where duties ap
 
 All shipments are tracked. If a package is lost or arrives damaged, notify us within 48 hours of the expected delivery date. We will investigate and resolve within 5–7 business days. See our Returns & Refunds policy for outcomes.$md$,
     'May 2025',
-    false
+    true
   ),
   (
     'returns',
@@ -263,15 +263,15 @@ _This policy applies to all orders placed through tomame.ca and our customer ser
 
 ### Accepted Payment Methods
 
-- **MTN Mobile Money**
-- **Vodafone Cash**
-- **AirtelTigo Money**
+- **MTN MoMo**
+- **Telecel Cash**
+- **AT Money**
 - **Visa** (debit and credit)
 - **Mastercard** (debit and credit)
 
 ### Currency
 
-All transactions are in **Ghana Cedis (GH₵)**. Exchange rates are sourced from live market data and include a small buffer to account for rate fluctuations during order processing. The rate applied to your order is locked at the time of payment.
+All transactions are in **Ghana Cedis (GH₵)**. Exchange rates are sourced from live market data and include a small buffer to account for rate fluctuations during order processing. The rate is locked when we quote you, not when you pay, and it only ever moves in your favour: if the rate improves before you check out, you pay the better one.
 
 ### Payment Security
 
@@ -291,6 +291,6 @@ A payment confirmation email is sent automatically after every successful transa
 
 For any payment dispute, contact us first — we resolve most issues directly and quickly. If a chargeback is initiated through your bank without contacting us, we reserve the right to suspend the account pending investigation.$md$,
     'May 2025',
-    false
+    true
   )
 on conflict (slug) do nothing;
