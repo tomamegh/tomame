@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookmarkSimple, Tote } from "@phosphor-icons/react/ssr";
+import { ArrowRight, BookmarkSimple, Plus, Tote } from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/utils";
 
@@ -75,18 +75,37 @@ export function QuoteActionBar({
         </button>
 
         {addedCount != null ? (
-          <Link
-            href="/app/bag"
-            className={cn(
-              "tm-cta-gradient flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
-              "transition-[filter,opacity] hover:brightness-105",
-              "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-            )}
-          >
-            <Tote weight="bold" className="size-[18px]" aria-hidden />
-            View bag · {addedCount}
-            <ArrowRight weight="bold" className="size-4" aria-hidden />
-          </Link>
+          <>
+            {/*
+              The line is in the bag; the two things a customer does next are
+              add the NEXT item or go and pay. Both are offered — "explicit load
+              more products after adding to cart" was Kelvin's ask, and a bag is
+              for several things bought the same week.
+            */}
+            <Link
+              href="/app/orders/new"
+              className={cn(
+                "flex h-[52px] flex-1 items-center justify-center gap-1.5 rounded-[14px] border-[1.5px] border-tm-border bg-card text-[14px] leading-none font-semibold",
+                "transition-colors hover:bg-tm-tint",
+                "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+              )}
+            >
+              <Plus weight="bold" className="size-4" aria-hidden />
+              Add another
+            </Link>
+            <Link
+              href="/app/bag"
+              className={cn(
+                "tm-cta-gradient flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
+                "transition-[filter,opacity] hover:brightness-105",
+                "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+              )}
+            >
+              <Tote weight="bold" className="size-[18px]" aria-hidden />
+              View bag · {addedCount}
+              <ArrowRight weight="bold" className="size-4" aria-hidden />
+            </Link>
+          </>
         ) : (
           <button
             type="button"

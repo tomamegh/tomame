@@ -43,6 +43,18 @@ export interface QuoteViewProps {
   deliveryZone: DeliveryZoneRow | null;
   /** `site_content` rows of kind `quote_assurance`, resolved server-side. */
   assurances: QuoteAssurance[];
+  /**
+   * Decides where "back" goes. `/app` is gated by the proxy, so sending a
+   * signed-out visitor there from a PUBLIC quote screen bounces them to the
+   * login form — which is what happened to Kelvin's tester. They go back to the
+   * public paste screen instead; a signed-in customer goes Home.
+   */
+  isAuthenticated: boolean;
+}
+
+/** Where the review screen's back controls lead, by viewer. */
+export function quoteBackHref(isAuthenticated: boolean): string {
+  return isAuthenticated ? "/app" : "/app/orders/new";
 }
 
 /**
@@ -63,8 +75,10 @@ export function QuoteView({
   extractionId,
   deliveryZone,
   assurances,
+  isAuthenticated,
 }: QuoteViewProps) {
   const router = useRouter();
+  const backHref = quoteBackHref(isAuthenticated);
 
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   // Captured when the quote lands rather than read at render time, so the
@@ -272,6 +286,7 @@ export function QuoteView({
     */
     <div className="flex flex-col gap-[18px] pb-[95px] lg:gap-[22px] lg:pb-0">
       <QuoteMobileHeader
+        backHref={backHref}
         storeLabel={formatStorePillLabel(store?.name ?? null, quote.product_url)}
         productUrl={quote.product_url}
         watching={watching}
@@ -281,6 +296,7 @@ export function QuoteView({
       />
 
       <QuoteBreadcrumb
+        backHref={backHref}
         productUrl={quote.product_url}
         fetchedAt={quote.fetched_at}
         now={receivedAt}
@@ -414,8 +430,9 @@ function QuoteLoadError({ message }: { message: string }) {
       <p className="text-sm leading-[1.5] font-medium text-tm-text-2">
         {message}
       </p>
+      {/* The paste screen itself, not Home — "paste the link again" should land on the paste bar. */}
       <Link
-        href="/app"
+        href="/app/orders/new"
         className="inline-flex items-center gap-2 rounded-[14px] border-[1.5px] border-tm-border bg-card px-4 py-3 text-sm leading-none font-semibold transition-colors hover:border-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:outline-none"
       >
         <ArrowLeft className="size-4" aria-hidden />

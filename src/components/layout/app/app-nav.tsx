@@ -87,7 +87,16 @@ export function AppNav({
             is the one place the artwork lives (`components/brand/logo.tsx`);
             `priority` because this is above the fold on every app route.
           */}
-          <Logo variant="horizontal" height={24} decorative priority />
+          {/*
+            Two spellings, one per breakpoint. At 390px the full lockup plus the
+            right cluster (bag, bell, avatar — or bag and "Sign in") did not fit:
+            the bag's badge sat on top of the wordmark's last letter in Kelvin's
+            screenshot. The mark alone below `md` gives the row back ~130px; the
+            wordmark returns from `md` up. The mark is the same file in both, so
+            the phone downloads nothing extra.
+          */}
+          <Logo variant="mark" height={34} decorative priority className="md:hidden" />
+          <Logo variant="horizontal" height={24} decorative priority className="hidden md:inline-flex" />
         </Link>
 
         {/*

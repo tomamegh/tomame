@@ -171,7 +171,14 @@ export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
           }}
         />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        /*
+          `minmax(0,1fr)` below `lg`: an implicit `1fr` column's floor is the
+          widest card's min-content, and a card's `truncate`d product title on
+          one line is wider than a phone — so the column grew to ~620px and the
+          cards ran off the right edge. A zero floor keeps the track at the
+          container's width and lets `truncate` truncate.
+        */
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
           {visible.map((row, index) => (
             <JourneyCard
               key={row.id}

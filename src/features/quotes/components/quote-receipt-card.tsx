@@ -234,18 +234,28 @@ export function QuoteReceiptCard({
           give the screen two "Add to bag" buttons.
         */}
         {addedCount != null ? (
-          <Link
-            href="/app/bag"
-            className={cn(
-              "tm-cta-gradient hidden h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold lg:flex",
-              "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
-              "hover:brightness-105 focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-            )}
-          >
-            <Tote weight="bold" className="size-[18px]" aria-hidden />
-            View bag · {addedCount}
-            <ArrowRight weight="bold" className="size-4" aria-hidden />
-          </Link>
+          <div className="hidden flex-col gap-2 lg:flex">
+            <Link
+              href="/app/bag"
+              className={cn(
+                "tm-cta-gradient flex h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
+                "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
+                "hover:brightness-105 focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+              )}
+            >
+              <Tote weight="bold" className="size-[18px]" aria-hidden />
+              View bag · {addedCount}
+              <ArrowRight weight="bold" className="size-4" aria-hidden />
+            </Link>
+            {/* The next item — a bag is for several things bought the same week. */}
+            <Link
+              href="/app/orders/new"
+              className="flex h-11 w-full items-center justify-center gap-1.5 rounded-[14px] border-[1.5px] border-tm-border bg-card text-sm leading-none font-semibold transition-colors hover:bg-tm-tint focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none"
+            >
+              <Plus weight="bold" className="size-4" aria-hidden />
+              Add another item
+            </Link>
+          </div>
         ) : (
           <button
             type="button"

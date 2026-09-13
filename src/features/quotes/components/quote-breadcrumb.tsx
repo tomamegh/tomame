@@ -5,6 +5,8 @@ import { formatRelativeTime } from "@/features/app-home/components/format";
 import { formatProductUrlLabel } from "./format";
 
 export interface QuoteBreadcrumbProps {
+  /** Where the first crumb leads — Home for a customer, the paste screen for a visitor. */
+  backHref: string;
   productUrl: string;
   /** `extraction_cache.result.fetched_at` — when we last read the listing. */
   fetchedAt: string;
@@ -24,6 +26,7 @@ export interface QuoteBreadcrumbProps {
  * `fetched_at` and disappears entirely when that timestamp is unusable.
  */
 export function QuoteBreadcrumb({
+  backHref,
   productUrl,
   fetchedAt,
   now,
@@ -36,11 +39,11 @@ export function QuoteBreadcrumb({
       className="tm-in hidden flex-wrap items-center gap-3 text-[13px] leading-none font-medium text-tm-text-3 lg:flex [animation-duration:0.5s]"
     >
       <Link
-        href="/app"
+        href={backHref}
         className="flex items-center gap-1.5 rounded-md text-tm-ink transition-colors hover:text-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         <ArrowLeft className="size-4 shrink-0" aria-hidden />
-        Home
+        {backHref === "/app" ? "Home" : "Buy for me"}
       </Link>
 
       <span aria-hidden>/</span>

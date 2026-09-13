@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { Plus } from "@phosphor-icons/react/ssr";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -264,6 +267,24 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
             notifies={isSignedIn}
           />
         )}
+
+        {/*
+          The way to a SECOND item. After adding something the customer was
+          handed the bag and then had to find the Buy tab on their own — Kelvin:
+          "explicit load more products after adding to cart will be great". A
+          bag is meant to hold several things bought the same week, so the
+          invitation to add the next one belongs right under the lines.
+        */}
+        <Link
+          href="/app/orders/new"
+          className="tm-up flex items-center justify-between gap-3 rounded-[24px] border border-dashed border-tm-border bg-card px-[18px] py-4 text-sm font-semibold text-tm-coral transition-colors hover:bg-tm-tint lg:px-[22px] [animation-duration:0.5s]"
+        >
+          <span className="flex items-center gap-2">
+            <Plus weight="bold" className="size-4 shrink-0" aria-hidden />
+            Add another item
+          </span>
+          <span className="text-[13px] font-medium text-tm-text-3">Same week, same box</span>
+        </Link>
 
         <BagDeliverToCard delivery={bag.delivery} zones={zones} addresses={addresses} isSignedIn={isSignedIn} />
       </div>

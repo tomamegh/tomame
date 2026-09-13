@@ -1,5 +1,7 @@
 import { AppBottomTabs, AppNav } from "@/components/layout/app";
+import { APP_BOTTOM_TABS_PADDING } from "@/components/layout/app/app-bottom-tabs";
 import { APP_NAV_ITEMS } from "@/components/layout/app/links";
+import { cn } from "@/lib/utils";
 import { getAppChrome } from "@/features/app-shell/services/app-chrome.service";
 
 /**
@@ -28,7 +30,22 @@ export default async function AppDashboardLayout({
     <div className="flex min-h-dvh flex-col bg-tm-paper font-sans text-tm-ink">
       <AppNav {...chrome} />
 
-      <main className="mx-auto w-full max-w-[1280px] flex-1 px-5 pt-6 pb-16 md:px-8 md:pt-10">
+      {/*
+        `overflow-x-clip`: the body must never scroll sideways on a phone. Every
+        wide thing (a table, the account rail's pill row) scrolls inside its own
+        box; this is the guarantee that a stray min-content width somewhere
+        cannot widen the whole page again — which is exactly what the account
+        screen did until its grid column got a zero floor.
+      */}
+      <main
+        className={cn(
+          "mx-auto w-full max-w-[1280px] flex-1 overflow-x-clip px-5 pt-6 md:px-8 md:pt-10",
+          // Signed-in phones have the fixed tab bar to clear; everyone else gets
+          // the ordinary bottom rhythm. Routes that pin their own bar reserve
+          // their own space (`BagView` pads for `BagPayBar`).
+          chrome.isAuthenticated ? APP_BOTTOM_TABS_PADDING : "pb-16",
+        )}
+      >
         {children}
       </main>
 

@@ -41,7 +41,7 @@ export function JourneyCard({ row, index, busy, onPay, onBuyAgain }: JourneyCard
   return (
     <article
       data-testid="journey-card"
-      className="tm-up flex flex-col gap-3.5 rounded-[22px] border border-tm-border bg-card p-5 [animation-duration:0.5s]"
+      className="tm-up flex min-w-0 flex-col gap-3.5 rounded-[22px] border border-tm-border bg-card p-5 [animation-duration:0.5s]"
       style={{ animationDelay: `${(0.12 + index * 0.06).toFixed(2)}s` }}
     >
       <div className="flex items-center gap-3.5">

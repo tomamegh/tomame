@@ -30,7 +30,28 @@ interface AppBottomTabsProps {
  * It stands down entirely on a route that pins its own action bar — see
  * `ownsMobileBottomBar`. The bar is mobile-only in the first place, so there is
  * nothing left to render at any width once it does.
+ *
+ * `fixed`, NOT `sticky` — the same choice `BagPayBar` made, for the same reason.
+ * As a sticky element at the end of the shell's flex column it sat wherever the
+ * shell's bottom edge happened to be, and on iOS Safari that edge and the
+ * visual viewport disagree: Kelvin's screenshot of Home had the bar floating
+ * mid-screen with a viewport's worth of blank page underneath it. A fixed bar
+ * is pinned to the viewport regardless of what the document does. The shell
+ * reserves its height below `lg` (`APP_BOTTOM_TABS_PADDING` on the layout's
+ * `<main>`), so no content hides behind it.
  */
+
+/**
+ * Bottom padding the app shell's `<main>` needs below `lg` so the last card
+ * clears the fixed bar: the bar's own height (≈84px) plus the home-indicator
+ * inset it grows by on a real device.
+ */
+// A named utility in globals.css, not an arbitrary `pb-[calc(...)]`: two
+// spellings of that were tried and both measured 0px in the browser — one was
+// invalid CSS (`calc(96px+env(...))` needs spaces), and the valid one was
+// dropped by tailwind-merge inside `cn()`. The utility also carries its own
+// `lg` reset, so the caller does not pair it with anything.
+export const APP_BOTTOM_TABS_PADDING = "tm-clear-tab-bar";
 export function AppBottomTabs({ items, className }: AppBottomTabsProps) {
   const pathname = usePathname();
   const activeKey = resolveActiveAppNavKey(pathname, items);
@@ -41,7 +62,7 @@ export function AppBottomTabs({ items, className }: AppBottomTabsProps) {
     <nav
       aria-label="Primary"
       className={cn(
-        "sticky bottom-0 z-50 grid grid-cols-4 border-t border-tm-border bg-card px-2 pt-2.5 lg:hidden",
+        "fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-tm-border bg-card px-2 pt-2.5 lg:hidden",
         "pb-[max(22px,env(safe-area-inset-bottom))]",
         className,
       )}

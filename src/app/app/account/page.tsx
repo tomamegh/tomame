@@ -72,7 +72,13 @@ export default async function AccountPage({
         </p>
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)] lg:gap-7">
+      {/*
+        `minmax(0,1fr)` on the phone column too. A bare implicit `1fr` is
+        `minmax(auto,1fr)`, whose floor is the content's min-width — and the
+        rail's pill row is wider than any phone, so the column grew past the
+        viewport and the whole account page scrolled sideways.
+      */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[230px_minmax(0,1fr)] lg:gap-7">
         <AccountRail active={tab} />
         {/*
           `key` on the panel wrapper restarts the entrance animation on every tab

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { listActiveDeliveryZones } from "@/db/queries/delivery-zones";
 import { pickDefaultDoorZone } from "@/features/delivery/zones";
 import { QuoteView } from "@/features/quotes/components";
+import { isAuthenticated } from "@/lib/supabase/current-user";
 import { loadQuoteAssurances } from "@/features/quotes/services/quote-assurance.service";
 
 export const metadata: Metadata = {
@@ -33,10 +34,13 @@ export default async function QuotePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ id }, zones, assurances] = await Promise.all([
+  const [{ id }, zones, assurances, authed] = await Promise.all([
     params,
     listActiveDeliveryZones(),
     loadQuoteAssurances(),
+    // Only for where "back" goes. A signed-out visitor sent to `/app` is bounced
+    // to the login form by the proxy, which is what happened to Kelvin's tester.
+    isAuthenticated(),
   ]);
 
   return (
@@ -44,6 +48,7 @@ export default async function QuotePage({
       extractionId={id}
       deliveryZone={pickDefaultDoorZone(zones)}
       assurances={assurances}
+      isAuthenticated={authed}
     />
   );
 }

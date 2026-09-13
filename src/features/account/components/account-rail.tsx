@@ -50,7 +50,13 @@ export function AccountRail({ active }: { active: AccountTabKey }) {
   return (
     <nav
       aria-label="Account sections"
-      className="tm-up [animation-delay:0.06s] [animation-duration:0.5s]"
+      // `min-w-0` is load-bearing on a phone. A grid item's minimum width is its
+      // min-content width, and this nav's min-content is the whole pill row laid
+      // out on one line — so without it the single mobile column grew to ~700px,
+      // the page scrolled sideways, and every panel was cut off at the right edge
+      // (Kelvin's screenshot of the Payment tab). The row scrolls inside itself
+      // only once the nav is allowed to be narrower than its content.
+      className="tm-up min-w-0 [animation-delay:0.06s] [animation-duration:0.5s]"
     >
       <ul
         className={cn(

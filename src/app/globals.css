@@ -723,6 +723,20 @@
 @utility tm-sweep {
   animation: tmSweep 1.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
+/*
+ * Room for the fixed bottom tab bar on a signed-in phone: the bar's height plus
+ * the home-indicator inset it grows by. A named utility rather than
+ * `pb-[calc(96px_+_env(...))]` because tailwind-merge (`cn()`) did not
+ * recognise that arbitrary value and silently dropped it — the padding measured
+ * 0px and the last card sat under the bar. From `lg` the bar is gone and the
+ * ordinary bottom rhythm returns.
+ */
+@utility tm-clear-tab-bar {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  @media (min-width: 1024px) {
+    padding-bottom: 4rem;
+  }
+}
 
 /* Staggered page-load entrance: 60–80ms per card. Set --tm-i on each child. */
 @utility tm-stagger {

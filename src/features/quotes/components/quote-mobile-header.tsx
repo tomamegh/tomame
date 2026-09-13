@@ -14,6 +14,8 @@ const ROUND_BUTTON =
   "flex size-9 shrink-0 items-center justify-center rounded-full border border-tm-border bg-card transition-colors hover:text-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:outline-none disabled:opacity-60";
 
 export interface QuoteMobileHeaderProps {
+  /** Where the back arrow leads — Home for a customer, the paste screen for a visitor. */
+  backHref: string;
   /** "Amazon", or the bare host — `formatStorePillLabel` decides. */
   storeLabel: string;
   productUrl: string;
@@ -36,6 +38,7 @@ export interface QuoteMobileHeaderProps {
  * text — the registry has no logo for the artboard's mark.
  */
 export function QuoteMobileHeader({
+  backHref,
   storeLabel,
   productUrl,
   watching,
@@ -45,7 +48,7 @@ export function QuoteMobileHeader({
 }: QuoteMobileHeaderProps) {
   return (
     <div className="tm-in flex items-center justify-between gap-3 lg:hidden [animation-duration:0.5s]">
-      <Link href="/app" aria-label="Back to home" className={ROUND_BUTTON}>
+      <Link href={backHref} aria-label="Back" className={ROUND_BUTTON}>
         <ArrowLeft className="size-[18px]" aria-hidden />
       </Link>
 

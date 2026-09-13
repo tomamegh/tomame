@@ -172,9 +172,18 @@ export interface BuyerNoteCardProps {
 }
 
 /**
- * "Tell the buyer · optional" — the free-text note that travels to the order as
+ * "Ask us · optional" — the free-text note that travels to the order as
  * `special_instructions`. The cap is the one `createOrderSchema` enforces, so
  * the field cannot accept text the API would reject.
+ *
+ * It was "Tell the buyer". Kelvin's call: the customer is talking to Tomame,
+ * not to some third party called "the buyer", and the rest of the product says
+ * "us" ("Ask a buyer" on Home is the WhatsApp line, a different thing).
+ *
+ * THE BOX. It was two rows tall at 13px with 10px of padding, and on a phone it
+ * read as a box with a line of grey text lost in it. Three rows, 14px, and a
+ * little more room — a note is a sentence or two, and the field should look like
+ * it expects one.
  */
 export function BuyerNoteCard({
   value,
@@ -187,16 +196,16 @@ export function BuyerNoteCard({
         htmlFor="quote-buyer-note"
         className="text-sm leading-none font-semibold"
       >
-        Tell the buyer <span className="font-normal text-tm-text-3">· optional</span>
+        Ask us <span className="font-normal text-tm-text-3">· optional</span>
       </label>
       <textarea
         id="quote-buyer-note"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         maxLength={maxLength}
-        rows={2}
+        rows={3}
         placeholder="e.g. only if sold by Amazon, not a 3rd-party seller"
-        className="min-h-[44px] flex-1 resize-none rounded-[10px] border border-dashed border-[#E8DDD6] px-3 py-2.5 text-[13px] leading-[1.4] font-normal text-tm-ink placeholder:text-tm-text-3 focus-visible:border-tm-coral focus-visible:outline-none"
+        className="w-full resize-none rounded-[12px] border border-dashed border-[#E8DDD6] bg-card px-3.5 py-3 text-[14px] leading-[1.5] font-normal text-tm-ink placeholder:text-tm-text-3 focus-visible:border-tm-coral focus-visible:outline-none"
       />
     </section>
   );

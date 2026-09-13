@@ -65,7 +65,16 @@ export function LandingHero({
         className="pointer-events-none absolute -bottom-[260px] -left-[160px] size-[520px] rounded-full bg-[radial-gradient(circle,var(--tm-amber-bg)_0%,transparent_65%)]"
       />
 
-      <div className="relative mx-auto grid max-w-[1280px] items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
+      {/*
+        `minmax(0,1fr)` on the phone column, not the implicit `1fr`. An implicit
+        track is `minmax(auto,1fr)`, and its `auto` floor is the widest item's
+        min-content — which for the receipt card is its `truncate`d product
+        title laid out on one line (~320px) plus padding. On a 390px phone that
+        grew the track to 424px, so the paste bar and both cards ran off the
+        right edge and looked cut off (Kelvin's screenshot). With a zero floor
+        the track is the container's width and `truncate` does its job.
+      */}
+      <div className="relative mx-auto grid max-w-[1280px] grid-cols-[minmax(0,1fr)] items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
         <div className="tm-up flex flex-col gap-6 [animation-duration:0.7s] md:gap-[26px]">
           <p className="flex w-fit items-center gap-2 rounded-full border border-tm-border bg-card px-3 py-2 text-[13px] font-medium text-tm-text-2">
             <span className="relative inline-flex size-2 shrink-0">
@@ -115,10 +124,10 @@ export function LandingHero({
           )}
         </div>
 
-        <div className="tm-up relative flex flex-col gap-6 [animation-delay:0.15s] [animation-duration:0.7s] lg:block lg:h-[520px] lg:gap-0">
+        <div className="tm-up relative flex min-w-0 flex-col gap-6 [animation-delay:0.15s] [animation-duration:0.7s] lg:block lg:h-[520px] lg:gap-0">
           <div
             className={cn(
-              "tm-float-soft relative z-10 flex w-full flex-col gap-3 rounded-[26px] border border-tm-border bg-card p-5",
+              "tm-float-soft relative z-10 flex w-full min-w-0 flex-col gap-3 rounded-[26px] border border-tm-border bg-card p-5",
               "shadow-[0_40px_80px_-40px_rgba(43,36,34,0.3)]",
               "lg:absolute lg:top-0 lg:right-0 lg:w-[356px]",
             )}
