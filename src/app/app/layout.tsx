@@ -1,5 +1,5 @@
 import { AppBottomTabs, AppNav } from "@/components/layout/app";
-import { APP_BOTTOM_TABS_PADDING } from "@/components/layout/app/app-bottom-tabs";
+import { APP_BOTTOM_TABS_PADDING } from "@/components/layout/app/styles";
 import { APP_NAV_ITEMS } from "@/components/layout/app/links";
 import { cn } from "@/lib/utils";
 import { getAppChrome } from "@/features/app-shell/services/app-chrome.service";

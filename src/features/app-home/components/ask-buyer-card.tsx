@@ -17,7 +17,7 @@ export interface AskBuyerCardProps {
 }
 
 /**
- * "Ask a buyer" — Row C, right column, bottom card.
+ * "Ask us" (was "Ask a buyer" — Kelvin's wording) — Row C, right column, bottom card.
  *
  * The card always renders, but never promises a channel that does not exist.
  * With a number configured it says a person answers on WhatsApp — adding the
@@ -56,7 +56,7 @@ export function AskBuyerCard({ askBuyer, className }: AskBuyerCardProps) {
         id="home-ask-buyer-heading"
         className="mt-1.5 font-display text-[17px] leading-[1.2] font-bold"
       >
-        Ask a buyer
+        Ask us
       </h3>
 
       <p className="text-[13px] leading-[1.45] text-tm-text-2">{body}</p>
