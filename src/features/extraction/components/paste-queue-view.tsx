@@ -219,15 +219,24 @@ export function PasteQueueView({
         <label className="sr-only" htmlFor="paste-url">
           Product link
         </label>
-        <div className="flex h-[52px] flex-1 items-center gap-2.5 rounded-[14px] border border-tm-border bg-card px-4">
+        {/*
+          `sm:flex-1`, NOT `flex-1`. Below `sm` the form is a column, and in a
+          column `flex: 1 1 0%` makes the box's HEIGHT the flexed axis — the
+          basis of 0 beats `h-[52px]`, and the paste box collapsed to the height
+          of its placeholder text (Kelvin: "the space to post the link in is very
+          small and bad"). The box is 56px on a phone; the input is 16px there
+          because iOS zooms the page into any field smaller than that on focus.
+        */}
+        <div className="flex min-h-[56px] items-center gap-2.5 rounded-[14px] border border-tm-border bg-card px-4 sm:h-[52px] sm:min-h-0 sm:flex-1">
           <LinkSimple className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
           <input
             id="paste-url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             inputMode="url"
-            placeholder="https://…"
-            className="min-w-0 flex-1 bg-transparent text-[15px] leading-none outline-none placeholder:text-tm-text-3"
+            autoComplete="off"
+            placeholder="Paste a product link…"
+            className="min-w-0 flex-1 bg-transparent text-base leading-none outline-none placeholder:text-tm-text-3 sm:text-[15px]"
           />
         </div>
         <button
