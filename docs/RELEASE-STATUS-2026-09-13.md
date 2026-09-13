@@ -95,7 +95,20 @@ undone; it is a design job, not a correctness one.
   but Zyte answered `520 Website Ban` for MicroCenter and Browserless timed out at
   408. The slow-extraction UX in Phase 4.5 papers over this; the underlying vendor
   health is worth its own look.
-- **Paystack's test secret is valid** and in `.env.local` — verified directly
-  against `transaction/initialize`. The old "Invalid key" was a 19-char
-  placeholder. The end-to-end pay redirect still cannot be exercised with
-  `kwame@tomame.local`, because Paystack rejects a `.local` email address.
+- **Paystack is unblocked and the pay path is proven as far as it can be.** With
+  the real `sk_test_` in `.env.local`, `POST /api/payments/initialize
+  {orderGroupId}` returned a live checkout URL for a three-order group
+  (`https://checkout.paystack.com/…`, GH₵24,984.65 as `2498465` pesewas). The
+  webhook accepted a correctly-signed payload, re-verified it against Paystack,
+  and — because no real payment had been made — marked the payment `failed` and
+  left all three orders `pending`. **That is the right answer**: the handler does
+  not trust its own payload. Defence in depth, working.
+  - The final leg, a genuine `charge.success` fanning `paid` out to all three
+    orders, is covered by unit test (`group-payment.test.ts`: "links every order
+    once, flips the group once, sends one email"). It was not exercised live
+    because completing the checkout means entering card details, which I do not do.
+  - **Paystack rejects a `.local` email address.** `kwame@tomame.local` cannot
+    pay. I proved the flow by temporarily moving that account to
+    `kwame.test@example.com` and then **restored it**, so the documented login is
+    unchanged. To exercise payment yourself, give the test customer a real-looking
+    address first.
