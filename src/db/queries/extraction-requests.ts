@@ -420,3 +420,27 @@ export async function getExtractionRequestById(id: string): Promise<ExtractionJo
   if (error) throw new Error(`Failed to load extraction request: ${error.message}`);
   return (data as ExtractionJobRow | null) ?? null;
 }
+
+/**
+ * The viewer's recent pastes, newest first — what the Buy-for-me screen shows
+ * as "reading now" and "recently pasted".
+ *
+ * Service role with an explicit owner filter, like `getExtractionRequestForViewer`
+ * and for the same reason: a signed-out viewer is identified by the
+ * `tm_quote_session` cookie, which PostgREST knows nothing about. The filter IS
+ * the authorization — never drop it.
+ */
+export async function listPastesForViewer(viewer: RequestViewer, limit = 12): Promise<ExtractionJobRow[]> {
+  const owner = ownerFilter(viewer);
+  if (!owner) return [];
+
+  const { data, error } = await createAdminClient()
+    .from("extraction_requests")
+    .select(JOB_COLUMNS)
+    .eq(owner.column, owner.value)
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`Failed to load pastes: ${error.message}`);
+  return (data ?? []) as ExtractionJobRow[];
+}

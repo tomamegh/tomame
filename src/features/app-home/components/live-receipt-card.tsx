@@ -12,6 +12,7 @@ import {
   splitGhsTotal,
 } from "./format";
 import { RECEIPT_ROW_ICONS } from "./receipt-icons";
+import { ReceiptActions } from "./receipt-actions";
 
 export interface LiveReceiptCardProps {
   /** Null when the customer has pasted nothing yet — a real, common state. */
@@ -28,8 +29,10 @@ export interface LiveReceiptCardProps {
  * this component formats and never calculates. Three states are all first-class:
  * nothing pasted, pasted but unpriceable, and priced.
  *
- * There is no "Add to bag" button. There is no bag yet (Phase 4), and a button
- * that cannot do anything is worse than no button.
+ * Every one of them ends in something the customer can DO — see `ReceiptActions`.
+ * This card used to stop at "Price could not be read from the product page." and
+ * leave it there, which told someone their link had failed and offered them no
+ * way out of it.
  */
 export function LiveReceiptCard({
   receipt,
@@ -123,6 +126,12 @@ function ReceiptBody({ receipt, now }: { receipt: HomeReceipt; now: Date }) {
           </span>
         </div>
       )}
+
+      <ReceiptActions
+        productUrl={receipt.productUrl}
+        extractionCacheId={receipt.extractionCacheId}
+        unpriced={rows.length === 0}
+      />
     </>
   );
 }

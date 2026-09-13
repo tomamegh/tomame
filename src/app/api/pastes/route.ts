@@ -1,5 +1,6 @@
 import { NextRequest, after } from "next/server";
 
+import { listPastesForViewer } from "@/db/queries/extraction-requests";
 import { extractProductSchema } from "@/features/extraction/schema";
 import { enqueuePaste, runExtractionJob } from "@/features/extraction/services/extraction-queue.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
@@ -56,6 +57,30 @@ export async function POST(request: NextRequest) {
     if (!enqueued.ready) after(() => runExtractionJob(enqueued.request.id));
 
     return finalize(successResponse(toPasteStatus(enqueued.request), 201));
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+/**
+ * GET /api/pastes — everything this viewer has pasted lately.
+ *
+ * The Buy-for-me screen polls this while anything is still reading. Scoped to the
+ * viewer, so a signed-out visitor sees exactly the links they pasted under their
+ * own `tm_quote_session` cookie and nobody else's.
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+    if (!checkRateLimit(`pastes-list:${ip}`, RATE_LIMIT.general).allowed) {
+      throw new APIError(429, "Too many requests");
+    }
+
+    const user = await getAuthenticatedUser();
+    const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
+
+    const rows = await listPastesForViewer(viewer);
+    return finalize(successResponse(rows.map(toPasteStatus)));
   } catch (error) {
     return errorResponse(error);
   }
