@@ -63,28 +63,15 @@ export async function PATCH(
     const admin = requireAdmin(auth);
 
     const { id } = await params;
-    const {
-      status,
-      tracking_number,
-      carrier,
-      estimated_delivery_date,
-      tracking_url,
-      notes,
-    } = parsed.data;
-    const trackingData =
-      tracking_number ||
-      carrier ||
-      estimated_delivery_date ||
-      tracking_url ||
-      notes
-        ? {
-            tracking_number,
-            carrier,
-            estimated_delivery_date,
-            tracking_url,
-            notes,
-          }
-        : undefined;
+    const { status, ...tracking } = parsed.data;
+    // Spread straight through: the service's parameter is snake_case now, so the
+    // field names on the wire, in the schema, in the service and in the columns
+    // are one spelling. They were not before — `tracking_number` and
+    // `estimated_delivery_date` were handed to a camelCase parameter and silently
+    // discarded on every call (see `OrderTrackingInput`).
+    const trackingData = Object.values(tracking).some((value) => value !== undefined)
+      ? tracking
+      : undefined;
 
     const data = await updateOrderStatusAdmin(
       createAdminClient(),

@@ -77,6 +77,30 @@ export async function countMovingOrders(
   return count ?? 0;
 }
 
+/**
+ * Just enough of an order to answer "may this person see it?".
+ *
+ * Exists so `order-events.service.ts` can establish ownership WITHOUT importing
+ * `orders.service.ts`, which imports it back — a module cycle that resolves to
+ * `undefined` at the wrong moment under Turbopack. Two columns, no join.
+ */
+export async function getOrderOwner(
+  client: SupabaseClient,
+  orderId: string,
+): Promise<{ id: string; user_id: string } | null> {
+  const { data, error } = await client
+    .from("orders")
+    .select("id, user_id")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load order: ${error.message}`);
+  }
+
+  return data ? { id: String(data.id), user_id: String(data.user_id) } : null;
+}
+
 /** Every order one payment buys, in checkout order. Admin client — the payment webhook has no cookie. */
 export async function listOrdersByGroup(client: SupabaseClient, groupId: string): Promise<Order[]> {
   const { data, error } = await client

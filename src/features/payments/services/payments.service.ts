@@ -9,6 +9,7 @@ import {
   linkOrderToPayment,
   sendOrderStatusEmail,
 } from "@/features/orders/services/orders.service";
+import { recordOrderEvent } from "@/features/orders/services/order-events.service";
 import { listOrdersByGroup } from "@/db/queries/orders";
 import { getOrderGroupById, updateOrderGroupStatus } from "@/db/queries/order-groups";
 import { getPaymentChannel } from "@/features/payments/services/payment-channels.service";
@@ -564,6 +565,22 @@ async function settleOrder(admin: SupabaseClient, payment: Payment, orderId: str
     entityId: orderId,
     metadata: { from: "pending", to: "paid", paymentId: payment.id, orderGroupId: payment.order_group_id ?? null },
   });
+
+  // The customer's half of the same fact (050). `linkOrderToPayment` above only
+  // flips an order still in `pending`, so a webhook arriving after a callback
+  // returns null and never gets here — which is exactly what keeps this from
+  // writing the line twice.
+  await recordOrderEvent({
+    order_id: orderId,
+    order_group_id: payment.order_group_id ?? null,
+    kind: "payment_received",
+    title: "Payment received",
+    // What they paid with, as Paystack reported it. Null rather than "card"
+    // when the channel is unknown — an invented method is worse than none.
+    detail: payment.channel?.trim() || null,
+    occurred_at: payment.created_at,
+  });
+
   await createOrderNotifications(
     payment.user_id,
     orderId,

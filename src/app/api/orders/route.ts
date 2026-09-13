@@ -9,6 +9,12 @@ import { resolveViewer } from "@/lib/quote-session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
+/**
+ * THE order-creation endpoint. `POST /api/orders/new` was a byte-for-byte
+ * duplicate of this handler (data map §"Existing defects" 4) and is gone: no
+ * caller referenced it, and two routes writing orders is one place for the
+ * rate limit, the lock consumption or the validation to drift.
+ */
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get("x-forwarded-for") ?? "unknown";
@@ -34,20 +40,27 @@ export async function POST(request: NextRequest) {
 
     return successResponse(data, 201);
   } catch (error) {
-    console.log(error)
     return errorResponse(error);
   }
 }
 
+/**
+ * The viewer's orders, WITH the count.
+ *
+ * This used to destructure `.orders` off the service result and answer with a
+ * bare array, throwing `count` away. The Journeys screen's filter pills are
+ * grouped counts over the same list, so the envelope the service already returns
+ * is the shape callers need — `{ orders, count }`, not `Order[]`.
+ */
 export async function GET() {
   try {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
 
     const supabase = await createClient();
-    const { orders } = await listUserOrders(supabase, auth);
+    const orderList = await listUserOrders(supabase, auth);
 
-    return successResponse(orders);
+    return successResponse(orderList);
   } catch (error) {
     return errorResponse(error);
   }

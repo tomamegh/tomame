@@ -27,6 +27,11 @@ export type OriginCountry = "USA" | "UK" | "CHINA";
 /** Matches the database row shape directly — no camelCase mapping. */
 export interface Order {
   id: string;
+  /**
+   * 050: the human order number, "TM-00042". Server-assigned from a sequence
+   * default — NOT NULL in the database and never accepted from a client.
+   */
+  order_no: string;
   user_id: string;
   payment_id: string | null;
   status: OrderStatus;
@@ -40,7 +45,11 @@ export interface Order {
   pricing: OrderPricingBreakdown;
   tracking_number: string | null;
   carrier: string | null;
+  /** The midpoint of the window below; still read by the deliveries table and the status email. */
   estimated_delivery_date: string | null;
+  /** 050: the delivery WINDOW the customer is shown. Null until an operator sets one. */
+  eta_from?: string | null;
+  eta_to?: string | null;
   delivered_at: string | null;
   extraction_data: Record<string, unknown> | null;
   needs_review: boolean;
