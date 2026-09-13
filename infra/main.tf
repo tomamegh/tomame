@@ -64,8 +64,8 @@ locals {
   # -------------------------------------------------------------------------
   provisioned_env = {
     NEXT_PUBLIC_SUPABASE_URL             = module.supabase.api_url
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = module.supabase.publishable_key
-    SUPABASE_SECRET_KEY                  = module.supabase.service_role_key
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = local.supabase_apikeys["publishable"]
+    SUPABASE_SECRET_KEY                  = local.supabase_apikeys["service_role"]
     NEXT_PUBLIC_APP_URL                  = local.app_url
     RESEND_API_KEY                       = local.has_domain ? module.resend[0].api_key : ""
     RESEND_FROM_EMAIL                    = local.mail_from
@@ -234,6 +234,37 @@ module "supabase" {
 
   enable_signup = true
   max_rows      = 1000
+}
+
+# ---------------------------------------------------------------------------
+# The project's API keys, read WITHOUT `reveal=true`.
+#
+# Read rather than created: Supabase mints these with the project, so the
+# project stays the source and Vercel is a copy Terraform refreshes. The
+# supabase provider's own data source insists on `?reveal=true`, which Supabase
+# now rejects (403) for scoped personal access tokens — the only kind left — and
+# the endpoint returns the full values without it. See providers.tf.
+#
+# The provider decodes the JSON body itself. The response is a list of
+# {name, type, api_key, …}. Legacy keys carry their
+# name in `name` (anon, service_role) and `type = "legacy"`; the new keys are
+# `type = "publishable"` / `"secret"` with `name = "default"`. Keyed on the
+# distinguishing field so the four are addressable by one stable word each.
+# The app reads the NEW publishable key and the LEGACY service_role key
+# (src/lib/env.ts); a key missing from the response fails the plan loudly.
+# ---------------------------------------------------------------------------
+
+data "restful_resource" "supabase_apikeys" {
+  provider             = restful.supabase
+  id                   = "/v1/projects/${module.supabase.project_ref}/api-keys"
+  use_sensitive_output = true
+}
+
+locals {
+  supabase_apikeys = {
+    for key in data.restful_resource.supabase_apikeys.sensitive_output :
+    (key.type == "legacy" ? key.name : key.type) => key.api_key
+  }
 }
 
 # ---------------------------------------------------------------------------

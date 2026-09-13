@@ -65,16 +65,3 @@ resource "supabase_settings" "this" {
     var.extra_auth_settings,
   ))
 }
-
-# ---------------------------------------------------------------------------
-# API keys.
-#
-# Read rather than created: Supabase mints these with the project and there is
-# no operation to rotate them through this provider. Reading them keeps the
-# credential flow in one direction — the project is the source, everything
-# downstream (Vercel) is a copy that Terraform refreshes.
-# ---------------------------------------------------------------------------
-
-data "supabase_apikeys" "this" {
-  project_ref = supabase_project.this.id
-}

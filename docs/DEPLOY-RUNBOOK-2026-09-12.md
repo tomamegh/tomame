@@ -249,3 +249,72 @@ Branch `v2` (redesign) branches off `main` (current design + shared scraping).
 Both green: typecheck clean, lint exactly 9 pre-existing errors, `main`
 26 files/279 tests, `v2` 62 files/838 tests. Phase 3 is complete and closed —
 see `docs/phase-3-handoff.md` §9. Nothing is pushed to a remote yet.
+
+---
+
+## 8. Status after the 2026-09-12 (late) deploy session
+
+**Done and verified, both projects:** `schema_migrations` created and backfilled (33 rows), 036–047
+applied in order inside `BEGIN/COMMIT` and recorded (45 versions), §3c checks identical on dev and
+prod (27 public tables, 5 cron jobs, `pg_trgm`, 3 assurance cards, 84 catalogue queries, 3 quote
+constants), `supabase/seeds/policies.sql` applied (5 rows). Live rows untouched: dev 4 orders /
+3 profiles, prod 3 orders / 2 profiles / 2 payments. `npm run build` on `v2` against dev is green;
+smoke test on `next start` passed (marketing 200, gated routes 307 to login, public quote route 200).
+
+**Facts learned:**
+- Prod has **no PITR and zero platform backups** (`GET /v1/projects/<ref>/database/backups`).
+  A logical JSON snapshot of all 13 public tables (234 rows) + auth users was taken before the prod
+  migrations, in the session scratchpad — not durable. Enable PITR or scheduled backups on prod.
+- The seed leaves `policies.payment` and `policies.shipping` **unpublished**; the quote screen links
+  to `/policies#payment`. Publish it or change the link.
+- `/api/regions` and `/api/delivery-zones` do not exist as routes (pages read the tables directly);
+  404s there are not regressions.
+
+**§4 (Vercel env via Terraform) — root cause found and fixed in code (2026-09-13).**
+The supabase/supabase provider's `data.supabase_apikeys` hard-codes `GET …/api-keys?reveal=true`
+(every version through 1.11.0). Supabase answers **403 for scoped personal access tokens** —
+`api_gateway_keys_secret_read` is required and is not grantable on scoped tokens
+(supabase/supabase#50244, open) — and classic tokens can no longer be created. It is not a role
+problem: the same 403 occurs on Kelvin's own org where he is Owner. The plain list endpoint
+(no `reveal`) still returns every key value in full.
+
+Fix applied in `infra/`: an aliased `restful.supabase` provider (same `supabase_access_token`) and
+`data.restful_resource.supabase_apikeys` in root `main.tf` reading `/v1/projects/<ref>/api-keys`;
+`local.supabase_apikeys["publishable"]` and `["service_role"]` feed Vercel and the outputs; the
+module's `data.supabase_apikeys` and its two outputs are removed. Validated, planned and applied on
+dev. **Uncommitted at the time of writing — commit it on `v2` and cherry-pick to `main`.**
+
+**Applied on tomame-dev (2026-09-13):** `ANTHROPIC_API_KEY` and `SCRAPERAPI_API_KEY` imported;
+`terraform apply` (targeted `module.vercel`, `-refresh=false`) → 4 added (`OXYLABS_USERNAME`,
+`OXYLABS_PASSWORD`, `ZYTE_API_KEY`, `BUILDER_ENABLED`), 6 changed (placeholders → real keys for
+Anthropic, ScraperAPI, Apify, Browserless, exchange-rate, FreeCurrency), 1 destroyed
+(`SERPAPI_API_KEY`). Paystack pair deliberately left as it was in state: `.env.local`'s Paystack
+values are 19-char placeholders, dev state's secret key is a real 48-char `sk_test_`, dev's public
+key is still `DUMMY-not-a-real-key` — **Kelvin must supply a real `pk_test_` for dev.**
+**Applied on tomame-prod (2026-09-13, on Kelvin's go):** same import + targeted apply → 4 added,
+6 changed, 1 destroyed; Paystack LIVE pair unchanged; 21 variables live; post-apply plan reports
+"No changes". Vercel env changes take effect on the NEXT deployment — nothing has been pushed to
+GitHub yet, so no deployment has picked them up.
+
+**Procedure notes** (what the applies above used):
+- HCP: `TF_CLOUD_ORGANIZATION=tommame TF_CLOUD_PROJECT=tomame TF_WORKSPACE=tomame-dev|tomame-prod`.
+  Workspace selection is purely environment-driven; `terraform init` (no `-reconfigure`, that flag is
+  invalid with a `cloud {}` block) after changing `TF_WORKSPACE`. `terraform workspace show` confirms.
+- **Drift to import first** (live in Vercel, absent from state; a plain apply would fail on
+  "already exists"). Import id format is `team_id/project_id/env_id`, team `team_BoWqHKYbQaderTGFNEQv5JRp`:
+  - dev `prj_naFSKoK5eUcapMjFrWW7vEfZtDaM`: `ANTHROPIC_API_KEY` → `k7SrBrDudCTIv7MD`, `SCRAPERAPI_API_KEY` → `rwNa6PoWiDl2uemM`
+  - prod `prj_YEAlXVv9oLsNU3960gJLxSkQSc1v`: `ANTHROPIC_API_KEY` → `TqlmQQ6xLCMkTZFo`, `SCRAPERAPI_API_KEY` → `j5nCN7RXkuy6W82j`
+  - `SERPAPI_API_KEY` is in both states but no longer in config → the plan will destroy it. Correct;
+    no code reads it.
+- **Values.** Both states still hold `DUMMY-not-a-real-key` for `BROWSERLESS_API_KEY`,
+  `EXCHANGE_RATE_API_KEY`, `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY` (and dev's Paystack public key).
+  `.env.local` holds real, vendor-verified values for those. **Prod's Paystack pair is LIVE
+  (`sk_live_`/`pk_live_`) in prod state — source prod's Paystack from prod state, never from
+  `.env.local` (test keys).** Everything else for prod can come from `.env.local`.
+- Supply variables as a `*.tfvars.json` written by a JSON encoder (Terraform accepts it; `infra/.gitignore`
+  already excludes `*.tfvars.json`), passed with **separate** `-var-file=` flags — in zsh an unquoted
+  `$VAR` holding two flags is passed as ONE argument and fails with "Failed to read variables file".
+- `resend_api_token` (Resend FULL-ACCESS key) is required because `root_domain` is set. It is not on
+  disk anywhere; it was exported inline in the 2026-09-09 session. Kelvin must supply it for any apply
+  that touches `module.resend`; a `-target=module.vercel -refresh=false` apply avoids calling Resend
+  but still needs the variable declared (a placeholder is fine for that targeted run only).

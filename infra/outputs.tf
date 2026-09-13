@@ -80,13 +80,13 @@ output "managed_env_keys" {
 
 output "supabase_publishable_key" {
   description = "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY."
-  value       = module.supabase.publishable_key
+  value       = local.supabase_apikeys["publishable"]
   sensitive   = true
 }
 
 output "supabase_service_role_key" {
   description = "SUPABASE_SECRET_KEY. Server-side only — it bypasses RLS."
-  value       = module.supabase.service_role_key
+  value       = local.supabase_apikeys["service_role"]
   sensitive   = true
 }
 
