@@ -7,6 +7,13 @@ import { AccountProfilePanel } from "@/features/account/components/account-profi
 import { AccountSecurityPanel } from "@/features/account/components/account-security-panel";
 import { roleGrantSummary } from "@/features/users/components/admin-user-format";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Account · Tomame admin",
+  description: "Your own profile and password.",
+};
+
 /**
  * `/admin/account` — the administrator's own profile and password.
  *

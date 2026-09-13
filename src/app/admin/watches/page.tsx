@@ -33,6 +33,13 @@ import { formatCount } from "@/features/admin/components/dashboard-format";
 import { formatPercent } from "@/features/marketing/format";
 import { PRICE_WATCH_JOB } from "@/config/security";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Price watches · Tomame admin",
+  description: "Products customers asked us to re-check.",
+};
+
 /**
  * `/admin/watches` — is the price-watch batch still working, and for whom is it
  * not.

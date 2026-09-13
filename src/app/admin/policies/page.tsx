@@ -17,6 +17,13 @@ import type { PolicyRow } from "@/features/policies/types";
 
 import { PoliciesList } from "./policies-list";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Policies · Tomame admin",
+  description: "The published policies the storefront links to.",
+};
+
 /**
  * `/admin/policies` — the legal pages, and whether the links pointing at them
  * actually land anywhere.

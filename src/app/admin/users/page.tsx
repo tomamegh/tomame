@@ -15,6 +15,13 @@ import { formatCount } from "@/features/admin/components/dashboard-format";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cn } from "@/lib/utils";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Users · Tomame admin",
+  description: "Everyone with a Tomame account.",
+};
+
 /**
  * `/admin/users` — every account, and who can reach the admin.
  *

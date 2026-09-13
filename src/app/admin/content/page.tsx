@@ -29,6 +29,13 @@ import { formatCount } from "@/features/admin/components/dashboard-format";
 import { formatJoined } from "@/features/users/components/admin-user-format";
 import { cn } from "@/lib/utils";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Content · Tomame admin",
+  description: "The marketing site's admin-owned tables.",
+};
+
 /**
  * `/admin/content` — the marketing site's own tables, administered.
  *

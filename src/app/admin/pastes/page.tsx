@@ -1,6 +1,13 @@
 import { AdminPage } from "@/components/layout/admin";
 import { AdminPasteQueue } from "@/features/extraction/components/admin-paste-queue";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Paste queue · Tomame admin",
+  description: "Every link a customer has handed the extractor.",
+};
+
 /**
  * `/admin/pastes` — the sidebar has linked here since the v2 nav landed and
  * there was nothing at the end of it.

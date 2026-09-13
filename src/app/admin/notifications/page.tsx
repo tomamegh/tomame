@@ -18,6 +18,13 @@ import { summariseEvents } from "@/features/notifications/components/admin-notif
 import { formatCount } from "@/features/admin/components/dashboard-format";
 import { cn } from "@/lib/utils";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Notifications · Tomame admin",
+  description: "Every message the platform has sent, and whether it landed.",
+};
+
 /**
  * `/admin/notifications` — what the platform told customers, and who it failed
  * to tell.
