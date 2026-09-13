@@ -1,5 +1,60 @@
 # v2 release status — written 2026-09-13 while Kelvin was away
 
+## 0. READ THIS FIRST — a live privilege escalation on production
+
+**Any signed-in customer can make themselves an admin on prod right now.** Found
+while building Phase 6; verified against the hosted databases with read-only
+queries. Both dev and prod are affected.
+
+The chain, all four links confirmed:
+
+1. `authenticated` holds **table-wide UPDATE** on `public.profiles` (Supabase's
+   default privileges; checked on both projects).
+2. The RLS policy `Users can update own profile` is
+   `USING (auth.uid() = id) WITH CHECK (auth.uid() = id)` — **no column
+   restriction and no role guard**. RLS cannot restrict an UPDATE to a subset of
+   columns; only a column-level GRANT can.
+3. `custom_access_token_hook` copies `profiles.role` into `app_metadata.role`
+   every time a token is issued or refreshed.
+4. Every admin gate — `src/lib/supabase/proxy.ts` and all `/api/admin/*` routes —
+   trusts `app_metadata.role`.
+
+So a customer sends this straight at PostgREST, with the publishable key that
+ships in their own browser:
+
+```
+PATCH /rest/v1/profiles?id=eq.<their own id>
+  apikey: <NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY>
+  Authorization: Bearer <their own session JWT>
+  { "role": "admin" }
+```
+
+…refreshes their session, and is a full administrator.
+
+**Why it has not been fixed here:** changing grants on a production database
+unattended is exactly the class of action that needs you. The REVOKE also breaks
+the deployed app if any column it writes is missing from the new grant, and I
+could not smoke-test prod afterwards. Real-world exposure is currently small —
+prod holds 2 profiles and 3 orders — which is the only reason this waited.
+
+**The fix is already written**, as part of migration 051:
+
+```sql
+REVOKE UPDATE ON profiles FROM authenticated, anon;
+GRANT UPDATE (first_name, last_name, bio, phone, whatsapp_opt_in, notify_email)
+  ON profiles TO authenticated;
+```
+
+Those six are every column `PATCH /api/app/me` writes, so the deployed app keeps
+working. Role changes already go through `createAdminClient` (service_role,
+untouched). Verified locally as `authenticated` with a real customer JWT: the
+six-column write succeeds, `set role='admin'` is refused.
+
+Apply it to **prod first** — ahead of the rest of the migration run if you like,
+it is independent — then dev.
+
+---
+
 Everything below is **local only**. Nothing has been pushed. No hosted database
 has been touched. That is deliberate — see §3.
 
