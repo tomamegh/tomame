@@ -30,12 +30,10 @@ import {
 } from "@/components/ui/sidebar";
 import { PlatformUser } from "@/features/users/types";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export function NavUser({ user }: { user: PlatformUser }) {
   const { isMobile } = useSidebar();
-  const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const displayName =
@@ -49,11 +47,22 @@ export function NavUser({ user }: { user: PlatformUser }) {
       (user.profile?.last_name?.[0] ?? "")
     ).toUpperCase() || "A";
 
+  /**
+   * A HARD navigation, not `router.replace` + `router.refresh()`.
+   *
+   * The soft pair re-rendered the admin route the user was still standing on
+   * with no session, and `src/proxy.ts` answered that render by redirecting to
+   * `/auth/login` — so signing out of the admin landed on a login form instead
+   * of the front door. The same bug was in the storefront's account rail.
+   *
+   * The full navigation also drops every React Query cache with the page, which
+   * matters more here than anywhere: an admin session holds other people's
+   * orders, transactions and contact messages in memory.
+   */
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.replace("/");
-    router.refresh();
+    window.location.assign("/");
   };
 
   return (

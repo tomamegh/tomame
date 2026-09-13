@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/brand/logo";
 import { AppNavLinks } from "./app-nav-links";
 import { APP_NAV_ITEMS, avatarInitial, formatRatePill } from "./links";
 import { BagButton } from "./bag-button";
@@ -74,12 +75,16 @@ export function AppNav({
         <Link
           href={isAuthenticated ? "/app" : "/"}
           aria-label="Tomame — home"
-          className={cn(
-            "tm-wordmark w-fit rounded-sm text-[22px] leading-none md:text-[26px]",
-            FOCUS_RING,
-          )}
+          className={cn("w-fit rounded-sm", FOCUS_RING)}
         >
-          Tomame
+          {/*
+            The REAL logo, not gradient-styled text. This was `tm-wordmark` on
+            the literal word "Tomame" — the brand mark was simply absent from
+            every signed-in screen while the marketing site carried it. `Logo`
+            is the one place the artwork lives (`components/brand/logo.tsx`);
+            `priority` because this is above the fold on every app route.
+          */}
+          <Logo variant="horizontal" height={24} decorative priority />
         </Link>
 
         {/*

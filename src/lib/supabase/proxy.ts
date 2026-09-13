@@ -52,17 +52,38 @@ export async function updateSession(request: NextRequest) {
   // ── Route config ────────────────────────────────────────────────────────────
   // Add any new protected prefixes here. No other code needs to change.
   const authRoutes = ["/app", "/admin"]; // requires login
-  const adminRoutes = ["/admin"];        // requires admin role
+  // Requires the admin role.
+  //
+  // `/api/admin` IS LOAD-BEARING, not belt and braces. `adminRoutes` was
+  // `["/admin"]` alone, and `/api/admin/dashboard` does not start with `/admin`
+  // — it starts with `/api`. That route carried no check of its own either, so
+  // it answered ANY unauthenticated caller with the business's order count,
+  // revenue and customer count from a service-role client; verified live on
+  // both hosted projects on 2026-09-13. Every other `/api/admin/*` route
+  // happened to check for itself, so nothing else leaked.
+  //
+  // Gating the prefix here makes the whole namespace fail closed, so the next
+  // admin route added by someone who assumes "the admin is already gated" is
+  // right by default instead of silently public.
+  const adminRoutes = ["/admin", "/api/admin"];
   // The quote flow (paste link → preview → review) is open to visitors; the
   // order submit API and everything after it still require a session.
   const publicRoutes = ["/app/orders/new", "/app/orders/review", "/app/bag"];
 
   const isPublic = publicRoutes.some((p) => pathname.startsWith(p));
-  const isProtected = !isPublic && authRoutes.some((p) => pathname.startsWith(p));
   const isAdminRoute = adminRoutes.some((p) => pathname.startsWith(p));
+  const isProtected =
+    !isPublic && (isAdminRoute || authRoutes.some((p) => pathname.startsWith(p)));
+
+  // An API route must answer with a STATUS, never a redirect. A 302 to
+  // /auth/login reaches `fetch` as a 200 of HTML, which the client parses as
+  // JSON and reports as a parse error — the caller cannot tell "signed out"
+  // from "the server broke", and neither can anyone reading the logs.
+  const isApi = pathname.startsWith("/api/");
 
   // Unauthenticated users → login
   if (isProtected && !user) {
+    if (isApi) return jsonError(401, "Authentication required");
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
     url.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
@@ -74,6 +95,7 @@ export async function updateSession(request: NextRequest) {
   // `@tomame.ca`, regardless of role — a domain backdoor around the very column
   // that decides this.
   if (isAdminRoute && !canAccessAdmin(user)) {
+    if (isApi) return jsonError(403, "Admin access required");
     const url = request.nextUrl.clone();
     url.pathname = "/app";
     return NextResponse.redirect(url);
@@ -93,4 +115,16 @@ export async function updateSession(request: NextRequest) {
   // of sync and terminate the user's session prematurely!
 
   return supabaseResponse;
+}
+
+/**
+ * The refusal an API caller gets from the gate.
+ *
+ * Shaped exactly like `errorResponse` in `lib/auth/api-helpers` — same
+ * `{ success: false, error }` envelope — so a client cannot tell a refusal made
+ * here from one made inside a route handler, and `ApiFetchError` reports both
+ * the same way.
+ */
+function jsonError(status: number, message: string): NextResponse {
+  return NextResponse.json({ success: false, error: message }, { status });
 }
