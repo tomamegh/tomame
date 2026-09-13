@@ -80,10 +80,56 @@ Phase 5 (journeys + detail), Phase 6 (account) and the price-drop notifications
 were built by background agents in separate worktrees; their outcome is recorded
 in `docs/phase-4-handoff.md` §7 once merged.
 
+## 1b. Phases 5, 6 and the price-drop job — merged
+
+All three were built in isolated worktrees and merged into `v2`. The worktrees
+are removed; `git worktree list` shows only the main checkout.
+
+- **Phase 5 — journeys + detail** (migration 050). `order_events`,
+  `orders.order_no` (`TM-00001…`, backfilled by `row_number()` rather than
+  `nextval()` inside `UPDATE…FROM`, whose evaluation order Postgres does not
+  promise), `eta_from`/`eta_to`. The 5-stop track is a presentation over the 7
+  real statuses plus events — "US hub" lights only when a `hub_received` event
+  exists, and `ORDER_STATUSES`/`ALLOWED_TRANSITIONS` are untouched. "Ask about
+  this journey" is a WhatsApp deep link, per the same decision as the assisted
+  requests; `message_threads` stays deferred. **Verified live**: the hub stop and
+  its "New York · 0.6 lb · 6 Sep" line come from a real event row, and the
+  `is_customer_visible = false` note beside it does not reach the API.
+  - Found and fixed on the way: `PATCH /api/admin/orders/:id` was handing
+    snake_case fields to a camelCase parameter and **silently discarding the
+    carrier, tracking number and ETA on every call**.
+  - Also removed as dead: `order-detail.tsx`, `my-orders.tsx`, `orders-list.tsx`,
+    and the duplicate `POST /api/orders/new`.
+- **Phase 6 — account** (migration 051). `profiles.phone`, `notify_email`,
+  `whatsapp_opt_in`; the six-tab rail; addresses reuse `/api/addresses` and the
+  bag's dialog (moved to `features/addresses/`, re-exported so nothing broke).
+  Payment says plainly that no card details are stored, because none are.
+  - Found and fixed: **`changePassword` never verified the current password.**
+    The route collected `current_password`, checked it was non-empty and threw it
+    away, so anyone with a live session could lock the owner out.
+  - Also found: §0 above.
+- **Price-drop notifications** (migration 052). A drop emails the customer; the
+  watch job is now small batches every ten minutes instead of one 200-watch
+  sweep. The rule that matters is re-notification — a price that merely stays
+  low never alerts twice, and one that dips, recovers and dips back to the same
+  level stays silent.
+
+### What the agents could not verify
+
+None of the three could open a browser — the dev server belongs to this
+checkout. Their layout and animation claims are unconfirmed by `getComputedStyle`.
+I have since smoke-tested every route and both new screens by hand (journeys,
+journey detail, account, bag, Buy for me, and all four marketing pages); they
+render and the data is real. The **animation delays on the Phase 5 and Phase 6
+screens have still not been confirmed with `getComputedStyle`** — that is the one
+gate left open, and it is worth a pass before release.
+
 ## 2. Gates
 
 `npm run typecheck` clean · `npm run lint` **exactly 9** pre-existing errors ·
-`npx vitest run` green · `npm run build` green.
+`npx vitest run` **76 files / 1004 tests** green · `npm run build` green.
+
+Local migrations run to **053**. Hosted is at 047.
 
 **Two gate gotchas:**
 - While an agent worktree exists under `.claude/worktrees/`, an unfiltered
