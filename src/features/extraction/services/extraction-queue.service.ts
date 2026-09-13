@@ -93,7 +93,7 @@ export async function runExtractionJob(requestId: string): Promise<"ran" | "skip
   const attempts = claimed.attempts + 1;
   try {
     const prepared = await prepareProductUrl(claimed.product_url);
-    const extraction = await extractPrepared(prepared, claimed.user_id);
+    const extraction = await extractPrepared(prepared, { userId: claimed.user_id, sessionId: claimed.session_id });
 
     if (!extraction.extraction_cache_id) {
       await completeExtractionRequest({

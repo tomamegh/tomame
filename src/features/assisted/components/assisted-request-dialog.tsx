@@ -18,11 +18,18 @@ import type { AssistedRequest } from "../types";
  * The v2 field look. `Input` and `Textarea` are the shadcn defaults — 6px radius,
  * a shadow, and a `text-base md:text-sm` scale — which read as a different
  * product sitting inside a 24px-radius Tomame dialog.
+ *
+ * FOCUS IS DELIBERATELY QUIET. `--ring` in this theme is `--tm-coral`, so the
+ * default treatment paints a solid coral border AND a coral ring — and Radix
+ * focuses the first field the moment the dialog opens. The result was a textarea
+ * that looked like a failed validation before the customer had typed anything.
+ * Focus is now a soft ring over the ordinary border; only `aria-invalid` gets a
+ * hard colour, and it is amber, which is what every other error in this app uses.
  */
 const FIELD = cn(
   "rounded-[14px] border-tm-border bg-card px-3.5 py-3 text-[15px] leading-[1.5] shadow-none",
-  "focus-visible:border-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral/25",
-  "aria-invalid:border-tm-amber aria-invalid:ring-0",
+  "focus-visible:border-tm-border focus-visible:ring-2 focus-visible:ring-tm-coral/20",
+  "aria-invalid:border-tm-amber aria-invalid:ring-2 aria-invalid:ring-tm-amber/20",
 );
 
 export interface AssistedRequestDialogProps {
@@ -132,7 +139,7 @@ export function AssistedRequestDialog({
 
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <Label className="text-[13px] leading-none font-semibold">Link</Label>
+                <span className="text-[13px] leading-none font-semibold">Link</span>
                 <p
                   className="truncate rounded-[14px] bg-tm-tint px-3.5 py-3 text-[13px] leading-[1.4] text-tm-text-2"
                   title={displayUrl}

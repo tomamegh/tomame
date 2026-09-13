@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { enrich, ...extraction } = await extractPrepared(prepared, user?.id ?? null);
+    const { enrich, ...extraction } = await extractPrepared(prepared, viewer);
     // Weight lookup etc. finishes after the response and updates the cache row;
     // the review page reads the row, so it sees the enriched product.
     if (enrich) after(enrich);

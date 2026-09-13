@@ -29,51 +29,6 @@ const COLUMNS =
   "id, url_hash, product_url, extraction_cache_id, created_at, updated_at";
 
 /**
- * Record that `userId` pasted `productUrl`. Upserts on (user_id, url_hash), so a
- * repeat paste moves the row to the top of the list instead of duplicating it.
- *
- * Service role on purpose: the caller is the extraction pipeline, which holds a
- * resolved user id rather than a request-bound client, and whose sibling write
- * (`upsertExtractionCache`) already runs this way. `user_id` is always the
- * server-resolved session user — never a client-supplied value.
- *
- * Never throws and never returns an error: a failed bookkeeping write must not
- * cost the customer their quote.
- */
-export async function recordExtractionRequest(input: {
-  userId: string;
-  urlHash: string;
-  productUrl: string;
-  extractionCacheId: string | null;
-}): Promise<void> {
-  try {
-    const db = createAdminClient();
-    const { error } = await db.from("extraction_requests").upsert(
-      {
-        user_id: input.userId,
-        url_hash: input.urlHash,
-        product_url: input.productUrl,
-        extraction_cache_id: input.extractionCacheId,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,url_hash" },
-    );
-
-    if (error) {
-      logger.warn("extraction request write failed", {
-        code: error.code,
-        message: error.message,
-        hint: error.hint,
-      });
-    }
-  } catch (err) {
-    logger.warn("extraction request write exception", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-}
-
-/**
  * The newest link this customer pasted. Takes the caller's client so the
  * cookie-bound (RLS-enforced) client can be used — ownership is enforced by the
  * `extraction_requests owner read` policy, not by trusting this filter.

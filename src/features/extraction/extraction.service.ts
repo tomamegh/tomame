@@ -2,7 +2,7 @@ import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { EXTRACTION } from "@/config/extraction";
 import { getCachedExtractionByHash, getExtractionById, upsertExtractionCache } from "@/db/queries/extraction-cache";
-import { recordExtractionRequest } from "@/db/queries/extraction-requests";
+import { enqueueExtractionRequest, type RequestViewer } from "@/db/queries/extraction-requests";
 import { getCategoryPricingMap } from "@/db/queries/pricing-groups";
 import { getScraperForStore, SUPPORTED_STORE_NAMES } from "./scrapers";
 import { storeForUrl, GENERIC_STORE_SLUG, type StoreDefinition } from "./stores";
@@ -67,7 +67,7 @@ export async function prepareProductUrl(rawUrl: string): Promise<PreparedUrl> {
 const inflight = new Map<string, Promise<FreshExtraction>>();
 
 export async function extractProductData(url: string, userId: string | null): Promise<FreshExtraction> {
-  return extractPrepared(await prepareProductUrl(url), userId);
+  return extractPrepared(await prepareProductUrl(url), { userId, sessionId: null });
 }
 
 /**
@@ -80,28 +80,41 @@ export async function extractProductData(url: string, userId: string | null): Pr
  * optional one a call site could forget (see `applyImageOverride` in the Phase 1
  * post-mortem): the anonymous case is a real `null`, not an omission.
  */
-export async function extractPrepared(prepared: PreparedUrl, userId: string | null): Promise<FreshExtraction> {
-  const extraction = await resolveExtraction(prepared, userId);
-  await notePaste(prepared, userId, extraction.extraction_cache_id);
+export async function extractPrepared(prepared: PreparedUrl, viewer: RequestViewer): Promise<FreshExtraction> {
+  const extraction = await resolveExtraction(prepared, viewer.userId);
+  await notePaste(prepared, viewer, extraction.extraction_cache_id);
   return extraction;
 }
 
 /**
- * Record that this customer pasted this link, so the Home "live receipt" can
- * find it later. `extraction_cache` cannot answer that question: migration 035
- * made it product-keyed, so its `user_id` is overwritten by the next customer to
- * paste the same URL (see migration 041's header).
+ * Record that this viewer pasted this link, so the Home "live receipt" and the
+ * Buy-for-me list can find it later. `extraction_cache` cannot answer that
+ * question: migration 035 made it product-keyed, so its `user_id` is overwritten
+ * by the next customer to paste the same URL (see migration 041's header).
  *
- * The quote flow is public. An anonymous paste has no one to show a receipt to,
- * so it is skipped rather than attributed to an invented user.
+ * Recorded for an anonymous viewer too, through the `tm_quote_session` cookie.
+ * It used to be skipped — correctly, when only a signed-in customer had anywhere
+ * to see it — but since 049 a session owns pastes, a bag and a queue, so a
+ * signed-out paste has somewhere to appear.
+ *
+ * Writes through `enqueueExtractionRequest`, the SAME writer `/api/pastes` uses.
+ * There were briefly two, and the second one upserted on `user_id,url_hash` — a
+ * constraint 049 replaced with a unique index over the generated `owner_key`.
+ * Every quote-flow paste therefore answered 42P10 and was swallowed by this
+ * function's never-throw contract: the link vanished from the queue and the Home
+ * receipt went stale, with nothing in the response to say so.
  */
-async function notePaste(prepared: PreparedUrl, userId: string | null, extractionCacheId: string | null): Promise<void> {
-  if (!userId) return;
-  await recordExtractionRequest({
-    userId,
+async function notePaste(
+  prepared: PreparedUrl,
+  viewer: RequestViewer,
+  extractionCacheId: string | null,
+): Promise<void> {
+  if (!viewer.userId && !viewer.sessionId) return;
+  await enqueueExtractionRequest({
+    viewer,
     urlHash: prepared.urlHash,
     productUrl: prepared.canonicalUrl,
-    extractionCacheId,
+    cachedId: extractionCacheId,
   });
 }
 

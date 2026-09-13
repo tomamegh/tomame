@@ -406,7 +406,7 @@ interface ResolvedProduct {
  */
 async function resolveAndPrice(rawUrl: string, userId: string | null): Promise<ResolvedProduct> {
   const prepared = await prepareProductUrl(rawUrl);
-  const extraction = await extractPrepared(prepared, userId);
+  const extraction = await extractPrepared(prepared, { userId, sessionId: null });
   const { pricing, reason } = await priceExtraction(extraction, 1, null, null);
 
   if (!pricing) {

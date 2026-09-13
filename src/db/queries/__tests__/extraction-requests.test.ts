@@ -11,61 +11,13 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { logger } from "@/lib/logger";
 import {
   getLatestExtractionRequest,
-  recordExtractionRequest,
 } from "../extraction-requests";
 
 beforeEach(() => {
   vi.clearAllMocks();
   upsert.mockResolvedValue({ error: null });
-});
-
-describe("recordExtractionRequest", () => {
-  const input = {
-    userId: "user-1",
-    urlHash: "hash-1",
-    productUrl: "https://www.amazon.com/dp/B0TEST",
-    extractionCacheId: "cache-1",
-  };
-
-  it("upserts on (user_id, url_hash) so a repeat paste bumps instead of duplicating", async () => {
-    await recordExtractionRequest(input);
-
-    const [row, options] = upsert.mock.calls[0] ?? [];
-    expect(row).toMatchObject({
-      user_id: "user-1",
-      url_hash: "hash-1",
-      product_url: "https://www.amazon.com/dp/B0TEST",
-      extraction_cache_id: "cache-1",
-    });
-    expect(options).toEqual({ onConflict: "user_id,url_hash" });
-  });
-
-  it("bumps updated_at so the newest paste sorts first", async () => {
-    await recordExtractionRequest(input);
-    const [row] = upsert.mock.calls[0] ?? [];
-    expect(typeof (row as { updated_at: string }).updated_at).toBe("string");
-  });
-
-  it("stores a null cache id when the extraction has no row", async () => {
-    await recordExtractionRequest({ ...input, extractionCacheId: null });
-    const [row] = upsert.mock.calls[0] ?? [];
-    expect((row as { extraction_cache_id: string | null }).extraction_cache_id).toBeNull();
-  });
-
-  it("never throws on a database error — bookkeeping must not cost a quote", async () => {
-    upsert.mockResolvedValue({ error: { code: "23503", message: "fk violation" } });
-    await expect(recordExtractionRequest(input)).resolves.toBeUndefined();
-    expect(logger.warn).toHaveBeenCalled();
-  });
-
-  it("never throws when the client itself blows up", async () => {
-    upsert.mockRejectedValue(new Error("network down"));
-    await expect(recordExtractionRequest(input)).resolves.toBeUndefined();
-    expect(logger.warn).toHaveBeenCalled();
-  });
 });
 
 describe("getLatestExtractionRequest", () => {
