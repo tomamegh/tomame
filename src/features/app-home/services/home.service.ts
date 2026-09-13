@@ -13,6 +13,7 @@ import {
   getLatestExtractionRequest,
   type ExtractionRequestRow,
 } from "@/db/queries/extraction-requests";
+import { listOpenAssistedRequestsByUrl, type OpenAssistedRequestSummary } from "@/db/queries/assisted-requests";
 import {
   getCachedExtractionByHash,
   getExtractionById,
@@ -208,13 +209,22 @@ async function buildReceipt(
   const snapshot = await loadExtraction(paste);
   if (!snapshot) return null;
 
-  const { pricing, reason } = await priceUnderExistingLock({
-    viewer,
-    extraction: snapshot.result,
-    extractionCacheId: snapshot.id,
-    quantity: 1,
-    overrides: null,
-  });
+  const [{ pricing, reason }, assisted] = await Promise.all([
+    priceUnderExistingLock({
+      viewer,
+      extraction: snapshot.result,
+      extractionCacheId: snapshot.id,
+      quantity: 1,
+      overrides: null,
+    }),
+    // Already in a buyer's hands? The card then shows that instead of "Try
+    // again" and "Describe it" — the same closure the paste list and bag apply.
+    degrade(
+      listOpenAssistedRequestsByUrl(viewer, [paste.product_url]),
+      new Map<string, OpenAssistedRequestSummary>(),
+      "assisted requests",
+    ),
+  ]);
 
   return {
     productUrl: paste.product_url,
@@ -225,6 +235,7 @@ async function buildReceipt(
     pricing,
     pricingUnavailableReason: reason,
     extractionCacheId: snapshot.id,
+    assistedOpen: assisted.has(paste.product_url),
   };
 }
 

@@ -1,6 +1,47 @@
 # v2 release status — written 2026-09-13 while Kelvin was away
 
-## 0. READ THIS FIRST — a live privilege escalation on production
+## 0. RESOLVED 2026-09-13 — the privilege escalation is closed on both hosted projects
+
+**Applied to `tomame-prod` then `tomame-dev` via the Management API (runbook §2):**
+
+```sql
+BEGIN;
+REVOKE UPDATE ON public.profiles FROM authenticated, anon;
+GRANT UPDATE (first_name, last_name, bio) ON public.profiles TO authenticated;
+COMMIT;
+```
+
+The grant list is **three columns, not the six in migration 051**, because hosted
+is at 047 and `phone` / `whatsapp_opt_in` / `notify_email` do not exist there yet.
+051 adds those columns and re-issues the same REVOKE + a six-column GRANT in the
+same transaction, so applying it later is correct and idempotent — nothing here
+needs changing for the deploy.
+
+Verified afterwards on **both** projects by impersonating a real customer
+(`set local role authenticated` + their `request.jwt.claims`, inside a
+transaction that rolls back):
+
+- `update profiles set role = 'admin' where id = <self>` → **blocked**, 42501
+  permission denied for table profiles.
+- `update profiles set first_name = …` → **still allowed**, so the deployed
+  `PATCH /api/app/me` is unaffected.
+
+Prod rows were not modified. (One dev row, `52632bab-…`, had its `first_name`
+overwritten to `PrivCheck` by the first verification run before it was wrapped in
+a rollback — the original value is not recoverable from `public`; set it to
+whatever it should be.)
+
+Also confirmed while checking: `anon` still holds a pointless table-wide INSERT
+on `profiles`, but the `No direct profile inserts` policy is `WITH CHECK (false)`,
+so it is not exploitable. Role changes all run through `createAdminClient()`
+(`updateUser` / the promote path in `users.service.ts`, both called from
+`/api/admin/users/*` with an admin client) — service_role keeps `ALL` and is
+untouched by the REVOKE.
+
+<details>
+<summary>Original write-up (kept for the record)</summary>
+
+### READ THIS FIRST — a live privilege escalation on production
 
 **Any signed-in customer can make themselves an admin on prod right now.** Found
 while building Phase 6; verified against the hosted databases with read-only
@@ -57,6 +98,8 @@ it is independent — then dev.
 
 Everything below is **local only**. Nothing has been pushed. No hosted database
 has been touched. That is deliberate — see §3.
+
+</details>
 
 ## 1. What shipped on `v2`
 

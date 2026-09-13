@@ -138,6 +138,19 @@ describe("buildFooterColumns", () => {
       "Company",
     ]);
   });
+
+  it("links only to routes that exist", () => {
+    // /blog, /careers and /how-it-works were in the footer of every marketing
+    // page and none of them has ever been a route.
+    const hrefs = buildFooterColumns("+233 24 555 0192").flatMap((column) =>
+      column.links.map((link) => link.href),
+    );
+    for (const dead of ["/blog", "/careers", "/how-it-works"]) {
+      expect(hrefs).not.toContain(dead);
+    }
+    // "How it works" is a section of the landing page, as the nav already knew.
+    expect(hrefs).toContain("/#how-it-works");
+  });
 });
 
 describe("buildLegalColumn", () => {

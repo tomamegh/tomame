@@ -24,6 +24,9 @@ vi.mock("@/db/queries/carts", () => ({
   updateCart: vi.fn(async () => undefined),
 }));
 // The paste queue's query module builds the admin client at module scope.
+vi.mock("@/db/queries/assisted-requests", () => ({
+  listOpenAssistedRequestsByUrl: vi.fn(async () => new Map()),
+}));
 vi.mock("@/db/queries/extraction-requests", () => ({ getExtractionRequestById: vi.fn(async () => null) }));
 vi.mock("@/db/queries/delivery-addresses", () => ({
   getDeliveryAddressById: vi.fn(async () => null),

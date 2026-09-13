@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 import { getExtractionRequestForViewer } from "@/db/queries/extraction-requests";
 import { getQuoteFacts } from "@/db/queries/extraction-cache";
+import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { toPasteStatus } from "@/features/extraction/services/paste-status";
 import { resolveViewer } from "@/lib/quote-session";
@@ -34,8 +35,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const row = await getExtractionRequestForViewer(id, viewer);
     if (!row) throw new APIError(404, "We have no record of that link");
 
-    const facts = await getQuoteFacts([row.extraction_cache_id ?? ""]);
-    return finalize(successResponse(toPasteStatus(row, facts.get(row.extraction_cache_id ?? ""))));
+    const [facts, assisted] = await Promise.all([
+      getQuoteFacts([row.extraction_cache_id ?? ""]),
+      listOpenAssistedRequestsByUrl(viewer, [row.product_url]),
+    ]);
+    return finalize(
+      successResponse(
+        toPasteStatus(row, facts.get(row.extraction_cache_id ?? ""), assisted.get(row.product_url) ?? null),
+      ),
+    );
   } catch (error) {
     return errorResponse(error);
   }

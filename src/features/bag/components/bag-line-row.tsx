@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { BookmarkSimple, ChatCircleText, CircleNotch, Minus, Plus, X } from "@phosphor-icons/react/ssr";
+import { BookmarkSimple, ChatCircleText, CheckCircle, CircleNotch, Minus, Plus, X } from "@phosphor-icons/react/ssr";
 
 import { safeImageSrc } from "@/features/app-home/components/format";
 import { formatGhs } from "@/features/marketing/format";
@@ -19,6 +19,8 @@ export interface BagLineRowProps {
   onRemove: () => void;
   /** Offered once waiting stops being reasonable — see `describePendingWait`. */
   onDescribeIt: () => void;
+  /** Whether a finished paste will reach this viewer — signed-in only. Shapes the wait copy. */
+  notifies: boolean;
 }
 
 /** The mock's empty thumb: a diagonal hatch in the tint palette (line 221). */
@@ -48,11 +50,12 @@ export function BagLineRow({
   onWatchInstead,
   onRemove,
   onDescribeIt,
+  notifies,
 }: BagLineRowProps) {
   const src = safeImageSrc(line.product.image);
   const meta = formatLineMeta(line);
   const usd = formatLineUsd(line);
-  const wait = line.pending ? describePendingWait(line.pending, now) : null;
+  const wait = line.pending ? describePendingWait(line.pending, now, { notifies }) : null;
   const title = line.product.title ?? (line.pending ? hostOf(line.product.url) : "Product from link");
 
   return (
@@ -100,15 +103,19 @@ export function BagLineRow({
               <span
                 className={cn(
                   "flex items-center gap-1.5 text-[13px] leading-none font-medium",
-                  wait.phase === "failed" ? "text-tm-amber" : "text-tm-text-2",
+                  wait.phase === "failed" && "text-tm-amber",
+                  wait.phase === "assisted" && "text-tm-green",
+                  wait.phase !== "failed" && wait.phase !== "assisted" && "text-tm-text-2",
                 )}
               >
-                {wait.phase !== "failed" && (
+                {wait.phase === "assisted" ? (
+                  <CheckCircle weight="fill" className="size-3.5 shrink-0" aria-hidden />
+                ) : wait.phase !== "failed" ? (
                   <CircleNotch
                     className="size-3.5 shrink-0 animate-spin text-tm-coral"
                     aria-hidden
                   />
-                )}
+                ) : null}
                 {wait.title}
               </span>
               {wait.detail && (

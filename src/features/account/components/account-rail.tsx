@@ -17,6 +17,7 @@ import {
   type AccountTabIcon,
   type AccountTabKey,
 } from "../tabs";
+import { SignOutButton } from "./sign-out-button";
 
 /**
  * `tabs.ts` names an icon; this maps the name to a glyph. The split keeps the
@@ -85,6 +86,16 @@ export function AccountRail({ active }: { active: AccountTabKey }) {
             </li>
           );
         })}
+
+        {/*
+          Not a tab — it has no panel — but it lives in the rail because the rail
+          is the one piece of chrome on every account screen. On the phone it is
+          the last pill in the row; from `lg` it sits under a hairline at the
+          foot of the column, apart from the destinations.
+        */}
+        <li className="shrink-0 lg:mt-2 lg:shrink lg:border-t lg:border-tm-hairline lg:pt-2">
+          <SignOutButton className="w-full" />
+        </li>
       </ul>
     </nav>
   );

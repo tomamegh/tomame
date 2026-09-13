@@ -8,20 +8,20 @@ import {
   ArrowsClockwise,
   ChatCircleText,
   CheckCircle,
-  CircleNotch,
   LinkSimple,
   Tote,
   WarningCircle,
 } from "@phosphor-icons/react/ssr";
 
 import { AssistedRequestDialog } from "@/features/assisted/components";
-import { describePendingWait, hostOf } from "@/features/bag/components/format";
+import { describePendingWait, hostOf, type PendingWait } from "@/features/bag/components/format";
 import type { BagLinePending } from "@/features/bag/types";
 import { ApiFetchError } from "@/lib/auth/api-helpers";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import { useAddPasteToBag, useCreatePaste, usePastes } from "../hooks/usePastes";
 import type { PasteStatus } from "../services/paste-status";
+import { ReadingIndicator } from "./reading-indicator";
 
 export interface PasteQueueViewProps {
   /** The viewer's recent pastes, server-rendered so the list is there on first paint. */
@@ -30,6 +30,14 @@ export interface PasteQueueViewProps {
   stores: readonly string[];
   /** Server render time, ISO. The wait copy is struck from this so SSR and hydration agree. */
   renderedAt: string;
+  /**
+   * A paste to follow to its price — `?watch=<id>`, set by the `?url=` path
+   * after it queues a link. The screen forwards to the quote the moment that
+   * row is priced, so a link pasted on Home still lands on its price.
+   */
+  watchId?: string | null;
+  /** Whether a finished paste will reach this viewer by bell and email — signed-in only. */
+  notifies?: boolean;
 }
 
 /**
@@ -42,9 +50,20 @@ export interface PasteQueueViewProps {
  *
  * Nothing here waits. A link is added, it reads in the background, and the
  * customer can paste the next one or walk away entirely — the bag will have the
- * price when they come back.
+ * price when they come back, and a signed-in customer is told when it lands.
+ *
+ * The one thing it does on the customer's behalf: the link they JUST pasted is
+ * followed, and forwarded to its price the moment it is priced — as long as
+ * they have not started typing the next one, because pulling a screen out from
+ * under a half-typed URL is worse than one extra click.
  */
-export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueueViewProps) {
+export function PasteQueueView({
+  initialPastes,
+  stores,
+  renderedAt,
+  watchId: initialWatchId = null,
+  notifies = false,
+}: PasteQueueViewProps) {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [describing, setDescribing] = useState<PasteStatus | null>(null);
@@ -52,6 +71,7 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
   // is one mutation shared by the screen, so keying the spinner off it put every
   // lapsed row into the reading state at once.
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [watchId, setWatchId] = useState<string | null>(initialWatchId);
 
   const { data: pastes } = usePastes(initialPastes);
   const createPaste = useCreatePaste();
@@ -76,6 +96,26 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
     return () => clearInterval(id);
   }, [anyReading]);
 
+  // Follow the watched paste. Once it settles, the watch is over whichever way
+  // it went: a priced quote is opened; anything else stays on this screen where
+  // its row explains itself and offers the way out.
+  const typing = url.trim().length > 0;
+  useEffect(() => {
+    if (!watchId) return;
+    const watched = pastes.find((p) => p.id === watchId);
+    if (!watched || watched.outcome === "reading") return;
+
+    setWatchId(null);
+    if (watched.outcome === "priced" && watched.extraction_cache_id && !typing) {
+      router.replace(`/app/orders/review/${watched.extraction_cache_id}`);
+      return;
+    }
+    // Drop `?watch=` so a reload does not re-arm a watch that has already ended.
+    if (initialWatchId && typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/app/orders/new");
+    }
+  }, [pastes, watchId, typing, router, initialWatchId]);
+
   const onPaste = useCallback(() => {
     const trimmed = url.trim();
     if (!trimmed) return;
@@ -91,7 +131,9 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
           // the row says so and offers the way out.
           if (paste.outcome === "priced" && paste.extraction_cache_id) {
             router.push(`/app/orders/review/${paste.extraction_cache_id}`);
+            return;
           }
+          if (paste.outcome === "reading") setWatchId(paste.id);
         },
         onError: (error) => {
           if (error instanceof ApiFetchError && error.status === 429) {
@@ -130,7 +172,9 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
           onSuccess: (next) => {
             if (next.outcome === "priced" && next.extraction_cache_id) {
               router.push(`/app/orders/review/${next.extraction_cache_id}`);
+              return;
             }
+            if (next.outcome === "reading") setWatchId(next.id);
           },
           onError: (error) => toast.error({ title: "Could not read that link", description: error.message }),
           onSettled: () => setRetryingId(null),
@@ -141,6 +185,17 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
   );
 
   const { reading, done } = useMemo(() => splitPastes(pastes), [pastes]);
+
+  const rowProps = (paste: PasteStatus) => ({
+    paste,
+    now,
+    notifies,
+    onDescribe: () => setDescribing(paste),
+    onAddToBag: () => onAddToBag(paste),
+    onRetry: () => onRetry(paste),
+    busy: addToBag.isPending,
+    retrying: retryingId === paste.id,
+  });
 
   return (
     <div className="flex flex-col gap-7">
@@ -191,16 +246,7 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
       {reading.length > 0 && (
         <Group label={`Reading now · ${reading.length}`} delay={0.12}>
           {reading.map((paste) => (
-            <PasteRow
-              key={paste.id}
-              paste={paste}
-              now={now}
-              onDescribe={() => setDescribing(paste)}
-              onAddToBag={() => onAddToBag(paste)}
-              onRetry={() => onRetry(paste)}
-              busy={addToBag.isPending}
-              retrying={retryingId === paste.id}
-            />
+            <PasteRow key={paste.id} {...rowProps(paste)} />
           ))}
         </Group>
       )}
@@ -208,16 +254,7 @@ export function PasteQueueView({ initialPastes, stores, renderedAt }: PasteQueue
       {done.length > 0 && (
         <Group label="Recently pasted" delay={0.18}>
           {done.map((paste) => (
-            <PasteRow
-              key={paste.id}
-              paste={paste}
-              now={now}
-              onDescribe={() => setDescribing(paste)}
-              onAddToBag={() => onAddToBag(paste)}
-              onRetry={() => onRetry(paste)}
-              busy={addToBag.isPending}
-              retrying={retryingId === paste.id}
-            />
+            <PasteRow key={paste.id} {...rowProps(paste)} />
           ))}
         </Group>
       )}
@@ -253,17 +290,17 @@ function splitPastes(pastes: PasteStatus[]): { reading: PasteStatus[]; done: Pas
   return { reading, done };
 }
 
-/**
- * What to say about a link whose job has finished. Three settled states, three
- * different things the customer should be offered — collapsing them into one
- * "ready" is what let the screen promise a price it did not have.
- */
 const ROW_ACTION = cn(
   "inline-flex h-10 items-center gap-1.5 rounded-xl border-[1.5px] border-tm-border bg-card px-4",
   "text-[13px] leading-none font-semibold transition-colors hover:bg-tm-tint",
   "disabled:cursor-not-allowed disabled:opacity-50",
 );
 
+/**
+ * What to say about a link whose job has finished. Three settled states, three
+ * different things the customer should be offered — collapsing them into one
+ * "ready" is what let the screen promise a price it did not have.
+ */
 const SETTLED_COPY: Record<
   Exclude<PasteStatus["outcome"], "reading">,
   { label: string; tone: "green" | "amber" }
@@ -288,13 +325,21 @@ function Group({ label, delay, children }: { label: string; delay: number; child
   );
 }
 
+/** Whole seconds since the paste was queued, never negative. */
+function secondsSince(iso: string, now: Date): number {
+  const ms = now.getTime() - new Date(iso).getTime();
+  return Number.isFinite(ms) && ms > 0 ? Math.floor(ms / 1000) : 0;
+}
+
 /**
- * One pasted link. The three states it can be in are the three things a customer
- * can do next: wait, look at the price, or ask a person.
+ * One pasted link. The states it can be in are the things a customer can do
+ * next: wait, look at the price, ask a person — or, once a person has it,
+ * nothing at all except read who has it.
  */
 function PasteRow({
   paste,
   now,
+  notifies,
   onDescribe,
   onAddToBag,
   onRetry,
@@ -303,6 +348,7 @@ function PasteRow({
 }: {
   paste: PasteStatus;
   now: Date;
+  notifies: boolean;
   onDescribe: () => void;
   onAddToBag: () => void;
   onRetry: () => void;
@@ -310,23 +356,75 @@ function PasteRow({
   retrying: boolean;
 }) {
   const priced = paste.outcome === "priced" && !!paste.extraction_cache_id;
+  const host = hostOf(paste.product_url);
+
   // The same copy the bag uses, from the same helper, so a link cannot be
-  // described one way here and another way there. Only a link still being read
-  // has a WAIT; the other outcomes are settled and say so plainly.
-  const wait =
-    paste.outcome === "reading"
+  // described one way here and another way there. An open assisted request
+  // wins over everything — see `describePendingWait`.
+  const wait: PendingWait | null =
+    paste.outcome === "reading" || paste.assisted
       ? describePendingWait(
           {
             request_id: paste.id,
-            // `outcome === "reading"` already narrowed this to a live job.
-            status: paste.status === "running" ? "running" : "pending",
+            status: paste.status === "running" ? "running" : paste.status === "failed" ? "failed" : "pending",
             error: paste.error,
             queued_at: paste.created_at,
+            assisted_open: paste.assisted != null,
           } satisfies BagLinePending,
           now,
+          { notifies },
         )
       : null;
-  const settled = paste.outcome === "reading" ? null : SETTLED_COPY[paste.outcome];
+  const settled = wait || paste.outcome === "reading" ? null : SETTLED_COPY[paste.outcome];
+  const assisted = wait?.phase === "assisted";
+
+  // A row still being read is the one thing on this screen that has to LOOK
+  // alive. It gets the full indicator; settled rows get a line of text.
+  if (wait && !assisted) {
+    const troubled = wait.phase === "stuck" || wait.phase === "failed";
+    return (
+      <li className="flex flex-col gap-3 border-t border-tm-hairline px-[18px] py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:px-[22px]">
+        <a
+          href={paste.product_url}
+          target="_blank"
+          rel="noreferrer"
+          className="sr-only"
+          title={paste.product_url}
+        >
+          Open {host}
+        </a>
+        <ReadingIndicator
+          host={host}
+          title={wait.title}
+          detail={wait.detail}
+          elapsedSeconds={wait.phase === "failed" ? null : secondsSince(paste.created_at, now)}
+          tone={troubled ? "amber" : "neutral"}
+          className="min-w-0 flex-1"
+        />
+
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {/* Carry on: the bag holds its place and prices it the moment it lands. */}
+          {wait.phase !== "failed" && (
+            <button type="button" onClick={onAddToBag} disabled={busy} className={ROW_ACTION}>
+              <Tote weight="bold" className="size-3.5" aria-hidden />
+              Add to bag
+            </button>
+          )}
+          {/* A person is the answer once the machine has run out of road. */}
+          {troubled && (
+            <button
+              type="button"
+              onClick={onDescribe}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-[13px] leading-none font-semibold text-tm-coral transition-colors hover:underline"
+            >
+              <ChatCircleText weight="bold" className="size-3.5" aria-hidden />
+              Describe it instead
+            </button>
+          )}
+        </div>
+      </li>
+    );
+  }
 
   return (
     <li className="flex flex-col gap-3 border-t border-tm-hairline px-[18px] py-4 lg:flex-row lg:items-center lg:justify-between lg:px-[22px]">
@@ -338,9 +436,17 @@ function PasteRow({
           className="truncate text-[15px] leading-[1.3] font-semibold text-tm-ink hover:underline"
           title={paste.product_url}
         >
-          {hostOf(paste.product_url)}
+          {host}
         </a>
-        {settled ? (
+        {assisted && wait ? (
+          <span className="flex flex-col gap-1">
+            <span className="flex items-center gap-1.5 text-[13px] leading-none font-medium text-tm-green">
+              <CheckCircle weight="fill" className="size-3.5 shrink-0" aria-hidden />
+              {wait.title}
+            </span>
+            {wait.detail && <span className="text-xs leading-[1.4] text-tm-text-3">{wait.detail}</span>}
+          </span>
+        ) : settled ? (
           <span
             className={cn(
               "flex items-center gap-1.5 text-[13px] leading-none font-medium",
@@ -354,70 +460,42 @@ function PasteRow({
             )}
             {settled.label}
           </span>
-        ) : (
-          wait && (
-            <span className="flex flex-col gap-1">
-              <span
-                className={cn(
-                  "flex items-center gap-1.5 text-[13px] leading-none font-medium",
-                  wait.phase === "failed" ? "text-tm-amber" : "text-tm-text-2",
-                )}
-              >
-                {wait.phase === "failed" ? (
-                  <WarningCircle weight="fill" className="size-3.5 shrink-0" aria-hidden />
-                ) : (
-                  <CircleNotch className="size-3.5 shrink-0 animate-spin text-tm-coral" aria-hidden />
-                )}
-                {wait.title}
-              </span>
-              {wait.detail && <span className="text-xs leading-[1.4] text-tm-text-3">{wait.detail}</span>}
-            </span>
-          )
-        )}
+        ) : null}
       </div>
 
       {/*
         One action per outcome, and never one that leads nowhere. "See the landed
-        price" appears ONLY for a priced, still-valid quote — it used to appear
-        for any finished job, which is how a link that was never priced offered a
-        price, and a lapsed one led to "This quote is no longer available".
+        price" appears ONLY for a priced, still-valid quote. And NOTHING once a
+        buyer has the link: "Read it again" and "Describe it instead" beside "A
+        buyer is on it" invite a duplicate request and a re-read nobody asked for
+        — Kelvin: "we do not open that channel; close it".
       */}
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {priced ? (
-          <Link
-            href={`/app/orders/review/${paste.extraction_cache_id}`}
-            className={ROW_ACTION}
-          >
-            See the landed price
-            <ArrowRight weight="bold" className="size-3.5" aria-hidden />
-          </Link>
-        ) : paste.outcome === "expired" ? (
-          <button type="button" onClick={onRetry} disabled={retrying} className={ROW_ACTION}>
-            <ArrowsClockwise weight="bold" className="size-3.5" aria-hidden />
-            {retrying ? "Reading…" : "Read it again"}
-          </button>
-        ) : paste.outcome === "reading" ? (
-          <button type="button" onClick={onAddToBag} disabled={busy} className={ROW_ACTION}>
-            <Tote weight="bold" className="size-3.5" aria-hidden />
-            Add to bag
-          </button>
-        ) : null}
+      {!assisted && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {priced ? (
+            <Link href={`/app/orders/review/${paste.extraction_cache_id}`} className={ROW_ACTION}>
+              See the landed price
+              <ArrowRight weight="bold" className="size-3.5" aria-hidden />
+            </Link>
+          ) : paste.outcome === "expired" ? (
+            <button type="button" onClick={onRetry} disabled={retrying} className={ROW_ACTION}>
+              <ArrowsClockwise weight="bold" className="size-3.5" aria-hidden />
+              {retrying ? "Reading…" : "Read it again"}
+            </button>
+          ) : null}
 
-        {/* A person is the answer once the machine has run out of road. */}
-        {(paste.outcome === "unpriced" ||
-          paste.outcome === "expired" ||
-          wait?.phase === "stuck" ||
-          wait?.phase === "failed") && (
-          <button
-            type="button"
-            onClick={onDescribe}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-[13px] leading-none font-semibold text-tm-coral transition-colors hover:underline"
-          >
-            <ChatCircleText weight="bold" className="size-3.5" aria-hidden />
-            Describe it instead
-          </button>
-        )}
-      </div>
+          {(paste.outcome === "unpriced" || paste.outcome === "expired") && (
+            <button
+              type="button"
+              onClick={onDescribe}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-[13px] leading-none font-semibold text-tm-coral transition-colors hover:underline"
+            >
+              <ChatCircleText weight="bold" className="size-3.5" aria-hidden />
+              Describe it instead
+            </button>
+          )}
+        </div>
+      )}
     </li>
   );
 }

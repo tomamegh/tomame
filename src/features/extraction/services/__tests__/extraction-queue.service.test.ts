@@ -13,6 +13,7 @@ vi.mock("@/db/queries/extraction-requests", () => ({
   requeueExtractionRequest: vi.fn(),
 }));
 vi.mock("@/db/queries/extraction-cache", () => ({ getCachedExtractionByHash: vi.fn() }));
+vi.mock("../paste-notify.service", () => ({ notifyPasteFinished: vi.fn(async () => "too_quick") }));
 vi.mock("../../extraction.service", () => ({
   extractPrepared: vi.fn(),
   prepareProductUrl: vi.fn(async (url: string) => ({ canonicalUrl: url, urlHash: `hash:${url}` })),

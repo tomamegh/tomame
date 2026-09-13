@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { listPastesForViewer } from "@/db/queries/extraction-requests";
 import { getQuoteFacts } from "@/db/queries/extraction-cache";
+import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { SUPPORTED_STORE_NAMES } from "@/features/extraction/scrapers";
 import { PasteQueueView } from "@/features/extraction/components/paste-queue-view";
@@ -33,21 +34,32 @@ export const metadata: Metadata = {
 export default async function NewOrderPage({
   searchParams,
 }: {
-  searchParams: Promise<{ url?: string }>;
+  searchParams: Promise<{ url?: string; watch?: string }>;
 }) {
-  const { url } = await searchParams;
+  const { url, watch } = await searchParams;
+  // `?url=` queues the link and comes back here as `?watch=<id>`, so the row is
+  // on screen — with its reading animation and its wait copy — while it reads.
   if (url) return <ExtractAndForward />;
 
   const [user, cookieStore] = await Promise.all([getAuthenticatedUser(), cookies()]);
   const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
   const pastes = await listPastesForViewer(viewer);
-  const facts = await getQuoteFacts(pastes.map((p) => p.extraction_cache_id ?? ""));
+  const [facts, assisted] = await Promise.all([
+    getQuoteFacts(pastes.map((p) => p.extraction_cache_id ?? "")),
+    listOpenAssistedRequestsByUrl(viewer, pastes.map((p) => p.product_url)),
+  ]);
 
   return (
     <PasteQueueView
-      initialPastes={pastes.map((p) => toPasteStatus(p, facts.get(p.extraction_cache_id ?? "")))}
+      initialPastes={pastes.map((p) =>
+        toPasteStatus(p, facts.get(p.extraction_cache_id ?? ""), assisted.get(p.product_url) ?? null),
+      )}
       stores={SUPPORTED_STORE_NAMES}
       renderedAt={new Date().toISOString()}
+      watchId={typeof watch === "string" && watch ? watch : null}
+      // Only an account can be told when a slow paste lands; the wait copy must
+      // not promise a message to a visitor it cannot reach.
+      notifies={user != null}
     />
   );
 }

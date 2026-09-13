@@ -16,6 +16,11 @@ export interface BagLinePending {
   error: string | null;
   /** When the paste was queued, ISO. The screen strikes its 5 s / 20 s marks from this, not from its own mount. */
   queued_at: string;
+  /**
+   * True when the customer has already described this link to a buyer and that
+   * request is still open. The row then says so and stops offering the form.
+   */
+  assisted_open: boolean;
 }
 
 /** One line of the bag, re-priced on every read from the server-owned snapshot. */

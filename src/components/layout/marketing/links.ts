@@ -104,6 +104,12 @@ export function formatCopyright(
 /**
  * The Shop / Help / Company columns. The WhatsApp entry is derived from the
  * stored number and is dropped entirely when no number is configured.
+ *
+ * EVERY href here is a route that exists. The column used to link `/blog`,
+ * `/careers` and `/how-it-works`, none of which have ever been pages — three
+ * 404s in the footer of every marketing screen. "How it works" is a section of
+ * the landing page (the nav was already anchoring there; the footer was not),
+ * and Blog and Careers are gone until there is something to put behind them.
  */
 export function buildFooterColumns(
   whatsappNumber: string | null,
@@ -114,7 +120,7 @@ export function buildFooterColumns(
     {
       heading: "Shop",
       links: [
-        { label: "How it works", href: "/how-it-works" },
+        { label: "How it works", href: "/#how-it-works" },
         { label: "Where we buy", href: "/where-we-buy" },
         { label: "Fees", href: "/fees" },
         { label: "Stores we read", href: "/where-we-buy#stores" },
@@ -125,7 +131,7 @@ export function buildFooterColumns(
       links: [
         { label: "FAQ", href: "/faq" },
         { label: "Track a journey", href: "/app/orders" },
-        { label: "Contact", href: "/contact" },
+        { label: "Your bag", href: "/app/bag" },
         ...(chat
           ? [{ label: "WhatsApp", href: chat, external: true as const }]
           : []),
@@ -135,8 +141,8 @@ export function buildFooterColumns(
       heading: "Company",
       links: [
         { label: "About", href: "/about" },
-        { label: "Blog", href: "/blog" },
-        { label: "Careers", href: "/careers" },
+        { label: "Contact", href: "/contact" },
+        { label: "Policies", href: "/policies" },
       ],
     },
   ];

@@ -3,6 +3,7 @@ import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { getExtractionRequestById } from "@/db/queries/extraction-requests";
+import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
 import { getExtractionSnapshot } from "@/features/extraction/extraction.service";
 import { gapFillOverrides } from "@/features/extraction/quote.service";
 import { applyRateLock } from "@/features/quotes/services/quote-lock.service";
@@ -161,7 +162,7 @@ async function addPasteToBag(viewer: Viewer, input: AddToBagInput, requestId: st
       });
   await touchCart(cart.id);
 
-  const { pending, productUrl } = await pendingStateFor(row);
+  const { pending, productUrl } = await pendingStateFor(viewer, row);
   return { line: pendingLine(row, pending, productUrl), item_count: await countBagItems(viewer), created: !existing };
 }
 
@@ -187,7 +188,7 @@ export async function updateBagLine(viewer: Viewer, lineId: string, input: Updat
       special_instructions: input.special_instructions === undefined ? row.special_instructions : input.special_instructions,
     });
     await touchCart(row.cart_id);
-    const { pending, productUrl } = await pendingStateFor(updated);
+    const { pending, productUrl } = await pendingStateFor(viewer, updated);
     return pendingLine(updated, pending, productUrl);
   }
 
@@ -365,7 +366,7 @@ async function priceLine(viewer: Viewer, row: CartItemRow): Promise<BagLine> {
   // Graduation already happened in `reconcilePendingLines`; a row still without
   // an extraction here is genuinely still being read.
   if (!row.extraction_cache_id) {
-    const { pending, productUrl } = await pendingStateFor(row);
+    const { pending, productUrl } = await pendingStateFor(viewer, row);
     return pendingLine(row, pending, productUrl);
   }
 
@@ -447,17 +448,22 @@ async function graduatePendingLine(row: CartItemRow): Promise<CartItemRow> {
  * How far the paste behind a still-unpriced line has got, and the link it came
  * from — the one thing the customer can recognise while the rest is unknown.
  */
-async function pendingStateFor(row: CartItemRow): Promise<{ pending: BagLinePending; productUrl: string }> {
+async function pendingStateFor(viewer: Viewer, row: CartItemRow): Promise<{ pending: BagLinePending; productUrl: string }> {
   const lost: BagLinePending = {
     request_id: row.extraction_request_id ?? "",
     status: "failed",
     error: "We lost track of this link. Remove it and paste it again.",
     queued_at: row.created_at,
+    assisted_open: false,
   };
   if (!row.extraction_request_id) return { pending: lost, productUrl: "" };
 
   const request = await getExtractionRequestById(row.extraction_request_id);
   if (!request) return { pending: lost, productUrl: "" };
+
+  // Has this viewer already handed the link to a buyer? Then the row says so and
+  // stops offering the form — the same rule the Buy-for-me screen applies.
+  const assisted = await listOpenAssistedRequestsByUrl(viewer, [request.product_url]);
 
   return {
     pending: {
@@ -467,6 +473,7 @@ async function pendingStateFor(row: CartItemRow): Promise<{ pending: BagLinePend
       status: request.status === "pending" || request.status === "running" ? request.status : "failed",
       error: request.status === "failed" ? request.error : null,
       queued_at: request.created_at,
+      assisted_open: assisted.has(request.product_url),
     },
     productUrl: request.product_url,
   };

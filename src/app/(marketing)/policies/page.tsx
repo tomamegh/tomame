@@ -1,4 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { whatsappHref } from "@/components/layout/marketing/links";
+import { getMarketingSettings } from "@/features/marketing/services";
 import type { PolicyRow } from "@/features/policies/types";
 import { PoliciesContent } from "./policies-content";
 
@@ -19,14 +21,28 @@ function sortByPreferredOrder(policies: PolicyRow[]): PolicyRow[] {
 
 export default async function PoliciesPage() {
   const db = createAdminClient();
-  const { data } = await db
-    .from("policies")
-    .select(
-      "id, slug, label, content, effective_date, last_updated, is_published",
-    )
-    .eq("is_published", true);
+  const [{ data }, settings] = await Promise.all([
+    db
+      .from("policies")
+      .select(
+        "id, slug, label, content, effective_date, last_updated, is_published",
+      )
+      .eq("is_published", true),
+    // The "questions?" block at the foot of the page names the WhatsApp line
+    // from `site_settings` — the same row the footer and the contact page read.
+    getMarketingSettings(),
+  ]);
 
   const policies = sortByPreferredOrder((data ?? []) as PolicyRow[]);
 
-  return <PoliciesContent policies={policies} />;
+  return (
+    <PoliciesContent
+      policies={policies}
+      contact={{
+        whatsappNumber: settings.whatsappNumber,
+        whatsappHref: whatsappHref(settings.whatsappNumber),
+        supportHours: settings.supportHours,
+      }}
+    />
+  );
 }

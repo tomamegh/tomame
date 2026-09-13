@@ -155,6 +155,8 @@ export interface QuoteFacts {
   usable: boolean;
   /** It carries a price. A readable page with no price is not a quote. */
   priced: boolean;
+  /** The listing's title when the page yielded one — for a notification to name the product. */
+  title: string | null;
 }
 
 /**
@@ -188,10 +190,12 @@ export async function getQuoteFacts(ids: readonly string[]): Promise<Map<string,
     const now = Date.now();
     for (const row of data as { id: string; is_valid: boolean; expires_at: string; result: unknown }[]) {
       const usable = row.is_valid === true && new Date(row.expires_at).getTime() > now;
-      const price = normalizeResult(row.result).product?.price;
+      const product = normalizeResult(row.result).product;
+      const price = product?.price;
       facts.set(row.id, {
         usable,
         priced: usable && typeof price === "number" && Number.isFinite(price) && price > 0,
+        title: typeof product?.title === "string" && product.title.trim() ? product.title : null,
       });
     }
   } catch {

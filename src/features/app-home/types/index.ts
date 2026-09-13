@@ -46,6 +46,12 @@ export interface HomeReceipt {
   /** Why `pricing` is null (price unreadable, region unsupported, …). */
   pricingUnavailableReason: string | null;
   extractionCacheId: string | null;
+  /**
+   * True when this customer has already handed the link to a buyer and that
+   * request is still open — the card then shows the human channel instead of
+   * offering "Try again" and "Describe it" a second time.
+   */
+  assistedOpen: boolean;
 }
 
 /**

@@ -41,6 +41,13 @@ export interface AssistedRequestDialogProps {
   productUrl?: string | null;
   /** Shown read-only so the customer can see which link they are describing. */
   displayUrl: string;
+  /**
+   * Fired once the request is recorded. Screens that render the row on the
+   * server use it to re-read, so "A buyer is on it" replaces the form's entry
+   * point as soon as the dialog closes; client-cached screens get the same
+   * effect from the mutation's own invalidation.
+   */
+  onSubmitted?: (request: AssistedRequest) => void;
 }
 
 /**
@@ -62,6 +69,7 @@ export function AssistedRequestDialog({
   extractionRequestId,
   productUrl,
   displayUrl,
+  onSubmitted,
 }: AssistedRequestDialogProps) {
   const [description, setDescription] = useState("");
   const [phone, setPhone] = useState("");
@@ -109,7 +117,10 @@ export function AssistedRequestDialog({
 
     setErrors({});
     create.mutate(parsed.data, {
-      onSuccess: (result) => setDone(result),
+      onSuccess: (result) => {
+        setDone(result);
+        onSubmitted?.(result);
+      },
       onError: (error) => {
         if (error instanceof ApiFetchError && error.status === 429) {
           toast.error({ title: "One moment", description: "You have sent a few of these — try again shortly." });
@@ -118,7 +129,7 @@ export function AssistedRequestDialog({
         toast.error({ title: "Could not send that", description: error.message });
       },
     });
-  }, [create, description, extractionRequestId, phone, productUrl]);
+  }, [create, description, extractionRequestId, onSubmitted, phone, productUrl]);
 
   return (
     <Dialog open={open} onOpenChange={close}>

@@ -83,6 +83,7 @@ describe("describePendingWait", () => {
     status: "running",
     error: null,
     queued_at: new Date(NOW.getTime() - queuedSecondsAgo * 1000).toISOString(),
+    assisted_open: false,
     ...over,
   });
   const NOW = new Date("2026-09-13T10:00:00.000Z");
@@ -120,6 +121,23 @@ describe("describePendingWait", () => {
   it("measures from when the paste was queued, not from now", () => {
     // A customer who reloads must not have their wait restart at "reading".
     expect(describePendingWait(at(60), NOW).phase).toBe("stuck");
+  });
+
+  it("only promises a message to a viewer it can actually send one to", () => {
+    expect(describePendingWait(at(6), NOW, { notifies: true }).detail).toMatch(/tell you/i);
+    expect(describePendingWait(at(6), NOW, { notifies: false }).detail).not.toMatch(/tell you/i);
+    expect(describePendingWait(at(6), NOW).detail).not.toMatch(/tell you/i);
+  });
+
+  it("hands the line to the buyer once the customer has described it, whatever the clock says", () => {
+    // The form must not be offered a second time for the same link — the row
+    // says who has it, and nothing about the machine's progress.
+    for (const seconds of [2, 6, 60]) {
+      const wait = describePendingWait(at(seconds, { assisted_open: true }), NOW);
+      expect(wait.phase).toBe("assisted");
+      expect(wait.title).toMatch(/buyer/i);
+    }
+    expect(describePendingWait(at(3, { status: "failed", error: "x", assisted_open: true }), NOW).phase).toBe("assisted");
   });
 });
 

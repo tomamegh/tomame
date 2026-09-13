@@ -231,6 +231,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
             onWatchInstead={onWatchInstead}
             onRemove={onRemove}
             onDescribeIt={onDescribeIt}
+            notifies={isSignedIn}
           />
         ))}
 
@@ -245,6 +246,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
             onWatchInstead={onWatchInstead}
             onRemove={onRemove}
             onDescribeIt={onDescribeIt}
+            notifies={isSignedIn}
           />
         )}
 
@@ -259,6 +261,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
             onWatchInstead={onWatchInstead}
             onRemove={onRemove}
             onDescribeIt={onDescribeIt}
+            notifies={isSignedIn}
           />
         )}
 
@@ -323,6 +326,7 @@ function UnboxedGroup({
   onWatchInstead,
   onRemove,
   onDescribeIt,
+  notifies,
 }: {
   label: string;
   lines: BagLine[];
@@ -333,6 +337,7 @@ function UnboxedGroup({
   onWatchInstead: (line: BagLine) => void;
   onRemove: (line: BagLine) => void;
   onDescribeIt: (line: BagLine) => void;
+  notifies: boolean;
 }) {
   return (
     <section
@@ -352,6 +357,7 @@ function UnboxedGroup({
             onWatchInstead={() => onWatchInstead(line)}
             onRemove={() => onRemove(line)}
             onDescribeIt={() => onDescribeIt(line)}
+            notifies={notifies}
           />
         ))}
       </ul>

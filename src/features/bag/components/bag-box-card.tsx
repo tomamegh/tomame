@@ -17,6 +17,8 @@ export interface BagBoxCardProps {
   onWatchInstead: (line: BagLine) => void;
   onRemove: (line: BagLine) => void;
   onDescribeIt: (line: BagLine) => void;
+  /** Whether a finished paste will reach this viewer — see `BagLineRow`. */
+  notifies: boolean;
   /** Card index, for the mock's stagger: the first card is `.08s`. */
   index: number;
 }
@@ -28,7 +30,7 @@ export interface BagBoxCardProps {
  * percentage (`tmFill 1.2s .4s`), the lines, and the dashed footer with the
  * headroom and the price-watch nudge.
  */
-export function BagBoxCard({ box, lines, now, busyLineId, onQuantity, onWatchInstead, onRemove, onDescribeIt, index }: BagBoxCardProps) {
+export function BagBoxCard({ box, lines, now, busyLineId, onQuantity, onWatchInstead, onRemove, onDescribeIt, notifies, index }: BagBoxCardProps) {
   const delay = `${(0.08 + index * 0.06).toFixed(2)}s`;
   return (
     <section
@@ -73,6 +75,7 @@ export function BagBoxCard({ box, lines, now, busyLineId, onQuantity, onWatchIns
             onWatchInstead={() => onWatchInstead(line)}
             onRemove={() => onRemove(line)}
             onDescribeIt={() => onDescribeIt(line)}
+            notifies={notifies}
           />
         ))}
       </ul>

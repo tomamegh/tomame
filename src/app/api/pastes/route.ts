@@ -2,6 +2,7 @@ import { NextRequest, after } from "next/server";
 
 import { listPastesForViewer } from "@/db/queries/extraction-requests";
 import { getQuoteFacts } from "@/db/queries/extraction-cache";
+import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
 import { extractProductSchema } from "@/features/extraction/schema";
 import { enqueuePaste, runExtractionJob } from "@/features/extraction/services/extraction-queue.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
@@ -57,9 +58,19 @@ export async function POST(request: NextRequest) {
     // The claim is guarded, so this racing the sweeper is safe and expected.
     if (!enqueued.ready) after(() => runExtractionJob(enqueued.request.id));
 
-    const facts = await getQuoteFacts([enqueued.request.extraction_cache_id ?? ""]);
+    const [facts, assisted] = await Promise.all([
+      getQuoteFacts([enqueued.request.extraction_cache_id ?? ""]),
+      listOpenAssistedRequestsByUrl(viewer, [enqueued.request.product_url]),
+    ]);
     return finalize(
-      successResponse(toPasteStatus(enqueued.request, facts.get(enqueued.request.extraction_cache_id ?? "")), 201),
+      successResponse(
+        toPasteStatus(
+          enqueued.request,
+          facts.get(enqueued.request.extraction_cache_id ?? ""),
+          assisted.get(enqueued.request.product_url) ?? null,
+        ),
+        201,
+      ),
     );
   } catch (error) {
     return errorResponse(error);
@@ -84,9 +95,18 @@ export async function GET(request: NextRequest) {
     const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
 
     const rows = await listPastesForViewer(viewer);
-    // One read for the whole page rather than one per row.
-    const facts = await getQuoteFacts(rows.map((r) => r.extraction_cache_id ?? ""));
-    return finalize(successResponse(rows.map((r) => toPasteStatus(r, facts.get(r.extraction_cache_id ?? "")))));
+    // One read each for the whole page rather than one per row.
+    const [facts, assisted] = await Promise.all([
+      getQuoteFacts(rows.map((r) => r.extraction_cache_id ?? "")),
+      listOpenAssistedRequestsByUrl(viewer, rows.map((r) => r.product_url)),
+    ]);
+    return finalize(
+      successResponse(
+        rows.map((r) =>
+          toPasteStatus(r, facts.get(r.extraction_cache_id ?? ""), assisted.get(r.product_url) ?? null),
+        ),
+      ),
+    );
   } catch (error) {
     return errorResponse(error);
   }

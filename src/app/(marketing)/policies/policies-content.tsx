@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import { motion, type Variants, useReducedMotion } from "motion/react";
 import Link from "next/link";
+import { WhatsappLogo } from "@phosphor-icons/react/ssr";
 import { PolicyHtml } from "@/features/policies/components/policy-html";
 import type { PolicyRow } from "@/features/policies/types";
 
@@ -26,11 +27,19 @@ function formatUpdated(value: string): string {
   });
 }
 
-interface PoliciesContentProps {
-  policies: PolicyRow[];
+/** How to reach a person about a policy — `site_settings`, never a literal. */
+export interface PoliciesContact {
+  whatsappNumber: string | null;
+  whatsappHref: string | null;
+  supportHours: string | null;
 }
 
-export function PoliciesContent({ policies }: PoliciesContentProps) {
+interface PoliciesContentProps {
+  policies: PolicyRow[];
+  contact: PoliciesContact;
+}
+
+export function PoliciesContent({ policies, contact }: PoliciesContentProps) {
   const reduceMotion = useReducedMotion();
   const [activeSlug, setActiveSlug] = useState<string>(policies[0]?.slug ?? "");
   const sectionsRef = useRef<Map<string, HTMLElement>>(new Map());
@@ -219,16 +228,43 @@ export function PoliciesContent({ policies }: PoliciesContentProps) {
           <p className="text-sm font-semibold text-stone-500">
             Questions about any of our policies?
           </p>
-          <p className="mt-2 text-base text-stone-600">
-            Reach out at{" "}
-            <a
-              href="mailto:support@tomame.ca"
-              className="font-semibold text-rose-600 hover:underline"
-            >
-              support@tomame.ca
-            </a>{" "}
-            — we respond within 2 hours.
-          </p>
+          {/*
+            The number and hours come from `site_settings`. This block used to
+            name an email address that appears nowhere else and promise a
+            two-hour reply nothing measured — the WhatsApp line is the channel
+            the rest of the site actually offers, so it is the one named here.
+          */}
+          {contact.whatsappNumber ? (
+            <p className="mt-2 text-base text-stone-600">
+              WhatsApp us on{" "}
+              {contact.whatsappHref ? (
+                <a
+                  href={contact.whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 font-semibold text-rose-600 hover:underline"
+                >
+                  <WhatsappLogo weight="fill" className="size-[18px] text-[#25D366]" aria-hidden />
+                  {contact.whatsappNumber}
+                </a>
+              ) : (
+                <span className="font-semibold text-stone-900">{contact.whatsappNumber}</span>
+              )}
+              {contact.supportHours ? ` · ${contact.supportHours}` : null}, or use the{" "}
+              <Link href="/contact" className="font-semibold text-rose-600 hover:underline">
+                contact form
+              </Link>
+              .
+            </p>
+          ) : (
+            <p className="mt-2 text-base text-stone-600">
+              Use the{" "}
+              <Link href="/contact" className="font-semibold text-rose-600 hover:underline">
+                contact form
+              </Link>{" "}
+              and we will get back to you.
+            </p>
+          )}
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-xs text-stone-400">
             {policies.map((p, i) => (
               <span key={p.slug} className="flex items-center gap-3">

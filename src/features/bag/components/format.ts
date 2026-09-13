@@ -147,7 +147,7 @@ function buildDeliveryRow(view: BagView): BagSummaryRow {
 export const PENDING_SLOW_MS = 5_000;
 export const PENDING_STUCK_MS = 20_000;
 
-export type PendingPhase = "reading" | "slow" | "stuck" | "failed";
+export type PendingPhase = "reading" | "slow" | "stuck" | "failed" | "assisted";
 
 export interface PendingWait {
   phase: PendingPhase;
@@ -158,13 +158,39 @@ export interface PendingWait {
 }
 
 /**
+ * What the screen can truthfully promise while the customer walks away.
+ *
+ * `notifies` is whether a finished job will reach this viewer with a bell
+ * entry and an email — true for a signed-in customer (`notifyPasteFinished`),
+ * false for a `tm_quote_session` visitor, who has no account to notify. The
+ * copy must not say "we'll let you know" to someone it cannot tell.
+ */
+export interface PendingWaitOptions {
+  notifies?: boolean;
+}
+
+/**
  * What to say about a link that is still being read.
  *
  * Struck from `queued_at` on the row, NOT from when this component mounted, so
  * reloading the page does not restart the customer's wait — they would see
  * "reading this page" again on something that has been going for a minute.
  */
-export function describePendingWait(pending: BagLinePending, now: Date): PendingWait {
+export function describePendingWait(
+  pending: BagLinePending,
+  now: Date,
+  options: PendingWaitOptions = {},
+): PendingWait {
+  // A person already has it. Nothing the machine says about its own progress
+  // matters any more, and the form must not be offered a second time.
+  if (pending.assisted_open) {
+    return {
+      phase: "assisted",
+      title: "A buyer is on it",
+      detail: "We have your description. Someone will message you on WhatsApp.",
+    };
+  }
+
   if (pending.status === "failed") {
     return {
       phase: "failed",
@@ -174,19 +200,22 @@ export function describePendingWait(pending: BagLinePending, now: Date): Pending
   }
 
   const elapsed = now.getTime() - new Date(pending.queued_at).getTime();
+  const followUp = options.notifies
+    ? "we'll tell you the moment it's done."
+    : "the price appears here the moment it's done.";
 
   if (elapsed >= PENDING_STUCK_MS) {
     return {
       phase: "stuck",
       title: "This one is being stubborn",
-      detail: "Tell us what you want and a buyer will sort it out on WhatsApp.",
+      detail: `We're still trying — carry on shopping and ${followUp} Or tell us what you want and a buyer will sort it out on WhatsApp.`,
     };
   }
   if (elapsed >= PENDING_SLOW_MS) {
     return {
       phase: "slow",
       title: "Taking longer than usual",
-      detail: "You can carry on — we'll price it here as soon as we have it.",
+      detail: `Carry on shopping — ${followUp}`,
     };
   }
   return { phase: "reading", title: "Reading this page…", detail: null };

@@ -697,6 +697,22 @@
 @utility tm-shimmer {
   animation: tmShimmer 1.4s linear infinite;
 }
+/*
+ * Indeterminate progress: a short gradient bar sweeping a track. Used by the
+ * paste queue while a link is being read — there is no percentage to show,
+ * because a vendor race has no known length, so the bar moves rather than fills.
+ */
+@keyframes tmSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+@utility tm-sweep {
+  animation: tmSweep 1.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
 
 /* Staggered page-load entrance: 60–80ms per card. Set --tm-i on each child. */
 @utility tm-stagger {

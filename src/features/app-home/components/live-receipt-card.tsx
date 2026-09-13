@@ -131,6 +131,7 @@ function ReceiptBody({ receipt, now }: { receipt: HomeReceipt; now: Date }) {
         productUrl={receipt.productUrl}
         extractionCacheId={receipt.extractionCacheId}
         unpriced={rows.length === 0}
+        assistedOpen={receipt.assistedOpen}
       />
     </>
   );

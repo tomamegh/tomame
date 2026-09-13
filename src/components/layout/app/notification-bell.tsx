@@ -1,6 +1,7 @@
 "use client";
 
 import { BellSimple } from "@phosphor-icons/react";
+import Link from "next/link";
 import { useState } from "react";
 
 import {
@@ -113,7 +114,21 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
                 )}
                 <div className={cn(notification.read_at !== null && "pl-4")}>
                   <p className="text-[13px] leading-snug font-semibold text-tm-ink">
-                    {notificationTitle(notification.event)}
+                    {(() => {
+                      const href = notificationHref(notification.event, notification.payload);
+                      const title = notificationTitle(notification.event, notification.payload);
+                      return href ? (
+                        <Link
+                          href={href}
+                          onClick={() => setOpen(false)}
+                          className={cn("rounded-sm hover:underline", FOCUS_RING)}
+                        >
+                          {title}
+                        </Link>
+                      ) : (
+                        title
+                      );
+                    })()}
                   </p>
                   <p className="tm-nums mt-0.5 text-[11px] text-tm-text-3">
                     {formatWhen(notification.created_at)}
@@ -129,18 +144,37 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
 }
 
 /**
- * `notifications.event` is a machine slug. Only two are ever written today
- * (`order_placed`, `order_placed_admin`); the data map notes the vocabulary has
- * to grow — price-drop, status-change, box-closing — before the bell earns its
- * place. Anything unmapped is humanised rather than shown raw or dropped.
+ * `notifications.event` is a machine slug. The known ones get a sentence; the
+ * paste events name the store, because "Your link is priced" on its own does
+ * not say WHICH link when three were pasted. Anything unmapped is humanised
+ * rather than shown raw or dropped.
  */
-function notificationTitle(event: string): string {
+function notificationTitle(event: string, payload: Record<string, unknown>): string {
+  const host = typeof payload.store_host === "string" ? payload.store_host : null;
   const known: Record<string, string> = {
     order_placed: "Order placed",
+    price_drop: "A price you're watching dropped",
+    paste_priced: host ? `Your ${host} link is priced` : "Your link is priced",
+    paste_unreadable: host ? `We couldn't read your ${host} link` : "We couldn't read your link",
   };
   if (known[event]) return known[event];
   const words = event.replace(/_/g, " ").trim();
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * Where a notification leads, when it leads anywhere.
+ *
+ * The paste events carry a relative `href` written by the server
+ * (`notifyPasteFinished`); an order names its id. Only same-origin paths are
+ * honoured — the payload is data written by our own jobs, but a link out of the
+ * bell must never leave the app on the strength of a JSON field.
+ */
+function notificationHref(event: string, payload: Record<string, unknown>): string | null {
+  const href = typeof payload.href === "string" ? payload.href : null;
+  if (href && href.startsWith("/") && !href.startsWith("//")) return href;
+  if (event === "order_placed" && typeof payload.orderId === "string") return `/app/orders/${payload.orderId}`;
+  return null;
 }
 
 /** Short, absolute and unambiguous — "12 Sep · 14:02". */

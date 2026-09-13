@@ -19,9 +19,9 @@ const row = (over: Record<string, unknown> = {}) =>
     ...over,
   }) as never;
 
-const PRICED = { usable: true, priced: true };
-const UNPRICED = { usable: true, priced: false };
-const LAPSED = { usable: false, priced: false };
+const PRICED = { usable: true, priced: true, title: "A thing" };
+const UNPRICED = { usable: true, priced: false, title: "A thing" };
+const LAPSED = { usable: false, priced: false, title: null };
 
 describe("toPasteStatus — what the screen may promise", () => {
   it("keeps bookkeeping out of the response", () => {
@@ -75,5 +75,17 @@ describe("toPasteStatus — what the screen may promise", () => {
 
   it("carries the queue time so a screen can strike its own wait from it", () => {
     expect(toPasteStatus(row(), PRICED).created_at).toBe("2026-09-13T10:00:00Z");
+  });
+
+  it("says when a buyer already has the link, so the form is not offered twice", () => {
+    expect(toPasteStatus(row(), UNPRICED).assisted).toBeNull();
+    const status = toPasteStatus(row(), UNPRICED, {
+      id: "ar-1",
+      status: "contacted",
+      created_at: "2026-09-13T10:05:00Z",
+    });
+    expect(status.assisted).toEqual({ status: "contacted", requested_at: "2026-09-13T10:05:00Z" });
+    // The assisted row's id is staff bookkeeping; the browser does not need it.
+    expect(status.assisted).not.toHaveProperty("id");
   });
 });

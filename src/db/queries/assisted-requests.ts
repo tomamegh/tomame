@@ -177,3 +177,61 @@ export async function reviseAssistedRequest(input: {
   if (error) throw new Error(`Failed to update the request: ${error.message}`);
   return (data as AssistedRequestRow | null) ?? null;
 }
+
+/** What a screen needs to know about a request that is still in a buyer's hands. */
+export interface OpenAssistedRequestSummary {
+  id: string;
+  status: Extract<AssistedRequestStatus, "open" | "contacted">;
+  created_at: string;
+}
+
+/**
+ * Which of these links this viewer has already handed to a buyer, keyed by
+ * `product_url`.
+ *
+ * One query for a whole screen rather than one per row, so the paste list, the
+ * bag and the Home receipt can all say "a buyer is on it" without N round trips.
+ * Only `open` and `contacted` count: once a buyer has resolved or cancelled the
+ * request, the machine's options are back on the table.
+ *
+ * Ownership is the filter, as everywhere the quote flow reads: a signed-out
+ * viewer is a `tm_quote_session` cookie PostgREST knows nothing about.
+ */
+export async function listOpenAssistedRequestsByUrl(
+  viewer: { userId: string | null; sessionId: string | null },
+  productUrls: readonly string[],
+): Promise<Map<string, OpenAssistedRequestSummary>> {
+  const result = new Map<string, OpenAssistedRequestSummary>();
+  const urls = [...new Set(productUrls.filter((u) => u.length > 0))];
+  if (urls.length === 0) return result;
+
+  const owner = viewer.userId
+    ? { column: "user_id", value: viewer.userId }
+    : viewer.sessionId
+      ? { column: "session_id", value: viewer.sessionId }
+      : null;
+  if (!owner) return result;
+
+  const { data, error } = await createAdminClient()
+    .from("assisted_requests")
+    .select("id, product_url, status, created_at")
+    .eq(owner.column, owner.value)
+    .in("product_url", urls)
+    .in("status", ["open", "contacted"])
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    // A screen that cannot learn this shows the machine's options again, which
+    // is the pre-existing behaviour — never a reason to fail the page.
+    logger.warn("assisted request lookup by url failed", { message: error.message });
+    return result;
+  }
+
+  for (const row of (data ?? []) as Pick<AssistedRequestRow, "id" | "product_url" | "status" | "created_at">[]) {
+    // Newest first, so the first one seen per URL is the one that stands.
+    if (result.has(row.product_url)) continue;
+    if (row.status !== "open" && row.status !== "contacted") continue;
+    result.set(row.product_url, { id: row.id, status: row.status, created_at: row.created_at });
+  }
+  return result;
+}

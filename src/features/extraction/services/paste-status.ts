@@ -1,5 +1,6 @@
 import type { ExtractionJobRow, ExtractionRequestStatus } from "@/db/queries/extraction-requests";
 import type { QuoteFacts } from "@/db/queries/extraction-cache";
+import type { OpenAssistedRequestSummary } from "@/db/queries/assisted-requests";
 
 /**
  * What a screen is told about a pasted link.
@@ -37,6 +38,19 @@ export interface PasteStatus {
   /** When the paste was queued, ISO — the client strikes its own 5 s / 20 s marks from this. */
   created_at: string;
   updated_at: string;
+  /**
+   * Set when this viewer has already handed the link to a buyer and that request
+   * is still open. The screen then shows the human channel and withdraws the
+   * machine's options — a second "describe it" for the same link only puts the
+   * same job in the buyer's queue twice.
+   */
+  assisted: PasteAssisted | null;
+}
+
+export interface PasteAssisted {
+  status: "open" | "contacted";
+  /** ISO — when the customer asked. */
+  requested_at: string;
 }
 
 /**
@@ -45,7 +59,11 @@ export interface PasteStatus {
  * could not be read, and is treated as unusable — the safe direction, because the
  * cost of a false "expired" is one re-paste, while a false "priced" is a dead end.
  */
-export function toPasteStatus(row: ExtractionJobRow, facts?: QuoteFacts): PasteStatus {
+export function toPasteStatus(
+  row: ExtractionJobRow,
+  facts?: QuoteFacts,
+  assisted?: OpenAssistedRequestSummary | null,
+): PasteStatus {
   const outcome = resolveOutcome(row, facts);
 
   return {
@@ -57,6 +75,7 @@ export function toPasteStatus(row: ExtractionJobRow, facts?: QuoteFacts): PasteS
     error: row.status === "failed" ? row.error : null,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    assisted: assisted ? { status: assisted.status, requested_at: assisted.created_at } : null,
   };
 }
 

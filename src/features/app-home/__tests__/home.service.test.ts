@@ -19,6 +19,9 @@ vi.mock("@/db/queries/orders", () => ({
   countMovingOrders: vi.fn(),
   getRecentOrdersForUser: vi.fn(),
 }));
+vi.mock("@/db/queries/assisted-requests", () => ({
+  listOpenAssistedRequestsByUrl: vi.fn(async () => new Map()),
+}));
 vi.mock("@/db/queries/extraction-requests", () => ({
   getLatestExtractionRequest: vi.fn(),
 }));

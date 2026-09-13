@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowsClockwise, ChatCircleText, Tote } from "@phosphor-icons/react/ssr";
+import { ArrowRight, ArrowsClockwise, ChatCircleText, CheckCircle, Tote } from "@phosphor-icons/react/ssr";
 
 import { AssistedRequestDialog } from "@/features/assisted/components";
 import { useCreatePaste } from "@/features/extraction/hooks/usePastes";
@@ -17,6 +17,8 @@ export interface ReceiptActionsProps {
   extractionCacheId: string | null;
   /** True when the card is showing a reason instead of a price. */
   unpriced: boolean;
+  /** True when this customer has already described the link to a buyer and that request is still open. */
+  assistedOpen: boolean;
 }
 
 const SECONDARY = cn(
@@ -37,8 +39,13 @@ const SECONDARY = cn(
  * two things that actually help — read it again (stores block readers
  * intermittently, and a second attempt often works), or stop waiting on the
  * machine and describe it to a person.
+ *
+ * ONCE A PERSON HAS IT, THE MACHINE'S OPTIONS GO. An open assisted request
+ * means a buyer is already sourcing this link by hand; offering "Try again" and
+ * "Describe it" beside that invites a second, duplicate request and a re-read
+ * nobody is waiting on. The card says who has it instead.
  */
-export function ReceiptActions({ productUrl, extractionCacheId, unpriced }: ReceiptActionsProps) {
+export function ReceiptActions({ productUrl, extractionCacheId, unpriced, assistedOpen }: ReceiptActionsProps) {
   const router = useRouter();
   const [describing, setDescribing] = useState(false);
   const createPaste = useCreatePaste();
@@ -48,15 +55,17 @@ export function ReceiptActions({ productUrl, extractionCacheId, unpriced }: Rece
       { product_url: productUrl },
       {
         onSuccess: (paste) => {
-          if (paste.status === "ready" && paste.extraction_cache_id) {
+          // `outcome`, not `status`: a `ready` job whose page yielded no price
+          // has nowhere to go, and forwarding it lands on an unpriced quote.
+          if (paste.outcome === "priced" && paste.extraction_cache_id) {
             router.push(`/app/orders/review/${paste.extraction_cache_id}`);
             return;
           }
           // Queued, not finished. The Buy-for-me screen is where it can be
-          // watched, so send them somewhere that shows progress rather than
-          // leaving them on a card that looks unchanged.
+          // watched — the row reads there with its own animation and wait copy,
+          // and forwards to the price the moment it lands.
           toast.success({ title: "Reading it again", description: "We'll show the price as soon as we have it." });
-          router.push("/app/orders/new");
+          router.push(`/app/orders/new?watch=${encodeURIComponent(paste.id)}`);
         },
         onError: (error) => {
           if (error instanceof ApiFetchError && error.status === 429) {
@@ -81,6 +90,11 @@ export function ReceiptActions({ productUrl, extractionCacheId, unpriced }: Rece
             Add to bag
             <ArrowRight weight="bold" className="size-3.5" aria-hidden />
           </Link>
+        ) : assistedOpen ? (
+          <p className="flex flex-1 items-center gap-2 rounded-xl bg-tm-green-bg px-3.5 py-3 text-[13px] leading-[1.4] font-semibold text-tm-green-ink">
+            <CheckCircle weight="fill" className="size-4 shrink-0 text-tm-green" aria-hidden />
+            A buyer is on it — we&rsquo;ll message you on WhatsApp.
+          </p>
         ) : (
           <>
             <button type="button" onClick={onRetry} disabled={createPaste.isPending} className={SECONDARY}>
@@ -100,6 +114,9 @@ export function ReceiptActions({ productUrl, extractionCacheId, unpriced }: Rece
         onOpenChange={setDescribing}
         productUrl={productUrl}
         displayUrl={productUrl}
+        // This card is server-rendered; the closure above only takes effect
+        // once the page re-reads the row, so ask for that as the dialog closes.
+        onSubmitted={() => router.refresh()}
       />
     </>
   );
