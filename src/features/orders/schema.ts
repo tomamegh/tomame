@@ -54,14 +54,36 @@ export const reviewOrderSchema = z.object({
   admin_pricing_note: z.string().max(1000).optional(),
 });
 
-export const updateOrderStatusSchema = z.object({
-  status: z.enum(["pending", "paid", "processing", "in_transit", "delivered", "completed", "cancelled"]),
-  tracking_number: z.string().min(1).max(100).optional(),
-  carrier: z.string().min(1).max(100).optional(),
-  estimated_delivery_date: z.string().optional(),
-  tracking_url: z.url("Must be a valid URL").optional(),
-  notes: z.string().max(2000).optional(),
-});
+/**
+ * An ISO calendar day, `YYYY-MM-DD` — the shape of a Postgres DATE.
+ *
+ * `estimated_delivery_date` was a bare `z.string()` with no validation at all,
+ * so "soon" reached the column and Postgres answered 22007 from inside a status
+ * transition. The window columns get the same guard from the start.
+ */
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date in YYYY-MM-DD form");
+
+export const updateOrderStatusSchema = z
+  .object({
+    status: z.enum(["pending", "paid", "processing", "in_transit", "delivered", "completed", "cancelled"]),
+    tracking_number: z.string().min(1).max(100).optional(),
+    carrier: z.string().min(1).max(100).optional(),
+    /** Kept as the midpoint of the window for the deliveries table and the email. */
+    estimated_delivery_date: isoDate.optional(),
+    /** 050: the delivery window the customer is shown ("Thu 18 – Sat 20 Sep"). */
+    eta_from: isoDate.optional(),
+    eta_to: isoDate.optional(),
+    tracking_url: z.url("Must be a valid URL").optional(),
+    notes: z.string().max(2000).optional(),
+  })
+  // A backwards window would pass the column CHECK only by luck of which end is
+  // which; refuse it here so the admin sees a sentence rather than a 23514.
+  .refine((v) => !v.eta_from || !v.eta_to || v.eta_to >= v.eta_from, {
+    message: "The end of the window cannot be before its start",
+    path: ["eta_to"],
+  });
 
 export type CreateOrderSchemaType = z.infer<typeof createOrderSchema>;
 export type ReviewOrderSchemaType = z.infer<typeof reviewOrderSchema>;

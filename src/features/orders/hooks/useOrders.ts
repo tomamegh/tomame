@@ -20,12 +20,18 @@ export const orderKeys = {
 
 // ── User hooks ───────────────────────────────────────────────
 
-/** List the current user's orders */
+/**
+ * List the current user's orders.
+ *
+ * `GET /api/orders` answers `{ orders, count }` now, not a bare array — the
+ * Journeys screen needs the count for its filter pills. `select` keeps the
+ * existing `Order[]` contract for every caller that only wanted the rows.
+ */
 export function useUserOrders() {
-  return useQuery<ApiSuccessResponse<Order[]>, Error, Order[]>({
+  return useQuery<ApiSuccessResponse<OrderList>, Error, Order[]>({
     queryKey: orderKeys.user(),
-    queryFn: () => apiFetch<ApiSuccessResponse<Order[]>>("/api/orders"),
-    select: (res) => res.data,
+    queryFn: () => apiFetch<ApiSuccessResponse<OrderList>>("/api/orders"),
+    select: (res) => res.data.orders,
   });
 }
 

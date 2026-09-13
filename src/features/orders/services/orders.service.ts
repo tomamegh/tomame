@@ -14,13 +14,12 @@ import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
 import type { PlatformUser } from "@/features/users/types";
-import type { PaginatedDataResponse } from "@/types/api";
 import type { AuditLog } from "@/features/audit/types";
-import { createClient } from "@/lib/supabase/server";
 import { Order, OrderList } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CreateOrderSchemaType } from "../schema";
 import { consumeQuoteLocksForOrder } from "@/features/quotes/services/quote-lock.service";
+import { eventForStatus, recordOrderEvent } from "./order-events.service";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import type { Viewer } from "@/features/quotes/types";
 
@@ -47,6 +46,9 @@ async function upsertOrderDelivery(
     tracking_number?: string;
     tracking_url?: string;
     estimated_delivery_date?: string;
+    /** 050: mirrored from `orders` so the deliveries console sees the same window. */
+    eta_from?: string;
+    eta_to?: string;
     delivered_at?: string;
     notes?: string;
     status: string;
@@ -74,6 +76,8 @@ async function updateOrderStatus(
     tracking_number?: string;
     carrier?: string;
     estimated_delivery_date?: string;
+    eta_from?: string;
+    eta_to?: string;
     delivered_at?: string;
   },
 ): Promise<Order | null> {
@@ -384,34 +388,6 @@ export async function createOrder(
   return order as Order;
 }
 
-export const getUserOrders = async (
-  userId: string,
-  page: number = 1,
-  limit: number = 10,
-): Promise<PaginatedDataResponse<Order>> => {
-  const supabase = await createClient();
-
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
-
-  const { data, error, count } = await supabase
-    .from("orders")
-    .select("*", { count: "exact" })
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .range(from, to);
-
-  if (error) throw error;
-
-  return {
-    data: (data ?? []) as Order[],
-    total: count || 0,
-    page,
-    limit,
-    totalPages: count ? Math.ceil(count / limit) : 0,
-  };
-};
-
 export async function getOrder(
   client: SupabaseClient,
   user: PlatformUser,
@@ -455,18 +431,40 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   delivered: ["completed"],
 };
 
+/**
+ * What an admin may attach to a status change.
+ *
+ * SNAKE_CASE, matching `updateOrderStatusSchema` and the columns — and that is a
+ * BUG FIX, not a style choice. `PATCH /api/admin/orders/[id]` has always spread
+ * the parsed body (`tracking_number`, `estimated_delivery_date`) into a parameter
+ * typed in camelCase, so `trackingNumber` and `estimatedDeliveryDate` arrived
+ * `undefined` on every call: the tracking number and the ETA were silently
+ * dropped while the carrier (spelled the same either way) got through. Phase 5's
+ * detail screen reads exactly those two columns, so it surfaces the moment the
+ * screen exists.
+ */
+export interface OrderTrackingInput {
+  tracking_number?: string;
+  carrier?: string;
+  tracking_url?: string;
+  notes?: string;
+  /** 050: the delivery WINDOW the customer is shown. */
+  eta_from?: string;
+  eta_to?: string;
+  /**
+   * Legacy single date. Still accepted, still stored: the deliveries table and
+   * the status email both read it. When only a window is given it is derived
+   * below as the window's midpoint.
+   */
+  estimated_delivery_date?: string;
+}
+
 export async function updateOrderStatusAdmin(
   client: SupabaseClient,
   user: PlatformUser,
   orderId: string,
   newStatus: string,
-  trackingData?: {
-    trackingNumber?: string;
-    carrier?: string;
-    estimatedDeliveryDate?: string;
-    trackingUrl?: string;
-    notes?: string;
-  },
+  trackingData?: OrderTrackingInput,
 ): Promise<Order> {
   if (user.app_metadata?.role !== "admin") {
     throw new APIError(403, "Admin access required");
@@ -485,21 +483,28 @@ export async function updateOrderStatusAdmin(
     );
   }
 
+  // The window is the source of truth from 050 on; `estimated_delivery_date`
+  // is kept as its midpoint so the deliveries table and the status email keep
+  // reading one date without either knowing about the window.
+  const eta = resolveEtaWindow(trackingData);
+
   const updatePayload: {
     status: string;
     tracking_number?: string;
     carrier?: string;
     estimated_delivery_date?: string;
+    eta_from?: string;
+    eta_to?: string;
     delivered_at?: string;
   } = { status: newStatus };
 
   if (newStatus === "in_transit" && trackingData) {
-    if (trackingData.trackingNumber)
-      updatePayload.tracking_number = trackingData.trackingNumber;
+    if (trackingData.tracking_number)
+      updatePayload.tracking_number = trackingData.tracking_number;
     if (trackingData.carrier) updatePayload.carrier = trackingData.carrier;
-    if (trackingData.estimatedDeliveryDate)
-      updatePayload.estimated_delivery_date =
-        trackingData.estimatedDeliveryDate;
+    if (eta.from) updatePayload.eta_from = eta.from;
+    if (eta.to) updatePayload.eta_to = eta.to;
+    if (eta.midpoint) updatePayload.estimated_delivery_date = eta.midpoint;
   }
 
   if (newStatus === "delivered") {
@@ -517,14 +522,14 @@ export async function updateOrderStatusAdmin(
     const deliveryFields: Parameters<typeof upsertOrderDelivery>[3] = {
       status: newStatus === "in_transit" ? "in_transit" : "delivered",
       ...(trackingData?.carrier && { carrier: trackingData.carrier }),
-      ...(trackingData?.trackingNumber && {
-        tracking_number: trackingData.trackingNumber,
+      ...(trackingData?.tracking_number && {
+        tracking_number: trackingData.tracking_number,
       }),
-      ...(trackingData?.estimatedDeliveryDate && {
-        estimated_delivery_date: trackingData.estimatedDeliveryDate,
-      }),
-      ...(trackingData?.trackingUrl && {
-        tracking_url: trackingData.trackingUrl,
+      ...(eta.midpoint && { estimated_delivery_date: eta.midpoint }),
+      ...(eta.from && { eta_from: eta.from }),
+      ...(eta.to && { eta_to: eta.to }),
+      ...(trackingData?.tracking_url && {
+        tracking_url: trackingData.tracking_url,
       }),
       ...(trackingData?.notes && { notes: trackingData.notes }),
       ...(newStatus === "delivered" && {
@@ -543,10 +548,79 @@ export async function updateOrderStatusAdmin(
     metadata: { from: order.status, to: newStatus },
   });
 
-  sendOrderStatusEmail(order.user_id, updated, newStatus, trackingData);
+  // The customer's half of the same fact (050). `audit_logs` above stays the
+  // compliance record — machine-worded, admin-only; this is the sentence the
+  // journey's Updates timeline shows. Never throws: see `recordOrderEvent`.
+  const narrative = eventForStatus(newStatus);
+  if (narrative) {
+    await recordOrderEvent({
+      order_id: orderId,
+      order_group_id: order.order_group_id ?? null,
+      kind: narrative.kind,
+      title: narrative.title,
+      // The carrier and its tracking number are the customer-facing half of an
+      // `in_transit` change; nothing is written when the admin left them blank.
+      detail:
+        newStatus === "in_transit"
+          ? ([trackingData?.carrier, trackingData?.tracking_number]
+              .filter((part): part is string => !!part?.trim())
+              .join(" · ") || null)
+          : null,
+      created_by: user.id,
+    });
+  }
+
+  sendOrderStatusEmail(order.user_id, updated, newStatus, {
+    trackingNumber: trackingData?.tracking_number,
+    carrier: trackingData?.carrier,
+    estimatedDeliveryDate: eta.midpoint,
+  });
 
   return updated as Order;
 }
+
+/**
+ * The window an admin set, and the single date derived from it.
+ *
+ * Three inputs are possible and all three are honoured:
+ *  - a window only → the midpoint becomes `estimated_delivery_date`;
+ *  - a single date only → it becomes a one-day window, NOT a fabricated spread;
+ *  - both → each is stored as given, because an operator who typed both means both.
+ *
+ * The midpoint rounds DOWN (`Math.floor`) so an even-length window resolves to
+ * the earlier of the two middle days: a customer told "the 18th" for an 18–21
+ * window is disappointed by nothing.
+ */
+function resolveEtaWindow(input: OrderTrackingInput | undefined): {
+  from?: string;
+  to?: string;
+  midpoint?: string;
+} {
+  const from = input?.eta_from?.trim() || undefined;
+  const to = input?.eta_to?.trim() || undefined;
+  const single = input?.estimated_delivery_date?.trim() || undefined;
+
+  if (!from && !to) {
+    return single ? { from: single, to: single, midpoint: single } : {};
+  }
+
+  // A half-open window is a real answer ("from the 18th, we cannot promise the
+  // far end"); it is stored as given rather than squared off into a fake range.
+  const start = from ?? to;
+  const end = to ?? from;
+  if (single) return { from, to, midpoint: single };
+
+  const startMs = Date.parse(`${start}T00:00:00Z`);
+  const endMs = Date.parse(`${end}T00:00:00Z`);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return { from, to, midpoint: start };
+  }
+
+  const midMs = startMs + Math.floor((endMs - startMs) / 2 / DAY_MS) * DAY_MS;
+  return { from, to, midpoint: new Date(midMs).toISOString().slice(0, 10) };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export async function cancelOrderByUser(
   user: PlatformUser,
@@ -572,6 +646,16 @@ export async function cancelOrderByUser(
     entityType: "order",
     entityId: orderId,
     metadata: { from: "pending", to: "cancelled" },
+  });
+
+  // The customer cancelled it themselves, so the timeline says so in their
+  // words too — the journey detail screen renders the same log either way.
+  await recordOrderEvent({
+    order_id: orderId,
+    order_group_id: order.order_group_id ?? null,
+    kind: "cancelled",
+    title: "You cancelled this order",
+    created_by: user.id,
   });
 
   sendOrderStatusEmail(user.id, updated, "cancelled");

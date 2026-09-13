@@ -88,6 +88,21 @@ export async function updateOrderGroupTotals(id: string, patch: OrderGroupMoneyP
   return (data?.length ?? 0) > 0;
 }
 
+/**
+ * Several groups at once, for a list screen.
+ *
+ * The Journeys list needs each row's group status to decide whether "Pay now" is
+ * live; asking per row would be N+1 over a list that grows with the customer's
+ * history. Missing ids are simply absent from the result.
+ */
+export async function listOrderGroupsByIds(ids: readonly string[]): Promise<OrderGroupRow[]> {
+  if (ids.length === 0) return [];
+  const client = createAdminClient();
+  const { data, error } = await client.from("order_groups").select(COLUMNS).in("id", [...ids]);
+  if (error) throw new Error(`Failed to load order groups: ${error.message}`);
+  return ((data ?? []) as Record<string, unknown>[]).map(normalizeRow);
+}
+
 /** The user's newest unpaid group — what a repeated checkout POST returns once the cart has flipped. */
 export async function findLatestPendingGroupForUser(userId: string): Promise<OrderGroupRow | null> {
   const client = createAdminClient();
