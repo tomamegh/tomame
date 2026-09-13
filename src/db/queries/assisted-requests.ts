@@ -151,3 +151,29 @@ export async function transitionAssistedRequest(input: {
   if (error) throw new Error(`Failed to update the request: ${error.message}`);
   return (data as AssistedRequestRow | null) ?? null;
 }
+
+/**
+ * Replace what the customer said on a request that is still open.
+ *
+ * A correction, not a new job. The buyer must see the latest words and the
+ * latest number — returning the stale row and dropping the new one would have
+ * them shopping for the wrong item and ringing the wrong phone.
+ */
+export async function reviseAssistedRequest(input: {
+  id: string;
+  description: string;
+  phone: string;
+}): Promise<AssistedRequestRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("assisted_requests")
+    .update({ description: input.description, phone: input.phone, updated_at: new Date().toISOString() })
+    .eq("id", input.id)
+    // Only while it is still open work: once a buyer has resolved it, a late
+    // edit would rewrite history rather than change what they act on.
+    .in("status", ["open", "contacted"])
+    .select(COLUMNS)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to update the request: ${error.message}`);
+  return (data as AssistedRequestRow | null) ?? null;
+}

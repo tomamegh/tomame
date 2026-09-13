@@ -30,8 +30,8 @@ export async function POST(request: NextRequest) {
     }
 
     const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`assisted:${ip}`, RATE_LIMIT.general).allowed) {
-      throw new APIError(429, "Too many requests. Please wait a moment.");
+    if (!checkRateLimit(`assisted:${ip}`, RATE_LIMIT.assisted).allowed) {
+      throw new APIError(429, "You have sent a few of these. Give us a moment to get to them.");
     }
 
     const user = await getAuthenticatedUser();

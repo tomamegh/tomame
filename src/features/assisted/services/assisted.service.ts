@@ -4,6 +4,7 @@ import {
   findOpenAssistedRequest,
   insertAssistedRequest,
   listAssistedRequests,
+  reviseAssistedRequest,
   transitionAssistedRequest,
   type AssistedRequestRow,
   type AssistedRequestStatus,
@@ -47,13 +48,24 @@ export async function createAssistedRequest(
 
   const productUrl = await resolveProductUrl(viewer, input);
 
-  // Pressing the button twice must not put the same job in the queue twice.
+  // Pressing the button twice must not put the same job in the queue twice --
+  // but the second press is usually a CORRECTION ("actually, the silver one",
+  // a mistyped number). Reusing the row while discarding what they just typed
+  // would have the buyer shopping for the wrong thing, and the confirmation
+  // would quote their old words back at them as if it had taken.
   const existing = await findOpenAssistedRequest({
     userId: viewer.userId,
     sessionId: viewer.sessionId,
     productUrl,
   });
-  if (existing) return toAssistedRequest(existing, await supportWhatsappHref());
+  if (existing) {
+    const revised = await reviseAssistedRequest({
+      id: existing.id,
+      description: input.description,
+      phone: input.phone,
+    });
+    return toAssistedRequest(revised ?? existing, await supportWhatsappHref());
+  }
 
   const row = await insertAssistedRequest({
     userId: viewer.userId,

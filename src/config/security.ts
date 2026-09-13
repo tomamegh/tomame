@@ -16,6 +16,16 @@ export const RATE_LIMIT = {
   /** Public waitlist signup — 5 requests per hour per IP. */
   waitlist: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
   /**
+   * "Tell us what you want" — 6 requests per hour per IP.
+   *
+   * Every row this writes is a job a person has to work, and the link-free path
+   * accepts any URL, so the per-URL dedupe bounds nothing. Held near the waitlist
+   * budget rather than `general` (60 per 15 minutes) for that reason: a script
+   * on the loose limit could put 240 items an hour into the buyer's queue.
+   * Six an hour is still more corrections than any real customer makes.
+   */
+  assisted: { windowMs: 60 * 60 * 1000, maxRequests: 6 },
+  /**
    * Price-watch writes — 20 per hour per user. Each new watch costs a scraper
    * call now and one every night afterwards, so this is a cost ceiling as much
    * as an abuse one. Reads use `general`.

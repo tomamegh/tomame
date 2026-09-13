@@ -7,6 +7,7 @@ vi.mock("@/db/queries/assisted-requests", () => ({
   findOpenAssistedRequest: vi.fn(async () => null),
   listAssistedRequests: vi.fn(async () => []),
   transitionAssistedRequest: vi.fn(),
+  reviseAssistedRequest: vi.fn(),
 }));
 vi.mock("@/db/queries/extraction-requests", () => ({ getExtractionRequestById: vi.fn() }));
 vi.mock("@/db/queries/site-settings", () => ({ getSiteSettingsMap: vi.fn(async () => ({ whatsapp_number: "+233 59 442 4746" })) }));
@@ -15,6 +16,7 @@ vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn
 import {
   findOpenAssistedRequest,
   insertAssistedRequest,
+  reviseAssistedRequest,
   transitionAssistedRequest,
 } from "@/db/queries/assisted-requests";
 import { getExtractionRequestById } from "@/db/queries/extraction-requests";
@@ -90,11 +92,44 @@ describe("createAssistedRequest", () => {
 
   it("reuses an open request instead of queueing the same job twice", async () => {
     vi.mocked(findOpenAssistedRequest).mockResolvedValue(row({ id: "already-there" }));
+    vi.mocked(reviseAssistedRequest).mockResolvedValue(row({ id: "already-there" }));
 
     const result = await createAssistedRequest(VIEWER, input);
 
     expect(result.id).toBe("already-there");
     expect(insertAssistedRequest).not.toHaveBeenCalled();
+  });
+
+  it("carries a correction onto the open request instead of dropping it", async () => {
+    // The second press is usually "actually, the silver one" or a fixed number.
+    // Returning the stale row would have the buyer shopping for the wrong thing
+    // while the customer reads their OLD words back on the confirmation.
+    vi.mocked(findOpenAssistedRequest).mockResolvedValue(row({ id: "already-there" }));
+    vi.mocked(reviseAssistedRequest).mockResolvedValue(
+      row({ id: "already-there", description: "the silver one", phone: "0244000000" }),
+    );
+
+    const result = await createAssistedRequest(VIEWER, {
+      ...input,
+      description: "the silver one",
+      phone: "0244000000",
+    });
+
+    expect(reviseAssistedRequest).toHaveBeenCalledWith({
+      id: "already-there",
+      description: "the silver one",
+      phone: "0244000000",
+    });
+    expect(result.description).toBe("the silver one");
+  });
+
+  it("falls back to the row it found when the revision could not be applied", async () => {
+    // A buyer resolving it mid-edit narrows the update to nothing; the customer
+    // still gets a confirmation rather than an error on work already done.
+    vi.mocked(findOpenAssistedRequest).mockResolvedValue(row({ id: "already-there" }));
+    vi.mocked(reviseAssistedRequest).mockResolvedValue(null);
+
+    await expect(createAssistedRequest(VIEWER, input)).resolves.toMatchObject({ id: "already-there" });
   });
 
   it("hands back Tomame's WhatsApp link so the customer can start the chat", async () => {
