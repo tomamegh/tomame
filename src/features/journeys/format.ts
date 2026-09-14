@@ -1,3 +1,8 @@
+import type {
+  OrderFeedbackStatus,
+  OrderFeedbackVerdict,
+} from "@/db/queries/order-feedback";
+import type { OrderPhotoKind } from "@/db/queries/order-photos";
 import { formatGhs, formatPercent, formatUsd } from "@/features/marketing/format";
 import type { OrderPricingBreakdown } from "@/features/orders/types";
 import type { JourneyCtaKind, JourneyEta } from "./types";
@@ -216,4 +221,91 @@ export function paidTotalGhs(
   return adminTotalGhs != null && Number.isFinite(adminTotalGhs)
     ? adminTotalGhs
     : pricing.total_ghs;
+}
+
+// ── Parcel photos and what the customer said about them (054) ───────────────
+
+/**
+ * The line above a photograph. The `kind` column is the operator's own
+ * classification, so it is rendered as a fact rather than guessed at from the
+ * order's status — a parcel can be photographed at the hub long after it is
+ * marked processing.
+ */
+const PHOTO_KIND_LABELS: Record<OrderPhotoKind, string> = {
+  hub_received: "At our US hub",
+  packed: "Packed for the flight",
+  damaged: "Damage we found",
+  delivered: "At your door",
+  other: "From the warehouse",
+};
+
+export function photoKindLabel(kind: OrderPhotoKind): string {
+  return PHOTO_KIND_LABELS[kind];
+}
+
+/** The alt text for a parcel photograph that carries no caption. */
+export function photoAltText(kind: OrderPhotoKind, takenAt: string): string {
+  const stamp = formatShortDay(takenAt);
+  const where = PHOTO_KIND_LABELS[kind];
+  return `Photo of your parcel — ${where}${stamp ? `, ${stamp}` : ""}`;
+}
+
+/**
+ * How a verdict is read back to the person who gave it.
+ *
+ * `looks_right` is phrased as the confirmation it is — "you confirmed" — and
+ * not as one more complaint in a list. It is the signal the whole feature
+ * exists to collect, and the screen should not make giving it feel like filing
+ * a ticket.
+ */
+const VERDICT_LABELS: Record<OrderFeedbackVerdict, string> = {
+  looks_right: "You confirmed this looks right",
+  wrong_item: "Wrong item",
+  wrong_variant: "Wrong size or colour",
+  damaged: "Damaged",
+  other: "Something else",
+};
+
+export function feedbackVerdictLabel(verdict: OrderFeedbackVerdict): string {
+  return VERDICT_LABELS[verdict];
+}
+
+/** True for every verdict a person has to act on. */
+export function isFeedbackComplaint(verdict: OrderFeedbackVerdict): boolean {
+  return verdict !== "looks_right";
+}
+
+/** The chip beside a complaint: where it has got to in the queue. */
+const STATUS_LABELS: Record<OrderFeedbackStatus, string> = {
+  open: "Received",
+  in_review: "Being looked at",
+  resolved: "Sorted",
+  dismissed: "Closed",
+};
+
+export function feedbackStatusLabel(status: OrderFeedbackStatus): string {
+  return STATUS_LABELS[status];
+}
+
+const STATUS_NOTES: Record<OrderFeedbackStatus, string> = {
+  open: "We have this. Someone will look at it before your parcel moves on.",
+  in_review: "A buyer is looking into this now.",
+  resolved: "We have dealt with this.",
+  dismissed: "We have looked into this.",
+};
+
+/**
+ * The sentence under what the customer said.
+ *
+ * A confirmation is never answered with "someone will look at it": nobody has
+ * to, and promising a reply we will not send is worse than saying nothing.
+ */
+export function feedbackStatusNote(
+  verdict: OrderFeedbackVerdict,
+  status: OrderFeedbackStatus,
+): string {
+  if (verdict === "looks_right") {
+    return "Thank you — that is noted against this parcel.";
+  }
+  return STATUS_NOTES[status];
 }

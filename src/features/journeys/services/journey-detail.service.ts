@@ -1,6 +1,7 @@
 import "server-only";
 
 import { listOrderEvents } from "@/db/queries/order-events";
+import { listVisibleOrderPhotos } from "@/features/order-photos/services/order-photos.service";
 import { getOrderGroupById } from "@/db/queries/order-groups";
 import { listOrdersByGroup } from "@/db/queries/orders";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
@@ -45,8 +46,11 @@ export async function getJourneyDetail(
   const order = await getOrder(client, user, orderId);
 
   const admin = createAdminClient();
-  const [events, delivery, group, settings, channels] = await Promise.all([
+  const [events, photos, delivery, group, settings, channels] = await Promise.all([
     listOrderEvents(admin, order.id, { customerVisibleOnly: true }),
+    // Ownership is already `getOrder`'s above, so this reads by order id; it
+    // never throws, so a storage hiccup costs the pictures and not the page.
+    listVisibleOrderPhotos(order.id),
     loadDeliveryRow(order.id),
     order.order_group_id ? getOrderGroupById(order.order_group_id) : null,
     // A missing WhatsApp number costs one button, not the page.
@@ -94,6 +98,7 @@ export async function getJourneyDetail(
     eta,
     deliverTo: deliverToOf(group?.delivery_address ?? null),
     updates: events,
+    photos,
     pricing: order.pricing,
     adminTotalGhs: order.admin_total_ghs,
     payment,

@@ -54,6 +54,17 @@ export const RATE_LIMIT = {
    * callers only.
    */
   fxRate: { windowMs: 15 * 60 * 1000, maxRequests: 120 },
+  /**
+   * Parcel photo bytes — 300 per 15 minutes per IP.
+   *
+   * Deliberately loose, because this is an <img src>: one journey screen is
+   * three or four requests, a customer opening several of them is a dozen, and
+   * a browser that re-requests on a back-navigation doubles it. The route is
+   * authenticated and re-checks ownership per request, so this bounds a signed-in
+   * caller scraping the bucket rather than an anonymous attacker — which is what
+   * the per-request ownership check is actually for.
+   */
+  parcelPhotos: { windowMs: 15 * 60 * 1000, maxRequests: 300 },
 } as const;
 
 /**

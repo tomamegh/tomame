@@ -5,4 +5,7 @@ export { JourneyStopRail } from "./journey-stop-rail";
 export { JourneyTrackRail } from "./journey-track-rail";
 export { JourneyUpdatesCard } from "./journey-updates-card";
 export { JourneyPaidCard } from "./journey-paid-card";
+export { JourneyPhotosCard } from "./journey-photos-card";
+export { JourneyFeedback } from "./journey-feedback";
+export { JourneyFeedbackDialog } from "./journey-feedback-dialog";
 export { JourneyItemCard } from "./journey-item-card";

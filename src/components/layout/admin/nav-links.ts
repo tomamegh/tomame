@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   BellIcon,
   BookmarkIcon,
+  CameraIcon,
   CreditCardIcon,
   FileTextIcon,
   LayoutGridIcon,
@@ -71,6 +72,11 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
     links: [
       { title: "Assisted", url: "/admin/assisted-requests", icon: MessageCircleIcon, badge: "assistedOpen" },
       { title: "Messages", url: "/admin/contact-messages", icon: MailIcon, badge: "contactOpen" },
+      // A customer looking at the photograph of their own parcel, still on a
+      // shelf in America. The badge counts only `open` rows, so it disappears
+      // the moment the queue is worked — which is the point: a badge that never
+      // goes out is furniture.
+      { title: "Parcel feedback", url: "/admin/feedback", icon: CameraIcon, badge: "feedbackOpen" },
       { title: "Paste queue", url: "/admin/pastes", icon: LinkIcon, badge: "pastesFailed" },
     ],
   },

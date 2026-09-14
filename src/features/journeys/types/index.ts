@@ -1,4 +1,5 @@
 import type { OrderEventRow } from "@/db/queries/order-events";
+import type { OrderPhotoView } from "@/features/order-photos/types";
 import type { JourneyTone } from "@/features/orders/services/journey-stage";
 import type { JourneyTrack, TrackStopKey } from "@/features/orders/services/journey-track";
 import type { OrderPricingBreakdown, OriginCountry } from "@/features/orders/types";
@@ -143,6 +144,13 @@ export interface JourneyDetailViewModel {
   deliverTo: JourneyDeliverTo | null;
   /** Customer-visible `order_events`, newest first. Empty until something happens. */
   updates: OrderEventRow[];
+  /**
+   * Warehouse photographs of this parcel, newest first (054) — the first sight
+   * the customer gets of what was actually bought. Internal-only pictures are
+   * filtered out server-side. EMPTY when nobody has photographed it yet: there
+   * is no placeholder, the section is simply not drawn.
+   */
+  photos: OrderPhotoView[];
   /** `orders.pricing` — what the customer actually paid, as stored. */
   pricing: OrderPricingBreakdown;
   /** An admin override of the total, when one was set. */

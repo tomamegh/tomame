@@ -39,6 +39,14 @@ export const AUDIT_ENTITY_TYPES = {
   POLICY: "policy",
   CONSOLIDATION_BOX: "consolidation_box",
   CART: "cart",
+  /**
+   * 054. A parcel photograph is a picture of one named customer's property, and
+   * a hold stops their shipment — both are state changes on someone's order and
+   * neither is auditable as `order` without losing which of the two happened.
+   */
+  ORDER_PHOTO: "order_photo",
+  ORDER_FEEDBACK: "order_feedback",
+  ORDER_HOLD: "order_hold",
 } as const;
 
 export type AuditEntityType =

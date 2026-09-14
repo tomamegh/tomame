@@ -16,6 +16,7 @@ import { formatEtaWindow, formatShortDay } from "../format";
 import type { JourneyDetailViewModel } from "../types";
 import { JourneyItemCard } from "./journey-item-card";
 import { JourneyPaidCard } from "./journey-paid-card";
+import { JourneyPhotosCard } from "./journey-photos-card";
 import { JourneyTrackRail } from "./journey-track-rail";
 import { JourneyUpdatesCard } from "./journey-updates-card";
 import { stageIcon, tonePalette } from "./stage-visuals";
@@ -180,6 +181,15 @@ export function JourneyDetailView({ journey, paymentOutcome }: JourneyDetailView
               )}
             </div>
           </section>
+
+          {/*
+            ABOVE Updates and above the receipt (054). The photograph is the
+            first sight of what was actually bought, and the question under it is
+            the last cheap chance to say it is wrong — the parcel is at a US hub,
+            not in the air. Anything this consequential does not belong below a
+            receipt nobody scrolls to.
+          */}
+          <JourneyPhotosCard orderId={journey.id} photos={journey.photos} />
 
           <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-2">
             <JourneyUpdatesCard updates={journey.updates} />

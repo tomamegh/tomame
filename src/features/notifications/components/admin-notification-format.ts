@@ -44,6 +44,7 @@ const EVENT_LABELS: Record<string, string> = {
   price_drop: "Price drop",
   paste_priced: "Paste priced",
   paste_unreadable: "Paste unreadable",
+  parcel_photo_added: "Parcel photo added",
 };
 
 export function notificationEventLabel(event: string): string {

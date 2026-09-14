@@ -10,10 +10,10 @@ import { logger } from "@/lib/logger";
  * contact messages (053), orders held for review (031) and pastes the extractor
  * gave up on (049). Each has a screen, and none of them announced itself, so an
  * admin had to open all four to discover that three were empty. These counts
- * drive the sidebar badges.
+ * drive the sidebar badges. Parcel feedback (054) is the fifth.
  *
  * COUNT-ONLY, head requests. Nothing here reads a row: the chrome needs a
- * number, and pulling four lists to measure their length on every admin page
+ * number, and pulling five lists to measure their length on every admin page
  * load would be the expensive way to render a dot.
  *
  * Every count degrades to 0 on failure rather than throwing. A badge is
@@ -33,6 +33,23 @@ export interface AdminQueueCounts {
   ordersNeedingReview: number;
   /** Pastes the extractor gave up on — the customer is looking at a dead link. */
   pastesFailed: number;
+  /**
+   * `order_feedback` still `open` (054) — a customer has looked at the photo of
+   * their parcel and said something about it while the box is still at a US hub.
+   * The most time-sensitive of the five: every hour it sits there is an hour
+   * closer to the parcel being in the air, where a mistake stops being cheap.
+   *
+   * CONFIRMATIONS ARE NOT COUNTED. A `looks_right` is an open row and someone
+   * does eventually file it, but a badge here means "a person owes somebody an
+   * action", and nobody owes anything on a customer saying their parcel is
+   * correct. Counting them would light the same amber pip for good news as for a
+   * wrong item — and since most customers who answer at all will answer
+   * `looks_right`, the badge would rarely reach zero, which is the definition of
+   * furniture rather than signal (see the note on `NavLink.badge`). They are
+   * still in the queue, in their own section, where they read as the answer the
+   * photo was taken for.
+   */
+  feedbackOpen: number;
 }
 
 export const EMPTY_QUEUE_COUNTS: AdminQueueCounts = {
@@ -40,28 +57,36 @@ export const EMPTY_QUEUE_COUNTS: AdminQueueCounts = {
   contactOpen: 0,
   ordersNeedingReview: 0,
   pastesFailed: 0,
+  feedbackOpen: 0,
 };
 
 export async function getAdminQueueCounts(): Promise<AdminQueueCounts> {
   const db = createAdminClient();
 
-  const [assistedOpen, contactOpen, ordersNeedingReview, pastesFailed] = await Promise.all([
-    countWhere(db, "assisted_requests", (q) => q.eq("status", "open")),
-    countWhere(db, "contact_messages", (q) => q.eq("status", "open")),
-    countWhere(db, "orders", (q) => q.eq("needs_review", true)),
-    // Only recent failures. A paste that failed three weeks ago is history, not
-    // a queue — the customer has long since re-pasted it or given up, and
-    // counting it forever would leave a badge burning that nobody can clear.
-    countWhere(db, "extraction_requests", (q) =>
-      q.eq("status", "failed").gt("updated_at", sevenDaysAgo()),
-    ),
-  ]);
+  const [assistedOpen, contactOpen, ordersNeedingReview, pastesFailed, feedbackOpen] =
+    await Promise.all([
+      countWhere(db, "assisted_requests", (q) => q.eq("status", "open")),
+      countWhere(db, "contact_messages", (q) => q.eq("status", "open")),
+      countWhere(db, "orders", (q) => q.eq("needs_review", true)),
+      // Only recent failures. A paste that failed three weeks ago is history, not
+      // a queue — the customer has long since re-pasted it or given up, and
+      // counting it forever would leave a badge burning that nobody can clear.
+      countWhere(db, "extraction_requests", (q) =>
+        q.eq("status", "failed").gt("updated_at", sevenDaysAgo()),
+      ),
+      // No age cut-off, unlike the pastes above: an open objection about a parcel
+      // is not history a customer works around, it is a box nobody answered for.
+      countWhere(db, "order_feedback", (q) =>
+        q.eq("status", "open").neq("verdict", "looks_right"),
+      ),
+    ]);
 
-  return { assistedOpen, contactOpen, ordersNeedingReview, pastesFailed };
+  return { assistedOpen, contactOpen, ordersNeedingReview, pastesFailed, feedbackOpen };
 }
 
 type CountQuery = {
   eq: (column: string, value: unknown) => CountQuery;
+  neq: (column: string, value: unknown) => CountQuery;
   gt: (column: string, value: unknown) => CountQuery;
 };
 

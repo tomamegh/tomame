@@ -3,6 +3,12 @@ import { describe, it, expect } from "vitest";
 import type { OrderPricingBreakdown } from "@/features/orders/types";
 import {
   ctaLabel,
+  feedbackStatusLabel,
+  feedbackStatusNote,
+  feedbackVerdictLabel,
+  isFeedbackComplaint,
+  photoAltText,
+  photoKindLabel,
   formatEtaWindow,
   formatEventStamp,
   formatGroupPosition,
@@ -142,5 +148,48 @@ describe("paidTotalGhs", () => {
 
   it("ignores a nonsense override rather than rendering NaN", () => {
     expect(paidTotalGhs(pricing(), Number.NaN)).toBe(5041.16);
+  });
+});
+
+describe("parcel photos and feedback (054)", () => {
+  it("names every photo kind the column can hold", () => {
+    expect(photoKindLabel("hub_received")).toBe("At our US hub");
+    expect(photoKindLabel("packed")).toBe("Packed for the flight");
+    expect(photoKindLabel("damaged")).toBe("Damage we found");
+    expect(photoKindLabel("delivered")).toBe("At your door");
+    expect(photoKindLabel("other")).toBe("From the warehouse");
+  });
+
+  it("describes an uncaptioned photo for a screen reader", () => {
+    expect(photoAltText("hub_received", "2026-09-08T22:14:00Z")).toBe(
+      "Photo of your parcel — At our US hub, 8 Sep",
+    );
+    expect(photoAltText("packed", "not-a-date")).toBe(
+      "Photo of your parcel — Packed for the flight",
+    );
+  });
+
+  it("reads a confirmation back as a confirmation, not a complaint", () => {
+    expect(feedbackVerdictLabel("looks_right")).toBe("You confirmed this looks right");
+    expect(isFeedbackComplaint("looks_right")).toBe(false);
+    expect(isFeedbackComplaint("wrong_variant")).toBe(true);
+  });
+
+  it("never promises a buyer will look at a confirmation", () => {
+    expect(feedbackStatusNote("looks_right", "open")).toBe(
+      "Thank you — that is noted against this parcel.",
+    );
+    expect(feedbackStatusNote("wrong_item", "open")).toContain("Someone will look at it");
+    expect(feedbackStatusNote("wrong_item", "in_review")).toBe(
+      "A buyer is looking into this now.",
+    );
+    expect(feedbackStatusNote("damaged", "resolved")).toBe("We have dealt with this.");
+  });
+
+  it("labels where a complaint has got to in the queue", () => {
+    expect(feedbackStatusLabel("open")).toBe("Received");
+    expect(feedbackStatusLabel("in_review")).toBe("Being looked at");
+    expect(feedbackStatusLabel("resolved")).toBe("Sorted");
+    expect(feedbackStatusLabel("dismissed")).toBe("Closed");
   });
 });
