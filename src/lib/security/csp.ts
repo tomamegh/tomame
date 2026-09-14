@@ -3,22 +3,32 @@
  *
  * Kept as a pure function (no request/response objects) so the policy string
  * itself is unit-testable without spinning up the proxy. `src/proxy.ts` is the
- * only caller: it mints a per-request nonce, resolves the Supabase origin from
- * env, and writes the header on every response the proxy touches.
+ * only caller: it resolves the Supabase origin from env and writes the header
+ * on every response the proxy touches.
  *
  * Design, and why each relaxation is there:
  *
- * - `script-src` is the strict one: `'nonce-<value>' 'strict-dynamic'` and
- *   nothing else. Next.js reads the nonce back out of this exact header (it
- *   greps `script-src` — falling back to `default-src` — for a quoted
- *   `'nonce-...'` token) and stamps it onto every inline script it generates
- *   itself (the RSC payload, the hydration bootstrap). `strict-dynamic` lets
- *   those nonce-carrying scripts load Next's own chunked bundles without
- *   listing every chunk URL. No third-party script host is on the app today
- *   (Paystack is a server-issued redirect URL the browser navigates to, not a
- *   script tag; Vercel Analytics/Speed Insights ship same-origin `/_vercel/...`
- *   paths) — if one is ever added it has to carry this same nonce or the
- *   browser drops it.
+ * - `script-src` is `'self' 'unsafe-inline'`, and that is a DELIBERATE RETREAT
+ *   from something stricter that does not work here. The first cut used a
+ *   per-request nonce with `'strict-dynamic'`, the pattern Next documents, and
+ *   it verified clean in development. On a PRODUCTION build it takes the site
+ *   down: Next stamps the nonce into the HTML when it renders a page, but a
+ *   prerendered page's HTML is generated at build time, so the nonce baked
+ *   into it can never match the one this proxy mints on the request. Every
+ *   script on such a page is refused. `/auth/login` is one of those pages, and
+ *   its served HTML carries no nonce attribute at all while the header demands
+ *   one, so nobody could have signed in. Caught by serving `next build` output
+ *   and reading the console; it is invisible in `next dev`, where nothing is
+ *   prerendered.
+ *
+ *   `'self'` still means no third-party script host can be loaded, which is
+ *   the injection route an attacker reaches for first. `'unsafe-inline'` means
+ *   an injected inline `<script>` would run, so this directive is NOT the
+ *   defence against XSS on this app; escaping and React's own handling are.
+ *   Making it strict again means either rendering every page dynamically, or
+ *   moving the CSP out of the proxy and into the page render where the nonce
+ *   is known. Both are real options and neither is a one-line change.
+ *
  * - `style-src` keeps `'unsafe-inline'`. Radix/shadcn primitives and
  *   `next/image`'s placeholder sizing set the HTML `style="..."` attribute
  *   directly in server-rendered markup, which CSP checks against `style-src`
@@ -45,26 +55,22 @@
  *   would break every request the moment this directive is unconditional.
  * - `script-src` also gets `'unsafe-eval'`, but ONLY outside production.
  *   React's dev build calls `eval()` itself, to reconstruct component stacks
- *   for its debugging overlay (confirmed locally: without this, every page
- *   logs "eval() is not supported in this environment... make sure that
- *   `unsafe-eval` is included"). Next's own docs say React "will never use
+ *   for its debugging overlay. Next's own docs say React "will never use
  *   eval() in production mode", and that held up under `npm run build` — a
  *   production response carries no `unsafe-eval`.
  */
 
 export interface CspOptions {
-  /** Per-request base64/base64url nonce, unique every time. */
-  nonce: string;
   /** Origin (scheme + host [+ port]) the app's Supabase client talks to. */
   supabaseOrigin: string;
   /** Adds directives that only make sense once the app is served over https, and drops the dev-only `unsafe-eval`. */
   isProd: boolean;
 }
 
-export function buildCsp({ nonce, supabaseOrigin, isProd }: CspOptions): string {
+export function buildCsp({ supabaseOrigin, isProd }: CspOptions): string {
   const scriptSrc = isProd
-    ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`
-    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`;
+    ? `script-src 'self' 'unsafe-inline'`
+    : `script-src 'self' 'unsafe-inline' 'unsafe-eval'`;
   const directives = [
     `default-src 'self'`,
     scriptSrc,

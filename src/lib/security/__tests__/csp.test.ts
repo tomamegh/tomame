@@ -3,11 +3,15 @@ import { describe, expect, it } from "vitest";
 import { buildCsp } from "../csp";
 
 describe("buildCsp", () => {
-  const base = { nonce: "abc123==", supabaseOrigin: "https://project.supabase.co", isProd: false };
+  const base = { supabaseOrigin: "https://project.supabase.co", isProd: false };
 
-  it("carries the nonce in script-src, quoted the way Next's parser expects", () => {
+  it("allows only same-origin and inline scripts, never a third-party host", () => {
     const csp = buildCsp(base);
-    expect(csp).toContain(`script-src 'self' 'nonce-abc123=='`);
+    expect(csp).toContain(`script-src 'self' 'unsafe-inline'`);
+    expect(csp).not.toContain("strict-dynamic");
+    // The nonce scheme took prerendered pages down in production: the HTML's
+    // baked-in nonce cannot match a per-request one. See csp.ts.
+    expect(csp).not.toContain("nonce-");
   });
 
   it("scopes connect-src to self plus exactly the given Supabase origin", () => {

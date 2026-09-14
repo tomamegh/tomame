@@ -13,35 +13,11 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 // blanket `https://*.supabase.co` that would also admit every other project.
 const supabaseOrigin = supabaseUrl ? new URL(supabaseUrl).origin : "";
 
-/**
- * Per-request nonce for the CSP `script-src` directive. Web-standard APIs
- * only (`crypto.getRandomValues`, `btoa`) — no `node:crypto`/`Buffer` — so
- * this works unmodified whether the proxy runs on the Edge or Node.js runtime.
- */
-function generateNonce(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
 export async function updateSession(request: NextRequest) {
-  const nonce = generateNonce();
-  const csp = buildCsp({ nonce, supabaseOrigin, isProd: process.env.NODE_ENV === "production" });
-
-  // Forward the nonce to the app as a request header (the documented Next.js
-  // pattern — a server component can read it back via `(await headers()).get("x-nonce")`
-  // for any inline script it renders itself) and, more importantly, set the
-  // CSP on the response: Next greps that header for a quoted `'nonce-...'`
-  // token and stamps it onto every inline script it generates on its own
-  // (the RSC payload, the hydration bootstrap), which is what makes a
-  // nonce-only `script-src` (no `'unsafe-inline'`) work at all.
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
+  const csp = buildCsp({ supabaseOrigin, isProd: process.env.NODE_ENV === "production" });
 
   let supabaseResponse = NextResponse.next({
-    request: { headers: requestHeaders },
+    request,
   });
   supabaseResponse.headers.set("Content-Security-Policy", csp);
 
@@ -89,7 +65,7 @@ export async function updateSession(request: NextRequest) {
           request.cookies.set(name, value),
         );
         supabaseResponse = NextResponse.next({
-          request: { headers: requestHeaders },
+          request,
         });
         supabaseResponse.headers.set("Content-Security-Policy", csp);
         cookiesToSet.forEach(({ name, value, options }) =>
