@@ -88,8 +88,8 @@ export function ContactQueue() {
       title={TABS.find((t) => t.key === tab)?.label ?? "Messages"}
       blurb={
         oldestWait
-          ? `Oldest first. The one at the top has been ${oldestWait.toLowerCase()} — the form promises a few hours.`
-          : "Oldest first — the form tells every sender they will hear back within a few hours."
+          ? `Oldest first. The one at the top has been ${oldestWait.toLowerCase()}, and the form promises a few hours.`
+          : "Oldest first. The form tells every sender they will hear back within a few hours."
       }
       action={<QueueTabs value={tab} onChange={setTab} />}
     >
@@ -212,7 +212,7 @@ function ContactRow({
               </a>
             ) : (
               <span className="text-[12px] leading-none font-medium text-tm-text-3">
-                That address cannot be replied to — there is no other way back to this sender.
+                That address cannot be replied to, and there is no other way back to this sender.
               </span>
             )}
 

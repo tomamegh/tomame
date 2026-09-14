@@ -44,7 +44,7 @@ export function FaqSection({
             Things people ask before their first order.
           </h2>
           <p className="text-base leading-[1.5] text-tm-text-2">
-            Still unsure? WhatsApp us — a human answers within the hour
+            Still unsure? WhatsApp us. A human answers within the hour
             {supportHours ? `, ${supportHours}` : ""}.
           </p>
           {whatsappHref && (

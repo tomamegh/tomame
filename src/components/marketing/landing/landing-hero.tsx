@@ -102,7 +102,7 @@ export function LandingHero({
           <p className="max-w-[520px] text-[17px] leading-[27px] text-tm-text-2 md:text-[18px]">
             Paste a link from{" "}
             <StoreCycler stores={cyclerStores} rowHeight={27} /> and see the
-            full price at your door before you pay — item, tax, fee, freight.
+            full price at your door before you pay: item, tax, fee, freight.
             MoMo or card. We buy it, fly it, deliver it.
           </p>
 

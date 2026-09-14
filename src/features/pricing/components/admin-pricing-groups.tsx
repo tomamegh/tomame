@@ -153,7 +153,7 @@ export function AdminPricingGroups({ groups }: AdminPricingGroupsProps) {
           <div className="p-5">
             <AdminEmpty
               title="No pricing groups"
-              body="Nothing can be quoted until at least one group exists — a product whose category has no group is sent for review rather than priced. Import a pricing sheet, or run the seed migrations for this database."
+              body="Nothing can be quoted until at least one group exists: a product whose category has no group is sent for review rather than priced. Import a pricing sheet, or run the seed migrations for this database."
             />
           </div>
         ) : filtered.length === 0 ? (

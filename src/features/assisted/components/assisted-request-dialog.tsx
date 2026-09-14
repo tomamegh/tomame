@@ -123,7 +123,7 @@ export function AssistedRequestDialog({
       },
       onError: (error) => {
         if (error instanceof ApiFetchError && error.status === 429) {
-          toast.error({ title: "One moment", description: "You have sent a few of these — try again shortly." });
+          toast.error({ title: "One moment", description: "You have sent a few of these. Try again shortly." });
           return;
         }
         toast.error({ title: "Could not send that", description: error.message });

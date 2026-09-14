@@ -90,7 +90,7 @@ export default async function BuilderPage() {
           Every marketing photo on the site. Replace one with a file from this
           machine, drag it until the subject sits where you want it inside the
           box the real page uses, then save. Changes take effect immediately on
-          the live pages — there is no deploy step and no draft state.
+          the live pages. There is no deploy step and no draft state.
         </p>
         <p className="text-xs text-tm-text-3">
           {slots.length} slots · {uploadedCount} replaced · {croppedCount}{" "}

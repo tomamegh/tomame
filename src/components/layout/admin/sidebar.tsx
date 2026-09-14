@@ -57,7 +57,7 @@ export default function AppSidebar(props: { className?: string }) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild className="hover:bg-tm-hairline">
-              <Link href="/admin" aria-label="Tomame admin — dashboard">
+              <Link href="/admin" aria-label="Tomame admin dashboard">
                 {/*
                   Two spellings of the mark, one downloaded: the full horizontal
                   lockup while the rail is open, and the mark alone once it

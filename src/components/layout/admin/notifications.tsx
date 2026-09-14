@@ -102,7 +102,7 @@ function AdminNotifications() {
           type="button"
           aria-label={
             needsAttention > 0
-              ? `Notifications — ${needsAttention} needing attention`
+              ? `Notifications: ${needsAttention} needing attention`
               : "Notifications"
           }
           className="relative flex size-9 items-center justify-center rounded-full border border-tm-border bg-card text-tm-text-2 transition-colors hover:bg-tm-paper hover:text-tm-ink"

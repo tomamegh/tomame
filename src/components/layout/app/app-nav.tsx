@@ -77,7 +77,7 @@ export function AppNav({
         */}
         <Link
           href={isAuthenticated ? "/app" : "/"}
-          aria-label="Tomame — home"
+          aria-label="Tomame home"
           className={cn("w-fit rounded-sm", FOCUS_RING)}
         >
           {/*

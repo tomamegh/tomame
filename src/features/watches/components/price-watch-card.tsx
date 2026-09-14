@@ -116,7 +116,7 @@ function EmptyPriceWatch() {
       </p>
       <p className="max-w-[46ch] text-[13px] leading-[1.45] font-medium text-tm-text-2">
         Save a product link and we re-check its price once a day, landed in
-        GH₵ — so you know whether to buy now or wait.
+        GH₵, so you know whether to buy now or wait.
       </p>
       <Link
         href="/app/watches"

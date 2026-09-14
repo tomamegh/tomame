@@ -76,7 +76,7 @@ export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
       if (paymentOutcome === "success") {
         toast.success({ title: "Payment received. We are on it." });
       } else if (paymentOutcome === "failed") {
-        toast.error({ title: "Payment did not go through — nothing was charged." });
+        toast.error({ title: "Payment did not go through. Nothing was charged." });
       } else if (paymentOutcome === "error") {
         toast.error({
           title: "We could not confirm your payment",

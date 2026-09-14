@@ -64,7 +64,7 @@ export async function buildOrderIntake(input: CreateOrderSchemaType, viewer: Vie
     // Snapshot has a price; the client's estimate is ignored.
   } else if (input.estimated_price_usd != null) {
     priceOverrideUsd = input.estimated_price_usd;
-    reasons.push("Price entered by customer — not verified against the store.");
+    reasons.push("Price entered by customer, not verified against the store.");
   } else {
     throw new APIError(400, "We couldn't read a price for this product. Please enter the item price.");
   }
@@ -74,7 +74,7 @@ export async function buildOrderIntake(input: CreateOrderSchemaType, viewer: Vie
   if (!country) {
     if (!input.origin_country) throw new APIError(400, "Please select the country this item ships from.");
     country = input.origin_country;
-    reasons.push("Origin country selected by customer — store region not recognised.");
+    reasons.push("Origin country selected by customer; store region not recognised.");
   }
 
   // ── Extraction quality ───────────────────────────────────────────────────

@@ -85,7 +85,7 @@ export function ParcelHoldDialog({
     // Checked here as well as on the server so a two-character reason is
     // answered instantly. The server's copy is the one that counts.
     if (holding && trimmed.length < REASON_MIN) {
-      setError("Say why this parcel is being stopped — the customer will be asked.");
+      setError("Say why this parcel is being stopped. The customer will be asked.");
       return;
     }
     setError(null);
@@ -103,7 +103,7 @@ export function ParcelHoldDialog({
             {holding ? (
               <>
                 Order <span className="tm-nums font-semibold">{orderRef}</span> will refuse to
-                advance until somebody lifts the hold. Its status does not change — it simply stops
+                advance until somebody lifts the hold. Its status does not change; it simply stops
                 moving.
               </>
             ) : (
@@ -136,7 +136,7 @@ export function ParcelHoldDialog({
             aria-describedby={error ? "parcel-hold-error" : undefined}
             placeholder={
               holding
-                ? "e.g. Customer says the photo shows the 128GB, they paid for the 256GB — do not ship until checked."
+                ? "e.g. Customer says the photo shows the 128GB, they paid for the 256GB. Do not ship until checked."
                 : "e.g. Photographed again, it is the right one. Customer is happy."
             }
             className={FIELD}

@@ -39,7 +39,7 @@ function ContactForm() {
       onError: (err) =>
         setError(
           err instanceof ApiFetchError && err.status === 429
-            ? "You have sent a few of these already — give us a moment to reply."
+            ? "You have sent a few of these already. Give us a moment to reply."
             : "We could not send that just now. Try again, or reach us on WhatsApp.",
         ),
     });

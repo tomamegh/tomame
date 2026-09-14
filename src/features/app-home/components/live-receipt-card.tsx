@@ -199,8 +199,8 @@ function EmptyReceipt() {
         No link pasted yet
       </p>
       <p className="text-[13px] leading-[1.45] font-medium text-tm-text-2">
-        Paste a product link above and the full landed price — item, tax, our
-        fee, freight and today&apos;s rate — prints here in GH₵.
+        Paste a product link above and the full landed price prints here in GH₵:
+        item, tax, our fee, freight and today&apos;s rate.
       </p>
       <span className="mt-auto inline-flex items-center gap-1.5 text-[13px] leading-none font-semibold text-tm-coral">
         <LinkSimple weight="duotone" className="size-4" aria-hidden />

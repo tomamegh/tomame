@@ -58,7 +58,7 @@ export default async function AdminAccountPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         <AccountProfilePanel
           profile={profile}
-          blurb="Your name, contact number and bio. The sign-in email is shown but not editable — changing it is an auth flow with its own confirmation mail."
+          blurb="Your name, contact number and bio. The sign-in email is shown but not editable: changing it is an auth flow with its own confirmation mail."
         />
         <AccountSecurityPanel
           blurb="Change your password. The current one is verified before a new one is accepted."

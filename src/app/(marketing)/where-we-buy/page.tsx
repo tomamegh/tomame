@@ -110,7 +110,7 @@ export default async function WhereWeBuyPage() {
         <div className={cn(MARKETING_GUTTER, "flex flex-col gap-8")}>
           <h2 className="max-w-[600px] text-[32px] font-bold leading-[1.02] md:text-[44px]">
             {liveRegions.length > 0
-              ? `The ${laneNames(liveRegions)} lane${liveRegions.length > 1 ? "s" : ""} today — and what's next.`
+              ? `The ${laneNames(liveRegions)} lane${liveRegions.length > 1 ? "s" : ""} today, and what's next.`
               : "The lanes we're opening."}
           </h2>
 

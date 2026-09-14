@@ -101,7 +101,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
     const timer = setTimeout(() => {
       if (failureAnnounced.current) return;
       failureAnnounced.current = true;
-      toast.error({ title: "Payment did not go through — nothing was charged." });
+      toast.error({ title: "Payment did not go through. Nothing was charged." });
     }, 0);
     return () => clearTimeout(timer);
   }, [paymentOutcome]);

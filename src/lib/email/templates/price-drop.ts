@@ -50,7 +50,7 @@ export function priceDropTemplate(data: PriceDropEmailData) {
     html: emailLayout(`
       ${heading("The price dropped")}
       ${paragraph(
-        `<strong>${data.productName}</strong> is now $${data.currentPriceUsd.toFixed(2)} — down $${savedUsd.toFixed(2)} (${pct}%) from the $${data.previousPriceUsd.toFixed(2)} we last told you about.`,
+        `<strong>${data.productName}</strong> is now $${data.currentPriceUsd.toFixed(2)}, down $${savedUsd.toFixed(2)} (${pct}%) from the $${data.previousPriceUsd.toFixed(2)} we last told you about.`,
       )}
       ${divider()}
       ${infoTable(`
@@ -63,10 +63,10 @@ export function priceDropTemplate(data: PriceDropEmailData) {
       ${divider()}
       ${button(data.watchUrl, "Get it at this price")}
       ${paragraph(
-        `The landed total above is what you would pay today for one, delivered — item price, tax, our fee and freight at the rate shown. Store prices move without warning, so it is only good while the store's is.`,
+        `The landed total above is what you would pay today for one, delivered: item price, tax, our fee and freight at the rate shown. Store prices move without warning, so it is only good while the store's is.`,
       )}
       ${muted(
-        `You are getting this because you asked us to watch <a href="${data.productUrl}" style="color:#a1a1aa;">this product</a>. We only write when the price falls again — a price that simply stays low will not email you twice. Stop watching it any time from your Tomame account.`,
+        `You are getting this because you asked us to watch <a href="${data.productUrl}" style="color:#a1a1aa;">this product</a>. We only write when the price falls again. A price that simply stays low will not email you twice. Stop watching it any time from your Tomame account.`,
       )}
     `),
   };

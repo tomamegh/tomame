@@ -8,7 +8,7 @@ const TESTIMONIALS: Testimonial[] = [
     quote:
       "Tomame cut my sourcing time completely. I paste a link, pay with Mobile Money, and it arrives. No forex stress, no surprises.",
     name: "Kwame Asante",
-    role: "Founder, Kente Boutique — Accra",
+    role: "Founder, Kente Boutique, Accra",
     initials: "KA",
   },
   {
@@ -22,7 +22,7 @@ const TESTIMONIALS: Testimonial[] = [
     quote:
       "The pricing breakdown is incredibly honest. I see exactly what I'm paying before I confirm. That trust is everything.",
     name: "Kofi Boateng",
-    role: "Owner, GoldCoast Trends — Kumasi",
+    role: "Owner, GoldCoast Trends, Kumasi",
     initials: "KB",
   },
 ];

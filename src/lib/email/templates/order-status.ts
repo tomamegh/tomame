@@ -57,7 +57,7 @@ function orderDetails(data: OrderEmailData, extraRows = "") {
 
 export function orderPaidTemplate(data: OrderEmailData) {
   return {
-    subject: "Payment confirmed — your Tomame order is being prepared",
+    subject: "Payment confirmed: your Tomame order is being prepared",
     html: emailLayout(`
       ${heading("Payment Confirmed")}
       ${paragraph("Great news! We've received your payment and your order is now queued for processing.")}
@@ -167,7 +167,7 @@ export function orderCancelledTemplate(data: OrderEmailData) {
 
 export function orderApprovedTemplate(data: OrderReviewEmailData) {
   const bodyText = data.priceChanged
-    ? "Great news! Our team has reviewed your order and approved it. The price has been updated — please complete your payment at the new amount."
+    ? "Great news! Our team has reviewed your order and approved it. The price has been updated. Please complete your payment at the new amount."
     : "Great news! Our team has reviewed your order and it has been approved. Please proceed to payment to begin processing.";
 
   const paymentBtn = data.paymentUrl

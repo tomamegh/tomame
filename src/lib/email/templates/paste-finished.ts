@@ -26,7 +26,7 @@ export function pastePricedTemplate(data: PasteFinishedEmailData) {
     subject: `Priced: ${data.productName ?? `your link from ${data.storeHost}`}`,
     html: emailLayout(`
       ${heading("Your link is priced")}
-      ${paragraph(`We finished reading ${what}. The landed price — item, tax, our fee, freight and today's rate — is ready in GH₵.`)}
+      ${paragraph(`We finished reading ${what}. The landed price (item, tax, our fee, freight and today's rate) is ready in GH₵.`)}
       ${divider()}
       ${button(data.destinationUrl, "See the landed price")}
       ${muted(

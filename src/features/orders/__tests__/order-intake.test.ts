@@ -82,7 +82,7 @@ function priceLockedAs(locked: PricingBreakdown) {
 }
 
 const input = { product_url: URL, product_name: "Apple AirPods Pro 2", quantity: 1, extraction_cache_id: CACHE_ID };
-const CUSTOMER_PRICE_FLAG = "Price entered by customer — not verified against the store.";
+const CUSTOMER_PRICE_FLAG = "Price entered by customer, not verified against the store.";
 
 beforeEach(() => {
   vi.clearAllMocks();

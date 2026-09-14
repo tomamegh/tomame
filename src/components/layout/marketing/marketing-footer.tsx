@@ -26,7 +26,7 @@ import { Logo } from "@/components/brand/logo";
  * overridable prop rather than a literal buried in the markup.
  */
 export const DEFAULT_MARKETING_TAGLINE =
-  "Personal shopping from the USA — paid in cedis, delivered in Ghana. UK and China coming soon.";
+  "Personal shopping from the USA, paid in cedis and delivered in Ghana. UK and China coming soon.";
 
 export interface MarketingFooterProps {
   /** `site_settings` rows: whatsapp_number, support_hours, company_address, payment_channels. */
@@ -138,7 +138,7 @@ export function MarketingFooter({
         <div className="flex flex-col gap-3 sm:col-span-2 lg:col-span-1">
           <Link
             href="/"
-            aria-label="Tomame — home"
+            aria-label="Tomame home"
             className={cn("w-fit rounded-sm", FOCUS_RING)}
           >
             <Logo variant="lockup" height={110} decorative />

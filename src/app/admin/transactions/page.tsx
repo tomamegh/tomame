@@ -62,7 +62,7 @@ export default async function AdminTransactionsPage() {
           value={String(summary.unsettled)}
           detail={
             summary.unsettled > 0
-              ? "Nothing has confirmed these — open one and re-verify"
+              ? "Nothing has confirmed these; open one and re-verify"
               : "Nothing waiting on a confirmation"
           }
           tone={summary.unsettled > 0 ? "amber" : "muted"}

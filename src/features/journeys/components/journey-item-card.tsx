@@ -88,7 +88,7 @@ export function JourneyItemCard({ item, note, whatsappHref, orderNo }: JourneyIt
 
       {whatsappHref && (
         <a
-          href={`${whatsappHref}?text=${encodeURIComponent(`Hi Tomame — a question about ${orderNo}.`)}`}
+          href={`${whatsappHref}?text=${encodeURIComponent(`Hi Tomame, a question about ${orderNo}.`)}`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex h-12 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tm-border bg-card text-sm leading-none font-semibold"

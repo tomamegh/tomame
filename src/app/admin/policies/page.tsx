@@ -141,7 +141,7 @@ export default async function AdminPoliciesPage() {
         {policies.length === 0 ? (
           <AdminEmpty
             title="No policies yet"
-            body="Nothing has been written. The footer, the bag and the account screen all link to five policies by name — privacy, terms, shipping, returns and payment — and every one of those links currently goes nowhere."
+            body="Nothing has been written. The footer, the bag and the account screen all link to five policies by name (privacy, terms, shipping, returns and payment), and every one of those links currently goes nowhere."
           >
             <Link
               href="/admin/policies/new"

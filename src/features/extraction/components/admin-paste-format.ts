@@ -210,7 +210,7 @@ export function canRereadPaste(row: Pick<AdminPasteView, "status" | "assisted">)
 
 /** Why the re-read button is unavailable, in a sentence a person can act on. */
 export function rereadBlockedReason(row: Pick<AdminPasteView, "status" | "assisted">): string | null {
-  if (row.status === "pending") return "Already queued — the next sweep will take it.";
+  if (row.status === "pending") return "Already queued. The next sweep will take it.";
   if (row.status === "running") return "A worker is on it now.";
   if (row.assisted) {
     return row.assisted.status === "open"

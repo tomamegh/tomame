@@ -74,7 +74,7 @@ export function JourneyTrack({ stage, label, className }: JourneyTrackProps) {
   const MarkerIcon =
     (stage.stopKey ? STOP_ICONS[stage.stopKey] : undefined) ?? Check;
   const lastIndex = JOURNEY_STOPS.length - 1;
-  const trackLabel = `${label}: ${stage.label} — ${describeStop(stage)}`;
+  const trackLabel = `${label}: ${stage.label}. ${describeStop(stage)}`;
 
   return (
     <div className={cn("flex flex-col gap-2.5", className)}>

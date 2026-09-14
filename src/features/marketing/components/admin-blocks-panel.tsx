@@ -96,7 +96,7 @@ function BlockRow({ block }: { block: AdminSiteContentRow }) {
         successTitle: `${block.slug} updated`,
         successDescription: isPublished
           ? "Visible on the storefront."
-          : "Hidden from the storefront — unpublished blocks are filtered out of every read.",
+          : "Hidden from the storefront. Unpublished blocks are filtered out of every read.",
       },
     );
   }
@@ -189,7 +189,7 @@ function BlockRow({ block }: { block: AdminSiteContentRow }) {
               This block carries a live figure (
               <code className="tm-nums">{String(block.data.value_source)}</code>), resolved from
               the pricing engine when the page renders. Editing the words here never changes the
-              number — that comes from pricing constants and groups.
+              number; that comes from pricing constants and groups.
             </p>
           ) : null}
         </form>
@@ -207,16 +207,16 @@ function kindLabel(kind: string): string {
   const known: Record<string, string> = {
     faq: "FAQs",
     testimonial: "Testimonials",
-    process_step: "How it works — steps",
+    process_step: "How it works: steps",
     value_prop: "Value propositions",
     feature_card: "Landing feature cards",
-    fee_line: "Fees page — rows",
+    fee_line: "Fees page: rows",
     compare_row: "Comparison rows",
     stat: "Landing statistics",
     trust_chip: "Trust chips",
     hero_copy: "Hero copy",
     store: "Store list",
-    quote_assurance: "Quote screen — assurance cards",
+    quote_assurance: "Quote screen: assurance cards",
   };
   if (known[kind]) return known[kind];
   const words = kind.replace(/_/g, " ").trim();

@@ -62,7 +62,7 @@ export function roleBadge(role: PlatformRoles): { label: string; tone: AdminTone
 export function roleGrantSummary(role: PlatformRoles): string {
   switch (role) {
     case "admin":
-      return "Full access to every admin screen and every admin endpoint: orders, payments, pricing, customer records and the ability to change anyone's role — including removing yours.";
+      return "Full access to every admin screen and every admin endpoint: orders, payments, pricing, customer records and the ability to change anyone's role, including removing yours.";
     case "system":
       return "A machine account. It is not a person and should not be assigned by hand.";
     default:
@@ -134,7 +134,7 @@ export function contactChannelsLabel(prefs: {
   if (channels.length === 0) {
     return {
       label: prefs.whatsapp_opt_in
-        ? "No reachable channel — WhatsApp is on but no number is saved"
+        ? "No reachable channel: WhatsApp is on but no number is saved"
         : "No reachable channel",
       tone: "coral",
     };

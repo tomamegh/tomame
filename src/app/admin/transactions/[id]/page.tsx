@@ -94,7 +94,7 @@ export default async function AdminTransactionDetailPage({
         {/* ── Verification ───────────────────────────────────────────────── */}
         <AdminCard
           title="Verification"
-          blurb="What Paystack said about this reference, and when. Verification is server-side only — nothing on this screen is taken from the browser."
+          blurb="What Paystack said about this reference, and when. Verification is server-side only; nothing on this screen is taken from the browser."
           index={0}
         >
           <div className="flex flex-col gap-5">
@@ -188,7 +188,7 @@ export default async function AdminTransactionDetailPage({
           <div className="p-5">
             <AdminEmpty
               title="Nothing is linked to this charge"
-              body="No order points at this payment. For an unsettled charge that is expected — the orders are linked when it settles."
+              body="No order points at this payment. For an unsettled charge that is expected. The orders are linked when it settles."
             />
           </div>
         ) : (
@@ -299,7 +299,7 @@ export default async function AdminTransactionDetailPage({
           {billingMismatch != null ? (
             <p className="mt-4 rounded-[14px] bg-tm-amber-bg px-4 py-3 text-[13px] leading-[1.55] font-medium text-[#7a4a06]">
               This group was billed {formatPesewas(billingMismatch)} but the charge was raised for{" "}
-              {formatPesewas(txn.amount)}. The two should be identical — the difference means the
+              {formatPesewas(txn.amount)}. The two should be identical. The difference means the
               group moved after the transaction was initialised, and the charge is the figure the
               customer actually paid.
             </p>

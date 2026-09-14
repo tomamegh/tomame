@@ -12,7 +12,7 @@ import { FaqList } from "./_components/faq-list";
 export const metadata: Metadata = {
   title: "Questions · Tomame",
   description:
-    "What people ask before their first order — how the price is worked out, which stores we buy from, how long delivery takes, and what happens if an item cannot be sourced.",
+    "What people ask before their first order: how the price is worked out, which stores we buy from, how long delivery takes, and what happens if an item cannot be sourced.",
 };
 
 /**
@@ -48,7 +48,7 @@ export default async function FaqPage() {
           Things people ask before their first order.
         </h1>
         <p className="text-base leading-[1.55] text-tm-text-2">
-          If yours is not here, ask a human — we answer on WhatsApp
+          If yours is not here, ask a human. We answer on WhatsApp
           {settings.supportHours ? `, ${settings.supportHours}` : ""}.
         </p>
       </header>

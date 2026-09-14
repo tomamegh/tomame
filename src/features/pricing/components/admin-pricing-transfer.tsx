@@ -149,7 +149,7 @@ export function AdminPricingTransfer() {
     <>
       <AdminCard
         title="Import and export"
-        blurb="The whole pricing configuration as one spreadsheet — groups and category routing together. An import shows you what it would change before it changes it."
+        blurb="The whole pricing configuration as one spreadsheet: groups and category routing together. An import shows you what it would change before it changes it."
         index={6}
         action={
           <div className="flex flex-wrap items-center gap-2">
@@ -180,7 +180,7 @@ export function AdminPricingTransfer() {
         <p className="max-w-[70ch] text-[13px] leading-[1.55] font-medium text-tm-text-2">
           Export writes today&rsquo;s groups and routing to an .xlsx file. Import reads one back:
           rows in the file are created or updated, and anything not mentioned in it is left exactly
-          as it is — an import never deletes a group or unroutes a category.
+          as it is. An import never deletes a group or unroutes a category.
         </p>
       </AdminCard>
 

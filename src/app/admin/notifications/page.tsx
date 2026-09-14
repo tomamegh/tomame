@@ -213,7 +213,7 @@ export default async function AdminNotificationsPage({
             title={filtered ? "Nothing matches this filter" : "No notifications yet"}
             body={
               filtered
-                ? "No message in the log has this status, channel and event. The log itself is not empty — clear the filter to see it."
+                ? "No message in the log has this status, channel and event. The log itself is not empty; clear the filter to see it."
                 : "Nothing has been sent. The platform writes a row here before it attempts any message, so an empty log means no order, price drop or paste has triggered one yet."
             }
           >

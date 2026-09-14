@@ -81,7 +81,7 @@ export default async function AdminBoxesPage({
   return (
     <AdminPage
       title="Boxes"
-      blurb="How items are consolidated for a lane — what is in each box, how full it is, and when it leaves."
+      blurb="How items are consolidated for a lane: what is in each box, how full it is, and when it leaves."
     >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <AdminStat
@@ -97,7 +97,7 @@ export default async function AdminBoxesPage({
           value={String(overdue)}
           detail={
             overdue > 0
-              ? "Still open — nothing closes a box on its own"
+              ? "Still open; nothing closes a box on its own"
               : "Every open box is still inside its cutoff"
           }
           tone={overdue > 0 ? "amber" : "green"}

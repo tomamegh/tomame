@@ -37,7 +37,7 @@ const VALUE_PROPS: ValueProp[] = [
     description:
       'Whether you order one item or stock a boutique, Tomame keeps the experience clean. Transparent pricing, predictable timelines, local support.',
     bullets: [
-      'Unlimited product links — no per-link fees',
+      'Unlimited product links, no per-link fees',
       'Real-time status updates from purchase to delivery',
       'Local team in Accra ready to help on WhatsApp',
     ],

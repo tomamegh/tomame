@@ -44,7 +44,7 @@ export function AccountPaymentPanel({
           <p className="text-[13px] leading-[1.5] font-medium text-tm-text-2">
             There is nothing saved to manage here. Every payment goes through
             Paystack, who take the card or MoMo details on their own page and
-            never pass them to us — so each checkout asks again, and there is no
+            never pass them to us, so each checkout asks again, and there is no
             stored instrument for anyone to lift from this account.
           </p>
           <Link
@@ -90,7 +90,7 @@ export function AccountPaymentPanel({
         {transactions.length === 0 ? (
           <AccountEmpty
             title="No payments yet"
-            body="Once you pay for a bag, every transaction shows up here with its Paystack reference — the one to quote if you ever need us to look one up."
+            body="Once you pay for a bag, every transaction shows up here with its Paystack reference, the one to quote if you ever need us to look one up."
           />
         ) : (
           <ul className="flex flex-col">

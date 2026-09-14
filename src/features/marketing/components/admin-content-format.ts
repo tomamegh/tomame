@@ -83,9 +83,9 @@ export function parseSettingInput(shape: SettingShape, raw: string): SettingPars
 export function settingWarning(key: string): string | null {
   switch (key) {
     case "payment_channels":
-      return "The bag's pay selector reads this. Every entry must keep its `paystack_channel` (mobile_money or card) — that value is sent to Paystack. Removing it takes the channel off checkout while the footer carries on showing the label.";
+      return "The bag's pay selector reads this. Every entry must keep its `paystack_channel` (mobile_money or card). That value is sent to Paystack. Removing it takes the channel off checkout while the footer carries on showing the label.";
     case "fees_worked_example":
-      return "Input only. The Fees page prices this live through the pricing engine, so the figures on the page are never taken from here — but the shape must match workedExampleInputSchema or the worked example stops rendering.";
+      return "Input only. The Fees page prices this live through the pricing engine, so the figures on the page are never taken from here, but the shape must match workedExampleInputSchema or the worked example stops rendering.";
     case "whatsapp_number":
       return "Shown in the marketing footer, on the contact page and on Home's “Ask a buyer” card. It is the number customers actually message.";
     default:
@@ -166,7 +166,7 @@ export function isFeeChange(previous: number, next: number): boolean {
  */
 export function feeChangeWarning(zoneName: string, previous: number, next: number): string {
   const direction = next > previous ? "more" : "less";
-  return `Every customer who picks ${zoneName} at checkout will be charged GH₵${next.toFixed(
+  return `From the moment this saves, every customer who picks ${zoneName} at checkout will be charged GH₵${next.toFixed(
     2,
-  )} instead of GH₵${previous.toFixed(2)} — ${direction} — from the moment this saves.`;
+  )} instead of GH₵${previous.toFixed(2)}. That is ${direction} than they pay today.`;
 }

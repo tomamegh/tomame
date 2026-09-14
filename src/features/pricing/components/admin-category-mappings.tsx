@@ -125,7 +125,7 @@ export function AdminCategoryMappings({ mappings, groups }: AdminCategoryMapping
     <>
       <AdminCard
         title="Category routing"
-        blurb="Which group prices which category. A category that is not here is not priced at all — it goes to a human."
+        blurb="Which group prices which category. A category that is not here is not priced at all. It goes to a human."
         flush
         index={5}
         action={
@@ -224,7 +224,7 @@ export function AdminCategoryMappings({ mappings, groups }: AdminCategoryMapping
                             {describeValueFee(group)} · {describeFreight(group).toLowerCase()}
                           </>
                         ) : (
-                          <span className="text-tm-amber">Nothing — the group is deactivated</span>
+                          <span className="text-tm-amber">Nothing (the group is deactivated)</span>
                         )}
                       </td>
                       <td className={cn(ADMIN_TD, "text-right")}>
@@ -277,7 +277,7 @@ export function AdminCategoryMappings({ mappings, groups }: AdminCategoryMapping
         title={removing ? `Stop pricing ${removing.tomame_category}?` : ""}
         consequence={
           removing
-            ? `Removing this mapping does not send ${removing.tomame_category} to a different group — it sends it nowhere. Every product in it will come back unpriced, as "needs review", for a human to price by hand.`
+            ? `Removing this mapping does not send ${removing.tomame_category} to a different group. It sends it nowhere. Every product in it will come back unpriced, as "needs review", for a human to price by hand.`
             : ""
         }
         confirmLabel="Remove mapping"

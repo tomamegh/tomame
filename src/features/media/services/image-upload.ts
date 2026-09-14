@@ -135,7 +135,7 @@ export async function encodeImageUpload(
       );
     }
     throw new MediaValidationError(
-      "That image could not be read — it may be corrupt or incomplete.",
+      "That image could not be read. It may be corrupt or incomplete.",
     );
   }
 

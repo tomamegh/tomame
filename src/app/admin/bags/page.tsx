@@ -60,7 +60,7 @@ export default async function AdminBagsPage({
   return (
     <AdminPage
       title="Bags"
-      blurb="What customers have put in a bag and not yet paid for — the earliest read the business gets on demand."
+      blurb="What customers have put in a bag and not yet paid for: the earliest read the business gets on demand."
     >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <AdminStat

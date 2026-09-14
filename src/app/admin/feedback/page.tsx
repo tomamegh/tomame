@@ -46,7 +46,7 @@ export default async function AdminFeedbackPage({
   return (
     <AdminPage
       title="Parcel feedback"
-      blurb="What customers say when they see the photograph of their own parcel at the US hub. Nothing here stops a box on its own — if one should stop, you stop it."
+      blurb="What customers say when they see the photograph of their own parcel at the US hub. Nothing here stops a box on its own. If one should stop, you stop it."
       action={<AdminFilterPills pills={buildPills(status, counts.feedbackOpen)} label="Filter parcel feedback by status" />}
     >
       <FeedbackQueue status={status} />

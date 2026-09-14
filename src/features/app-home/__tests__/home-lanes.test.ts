@@ -106,7 +106,7 @@ describe("buildLanes — one live lane, two coming soon (the seeded state)", () 
 
     expect(lanes?.heading).toBe("Shipping from the USA");
     expect(lanes?.body).toBe(
-      "Any US store, 14–18 days to Accra. UK and China lanes are coming soon — get notified.",
+      "Any US store, 14–18 days to Accra. UK and China lanes are coming soon. Get notified.",
     );
     expect(lanes?.waitlist).toEqual({
       label: "Join the UK / China waitlist",
@@ -130,7 +130,7 @@ describe("buildLanes — one lane coming soon", () => {
     const lanes = buildLanes([USA_LIVE, region("UK", "soon")]);
 
     expect(lanes?.body).toBe(
-      "Any US store, 14–18 days to Accra. The UK lane is coming soon — get notified.",
+      "Any US store, 14–18 days to Accra. The UK lane is coming soon. Get notified.",
     );
     expect(lanes?.waitlist?.label).toBe("Join the UK waitlist");
   });
@@ -173,7 +173,7 @@ describe("buildLanes — edge cases", () => {
 
     expect(lanes?.heading).toBe("Shipping from the USA and the UK");
     expect(lanes?.body).toBe(
-      "Any US or UK store, 7–18 days to Accra. The China lane is coming soon — get notified.",
+      "Any US or UK store, 7–18 days to Accra. The China lane is coming soon. Get notified.",
     );
   });
 
@@ -181,7 +181,7 @@ describe("buildLanes — edge cases", () => {
     const lanes = buildLanes([region("USA", "live"), region("UK", "soon")]);
 
     expect(lanes?.body).toBe(
-      "Any US store, delivered to your door in Accra. The UK lane is coming soon — get notified.",
+      "Any US store, delivered to your door in Accra. The UK lane is coming soon. Get notified.",
     );
   });
 

@@ -218,7 +218,7 @@ export function feedbackActionLabel(
   action: FeedbackAction,
   verdict: OrderFeedbackVerdict,
 ): string {
-  if (isFeedbackConfirmation(verdict)) return "Noted — file it";
+  if (isFeedbackConfirmation(verdict)) return "Noted, file it";
   switch (action) {
     case "in_review":
       return "I'm on it";

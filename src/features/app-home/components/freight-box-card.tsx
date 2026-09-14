@@ -82,7 +82,7 @@ export function FreightBoxCard({ box, now, className }: FreightBoxCardProps) {
   return (
     <Link
       href={box.href}
-      aria-label={`${box.label}, ${fillPct}% full${ships ? ` — ${ships.toLowerCase()}` : ""}. Open your bag.`}
+      aria-label={`${box.label}, ${fillPct}% full${ships ? `, ${ships.toLowerCase()}` : ""}. Open your bag.`}
       className={cn(
         "tm-up relative flex min-w-0 flex-col gap-3.5 overflow-hidden rounded-[24px]",
         "border border-[#F5E9E2] bg-[linear-gradient(160deg,#FFF1EC,#FFF7EA)] p-6",

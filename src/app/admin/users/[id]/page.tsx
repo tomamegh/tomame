@@ -160,7 +160,7 @@ export default async function AdminUserDetailPage({
           {prefs === null ? (
             <AdminEmpty
               title="Preferences could not be read"
-              body="The profile row for this account did not come back. That is unusual — every account gets one on sign-up — and is worth checking in the database."
+              body="The profile row for this account did not come back. That is unusual, since every account gets one on sign-up, and is worth checking in the database."
             />
           ) : (
             <div className="flex flex-col gap-4">
@@ -195,7 +195,7 @@ export default async function AdminUserDetailPage({
         title="Open bag"
         blurb={
           bag
-            ? "What is in the bag right now. Each line shows the landed price it was QUOTED at when it was added — the bag re-prices on every render, so these are not current totals."
+            ? "What is in the bag right now. Each line shows the landed price it was QUOTED at when it was added. The bag re-prices on every render, so these are not current totals."
             : undefined
         }
       >
@@ -219,7 +219,7 @@ export default async function AdminUserDetailPage({
                   ) : null}
                   {line.product_name == null ? (
                     <p className="mt-1 text-[12px] leading-[1.4] font-medium text-tm-amber">
-                      This line has no priced product yet — the paste has not finished.
+                      This line has no priced product yet; the paste has not finished.
                     </p>
                   ) : null}
                 </div>
@@ -245,7 +245,7 @@ export default async function AdminUserDetailPage({
           {!recentOrders || recentOrders.length === 0 ? (
             <AdminEmpty
               title="No orders yet"
-              body="This account has never placed an order. A quote or a bag on its own does not create one — an order exists from the moment payment is started."
+              body="This account has never placed an order. A quote or a bag on its own does not create one. An order exists from the moment payment is started."
             />
           ) : (
             <ul className="flex flex-col divide-y divide-tm-hairline">

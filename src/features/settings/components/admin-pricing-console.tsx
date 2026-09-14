@@ -437,7 +437,7 @@ function WorkedExamplePanel({
   return (
     <AdminCard
       title="What a real basket costs"
-      blurb="The Fees page's worked example, priced by the live engine. Not an illustration — change a constant and this moves with it."
+      blurb="The Fees page's worked example, priced by the live engine. Not an illustration: change a constant and this moves with it."
       index={2}
       action={
         changedCount > 0 ? (
@@ -494,7 +494,7 @@ function WorkedExamplePanel({
 
           {shown!.needs_review ? (
             <p className="rounded-[14px] bg-tm-amber-bg px-4 py-3 text-[13px] leading-[1.5] font-medium text-[#7a4a06]">
-              With these values the engine cannot price this basket at all — it would go to a human
+              With these values the engine cannot price this basket at all, so it would go to a human
               for review. {shown!.breakdown.review_reason}
             </p>
           ) : (
@@ -508,7 +508,7 @@ function WorkedExamplePanel({
               </span>
               {preview ? (
                 <span className="tm-nums mt-1.5 text-[12px] font-semibold text-tm-amber">
-                  Currently {example.total_ghs_display} — this is what your unsaved change would
+                  Currently {example.total_ghs_display}. This is what your unsaved change would
                   make it.
                 </span>
               ) : null}

@@ -22,13 +22,13 @@ const FEATURES: Feature[] = [
     icon: HiOutlineLink,
     title: 'Link Extraction',
     description:
-      'Paste any product link — Amazon, ASOS, Alibaba, eBay, and more. We pull the title, image, price, and weight in seconds.',
+      'Paste any product link from Amazon, ASOS, Alibaba, eBay, and more. We pull the title, image, price, and weight in seconds.',
   },
   {
     icon: HiOutlineReceiptPercent,
     title: 'Transparent Pricing',
     description:
-      'See every component — product, shipping, service fee, exchange rate — in GH₵ before you commit. No surprises after checkout.',
+      'See every component (product, shipping, service fee, exchange rate) in GH₵ before you commit. No surprises after checkout.',
   },
   {
     icon: HiOutlineGlobeAlt,
@@ -40,13 +40,13 @@ const FEATURES: Feature[] = [
     icon: HiOutlineSignal,
     title: 'Live Tracking',
     description:
-      'Follow every order from purchase to delivery. Get email and WhatsApp updates at each milestone — no chasing.',
+      'Follow every order from purchase to delivery. Get email and WhatsApp updates at each milestone. No chasing.',
   },
   {
     icon: HiOutlineShieldCheck,
     title: 'Pay Locally. Safely.',
     description:
-      'Pay with MTN, Vodafone, AirtelTigo, or card in Ghana Cedis. Your funds are held securely until your item is sourced — no risk, no stress.',
+      'Pay with MTN, Vodafone, AirtelTigo, or card in Ghana Cedis. Your funds are held securely until your item is sourced. No risk, no stress.',
   },
 ];
 

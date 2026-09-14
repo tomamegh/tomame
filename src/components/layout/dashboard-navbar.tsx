@@ -39,7 +39,7 @@ export default async function DashboardNavbar() {
         {/* Left Side: Logo */}
         <Link
           href="/"
-          aria-label="Tomame — home"
+          aria-label="Tomame home"
           className="flex items-center"
         >
           <Logo variant="horizontal" height={22} decorative />

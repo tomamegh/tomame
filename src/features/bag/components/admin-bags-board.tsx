@@ -56,7 +56,7 @@ export function AdminBagsBoard({
       index={1}
       flush
       title="Open bags"
-      blurb="Values are the price stored when each line was added, not a live quote — the customer's own bag re-prices every time they open it."
+      blurb="Values are the price stored when each line was added, not a live quote. The customer's own bag re-prices every time they open it."
     >
       <AdminTableScroller>
         <table className="w-full border-collapse">

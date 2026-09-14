@@ -90,7 +90,7 @@ export default function HeroGridSection({ usdToGhs }: HeroGridSectionProps) {
             {/* Subtext */}
             <p className="max-w-xl text-base leading-relaxed text-stone-600 sm:text-lg">
               Paste any product link from Amazon, eBay, or SHEIN. We buy it,
-              ship it, and deliver to your door — you pay in GHS.
+              ship it, and deliver to your door. You pay in GHS.
             </p>
 
             {/* URL input form */}

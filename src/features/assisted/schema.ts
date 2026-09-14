@@ -19,7 +19,7 @@ export const createAssistedRequestSchema = z
     description: z
       .string()
       .trim()
-      .min(10, "A sentence or two is enough — what is it you want?")
+      .min(10, "A sentence or two is enough. What is it you want?")
       .max(2000),
     phone: z.string().trim().regex(PHONE_RE, "Enter a number we can reach you on"),
   })

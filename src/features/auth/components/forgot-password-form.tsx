@@ -39,7 +39,7 @@ export default function ForgotPasswordForm() {
         </div>
 
         <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
-          Reset instructions sent — check your inbox and spam folder.
+          Reset instructions sent. Check your inbox and spam folder.
         </div>
 
         <p className="text-center text-sm text-stone-400">

@@ -119,7 +119,7 @@ export function AccountNotificationsPanel({
               <Link href={accountTabHref("profile")} className="font-semibold underline underline-offset-2">
                 Profile
               </Link>{" "}
-              first — there is nowhere to send a message without one.
+              first. There is nowhere to send a message without one.
             </>
           }
           onChange={(next) => setPreference("whatsapp_opt_in", next)}
@@ -132,7 +132,7 @@ export function AccountNotificationsPanel({
         they are not marketing and there is no switch that silences them.
       */}
       <p className="text-xs leading-[1.45] font-medium text-tm-text-3">
-        We only send transactional messages — something happened to your order or
+        We only send transactional messages: something happened to your order or
         your money. Turning a channel off stops the updates on it; anything we
         are legally required to send you still goes to your email.
       </p>
@@ -151,7 +151,7 @@ export function AccountNotificationsPanel({
         {notifications.length === 0 ? (
           <AccountEmpty
             title="Nothing sent yet"
-            body="Every message we send you shows up here — what it was about, which channel carried it, and whether it went out."
+            body="Every message we send you shows up here: what it was about, which channel carried it, and whether it went out."
           />
         ) : (
           <ul className="flex flex-col">

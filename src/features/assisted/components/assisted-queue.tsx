@@ -96,7 +96,7 @@ export function AssistedQueue() {
       blurb={
         oldestWait
           ? `Oldest first. The one at the top has been ${oldestWait.toLowerCase()}.`
-          : "Oldest first — each of these people was told a person would get back to them."
+          : "Oldest first. Each of these people was told a person would get back to them."
       }
       action={<QueueTabs value={tab} onChange={setTab} />}
     >
@@ -223,7 +223,7 @@ function AssistedRow({
               onChange={(event) => setNote(event.target.value)}
               rows={2}
               maxLength={2000}
-              placeholder="Your own record — what they wanted, what you quoted, why it ended where it did. Saved with whichever button you press."
+              placeholder="Your own record: what they wanted, what you quoted, why it ended where it did. Saved with whichever button you press."
               className="min-h-[64px] resize-y rounded-[12px] border-tm-border bg-tm-paper text-[13px] leading-[1.5] text-tm-ink placeholder:text-tm-text-3 focus-visible:border-tm-coral/50 focus-visible:ring-tm-coral/20"
             />
           </label>
@@ -241,7 +241,7 @@ function AssistedRow({
               </a>
             ) : (
               <span className="text-[12px] leading-none font-medium text-tm-text-3">
-                That number cannot be dialled — ring the customer back another way.
+                That number cannot be dialled, so ring the customer back another way.
               </span>
             )}
 

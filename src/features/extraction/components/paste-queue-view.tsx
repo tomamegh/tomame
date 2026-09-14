@@ -205,7 +205,7 @@ export function PasteQueueView({
         </h1>
         <p className="text-sm leading-[1.5] text-tm-text-2">
           Paste a link from {stores.slice(0, 3).join(", ")} or anywhere else. We read it in the
-          background — add as many as you like and come back when you are ready.
+          background. Add as many as you like and come back when you are ready.
         </p>
       </header>
 

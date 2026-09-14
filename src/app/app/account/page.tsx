@@ -67,7 +67,7 @@ export default async function AccountPage({
           Account
         </h1>
         <p className="max-w-[58ch] text-[15px] leading-[1.5] font-medium text-tm-text-2">
-          Everything about you that Tomame holds — and everything you can change
+          Everything about you that Tomame holds, and everything you can change
           about it.
         </p>
       </header>

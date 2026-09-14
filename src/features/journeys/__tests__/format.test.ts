@@ -162,10 +162,10 @@ describe("parcel photos and feedback (054)", () => {
 
   it("describes an uncaptioned photo for a screen reader", () => {
     expect(photoAltText("hub_received", "2026-09-08T22:14:00Z")).toBe(
-      "Photo of your parcel — At our US hub, 8 Sep",
+      "Photo of your parcel. At our US hub, 8 Sep",
     );
     expect(photoAltText("packed", "not-a-date")).toBe(
-      "Photo of your parcel — Packed for the flight",
+      "Photo of your parcel. Packed for the flight",
     );
   });
 
@@ -177,7 +177,7 @@ describe("parcel photos and feedback (054)", () => {
 
   it("never promises a buyer will look at a confirmation", () => {
     expect(feedbackStatusNote("looks_right", "open")).toBe(
-      "Thank you — that is noted against this parcel.",
+      "Thank you. That is noted against this parcel.",
     );
     expect(feedbackStatusNote("wrong_item", "open")).toContain("Someone will look at it");
     expect(feedbackStatusNote("wrong_item", "in_review")).toBe(

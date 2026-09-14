@@ -10,7 +10,7 @@ const FAQS: FAQItem[] = [
   },
   {
     q: 'How is shipping calculated?',
-    a: 'Shipping is calculated server-side using your origin region (USA, UK, or China) and our negotiated carrier rates. You see the total in Ghana Cedis before you pay — never after.',
+    a: 'Shipping is calculated server-side using your origin region (USA, UK, or China) and our negotiated carrier rates. You see the total in Ghana Cedis before you pay, never after.',
   },
   {
     q: 'Can I pay with Mobile Money?',
@@ -18,7 +18,7 @@ const FAQS: FAQItem[] = [
   },
   {
     q: 'What if my product cannot be sourced?',
-    a: 'If we are unable to fulfill an order after payment, you receive a 100% refund within 24 hours — including all service fees. No questions asked.',
+    a: 'If we are unable to fulfill an order after payment, you receive a 100% refund within 24 hours, including all service fees. No questions asked.',
   },
   {
     q: 'How long does delivery take?',
@@ -26,7 +26,7 @@ const FAQS: FAQItem[] = [
   },
   {
     q: 'Is there any minimum order amount?',
-    a: 'No minimum. Order one item or one hundred — the same transparent pricing applies.',
+    a: 'No minimum. Order one item or one hundred: the same transparent pricing applies.',
   },
 ];
 

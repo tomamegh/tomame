@@ -147,7 +147,7 @@ export default function NewPolicyPage() {
             ) : (
               <p className="text-[12px] leading-[1.4] font-medium text-tm-text-3">
                 {isLinkedSlug
-                  ? "The storefront already links to this anchor — publishing this policy fixes that link."
+                  ? "The storefront already links to this anchor, so publishing this policy fixes that link."
                   : "Nothing on the storefront links to this anchor. It will be reachable by scrolling /policies."}
               </p>
             )}

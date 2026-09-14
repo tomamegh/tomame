@@ -189,7 +189,7 @@ function CheckResult({ check }: { check: PaystackCheck }) {
 
       {!amountAgrees ? (
         <p className="text-[12px] leading-[1.5] font-medium text-tm-amber">
-          The amounts differ, so this charge will never settle on its own — the payment callback
+          The amounts differ, so this charge will never settle on its own. The payment callback
           refuses to mark a transaction paid unless Paystack&rsquo;s amount matches ours exactly.
           This one needs a decision, not a retry.
         </p>

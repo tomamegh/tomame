@@ -342,7 +342,7 @@ function PricingCard({ order, index }: { order: Order; index: number }) {
           {total.isOverride ? (
             <div className="rounded-[14px] bg-tm-amber-bg px-4 py-3">
               <p className="text-[12.5px] leading-[1.5] font-semibold text-[#7a4a06]">
-                Priced by hand — this overrides the breakdown above.
+                Priced by hand. This overrides the breakdown above.
               </p>
               {order.admin_pricing_note ? (
                 <p className="mt-1 text-[12.5px] leading-[1.5] font-medium text-[#7a4a06]">

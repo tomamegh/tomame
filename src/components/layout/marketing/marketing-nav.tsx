@@ -44,7 +44,7 @@ export function MarketingNav({
       >
         <Link
           href="/"
-          aria-label="Tomame — home"
+          aria-label="Tomame home"
           className={cn("rounded-sm", FOCUS_RING)}
         >
           {/* The link already announces "Tomame — home", so the image is

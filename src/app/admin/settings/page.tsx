@@ -61,7 +61,7 @@ export default async function AdminSettingsPage() {
   return (
     <AdminPage
       title="Pricing"
-      blurb="Every part of a landed price except what the store charges for the item. A change here applies to the next quote — never to a price a customer already holds."
+      blurb="Every part of a landed price except what the store charges for the item. A change here applies to the next quote, never to a price a customer already holds."
     >
       <AdminCard index={0}>
         <div className="flex flex-col gap-2">
@@ -74,7 +74,7 @@ export default async function AdminSettingsPage() {
           <p className="max-w-[72ch] text-[13px] leading-[1.55] font-medium text-tm-text-2">
             Freight is charged per item and takes one of four shapes: a group&rsquo;s flat cedi
             rate, a pre-negotiated rate for a recognised product, a weight expression built from
-            the constants below, or nothing at all — in which case the product is sent to a human
+            the constants below, or nothing at all, in which case the product is sent to a human
             instead of being priced.
           </p>
         </div>

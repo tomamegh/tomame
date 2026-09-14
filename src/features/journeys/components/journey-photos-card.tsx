@@ -94,7 +94,7 @@ export function JourneyPhotosCard({ orderId, photos }: JourneyPhotosCardProps) {
       ) : (
         <p className="text-[13px] leading-[1.5] text-tm-text-2">
           No photo yet. When your parcel reaches our US hub we photograph it, and the
-          picture appears here — so you can check we bought the right thing while it is
+          picture appears here, so you can check we bought the right thing while it is
           still cheap to put right.
         </p>
       )}

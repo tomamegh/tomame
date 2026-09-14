@@ -105,7 +105,7 @@ const AddUserForm = ({ ...props }: FormProps) => {
             <DialogTitle>Create an account</DialogTitle>
             <DialogDescription>
               The account is active immediately and its email is treated as
-              confirmed — nobody has to click a link. Send the password to the
+              confirmed, so nobody has to click a link. Send the password to the
               person yourself; this screen is the only place it is ever shown.
             </DialogDescription>
           </DialogHeader>

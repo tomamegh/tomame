@@ -133,7 +133,7 @@ export default async function AdminWatchesPage() {
           detail={
             thresholdValid
               ? `Price must fall ${formatPercent(threshold)} below what the customer was last told`
-              : "No threshold is configured — the job sends nothing"
+              : "No threshold is configured, so the job sends nothing"
           }
           tone={thresholdValid ? "neutral" : "coral"}
           href="/admin/notifications?event=price_drop"
@@ -186,7 +186,7 @@ export default async function AdminWatchesPage() {
         <AdminCard
           index={2}
           title="Watches that are failing"
-          blurb={`Worst first. A watch is retired after ${PRICE_WATCH_JOB.maxConsecutiveFailures} consecutive failures and stops being checked — the customer is not told, so this list is the only warning.`}
+          blurb={`Worst first. A watch is retired after ${PRICE_WATCH_JOB.maxConsecutiveFailures} consecutive failures and stops being checked. The customer is not told, so this list is the only warning.`}
           flush
         >
           <AdminWatchesTable rows={failing} now={now} showError />
@@ -231,7 +231,7 @@ export default async function AdminWatchesPage() {
             title="No price-drop alert has ever been sent"
             body={
               thresholdValid
-                ? `Nothing has fallen ${formatPercent(threshold)} below the price its watcher was last told about. That is the normal state most weeks — the threshold exists so a small wobble does not train customers to ignore the alert.`
+                ? `Nothing has fallen ${formatPercent(threshold)} below the price its watcher was last told about. That is the normal state most weeks. The threshold exists so a small wobble does not train customers to ignore the alert.`
                 : "There is no valid price_drop_notify_pct in pricing_constants, so the job refuses to send anything rather than invent a threshold. Set it on the pricing screen."
             }
           />

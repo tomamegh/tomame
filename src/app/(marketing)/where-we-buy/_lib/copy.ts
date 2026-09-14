@@ -81,7 +81,7 @@ export function buildHeroCopy({
 
   if (places.length > 0) {
     sentences.push(
-      `Deliveries go to ${joinWithAnd(places)}${hasPickup ? " — or any pickup point" : ""}.`,
+      `Deliveries go to ${joinWithAnd(places)}${hasPickup ? ", or any pickup point" : ""}.`,
     );
   }
 

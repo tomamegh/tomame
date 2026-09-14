@@ -247,7 +247,7 @@ export function photoKindLabel(kind: OrderPhotoKind): string {
 export function photoAltText(kind: OrderPhotoKind, takenAt: string): string {
   const stamp = formatShortDay(takenAt);
   const where = PHOTO_KIND_LABELS[kind];
-  return `Photo of your parcel — ${where}${stamp ? `, ${stamp}` : ""}`;
+  return `Photo of your parcel. ${where}${stamp ? `, ${stamp}` : ""}`;
 }
 
 /**
@@ -305,7 +305,7 @@ export function feedbackStatusNote(
   status: OrderFeedbackStatus,
 ): string {
   if (verdict === "looks_right") {
-    return "Thank you — that is noted against this parcel.";
+    return "Thank you. That is noted against this parcel.";
   }
   return STATUS_NOTES[status];
 }

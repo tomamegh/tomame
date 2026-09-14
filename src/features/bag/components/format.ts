@@ -208,14 +208,14 @@ export function describePendingWait(
     return {
       phase: "stuck",
       title: "This one is being stubborn",
-      detail: `We're still trying — carry on shopping and ${followUp} Or tell us what you want and a buyer will sort it out on WhatsApp.`,
+      detail: `We're still trying. Carry on shopping and ${followUp} Or tell us what you want and a buyer will sort it out on WhatsApp.`,
     };
   }
   if (elapsed >= PENDING_SLOW_MS) {
     return {
       phase: "slow",
       title: "Taking longer than usual",
-      detail: `Carry on shopping — ${followUp}`,
+      detail: `Carry on shopping and ${followUp}`,
     };
   }
   return { phase: "reading", title: "Reading this page…", detail: null };

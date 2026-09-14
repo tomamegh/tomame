@@ -73,7 +73,7 @@ export function failuresRemaining(consecutiveFailures: number): number {
 export function failureLabel(consecutiveFailures: number): string | null {
   if (consecutiveFailures <= 0) return null;
   const left = failuresRemaining(consecutiveFailures);
-  if (left === 0) return `${consecutiveFailures} failed checks — retired`;
+  if (left === 0) return `Retired after ${consecutiveFailures} failed checks`;
   return `${consecutiveFailures} failed ${consecutiveFailures === 1 ? "check" : "checks"}, ${left} from retirement`;
 }
 
@@ -128,7 +128,7 @@ export function jobHealthMessage(health: JobHealth): { label: string; tone: Admi
       return {
         label: "Nothing checked recently",
         tone: "coral",
-        body: `There are active watches, and none has been checked in over ${PRICE_WATCH_JOB.recheckAfterHours + 1} hours. Either pg_cron is not firing recheck_price_watches(), or the app is rejecting it — the usual cause is an unset "app_url" or "cron_secret" vault secret.`,
+        body: `There are active watches, and none has been checked in over ${PRICE_WATCH_JOB.recheckAfterHours + 1} hours. Either pg_cron is not firing recheck_price_watches(), or the app is rejecting it. The usual cause is an unset "app_url" or "cron_secret" vault secret.`,
       };
     case "never_run":
       return {
@@ -150,7 +150,7 @@ export function jobHealthMessage(health: JobHealth): { label: string; tone: Admi
  */
 export function unmeteredSpendNote(observations: number): string {
   if (observations === 0) {
-    return "No successful check has been recorded in the last week, so no vendor call has been paid for by this job. Price-watch checks are not metered in job_budgets — only the catalogue scrape is.";
+    return "No successful check has been recorded in the last week, so no vendor call has been paid for by this job. Price-watch checks are not metered in job_budgets; only the catalogue scrape is.";
   }
-  return `${observations.toLocaleString("en-GB")} successful checks in the last week, each a paid extraction. Price-watch checks are not metered in job_budgets — only the catalogue scrape is — so there is no spend figure to show against a cap.`;
+  return `${observations.toLocaleString("en-GB")} successful checks in the last week, each a paid extraction. Price-watch checks are not metered in job_budgets (only the catalogue scrape is), so there is no spend figure to show against a cap.`;
 }

@@ -41,7 +41,7 @@ describe("looks_right is not a complaint", () => {
 
   it("is filed rather than resolved, and never dismissed", () => {
     expect(feedbackActionsFor("open", "looks_right")).toEqual(["resolved"]);
-    expect(feedbackActionLabel("resolved", "looks_right")).toBe("Noted — file it");
+    expect(feedbackActionLabel("resolved", "looks_right")).toBe("Noted, file it");
     expect(feedbackActionLabel("resolved", "damaged")).toBe("Sorted");
   });
 

@@ -73,7 +73,7 @@ export default async function FeesPage({ searchParams }: FeesPageProps) {
             </strong>{" "}
             of the item price
             {serviceFee.note
-              ? ` — ${serviceFee.note}, depending on what you're buying`
+              ? ` (${serviceFee.note}, depending on what you're buying)`
               : ""}
             . Tax, freight and today&apos;s rate are charged at the rates below,
             and every one of them is on your receipt before you pay.

@@ -29,7 +29,7 @@ import { Logo } from "@/components/brand/logo";
 const PALETTE: { token: string; label: string; note: string }[] = [
   { token: "--tm-coral", label: "Coral", note: "accent, links, primary" },
   { token: "--tm-coral-strong", label: "Coral strong", note: "link hover" },
-  { token: "--tm-ink", label: "Ink", note: "text only — never a surface" },
+  { token: "--tm-ink", label: "Ink", note: "text only, never a surface" },
   { token: "--tm-paper", label: "Paper", note: "page background" },
   { token: "--tm-tint", label: "Tint", note: "highlights" },
   { token: "--tm-green", label: "Green", note: "success / done" },
@@ -83,7 +83,7 @@ export default function DesignSystemPage() {
       <header className="flex flex-col gap-3">
         <Logo variant="lockup" height={120} />
         <h1 className="max-w-[620px] text-[44px] font-extrabold leading-[1.03]">
-          Design system — Phase 0
+          Design system: Phase 0
         </h1>
         <p className="text-tm-text-2 max-w-[560px] text-sm leading-relaxed">
           Tokens, type and motion for the redesign. Compare against the mocks
@@ -91,7 +91,7 @@ export default function DesignSystemPage() {
           <a href="http://localhost:4321" className="text-tm-coral">
             localhost:4321
           </a>
-          . No screen is wired yet — that starts in Phase 1.
+          . No screen is wired yet; that starts in Phase 1.
         </p>
       </header>
 
@@ -116,8 +116,8 @@ export default function DesignSystemPage() {
         </div>
         <div className="flex flex-wrap gap-3">
           {[
-            ["--tm-gradient", "Brand gradient — wordmark"],
-            ["--tm-gradient-cta", "CTA gradient — primary buttons"],
+            ["--tm-gradient", "Brand gradient, wordmark"],
+            ["--tm-gradient-cta", "CTA gradient, primary buttons"],
             ["--tm-gradient-avatar", "Avatar gradient"],
           ].map(([tok, label]) => (
             <div key={tok} className="flex flex-col gap-2">
@@ -149,7 +149,7 @@ export default function DesignSystemPage() {
               GH₵5,041.16
             </span>
             <span className="text-tm-text-2 text-sm">
-              tabular-nums — digits never shift width as the figure updates
+              tabular-nums: digits never shift width as the figure updates
             </span>
           </div>
         </div>
@@ -158,10 +158,10 @@ export default function DesignSystemPage() {
       <Section n="03" title="Shape & controls">
         <div className="flex flex-wrap items-end gap-4">
           {[
-            ["rounded-lg", "14px — buttons"],
-            ["rounded-2xl", "22px — cards"],
-            ["rounded-3xl", "26px — large cards"],
-            ["rounded-full", "999px — pills"],
+            ["rounded-lg", "14px, buttons"],
+            ["rounded-2xl", "22px, cards"],
+            ["rounded-3xl", "26px, large cards"],
+            ["rounded-full", "999px, pills"],
           ].map(([cls, label]) => (
             <div key={cls} className="flex flex-col gap-2">
               <div
@@ -251,7 +251,7 @@ export default function DesignSystemPage() {
       <Section n="05" title="Icons">
         <p className="text-tm-text-2 -mt-2 text-sm">
           Phosphor, imported from{" "}
-          <code className="text-[12px]">@phosphor-icons/react/ssr</code> — the
+          <code className="text-[12px]">@phosphor-icons/react/ssr</code>, the
           hook-free entry, so icons render in server components. The root barrel
           calls <code className="text-[12px]">useContext</code> and breaks in
           RSC. These all render on the server.

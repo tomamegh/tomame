@@ -26,9 +26,9 @@ import { getMediaOverrides } from "@/db/queries/media-overrides";
 import { isAuthenticated } from "@/lib/supabase/current-user";
 
 export const metadata: Metadata = {
-  title: "Tomame — Shop the world. Pay in cedis.",
+  title: "Tomame: Shop the world. Pay in cedis.",
   description:
-    "Paste a link from any US store and see the full price at your door before you pay — item, tax, fee, freight. Mobile Money or card, delivered in Ghana.",
+    "Paste a link from any US store and see the full price at your door before you pay: item, tax, fee, freight. Mobile Money or card, delivered in Ghana.",
 };
 
 /**
@@ -135,7 +135,7 @@ export default async function HomePage() {
         }
         blurb={
           soonLabels.length > 0
-            ? `Our buyers purchase from any store in ${joinLabels(liveLabels)} right now. ${sentenceCase(joinLabels(soonLabels))} lanes are being set up — join the waitlist and we'll tell you the day they open.`
+            ? `Our buyers purchase from any store in ${joinLabels(liveLabels)} right now. ${sentenceCase(joinLabels(soonLabels))} lanes are being set up. Join the waitlist and we'll tell you the day they open.`
             : `Our buyers purchase from any store in ${joinLabels(liveLabels)} right now.`
         }
       />

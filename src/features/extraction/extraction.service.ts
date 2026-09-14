@@ -160,9 +160,9 @@ async function weightMattersFor(category: string | null): Promise<boolean> {
 function toResult(prepared: PreparedUrl, outcome: ChainOutcome, sourcesRan: ChainOutcome["ran"]): ExtractionResult {
   const complete = hasRequiredFields(outcome.product);
   const messages = [...outcome.messages];
-  if (prepared.platform === GENERIC_STORE_SLUG) messages.push("We don't know this store yet — our team will confirm where it ships from before purchase.");
-  else if (!prepared.region) messages.push("This store region is not supported yet — our team will confirm shipping manually.");
-  if (prepared.store.status === "blocked" && !complete) messages.push(`${prepared.store.name} blocks automated reading right now — enter the price and our team will verify it.`);
+  if (prepared.platform === GENERIC_STORE_SLUG) messages.push("We don't know this store yet. Our team will confirm where it ships from before purchase.");
+  else if (!prepared.region) messages.push("This store region is not supported yet. Our team will confirm shipping manually.");
+  if (prepared.store.status === "blocked" && !complete) messages.push(`${prepared.store.name} blocks automated reading right now. Enter the price and our team will verify it.`);
   return {
     extraction_attempted: true,
     extraction_success: complete,

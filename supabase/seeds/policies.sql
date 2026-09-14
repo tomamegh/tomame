@@ -12,10 +12,10 @@ values
 
 ### Information We Collect
 
-- **Account data** — name, email address, and phone number provided at sign-up.
-- **Order data** — product URLs, delivery addresses, and payment transaction references.
-- **Usage data** — pages visited, features used, and timestamps (via anonymous analytics).
-- **Device data** — browser type, operating system, and IP address for security purposes.
+- **Account data**: name, email address, and phone number provided at sign-up.
+- **Order data**: product URLs, delivery addresses, and payment transaction references.
+- **Usage data**: pages visited, features used, and timestamps (via anonymous analytics).
+- **Device data**: browser type, operating system, and IP address for security purposes.
 
 ### How We Use Your Information
 
@@ -53,7 +53,7 @@ For privacy-related requests, email [support@tomame.ca](mailto:support@tomame.ca
 
 ### Service Description
 
-Tomame is a concierge shopping service. We purchase products from international retailers on your behalf, ship them to Ghana, and arrange local delivery. We are not the retailer — we act as your purchasing agent.
+Tomame is a concierge shopping service. We purchase products from international retailers on your behalf, ship them to Ghana, and arrange local delivery. We are not the retailer; we act as your purchasing agent.
 
 ### Pre-Payment Requirement
 
@@ -63,7 +63,7 @@ Tomame is a concierge shopping service. We purchase products from international 
 
 - All prices are quoted in Ghana Cedis (GH₵) at the prevailing exchange rate plus our service fee.
 - Quoted prices are valid for 30 minutes from the time of extraction.
-- Final amounts are confirmed before you pay — no hidden charges.
+- Final amounts are confirmed before you pay, with no hidden charges.
 - Customs duties, if applicable, will be communicated separately and are the responsibility of the customer.
 
 ### Order Acceptance
@@ -95,19 +95,19 @@ These terms are governed by the laws of the Republic of Ghana. Disputes will be 
 
 ### Sourcing Regions
 
-- **USA** — Amazon, eBay, Walmart, Target, Best Buy, and others.
-- **UK** — ASOS, Marks & Spencer, Argos, and others.
-- **China** — SHEIN, AliExpress, and selected wholesalers.
+- **USA**: Amazon, eBay, Walmart, Target, Best Buy, and others.
+- **UK**: ASOS, Marks & Spencer, Argos, and others.
+- **China**: SHEIN, AliExpress, and selected wholesalers.
 
 ### Delivery Timeline
 
-- **Standard (Sea freight)** — 3 to 6 weeks from purchase date.
-- **Express (Air freight)** — 7 to 14 days from purchase date. Available on request; additional fee applies.
+- **Standard (Sea freight)**: 3 to 6 weeks from purchase date.
+- **Express (Air freight)**: 7 to 14 days from purchase date. Available on request; additional fee applies.
 - Timelines are estimates and may vary due to customs clearance, public holidays, or carrier delays.
 
 ### Shipping Fees
 
-Shipping fees are calculated based on the item's weight, dimensions, and source region. The full fee is shown in your quote before payment — there are no surprise charges.
+Shipping fees are calculated based on the item's weight, dimensions, and source region. The full fee is shown in your quote before payment. There are no surprise charges.
 
 ### Order Tracking
 
@@ -275,13 +275,13 @@ All transactions are in **Ghana Cedis (GH₵)**. Exchange rates are sourced from
 
 ### Payment Security
 
-- Card details are never stored on Tomame servers — they are handled exclusively by Paystack.
+- Card details are never stored on Tomame servers; they are handled exclusively by Paystack.
 - All payment pages are served over HTTPS.
 - We verify every transaction server-side via the Paystack API before confirming an order.
 
 ### Failed Payments
 
-If a payment attempt fails, no charge is made. You may retry immediately using the same or a different payment method. If you believe you were charged for a failed transaction, contact us at [support@tomame.ca](mailto:support@tomame.ca) with the date and approximate amount — we will investigate within 24 hours.
+If a payment attempt fails, no charge is made. You may retry immediately using the same or a different payment method. If you believe you were charged for a failed transaction, contact us at [support@tomame.ca](mailto:support@tomame.ca) with the date and approximate amount, and we will investigate within 24 hours.
 
 ### Receipts
 
@@ -289,7 +289,7 @@ A payment confirmation email is sent automatically after every successful transa
 
 ### Disputes
 
-For any payment dispute, contact us first — we resolve most issues directly and quickly. If a chargeback is initiated through your bank without contacting us, we reserve the right to suspend the account pending investigation.$md$,
+For any payment dispute, contact us first. We resolve most issues directly and quickly. If a chargeback is initiated through your bank without contacting us, we reserve the right to suspend the account pending investigation.$md$,
     'May 2025',
     true
   )

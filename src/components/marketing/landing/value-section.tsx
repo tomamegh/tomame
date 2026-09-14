@@ -78,7 +78,7 @@ export function ValueSection({
             Three things only a personal shopper can do.
           </h2>
           <p className="max-w-[380px] text-base leading-[1.5] text-tm-text-2">
-            Not a marketplace. A team in Accra purchasing on your behalf — with
+            Not a marketplace. A team in Accra purchasing on your behalf, with
             the tools to prove it.
           </p>
         </div>

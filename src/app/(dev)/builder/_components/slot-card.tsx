@@ -381,7 +381,7 @@ export function SlotCard({ slot }: { slot: BuilderSlot }) {
             {canMoveY
               ? "Drag the photo to move the crop, or use the slider."
               : canMoveX
-                ? "This box is taller than the photo — only the horizontal crop moves here."
+                ? "This box is taller than the photo, so only the horizontal crop moves here."
                 : "The photo matches this box exactly, so the crop has nothing to move."}
           </p>
         </div>
@@ -468,7 +468,7 @@ export function SlotCard({ slot }: { slot: BuilderSlot }) {
                   <AlertDialogTitle>Reset {slot.key}?</AlertDialogTitle>
                   <AlertDialogDescription>
                     {slot.uploaded
-                      ? "This permanently deletes the uploaded photo and restores the one shipped with the build. It cannot be undone — you would have to upload the file again."
+                      ? "This permanently deletes the uploaded photo and restores the one shipped with the build. It cannot be undone; you would have to upload the file again."
                       : "This removes the saved crop and alt text, restoring the values shipped with the build."}
                   </AlertDialogDescription>
                 </AlertDialogHeader>

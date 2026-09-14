@@ -31,7 +31,7 @@ export async function joinWaitlist(
   if (region.status === "live") {
     throw new APIError(
       400,
-      `${region.name} is already open — you can order from it today.`,
+      `${region.name} is already open. You can order from it today.`,
     );
   }
 

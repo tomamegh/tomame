@@ -61,7 +61,7 @@ export function AddWatchForm({ className }: AddWatchFormProps) {
               ? { tone: "success", text: `Now watching ${name}.` }
               : {
                   tone: "info",
-                  text: `You were already watching ${name} — we've just re-checked its price.`,
+                  text: `You were already watching ${name}, so we've just re-checked its price.`,
                 },
           );
           startRefresh(() => router.refresh());
@@ -148,7 +148,7 @@ export function AddWatchForm({ className }: AddWatchFormProps) {
         {errorMessage ??
           status?.text ??
           (createWatch.isPending
-            ? "Reading the product page and pricing it — this takes a few seconds."
+            ? "Reading the product page and pricing it. This takes a few seconds."
             : "We check the price once a day and keep the last 30 days.")}
       </p>
     </div>

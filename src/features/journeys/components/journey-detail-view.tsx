@@ -60,7 +60,7 @@ export function JourneyDetailView({ journey, paymentOutcome }: JourneyDetailView
       toast.error({
         title:
           paymentOutcome === "failed"
-            ? "Payment did not go through — nothing was charged."
+            ? "Payment did not go through. Nothing was charged."
             : "We could not confirm your payment",
       });
     }, 0);

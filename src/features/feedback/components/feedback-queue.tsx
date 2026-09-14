@@ -206,7 +206,7 @@ export function FeedbackQueue({ status }: FeedbackQueueProps) {
         title={complaintsTitle(status)}
         blurb={
           oldestWait
-            ? `Oldest first. ${oldestWait} — the box is still at the hub, where putting it right is still cheap.`
+            ? `Oldest first. ${oldestWait}. The box is still at the hub, where putting it right is still cheap.`
             : "Oldest first. Every one of these is a parcel we are still holding, so it can still be fixed."
         }
       >
@@ -240,7 +240,7 @@ export function FeedbackQueue({ status }: FeedbackQueueProps) {
         <AdminCard
           index={1}
           title="Customers who said it looks right"
-          blurb="Nothing to fix. This is the answer the photo was taken for — file each one when you have read it, so the queue count stays honest."
+          blurb="Nothing to fix. This is the answer the photo was taken for. File each one when you have read it, so the queue count stays honest."
         >
           <ul className="flex flex-col gap-3">
             {confirmations.map((row) => (
@@ -418,7 +418,7 @@ function FeedbackRow({
           {confirmation ? null : (
             <label className="flex flex-col gap-1.5">
               <span className="text-[12px] leading-none font-semibold text-tm-text-2">
-                What you did about it — the customer reads this
+                What you did about it (the customer reads this)
               </span>
               <Textarea
                 value={resolution}

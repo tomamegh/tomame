@@ -129,7 +129,7 @@ export function AccountAddressesPanel({
       {saved.length === 0 ? (
         <AccountEmpty
           title="No addresses saved"
-          body="Add one here, or add it at checkout — either way it is saved for next time. The zone you choose is what sets the delivery fee."
+          body="Add one here, or add it at checkout. Either way it is saved for next time. The zone you choose is what sets the delivery fee."
         />
       ) : (
         <ul className={cn("grid gap-3 sm:grid-cols-2", busy && "opacity-60")} aria-busy={busy}>

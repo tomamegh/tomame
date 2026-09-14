@@ -68,7 +68,7 @@ export async function checkTransactionWithPaystack(paymentId: string): Promise<P
     });
     // Deliberately not swallowed: an admin who asked Paystack a question must
     // be told that Paystack did not answer, not shown a stale row as if it had.
-    throw new APIError(502, "Paystack did not answer. Nothing was changed — try again.");
+    throw new APIError(502, "Paystack did not answer. Nothing was changed. Try again.");
   }
 
   const data = verification.data;

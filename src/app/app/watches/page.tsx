@@ -59,7 +59,7 @@ export default async function WatchesPage() {
           Price watch
         </h1>
         <p className="max-w-[58ch] text-[15px] leading-[1.5] font-medium text-tm-text-2">
-          Save a product link and we re-check it once a day, landed in GH₵ —
+          Save a product link and we re-check it once a day, landed in GH₵:
           item, US sales tax, our fee and freight at that day&rsquo;s rate. You
           get the whole picture before you decide whether to buy now or wait.
         </p>
@@ -146,7 +146,7 @@ function RetiredWatches({ retired }: { retired: RetiredWatch[] }) {
           We stopped checking {retired.length === 1 ? "one link" : `${retired.length} links`}
         </h2>
         <p className="max-w-[58ch] text-[13px] leading-[1.45] font-medium text-tm-text-2">
-          These pages could not be read several nights running — usually the
+          These pages could not be read several nights running. Usually the
           item was delisted or the store changed the link. Paste the link above
           again to start watching it afresh.
         </p>
@@ -160,7 +160,7 @@ function RetiredWatches({ retired }: { retired: RetiredWatch[] }) {
           >
             <span className="font-semibold">{watchDisplayName(watch)}</span>
             {last_error && (
-              <span className="text-tm-text-3">— {last_error}</span>
+              <span className="text-tm-text-3">· {last_error}</span>
             )}
           </li>
         ))}
@@ -174,7 +174,7 @@ const HOW_IT_WORKS: readonly { icon: Icon; title: string; body: string }[] = [
   {
     icon: ArrowsClockwise,
     title: "Re-checked once a day",
-    body: "A nightly job re-reads every watched link. Figures here are the last reading, not a live price — the row tells you when it was taken.",
+    body: "A nightly job re-reads every watched link. Figures here are the last reading, not a live price; the row tells you when it was taken.",
   },
   {
     icon: Coins,
@@ -205,7 +205,7 @@ function EmptyWatches() {
           Nothing on watch yet
         </p>
         <p className="max-w-[52ch] text-sm leading-[1.5] font-medium text-tm-text-2">
-          Paste a link above — any store we buy from — and we will start a price
+          Paste a link above from any store we buy from, and we will start a price
           history for it tonight.
         </p>
       </div>

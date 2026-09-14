@@ -89,7 +89,7 @@ export function WorkedExampleCard({
         {example.needs_review ? (
           <p className="px-6 py-5 text-sm leading-relaxed text-tm-text-2">
             This example needs a human. We quote items the engine can&apos;t
-            price automatically by hand, usually within a few hours — the price
+            price automatically by hand, usually within a few hours. The price
             you see is still the price you pay.
           </p>
         ) : (

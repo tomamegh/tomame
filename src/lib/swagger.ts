@@ -9,7 +9,7 @@ export function getApiDocs() {
         title: "Tomame API",
         version: "0.1.0",
         description:
-          "Concierge shopping platform for Ghanaian customers — API documentation",
+          "API documentation for Tomame, a concierge shopping platform for Ghanaian customers",
       },
       servers: [
         {

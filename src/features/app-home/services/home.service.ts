@@ -350,8 +350,8 @@ export function buildLanes(regions: readonly RegionRow[]): HomeLanes | null {
     const names = soon.map((region) => labelOf(region, REGION_SHORT_NAME));
     sentences.push(
       names.length === 1
-        ? `The ${names[0]} lane is coming soon — get notified.`
-        : `${joinWith(names, "and")} lanes are coming soon — get notified.`,
+        ? `The ${names[0]} lane is coming soon. Get notified.`
+        : `${joinWith(names, "and")} lanes are coming soon. Get notified.`,
     );
     waitlist = {
       label: `Join the ${names.join(" / ")} waitlist`,

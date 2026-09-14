@@ -20,7 +20,7 @@ import { Eyebrow, MARKETING_GUTTER } from "../_components/marketing-primitives";
 export const metadata: Metadata = {
   title: "About · Tomame",
   description:
-    "Tomame buys, ships and delivers from abroad for customers in Ghana — with the price agreed before a cedi moves.",
+    "Tomame buys, ships and delivers from abroad for customers in Ghana, with the price agreed before a cedi moves.",
 };
 
 /** Dimensions and alt text come from the manifest, never restated here. */

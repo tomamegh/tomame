@@ -40,7 +40,7 @@ export default function WatchesError({
           We couldn&rsquo;t load your price watches
         </h1>
         <p className="max-w-[52ch] text-sm leading-[1.5] font-medium text-tm-text-2">
-          Nothing has been lost — your watches are still being re-checked. Try
+          Nothing has been lost. Your watches are still being re-checked. Try
           again, and if it keeps happening tell support and quote the reference
           below.
         </p>

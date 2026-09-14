@@ -132,7 +132,7 @@ export default async function AdminUsersPage({
             title={role ? "No accounts with this role" : "No accounts yet"}
             body={
               role === "admin"
-                ? "Nobody currently holds the admin role. If that is unexpected, somebody has been demoted — the change is in the audit log."
+                ? "Nobody currently holds the admin role. If that is unexpected, somebody has been demoted, and the change is in the audit log."
                 : role === "user"
                   ? "Every account on the platform is an admin account. No customer has signed up yet."
                   : "Nobody has signed up and no account has been created by hand."

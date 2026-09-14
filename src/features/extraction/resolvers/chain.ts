@@ -296,7 +296,7 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     else if (state.product.price == null) messages.push("Price could not be read from the page. Enter it below and our team will verify it.");
   }
   if (hasRequiredFields(state.product) && !hasWeight(state.product) && skipped.length === 0) {
-    messages.push("Weight not listed by the store — shipping will be confirmed when we receive your item.");
+    messages.push("Weight not listed by the store. Shipping will be confirmed when we receive your item.");
   }
 
   const primarySource = state.sources.title ?? (ran[0] ?? null);

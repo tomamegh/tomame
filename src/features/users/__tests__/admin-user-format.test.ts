@@ -108,7 +108,7 @@ describe("contactChannelsLabel", () => {
     expect(
       contactChannelsLabel({ notify_email: false, whatsapp_opt_in: true, phone: null }),
     ).toEqual({
-      label: "No reachable channel — WhatsApp is on but no number is saved",
+      label: "No reachable channel: WhatsApp is on but no number is saved",
       tone: "coral",
     });
   });

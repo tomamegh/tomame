@@ -101,7 +101,7 @@ export function AdminDashboard({ view }: { view: AdminDashboardView }) {
         ) : (
           <AdminEmpty
             title="The trend could not be read"
-            body="Orders, payments or pastes did not answer on this load. The figures above are unaffected — reload to try again."
+            body="Orders, payments or pastes did not answer on this load. The figures above are unaffected. Reload to try again."
           />
         )}
       </AdminCard>
@@ -310,7 +310,7 @@ function MoneyTiles({ view }: { view: AdminDashboardView }) {
           detail={
             money.averagePaymentGhs == null
               ? "Needs at least one settled payment"
-              : "Mean settled charge — one payment can buy a whole bag"
+              : "Mean settled charge. One payment can buy a whole bag"
           }
           tone={money.averagePaymentGhs == null ? "muted" : "neutral"}
           index={1}
@@ -564,7 +564,7 @@ function RecentPaymentsCard({ payments }: { payments: DashboardPaymentSummary[] 
   return (
     <AdminCard
       title="Money in"
-      blurb="Settled payments only — charges Paystack confirmed."
+      blurb="Settled payments only: charges Paystack confirmed."
       action={
         <Link
           href="/admin/transactions"

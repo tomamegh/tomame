@@ -38,7 +38,7 @@ const CONTACT_METHODS = [
     icon: MailIcon,
     title: 'Email',
     value: 'support@tomame.ca',
-    desc: 'Fastest response — usually under 2 hours',
+    desc: 'Fastest response, usually under 2 hours',
   },
   {
     icon: MessageCircle,
@@ -55,10 +55,10 @@ const CONTACT_METHODS = [
 ];
 
 const WHY_TOMAME = [
-  'Transparent pricing — every fee itemized before you pay',
+  'Transparent pricing: every fee itemized before you pay',
   'Fast response times, usually under 2 hours',
   'Local team in Accra available on WhatsApp',
-  'Pre-payment only — your money is safe before sourcing',
+  'Pre-payment only: your money is safe before sourcing',
   'Live order tracking from purchase to delivery',
 ];
 
@@ -172,7 +172,7 @@ export function ContactPage({ whatsappHref }: ContactPageProps) {
                   Why choose Tomame?
                 </h3>
                 <p className="mt-3 text-base leading-relaxed text-stone-500">
-                  We&apos;re not just a platform — we&apos;re a partner in your global shopping
+                  We&apos;re not just a platform. We&apos;re a partner in your global shopping
                   journey. Our team is committed to making every order feel local.
                 </p>
 

@@ -66,7 +66,7 @@ export default async function AuthLayout({
         />
 
         <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-12">
-          <Link href="/" aria-label="Tomame — home" className="w-fit rounded-sm">
+          <Link href="/" aria-label="Tomame home" className="w-fit rounded-sm">
             <Logo variant="horizontal" height={26} decorative priority />
           </Link>
 
@@ -109,7 +109,7 @@ export default async function AuthLayout({
 
       {/* ── Branded header (mobile) ─────────────────────────────────────── */}
       <div className="flex flex-col items-center gap-2 border-b border-tm-hairline bg-tm-paper px-6 py-6 text-center lg:hidden">
-        <Link href="/" aria-label="Tomame — home" className="rounded-sm">
+        <Link href="/" aria-label="Tomame home" className="rounded-sm">
           <Logo variant="horizontal" height={22} decorative priority />
         </Link>
         <p className="text-sm leading-[1.4] text-tm-text-2">

@@ -41,7 +41,7 @@ export function describeFreight(group: AdminPricingGroupRow): string {
       return `By weight${fallback}`;
     }
     case "unpriceable":
-      return "No freight set — everything in this group goes to review";
+      return "No freight set, so everything in this group goes to review";
   }
 }
 
@@ -65,5 +65,5 @@ export function deactivationConsequence(group: AdminPricingGroupRow): string {
   if (group.category_count === 0) {
     return `No category routes to ${group.name}, so deactivating it changes no prices today. It stops being available to route to.`;
   }
-  return `${group.category_count} ${group.category_count === 1 ? "category still routes" : "categories still route"} to ${group.name}. Deactivating it does not move them — every product in ${group.category_count === 1 ? "that category" : "those categories"} will come back unpriced, as "needs review", until they are pointed at another group.`;
+  return `${group.category_count} ${group.category_count === 1 ? "category still routes" : "categories still route"} to ${group.name}. Deactivating it does not move them. Every product in ${group.category_count === 1 ? "that category" : "those categories"} will come back unpriced, as "needs review", until they are pointed at another group.`;
 }

@@ -44,7 +44,7 @@ export function AccountWatchPanel({
       {watches.watches.length === 0 ? (
         <AccountEmpty
           title="Nothing on watch"
-          body="Paste a product link on the Price watch screen and we start a price history for it tonight — landed in GH₵, re-checked once a day."
+          body="Paste a product link on the Price watch screen and we start a price history for it tonight: landed in GH₵, re-checked once a day."
         >
           <Link
             href="/app/watches"

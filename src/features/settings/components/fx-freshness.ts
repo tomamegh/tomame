@@ -48,7 +48,7 @@ export function describeRateAge(age: RateAge): string {
     case "unknown":
       return "No fetch time recorded against this rate.";
     case "stale":
-      return `Last fetched ${age.hours} hours ago. The rates job has not run for a day — every quote since is being priced at an old cedi.`;
+      return `Last fetched ${age.hours} hours ago. The rates job has not run for a day, so every quote since is being priced at an old cedi.`;
     case "late":
       return `Last fetched ${age.hours} hours ago. That is more than two scheduled runs; the rates job may have stopped.`;
     case "fresh":

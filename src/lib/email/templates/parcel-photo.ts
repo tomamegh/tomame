@@ -41,7 +41,7 @@ export function parcelPhotoTemplate(data: ParcelPhotoEmailData) {
   const noun = many ? `${data.photoCount} photos` : "a photo";
 
   return {
-    subject: `Your parcel reached our hub — ${data.productName}`,
+    subject: `Your parcel reached our hub: ${data.productName}`,
     html: emailLayout(`
       ${heading("Your parcel is with us")}
       ${paragraph(
@@ -57,11 +57,11 @@ export function parcelPhotoTemplate(data: ParcelPhotoEmailData) {
       ${divider()}
       ${button(data.journeyUrl, many ? "See the photos" : "See the photo")}
       ${paragraph(
-        `<strong>Please take a look now.</strong> If it is not what you ordered — wrong colour, wrong model, damaged in the box — tell us from that same screen and we will sort it while your parcel is still on the ground. Once it flies, putting it right costs a return from Ghana.`,
+        `<strong>Please take a look now.</strong> If it is not what you ordered (wrong colour, wrong model, damaged in the box), tell us from that same screen and we will sort it while your parcel is still on the ground. Once it flies, putting it right costs a return from Ghana.`,
       )}
-      ${paragraph(`If it looks right, you can say so too — it takes a second and it tells us to send it on.`)}
+      ${paragraph(`If it looks right, you can say so too. It takes a second, and it tells us to send it on.`)}
       ${muted(
-        `We keep parcel photos private to your account: the picture opens only for you, on a page you have to be signed in to reach, which is why it is a link here rather than an image. You are getting this because it is your order. Email notifications can be switched off in your Tomame account — you will still see this in the app.`,
+        `We keep parcel photos private to your account: the picture opens only for you, on a page you have to be signed in to reach, which is why it is a link here rather than an image. You are getting this because it is your order. Email notifications can be switched off in your Tomame account. You will still see this in the app.`,
       )}
     `),
   };

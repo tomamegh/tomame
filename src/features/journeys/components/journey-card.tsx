@@ -137,7 +137,7 @@ function JourneyCta({
     <Link href={`/app/orders/${row.id}`} className={className}>
       {label}
       <ArrowRight weight="bold" className="size-3.5" aria-hidden />
-      <span className="sr-only"> — {row.productName}</span>
+      <span className="sr-only">, {row.productName}</span>
     </Link>
   );
 }

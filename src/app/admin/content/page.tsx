@@ -71,13 +71,13 @@ const TABS: { value: ContentTab; label: string }[] = [
 
 const TAB_BLURBS: Record<ContentTab, string> = {
   settings:
-    "The values the storefront reads from site_settings — the WhatsApp number, support hours, the payment channels offered at checkout and the Fees worked example.",
+    "The values the storefront reads from site_settings: the WhatsApp number, support hours, the payment channels offered at checkout and the Fees worked example.",
   regions:
     "Which purchasing lanes are live. This is the switch that decides whether a customer can buy from a region or is offered a waitlist instead.",
   zones:
     "Ghana-side delivery, and the fee added once per checkout on the zone a customer picks. Fee changes are confirmed and audited.",
   blocks:
-    "The marketing copy — FAQs, process steps, feature cards, fee lines and the quote screen's assurance cards. Unpublished blocks are filtered out of every storefront read.",
+    "The marketing copy: FAQs, process steps, feature cards, fee lines and the quote screen's assurance cards. Unpublished blocks are filtered out of every storefront read.",
   waitlist: "People who asked to be told when a lane opens.",
   media:
     "Marketing images that have been overridden away from the shipped manifest. Changes are made with the in-page builder, not here.",
@@ -350,7 +350,7 @@ async function MediaTab() {
       {overrides.length === 0 ? (
         <AdminEmpty
           title="No images overridden"
-          body="Every marketing image is coming from the shipped manifest. Overrides are created with the in-page builder — open a marketing page as an admin and re-crop or replace a photo there."
+          body="Every marketing image is coming from the shipped manifest. Overrides are created with the in-page builder. Open a marketing page as an admin and re-crop or replace a photo there."
         />
       ) : (
         <AdminTableScroller>

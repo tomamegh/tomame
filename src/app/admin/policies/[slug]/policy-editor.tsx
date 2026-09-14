@@ -116,7 +116,7 @@ export function PolicyEditor({ policy }: { policy: PolicyRow }) {
       toast.success({
         title: "Policy saved",
         description: isPublished
-          ? "Live on /policies within the hour — the page is cached."
+          ? "Live on /policies within the hour; the page is cached."
           : "Saved as a draft. Customers cannot see it.",
       });
       router.refresh();

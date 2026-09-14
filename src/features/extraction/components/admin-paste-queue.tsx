@@ -332,7 +332,7 @@ function FailingStores({
 
 /** "Amazon · live" for a registered store; the honest alternative when it is not one. */
 function storeCaption(host: StorePasteSummary): string {
-  if (!host.store_name) return "Not a registered store — read by the generic plan";
+  if (!host.store_name) return "Not a registered store, read by the generic plan";
   return `${host.store_name} · ${host.store_status}`;
 }
 

@@ -200,7 +200,7 @@ export function AdminOrderReviewPanel({ order, index = 0 }: AdminOrderReviewPane
                 rows={2}
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
-                placeholder="Quoted by the freight desk — oversized item, 3 boxes."
+                placeholder="Quoted by the freight desk: oversized item, 3 boxes."
                 className={cn(INPUT, "h-auto py-2.5")}
               />
             </Field>
@@ -283,11 +283,11 @@ const MODE_LABEL: Record<Mode, string> = {
 
 const MODE_BLURB: Record<Mode, string> = {
   approve:
-    "Correct anything the extraction got wrong, then let the pricing engine price it again — under the customer's rate lock if one is still live.",
+    "Correct anything the extraction got wrong, then let the pricing engine price it again, under the customer's rate lock if one is still live.",
   set_price:
     "Write a total by hand. It overrides the breakdown entirely, so only use it when the engine genuinely cannot price this item.",
   reject:
-    "Cancel the order and email the customer. There is no way back from this — the state machine has no edge out of cancelled.",
+    "Cancel the order and email the customer. There is no way back from this: the state machine has no edge out of cancelled.",
 };
 
 const MODE_ACTION: Record<Mode, string> = {

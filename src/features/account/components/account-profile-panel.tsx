@@ -123,7 +123,7 @@ export function AccountProfilePanel({
         <AccountField
           id="account-phone"
           label="Phone"
-          hint="For order updates — WhatsApp messages go here too."
+          hint="For order updates. WhatsApp messages go here too."
           error={errors.phone}
         >
           <Input
@@ -158,7 +158,7 @@ export function AccountProfilePanel({
             </span>
           </div>
           <p className="text-xs leading-[1.45] font-medium text-tm-text-3">
-            You sign in with this address. To change it, message us — it needs a
+            You sign in with this address. To change it, message us: it needs a
             confirmation on both the old and the new one.
           </p>
         </div>

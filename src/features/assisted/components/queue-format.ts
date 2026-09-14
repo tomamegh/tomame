@@ -81,7 +81,7 @@ export function assistedWhatsappHref(request: { phone: string; product_url: stri
 
   const text = `Hello, this is Tomame. You asked us to help you buy something from ${hostOf(
     request.product_url,
-  )} — can I check a couple of details with you?`;
+  )}. Can I check a couple of details with you?`;
   return `${base}?text=${encodeURIComponent(text)}`;
 }
 

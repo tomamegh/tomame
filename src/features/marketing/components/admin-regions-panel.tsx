@@ -118,9 +118,9 @@ function RegionRow({ region }: { region: AdminRegionRow }) {
             onChange={(event) => setStatus(event.target.value as RegionStatus)}
             className={CONTENT_INPUT_CLASS}
           >
-            <option value="live">Live — customers can buy</option>
-            <option value="soon">Coming soon — waitlist only</option>
-            <option value="off">Hidden — not shown at all</option>
+            <option value="live">Live (customers can buy)</option>
+            <option value="soon">Coming soon (waitlist only)</option>
+            <option value="off">Hidden (not shown at all)</option>
           </select>
         </ContentField>
 

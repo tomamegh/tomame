@@ -25,7 +25,7 @@ export function JourneyUpdatesCard({ updates }: JourneyUpdatesCardProps) {
 
       {updates.length === 0 ? (
         <p className="text-[13px] leading-[1.5] font-normal text-tm-text-2">
-          Nothing to report yet. Every step — purchased, at our hub, in the air —
+          Nothing to report yet. Every step (purchased, at our hub, in the air)
           appears here as it happens.
         </p>
       ) : (

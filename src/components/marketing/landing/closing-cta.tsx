@@ -48,7 +48,7 @@ export function ClosingCta({
             Ready to shop the world?
           </h2>
           <p className="max-w-[480px] text-[17px] leading-[1.5] text-tm-text-2">
-            Free account. Quote anything in seconds — no card until you&rsquo;re
+            Free account. Quote anything in seconds. No card until you&rsquo;re
             ready to buy.
           </p>
           <div className="flex flex-wrap gap-2.5">

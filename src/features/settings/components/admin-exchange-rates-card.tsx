@@ -112,13 +112,13 @@ export function AdminExchangeRatesCard({
       {rates.length === 0 ? (
         <AdminEmpty
           title="No rates stored"
-          body="The exchange_rates table is empty, so nothing can be quoted at all — the calculator refuses rather than guessing a cedi. Fetch now, and if that fails, check that an exchange-rate provider key is configured."
+          body="The exchange_rates table is empty, so nothing can be quoted at all: the calculator refuses rather than guessing a cedi. Fetch now, and if that fails, check that an exchange-rate provider key is configured."
         />
       ) : (
         <div className="flex flex-col gap-4">
           {worstState === "stale" || worstState === "late" ? (
             <p className="rounded-[14px] bg-tm-amber-bg px-4 py-3 text-[13px] leading-[1.55] font-medium text-[#7a4a06]">
-              The rates job looks like it has stopped. Quotes are still being priced — at an
+              The rates job looks like it has stopped. Quotes are still being priced at an
               exchange rate that is no longer today&rsquo;s, which is a loss on every order until
               it is fixed. Check that the scheduled job can reach this app.
             </p>

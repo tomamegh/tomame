@@ -438,7 +438,7 @@ describe("getHomeView — lane and contact cards", () => {
 
     expect(view?.lanes?.heading).toBe("Shipping from the USA");
     expect(view?.lanes?.body).toBe(
-      "Any US store, 14–18 days to Accra. UK and China lanes are coming soon — get notified.",
+      "Any US store, 14–18 days to Accra. UK and China lanes are coming soon. Get notified.",
     );
     expect(view?.lanes?.waitlist?.href).toBe("/where-we-buy#stores");
   });

@@ -19,7 +19,7 @@ export default function AdminAssistedRequestsPage() {
   return (
     <AdminPage
       title="Assisted requests"
-      blurb="Customers whose link we could not read, in their own words. Each one has been told a person will get back to them — so work the top of the list first."
+      blurb="Customers whose link we could not read, in their own words. Each one has been told a person will get back to them, so work the top of the list first."
     >
       <AssistedQueue />
     </AdminPage>

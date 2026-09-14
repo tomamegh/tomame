@@ -65,7 +65,7 @@ describe("failuresRemaining / failureLabel", () => {
   });
 
   it("says retired once the ceiling is reached", () => {
-    expect(failureLabel(PRICE_WATCH_JOB.maxConsecutiveFailures)).toContain("retired");
+    expect(failureLabel(PRICE_WATCH_JOB.maxConsecutiveFailures)).toContain("Retired after");
   });
 
   it("uses the singular for one failure", () => {

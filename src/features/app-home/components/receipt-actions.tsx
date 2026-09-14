@@ -140,7 +140,7 @@ export function ReceiptActions({
         ) : assistedOpen ? (
           <p className="flex flex-1 items-center gap-2 rounded-xl bg-tm-green-bg px-3.5 py-3 text-[13px] leading-[1.4] font-semibold text-tm-green-ink">
             <CheckCircle weight="fill" className="size-4 shrink-0 text-tm-green" aria-hidden />
-            A buyer is on it — we&rsquo;ll message you on WhatsApp.
+            A buyer is on it. We&rsquo;ll message you on WhatsApp.
           </p>
         ) : (
           <>
