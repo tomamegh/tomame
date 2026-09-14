@@ -109,6 +109,53 @@ describe("buildOrderIntake — rate lock", () => {
     expect(insertQuoteLock).not.toHaveBeenCalled();
   });
 
+  /**
+   * THE FLAG IS A PAYMENT GATE, NOT A NOTES FIELD. `needs_review` is
+   * `reasons.length > 0`, and `groupCharge` refuses to charge a bag holding any
+   * flagged order with no `admin_total_ghs`. A buyer's verified price recorded
+   * as a "reason" therefore made every sourced order unpayable — checkout
+   * answering "waiting for our review" about the one item a human had reviewed.
+   */
+  it("prices from a buyer's figure without flagging the order for review", async () => {
+    const intake = await buildOrderIntake(input, viewer, 34.5);
+
+    // The buyer's number is what the engine was given, beating the snapshot.
+    expect(priceExtractionWith).toHaveBeenCalledWith(
+      CALC, expect.anything(), 1, { itemPriceUsd: 34.5 }, null,
+    );
+    // And the order stays payable.
+    expect(intake.needs_review).toBe(false);
+    expect(intake.review_reasons).toEqual([]);
+  });
+
+  /**
+   * An unrecognised region is the commonest reason a sourcing request exists at
+   * all, so nearly every one of them reaches the country branch. Left alone it
+   * pushed "Origin country selected by customer", which flagged the order and
+   * left the bag unpayable — the same failure as the price override, arriving
+   * through a different sentence. Caught by replaying the flow after the first
+   * fix looked complete.
+   */
+  it("does not flag an order whose country the buyer established either", async () => {
+    // Region unknown, which is why the request went to a buyer in the first
+    // place: `regionForUrl` also has to come back null for the branch to matter.
+    const noRegion = snapshot();
+    noRegion.result.country = null;
+    noRegion.productUrl = "https://www.walmartcontacts.com/lens/acuvue-2";
+    vi.mocked(getExtractionSnapshot).mockResolvedValue(noRegion as never);
+
+    const intake = await buildOrderIntake(
+      { ...input, product_url: "https://www.walmartcontacts.com/lens/acuvue-2" },
+      viewer,
+      34.5,
+      "USA",
+    );
+
+    expect(intake.origin_country).toBe("USA");
+    expect(intake.needs_review).toBe(false);
+    expect(intake.review_reasons).toEqual([]);
+  });
+
   it("prices live when the lock has expired or never existed, and never mints one", async () => {
     const intake = await buildOrderIntake(input, viewer);
 

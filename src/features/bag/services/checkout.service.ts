@@ -105,11 +105,20 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
           consolidation_box_id: box?.id ?? null,
           delivery_address_id: bag.delivery.address_id,
           suppress_placed_email: true,
-          // The buyer's verified price travels SERVER-SIDE, off the cart line
-          // and never through `orderInputFor` — that object mirrors the
+          // The buyer's verified facts travel SERVER-SIDE, off the cart line and
+          // never through `orderInputFor` — that object mirrors the
           // customer-facing create-order schema, and a price there would be a
           // number the browser could name.
+          //
+          // The country lives in `gap_origin_country`, which the customer's own
+          // gap-filler also writes, so the two are told apart by the price:
+          // `fillLineFromAnswer` is the only writer of `sourced_price_usd` and it
+          // sets both columns in one update, so a line carrying a buyer's price
+          // carries that same buyer's country. That inference is made HERE, once,
+          // rather than left for order intake to guess at.
           sourced_price_usd: line.sourced_price_usd,
+          sourced_origin_country:
+            line.sourced_price_usd != null ? line.gap_origin_country : null,
         }),
       );
     }

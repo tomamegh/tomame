@@ -23,7 +23,6 @@ vi.mock("@/db/queries/price-watches", () => ({
   answerSourcingRequest: vi.fn(),
   getSourcingByCartItems: vi.fn(async () => new Map()),
   listSourcingRequests: vi.fn(async () => []),
-  getWatchByUserAndHash: vi.fn(async () => null),
 }));
 
 import { getExtractionSnapshot } from "@/features/extraction/extraction.service";
@@ -33,11 +32,7 @@ import { getCartItemById, updateCartItem } from "@/db/queries/carts";
 import { insertNotification, markNotificationDelivered } from "@/db/queries/notifications";
 import { sendEmail } from "@/lib/email/transport";
 import { mayEmailUser } from "@/lib/email/notify-preference";
-import {
-  answerSourcingRequest,
-  getWatchByUserAndHash,
-  upsertSourcingRequest,
-} from "@/db/queries/price-watches";
+import { answerSourcingRequest, upsertSourcingRequest } from "@/db/queries/price-watches";
 import type { PriceWatchRow } from "@/db/queries/price-watches";
 import type { ExtractionResult } from "@/features/extraction/types";
 import type { PlatformUser } from "@/features/users/types";
@@ -88,8 +83,7 @@ beforeEach(() => {
   vi.mocked(getExtractionSnapshot).mockResolvedValue(snapshot());
   vi.mocked(priceExtraction).mockResolvedValue({ pricing: null, reason: "This store region is not supported yet." });
   vi.mocked(addToBag).mockResolvedValue({ line: { id: "line-1" }, item_count: 1, created: true } as never);
-  vi.mocked(upsertSourcingRequest).mockImplementation(async (input) => watchRow({ sourcing_status: input.sourcing_status }));
-  vi.mocked(getWatchByUserAndHash).mockResolvedValue(null);
+  vi.mocked(upsertSourcingRequest).mockResolvedValue(watchRow({ sourcing_status: "requested" }));
 });
 
 describe("requestSourcing — the gate", () => {
@@ -133,28 +127,23 @@ describe("requestSourcing — the gate", () => {
   });
 
   /**
-   * Pressing the button again after a buyer has answered must not re-queue
-   * finished work: the upsert rewrites every column it is given, so the status
-   * has to come from the row that is already there.
+   * Re-adding an already-answered item attaches a FRESH line, which
+   * `fillLineFromAnswer` never sees — it only runs when a buyer answers. Without
+   * this the new line is unpriceable and the customer sees a blank row next to a
+   * request that says "available".
    */
-  it("keeps an already-answered request at its answer instead of resetting it", async () => {
-    vi.mocked(getWatchByUserAndHash).mockResolvedValue(watchRow({ sourcing_status: "available" }));
+  it("hands an already-answered request's price to the new bag line", async () => {
+    vi.mocked(upsertSourcingRequest).mockResolvedValue(
+      watchRow({ sourcing_status: "available", sourcing_cart_item_id: "line-new" }),
+    );
+    vi.mocked(getCartItemById).mockResolvedValue({ id: "line-new" } as never);
 
     const out = await requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1 });
 
-    expect(upsertSourcingRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ sourcing_status: "available" }),
-    );
     expect(out.status).toBe("available");
-  });
-
-  it("starts a price watch being converted into a request at requested", async () => {
-    vi.mocked(getWatchByUserAndHash).mockResolvedValue(
-      watchRow({ kind: "price", sourcing_status: null }),
-    );
-    await requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1 });
-    expect(upsertSourcingRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ sourcing_status: "requested" }),
+    expect(updateCartItem).toHaveBeenCalledWith(
+      "line-new",
+      expect.objectContaining({ sourced_price_usd: 34.5, gap_origin_country: "USA" }),
     );
   });
 

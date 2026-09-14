@@ -16,6 +16,7 @@ import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { APIError } from "@/lib/auth/api-helpers";
 import type { PlatformUser } from "@/features/users/types";
+import type { OriginCountry } from "../types";
 import type { AuditLog } from "@/features/audit/types";
 import { Order, OrderList } from "../types";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -283,6 +284,8 @@ export interface CreateOrderLinks {
    * admin-guarded route can write it.
    */
   sourced_price_usd?: number | null;
+  /** The origin country that same buyer established. Server-only, same as above. */
+  sourced_origin_country?: OriginCountry | null;
 }
 
 export async function createOrder(
@@ -295,7 +298,12 @@ export async function createOrder(
   // Every money-relevant field is decided server-side from the extraction
   // snapshot and the viewer's rate lock. See order-intake.service.ts — the
   // client never sets pricing, a rate, or a lock id.
-  const intake = await buildOrderIntake(input, viewer, links.sourced_price_usd ?? null);
+  const intake = await buildOrderIntake(
+    input,
+    viewer,
+    links.sourced_price_usd ?? null,
+    links.sourced_origin_country ?? null,
+  );
   const { pricing, needs_review: needsReview, review_reasons: reviewReasons } = intake;
 
   const orderToCreate = {

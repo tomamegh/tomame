@@ -58,6 +58,12 @@ export async function buildOrderIntake(
    * request body — see `CreateOrderLinks.sourced_price_usd`.
    */
   sourcedPriceUsd: number | null = null,
+  /**
+   * The origin country the SAME buyer established, when they answered a sourcing
+   * request. Passed explicitly rather than inferred from `input.origin_country`,
+   * which carries the customer's own gap-filler and means something different.
+   */
+  sourcedOriginCountry: OriginCountry | null = null,
 ): Promise<OrderIntake> {
   const platform = resolvePlatform(input.product_url);
   if (!platform) throw new APIError(400, "We currently do not support this store. Please try again");
@@ -94,7 +100,27 @@ export async function buildOrderIntake(
     // off a page the extractor does not understand. It cannot arrive from a
     // request body; `createOrder` reads it off the cart line.
     priceOverrideUsd = sourcedPriceUsd;
-    reasons.push("Price confirmed by our buyer, not read from the store page.");
+    /*
+      DELIBERATELY NOT A REVIEW REASON.
+
+      `reasons` is not a notes field — `needs_review` is literally
+      `reasons.length > 0`, and `groupCharge` refuses to charge a bag holding any
+      order that is flagged with no `admin_total_ghs` set. Recording the buyer's
+      confirmation here would therefore have made every sourced order unpayable:
+      the customer asks us to source something, a buyer prices it, the bag prices
+      correctly, and then checkout answers "this bag is waiting for our review
+      before it can be paid" about the one item a human had already reviewed.
+
+      The flag means "carries a total nobody verified" (payments.service.ts). A
+      buyer's price is the opposite of that, so it is the one override that must
+      NOT set it. The provenance is not lost: it is on the `price_watches` row
+      (`sourced_price_usd`, `reviewed_by`, `reviewed_at`) and in `audit_logs`
+      under `sourcing_marked_available`, both of which outlive the order.
+    */
+    logger.info("order intake: pricing from a buyer's verified figure", {
+      extraction_cache_id: snapshot?.id ?? null,
+      sourced_price_usd: sourcedPriceUsd,
+    });
   } else if (product?.price != null && product.price > 0) {
     // Snapshot has a price; the client's estimate is ignored.
   } else if (input.estimated_price_usd != null) {
@@ -106,7 +132,19 @@ export async function buildOrderIntake(
 
   // ── Region ───────────────────────────────────────────────────────────────
   let country: OriginCountry | null = extraction?.country ?? regionForUrl(input.product_url);
-  if (!country) {
+  if (!country && sourcedOriginCountry) {
+    /*
+      A BUYER ESTABLISHED THIS, SO IT DOES NOT FLAG EITHER.
+
+      An unrecognised region is the commonest reason a sourcing request exists at
+      all, so this branch is reached by nearly every one of them. Falling through
+      to the customer-selected case below would push a reason, set `needs_review`
+      and leave the bag unpayable — the same trap the price override above
+      describes, one block further down, and it survived the first fix because
+      the flag came from a different sentence.
+    */
+    country = sourcedOriginCountry;
+  } else if (!country) {
     if (!input.origin_country) throw new APIError(400, "Please select the country this item ships from.");
     country = input.origin_country;
     reasons.push("Origin country selected by customer; store region not recognised.");

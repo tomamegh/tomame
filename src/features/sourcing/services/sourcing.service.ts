@@ -26,7 +26,6 @@ import { getCartItemById, updateCartItem } from "@/db/queries/carts";
 import {
   answerSourcingRequest,
   getSourcingByCartItems,
-  getWatchByUserAndHash,
   listSourcingRequests,
   upsertSourcingRequest,
   type PriceWatchRow,
@@ -138,28 +137,14 @@ export async function requestSourcing(
   const canonical = normalizeUrl(snapshot.productUrl);
 
   /*
-    PRESSING THE BUTTON AGAIN MUST NOT UNDO A BUYER'S WORK.
-
-    The upsert conflicts on (user_id, url_hash) and rewrites every column it is
-    given, so the status has to be resolved from whatever the row already holds.
-    The reachable case is ordinary: a buyer prices the item, the customer opens
-    the quote link again — where the CTA is live once more, because the item is
-    still from a store we do not know — and presses it. Writing a literal
-    "requested" there would re-queue finished work and lock a bag that was
-    payable a second earlier.
-
-    Only a row that is already a sourcing request keeps its status. A PRICE watch
-    on the same link is being converted into a request, and that genuinely does
-    start at `requested`.
+    PRESSING THE BUTTON AGAIN MUST NOT UNDO A BUYER'S WORK, and the rule for that
+    lives in `upsertSourcingRequest`: an existing sourcing row is refreshed, its
+    status and the buyer's answer left alone. The reachable case is ordinary — a
+    buyer prices the item, the customer reopens the quote link (where the CTA is
+    live again, because the item is still from a store we do not know) and
+    presses it.
   */
-  const existing = await getWatchByUserAndHash(user.id, hashUrl(canonical));
-  const status: SourcingStatus =
-    existing?.kind === "sourcing" && existing.sourcing_status
-      ? existing.sourcing_status
-      : "requested";
-
   const watch = await upsertSourcingRequest({
-    sourcing_status: status,
     user_id: user.id,
     product_url: canonical,
     url_hash: hashUrl(canonical),
@@ -170,6 +155,19 @@ export async function requestSourcing(
     customer_price_hint_usd: input.estimated_price_usd ?? null,
     customer_origin_hint: input.origin_country ?? null,
   });
+
+  /*
+    A REQUEST THAT WAS ALREADY ANSWERED HANDS ITS ANSWER TO THE NEW LINE.
+
+    Re-adding an item a buyer has already priced attaches a FRESH cart line, and
+    `fillLineFromAnswer` only runs when a buyer answers — so without this the new
+    line carries no price, cannot be priced, and shows the customer an unpriced
+    row with no explanation while the request beside it reads "available". The
+    answer is already on the watch; this just puts it where the bag looks.
+  */
+  if (watch.sourcing_status === "available" && watch.sourcing_cart_item_id) {
+    await fillLineFromAnswer(watch);
+  }
 
   await logAuditEvent({
     actorId: user.id,
@@ -382,8 +380,22 @@ async function notifyCustomer(watch: PriceWatchRow): Promise<void> {
   }
 }
 
-/** The buyer's queue. */
-export async function listSourcingQueue(status: SourcingStatus | null, limit = 100): Promise<PriceWatchRow[]> {
+/**
+ * How many rows one read of the queue returns.
+ *
+ * A cap has to exist, but a capped list that does not say so is a list that
+ * hides work — and every row here is a customer holding an item they cannot
+ * check out. The screen prints a line when it gets a full page, the way the
+ * assisted queue does, so "the list ended" and "the list was cut" never look
+ * the same.
+ */
+export const SOURCING_QUEUE_CAP = 200;
+
+/** The buyer's queue. Oldest first; the caller is told when it came back full. */
+export async function listSourcingQueue(
+  status: SourcingStatus | null,
+  limit = SOURCING_QUEUE_CAP,
+): Promise<PriceWatchRow[]> {
   return listSourcingRequests(status, limit);
 }
 

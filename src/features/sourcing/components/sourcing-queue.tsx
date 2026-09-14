@@ -46,6 +46,13 @@ const TABS: { key: SourcingStatus | "all"; label: string }[] = [
 
 const COUNTRIES: OriginCountry[] = ["USA", "UK", "CHINA"];
 
+/**
+ * Mirrors `SOURCING_QUEUE_CAP` on the service. A full page is a page that is
+ * hiding rows, and this queue must never look empty when it is not: each row
+ * is a bag somebody cannot pay for.
+ */
+const PAGE_CAP = 200;
+
 export function SourcingQueue() {
   const [tab, setTab] = useState<SourcingStatus | "all">("requested");
   const { data, isPending } = useSourcingQueue(tab);
@@ -149,6 +156,13 @@ export function SourcingQueue() {
             />
           ))}
         </ul>
+      )}
+
+      {rows.length >= PAGE_CAP && (
+        <p className="text-[12px] leading-[1.4] font-medium text-tm-text-3">
+          Showing the oldest <span className="tm-nums">{PAGE_CAP}</span>. Work these
+          down and the rest will appear.
+        </p>
       )}
     </div>
   );

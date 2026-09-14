@@ -461,46 +461,71 @@ export interface SourcingRequestUpsert {
   /** What the customer guessed, if they filled the quote screen's gap-fillers. */
   customer_price_hint_usd: number | null;
   customer_origin_hint: OriginCountry | null;
-  /**
-   * The status to write. The SERVICE resolves this from whatever the row
-   * already holds — see `upsertSourcingRequest` for why it cannot be a constant
-   * here.
-   */
-  sourcing_status: SourcingStatus;
 }
 
 /**
- * Raise a sourcing request, or reuse the one this customer already has on the
+ * Raise a sourcing request, or refresh the one this customer already has on the
  * link.
  *
- * UPSERT ON (user_id, url_hash), which is 041's unique key and deliberately
- * spans both kinds: a customer cannot hold a price watch AND a sourcing request
- * on one URL, so asking us to source something they were watching converts the
- * row rather than creating a second record of one intention.
+ * TWO PATHS, AND THE STATUS IS ONLY EVER WRITTEN ON ONE OF THEM.
  *
- * `sourcing_status` COMES FROM THE CALLER, and it must. PostgREST's upsert is
- * `ON CONFLICT DO UPDATE SET` over every column in the payload, so a literal
- * `"requested"` here would be written on conflict as well as on insert — and a
- * request a buyer had already answered would be dragged back into the queue
- * the next time the customer opened the quote and pressed the button again.
- * That leaves a bag that was payable a moment ago refusing checkout, and
- * finished work re-entering somebody's list. `requestSourcing` reads the
- * existing row and passes its status back, so a conflict rewrites what is
- * already there.
+ * An existing sourcing row is REFRESHED, never restated: its status and the
+ * buyer's answer are left exactly as they are. A single upsert cannot express
+ * that. `ON CONFLICT DO UPDATE` writes every column in the payload, so including
+ * `sourcing_status` at all rewrites it on conflict — and a payload that omits
+ * the buyer's `sourced_*` columns while asserting `sourcing_status = 'available'`
+ * is rejected outright by the `price_watches_available_is_priced` CHECK, which
+ * is a 500 in the customer's face for pressing a button twice. Both were found
+ * by replaying the flow rather than reading it.
+ *
+ * Anything else — no row, or a PRICE watch on the same link — goes through the
+ * upsert and starts at `requested`. That path deliberately converts rather than
+ * duplicating: 041's UNIQUE (user_id, url_hash) spans both kinds, so a customer
+ * cannot hold a price watch and a sourcing request for one URL, and asking us to
+ * source something they were watching turns the row over instead of leaving two
+ * records of one intention.
  */
 export async function upsertSourcingRequest(input: SourcingRequestUpsert): Promise<PriceWatchRow> {
   const client = createAdminClient();
+  const now = new Date().toISOString();
+
+  const existing = await getWatchByUserAndHash(input.user_id, input.url_hash);
+  if (existing?.kind === "sourcing") {
+    const { data, error } = await client
+      .from("price_watches")
+      .update({
+        // What a fresh request may legitimately refresh: a newer snapshot, the
+        // line it is now holding, and the customer's latest guesses. Never the
+        // status, and never the buyer's answer.
+        product_name: input.product_name,
+        product_image_url: input.product_image_url,
+        extraction_cache_id: input.extraction_cache_id,
+        sourcing_cart_item_id: input.sourcing_cart_item_id,
+        customer_price_hint_usd: input.customer_price_hint_usd,
+        customer_origin_hint: input.customer_origin_hint,
+        is_active: true,
+        updated_at: now,
+      })
+      .eq("id", existing.id)
+      .select(WATCH_COLUMNS)
+      .single();
+
+    if (error) throw new Error(`Failed to refresh the sourcing request: ${error.message}`);
+    return data as unknown as PriceWatchRow;
+  }
+
   const { data, error } = await client
     .from("price_watches")
     .upsert(
       {
         ...input,
         kind: "sourcing",
+        sourcing_status: "requested",
         // A sourcing row has no price to baseline and no series to observe; the
         // cron never reaches it, so `last_checked_at` stays null forever.
         is_active: true,
         notify_on_drop: false,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       },
       { onConflict: "user_id,url_hash", ignoreDuplicates: false },
     )

@@ -86,7 +86,7 @@ describe("checkoutBag", () => {
     expect(createOrder).toHaveBeenCalledTimes(2);
     // `sourced_price_usd` rides the server-only links bag (065): null for an
     // ordinary line, and the buyer's verified figure for one they answered.
-    const links = { order_group_id: "g1", consolidation_box_id: "box-1", delivery_address_id: "a1", suppress_placed_email: true, sourced_price_usd: null };
+    const links = { order_group_id: "g1", consolidation_box_id: "box-1", delivery_address_id: "a1", suppress_placed_email: true, sourced_price_usd: null, sourced_origin_country: null };
     expect(createOrder).toHaveBeenNthCalledWith(1, expect.anything(), user,
       { product_url: "https://www.amazon.com/dp/a", product_name: "Item a", product_image_url: "https://x/1.jpg", quantity: 1, extraction_cache_id: "cache-a" }, viewer, links);
     expect(createOrder).toHaveBeenNthCalledWith(2, expect.anything(), user,
