@@ -1,16 +1,26 @@
 # Release status, 2026-09-14 (evening)
 
-Local `main` is at e34d002, two commits past what production runs (e200869).
-Hosted **dev** runs the working tree (deployed with the Vercel CLI, dev project
-only). Hosted **prod** runs e200869 and has NOT been pushed to.
+**Shipped to production.** `main` was pushed at 05be23c and both Vercel projects
+deployed. Local, dev and prod all carry migrations 059 to 062.
 
-Databases: local, dev and prod all carry migrations 059, 060 and 061 and record
-them in `supabase_migrations.schema_migrations`. Prod's schema is therefore
-ahead of prod's code; every one of the three is additive and the old code
-ignores it (the new cron on prod calls a route that 404s until the push).
+Production verified after the deploy: zero pending payments, orders and bags;
+zero notifications sent; `reconcile-payments` and `sweep-extractions` both
+recording healthy heartbeats; `/api/admin/ops` and `/api/cron/*` refusing
+anonymous callers with 401.
 
-Gates on e34d002: typecheck 0, lint 9 pre-existing, vitest 116 files / 1541
-tests, build green.
+Gates on the pushed commit, run in an isolated checkout so no in-flight work
+could flatter them: typecheck 0, lint exactly 9 pre-existing errors, vitest 117
+files / 1557 tests, build green.
+
+## The five stuck payments
+
+Cleared before the push, at the owner's instruction: they were test checkouts
+and every one belonged to a Tomame account. Each payment is `failed` with
+`voided_as_test_data` and a reason in its metadata, its order and bag cancelled,
+and an audit row written naming it as test data. Voided rather than deleted, so
+the history says what happened. This was done BEFORE the reconciliation job went
+live, so the job never emailed a real person about a payment they were only
+trying out.
 
 ## What shipped
 
@@ -64,6 +74,26 @@ run on hosted dev on its own schedule (heartbeat at 18:17 UTC).
 - Photo builder: launched from Content > Photo builder, one marketing page at a
   time, admin-only (404 to everyone else; the API refuses 401/403).
 
+### Error tracking, free and without a vendor (062)
+
+`logger.error` now also writes a grouped row to `error_events`, keyed by a
+fingerprint of the normalised message and its source, so ten thousand
+occurrences of one bug are one issue with a count and a first-seen time. The
+writer redacts before it stores (secrets and anything naming a person dropped,
+URLs reduced to host, long strings cut), never throws, never blocks the call
+site, never recurses into the logger, and skips the database on the edge runtime
+so the proxy bundle stays small. A hot loop costs at most one write per issue
+per ten seconds, with skipped occurrences carried into the next write so the
+count stays true. Retention is a pure-SQL nightly job: filed issues go after a
+week, untouched ones after ninety days.
+
+The Health screen lists open issues and an admin can file one. Filing is not
+silencing: the next occurrence clears it and the issue returns, which is what
+makes a regression loud.
+
+Sentry's free tier remains the paid-later upgrade and needs Kelvin to create the
+project; give me the DSN and it wires alongside this, not instead of it.
+
 ### Security review (061 and code)
 
 Full write-ups: `docs/SECURITY-REVIEW-2026-09-14.md` (HTTP surface, all 90
@@ -91,33 +121,46 @@ Closed:
   every table; the access-token hook is executable by `supabase_auth_admin` only.
 - Customer cancel refuses while a Paystack charge is open on the order.
 
-Still open from the HTTP review (weaknesses, ranked in the doc):
+Closed after the push, in `abb7fd2` (on `main`, not yet deployed):
 
-- `/api/img-proxy` and `/_next/image` (`remotePatterns: https://**`) are
-  anonymous, unlimited image proxies.
-- Anonymous cache-hit extracts mint a session, a request row, a quote lock and
-  an audit row per cookie-less request with no rate limit.
-- `/api/orders/:id/history` returns raw `audit_logs` rows (admin ids, pricing
-  notes) to the customer.
-- The proxy matcher skips image-extension paths; admin pages do not self-check.
-- No CSP, HSTS or frame-ancestors headers. Rate limiter is per Vercel instance.
-- Dependencies: 131 open alerts; request-reachable ones are `next` 16.2.9 (two
-  critical, fixed in 16.3.3), `sharp`, `undici`, and `xlsx` (no npm fix). The
-  db review doc has the upgrade commands. Not run.
+- **`/api/orders/:id/history` handed the customer raw `audit_logs`.** It now maps
+  through a per-action metadata whitelist; an unrecognised action reaches the
+  customer as its name and timestamp and nothing else, so widening the endpoint
+  takes an edit to that list rather than a field added somewhere else. No actor
+  ids, no `admin_pricing_note`, no rejection reasons. Note: its only consumer
+  (`useOrderHistory` and `OrderStatusTimeline`) is dead code that nothing
+  imports; the live timeline is `order_events`.
+- **Anonymous cache-hit extracts were free.** They now spend their own looser
+  bucket derived from the same rate-limit entry, so they are bounded without
+  eating the tight budget that guards paid vendor calls.
+
+Still open:
+
+- The security headers, the image-proxy rate limit, the `/_next/image`
+  open-proxy narrowing and the image-extension hole in the proxy matcher: in
+  progress at the time of writing.
+- The dependency upgrade is verified and ready but not merged: Next 16.3.5,
+  Tailwind 4.3.3, postcss, sharp and undici, no source changes needed, all four
+  gates green in an isolated worktree. Runtime advisories go from 1 critical and
+  9 high to 0 critical and 5 high. Remaining after it: `xlsx` (no npm fix),
+  `@tiptap/*`, and the eslint and build tooling chain. Next 16.3's dev server
+  writes its own agent-rules block into `CLAUDE.md` unless `agentRules: false`
+  is set, so that goes in with it.
+- The rate limiter is still per Vercel instance.
 
 ## Decisions for Kelvin
 
-1. **Push to prod.** One push deploys both projects. On prod the first run will
-   verify the five stuck payments against Paystack, release the abandoned ones
-   (emailing those customers "pay again"), and close the four pending orders
-   older than 48 hours (emailing "we closed an unpaid order"). If the
-   durations should differ, edit the two `site_settings` rows first; they are
-   read on every run.
-2. **Error tracking vendor.** Sentry or Datadog. Nothing was added.
-3. **The open weaknesses above**, especially the `next` upgrade.
-4. **First-run tour (handoff §3).** Not started; it needs the four decisions
-   the handoff lists (what it points at, when it fires, the dismissed flag,
-   signed-out visitors).
-5. **Handoff §4** items are all still Kelvin's calls: fx pill fallback, PITR on
-   prod, undeletable auth users, a nav entry for `/app/products`, the "—"
-   table placeholder.
+1. **The voided test payments.** They are `failed` with a flag, not deleted. Say
+   so if you would rather they were gone entirely.
+2. **Sentry's free tier**, if you want a vendor alongside the built-in tracking.
+   It needs you to create the project and hand over the DSN.
+3. **The dead order-history timeline**: delete it, or wire it back in.
+4. **A concurrent session is working in this same checkout.** Its uncommitted
+   catalogue-search work sits in the tree, and its migration was numbered 062,
+   which this session had already applied to local, dev and prod as
+   `error_events`. Applying it would have been silently skipped as an
+   already-recorded version. Renamed to 063; the contents are untouched.
+5. **First-run tour (handoff section 3).** Deferred to the next session at your
+   request; it still needs the four decisions the handoff lists (what it points
+   at, when it fires, the dismissed flag, signed-out visitors).
+6. **PITR is still off on production** and there are no platform backups.
