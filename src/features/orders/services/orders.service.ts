@@ -698,10 +698,77 @@ async function hasPendingPayment(client: SupabaseClient, order: Order): Promise<
   return (data?.length ?? 0) > 0;
 }
 
+/**
+ * One `audit_logs` row, projected to what a customer may see.
+ *
+ * Never the raw row: `audit_logs` is the compliance record, and its
+ * `metadata` is "whatever the writer happened to log" — an admin's user id,
+ * an `admin_pricing_note`, a rejection `reason`. Deliberately NOT `AuditLog`.
+ */
+export interface CustomerOrderHistoryEntry {
+  action: string;
+  /** Who did it, from the customer's side — never an actor id. */
+  actor: "you" | "our team";
+  created_at: string;
+  /** Only the whitelisted keys for this `action`; null when none apply. */
+  metadata: Record<string, unknown> | null;
+}
+
+/**
+ * Per-action metadata whitelist for `getOrderAuditHistory`. An action absent
+ * here reaches the customer with `metadata: null` — the action name and
+ * timestamp still say what happened, but nothing else does. A key absent from
+ * an action's list is dropped even if a future writer starts putting it on
+ * that action's metadata: widening what a customer can read requires editing
+ * this list, not just adding a field somewhere else.
+ */
+const HISTORY_METADATA_WHITELIST: Record<string, readonly string[]> = {
+  // `{ from, to }` — order statuses the customer already sees on their order.
+  order_status_changed: ["from", "to"],
+  order_cancelled_by_user: ["from", "to"],
+  // Whether the review changed anything the customer will notice; no reasons.
+  order_review_approved: ["priceChanged", "countryChanged"],
+  // The corrected total; `admin_pricing_note` is internal and never included.
+  order_price_set: ["admin_total_ghs"],
+  // The delivery window itself; no internal source/confidence fields.
+  order_eta_window_set: ["to", "estimated_delivery_date"],
+  // Why an unpaid order expired; no internal ids.
+  order_expired_unpaid: ["from", "to", "ttlHours"],
+  // order_created, order_review_rejected: nothing on these is customer-safe
+  // today (a rejection's `reason` is written for admins, not the customer).
+};
+
+function toCustomerHistoryEntry(log: AuditLog): CustomerOrderHistoryEntry {
+  const allowedKeys = HISTORY_METADATA_WHITELIST[log.action];
+  let metadata: Record<string, unknown> | null = null;
+  if (allowedKeys && log.metadata) {
+    const picked: Record<string, unknown> = {};
+    for (const key of allowedKeys) {
+      if (Object.hasOwn(log.metadata, key)) picked[key] = log.metadata[key];
+    }
+    if (Object.keys(picked).length > 0) metadata = picked;
+  }
+
+  return {
+    action: log.action,
+    actor: log.actor_role === "user" ? "you" : "our team",
+    created_at: log.created_at,
+    metadata,
+  };
+}
+
+/**
+ * The customer's (or an admin's) order history, safe to hand to a browser.
+ *
+ * Ownership is checked before anything is read, same 404-for-someone-else's-order
+ * shape the rest of this file uses. Every row is then mapped through the
+ * whitelist above — see `HISTORY_METADATA_WHITELIST` — so a new audit writer
+ * cannot silently widen this endpoint's shape by adding a metadata key.
+ */
 export async function getOrderAuditHistory(
   user: PlatformUser,
   orderId: string,
-): Promise<AuditLog[]> {
+): Promise<CustomerOrderHistoryEntry[]> {
   const supabase = createAdminClient();
   const order = await getOrderById(supabase, orderId);
   if (!order) throw new APIError(404, "Order not found");
@@ -709,5 +776,6 @@ export async function getOrderAuditHistory(
     throw new APIError(404, "Order not found");
   }
 
-  return getOrderAuditLogs(supabase, orderId);
+  const logs = await getOrderAuditLogs(supabase, orderId);
+  return logs.map(toCustomerHistoryEntry);
 }

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import { Order, OrderList } from "../types";
 import type { ApiSuccessResponse } from "@/types/api";
-import type { AuditLog } from "@/features/audit/types";
+import type { CustomerOrderHistoryEntry } from "@/features/orders/services/orders.service";
 
 // ── Query keys ───────────────────────────────────────────────
 
@@ -160,11 +160,16 @@ export function useCancelOrder() {
   });
 }
 
-/** Get audit history for an order (used for timeline) */
+/**
+ * Get an order's customer-safe history (used for the status timeline).
+ * The server strips this to a whitelist per action — see
+ * `CustomerOrderHistoryEntry` in `orders.service.ts`.
+ */
 export function useOrderHistory(orderId: string) {
-  return useQuery<ApiSuccessResponse<AuditLog[]>, Error, AuditLog[]>({
+  return useQuery<ApiSuccessResponse<CustomerOrderHistoryEntry[]>, Error, CustomerOrderHistoryEntry[]>({
     queryKey: orderKeys.history(orderId),
-    queryFn: () => apiFetch<ApiSuccessResponse<AuditLog[]>>(`/api/orders/${orderId}/history`),
+    queryFn: () =>
+      apiFetch<ApiSuccessResponse<CustomerOrderHistoryEntry[]>>(`/api/orders/${orderId}/history`),
     select: (res) => res.data,
     enabled: !!orderId,
   });
