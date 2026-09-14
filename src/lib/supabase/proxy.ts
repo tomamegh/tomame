@@ -2,14 +2,74 @@ import { CookieOptions, createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { buildCsp } from "@/lib/security/csp";
+import { imageOptimizerDecision } from "@/lib/security/image-hosts";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+// Origin only (scheme + host [+ port]) — `http://127.0.0.1:54321` locally,
+// `https://<project>.supabase.co` against a real project. Used to scope the
+// CSP `connect-src` to exactly where the Supabase client talks, not a
+// blanket `https://*.supabase.co` that would also admit every other project.
+const supabaseOrigin = supabaseUrl ? new URL(supabaseUrl).origin : "";
+
+/**
+ * Per-request nonce for the CSP `script-src` directive. Web-standard APIs
+ * only (`crypto.getRandomValues`, `btoa`) — no `node:crypto`/`Buffer` — so
+ * this works unmodified whether the proxy runs on the Edge or Node.js runtime.
+ */
+function generateNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
 
 export async function updateSession(request: NextRequest) {
+  const nonce = generateNonce();
+  const csp = buildCsp({ nonce, supabaseOrigin, isProd: process.env.NODE_ENV === "production" });
+
+  // Forward the nonce to the app as a request header (the documented Next.js
+  // pattern — a server component can read it back via `(await headers()).get("x-nonce")`
+  // for any inline script it renders itself) and, more importantly, set the
+  // CSP on the response: Next greps that header for a quoted `'nonce-...'`
+  // token and stamps it onto every inline script it generates on its own
+  // (the RSC payload, the hydration bootstrap), which is what makes a
+  // nonce-only `script-src` (no `'unsafe-inline'`) work at all.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+
   let supabaseResponse = NextResponse.next({
-    request,
+    request: { headers: requestHeaders },
   });
+  supabaseResponse.headers.set("Content-Security-Policy", csp);
+
+  // `/_next/image` is where the open-image-proxy fix (see
+  // `src/lib/security/image-hosts.ts`) actually degrades gracefully. Next's
+  // own default loader asks for this path unconditionally in production
+  // (its dev-only host check is compiled out of production builds), so this
+  // is the one place to catch a non-allowlisted host BEFORE Next's handler
+  // would 400 it.
+  //
+  // A REWRITE, never a redirect. Sending the browser to the original URL would
+  // make this domain an open redirect, which is a worse problem than the one
+  // being fixed. Rewriting keeps the request on our origin and hands it to
+  // `/api/image-passthrough`, which fetches under its own guards (no private
+  // address space, must really be an image, capped and rate limited).
+  //
+  // Checked ahead of the Supabase session refresh below: an image request has
+  // no session to refresh, and this is by far the highest-volume path through
+  // this proxy.
+  if (request.nextUrl.pathname === "/_next/image") {
+    const decision = imageOptimizerDecision(request.nextUrl.searchParams.get("url"));
+    if (decision.action === "passthrough") {
+      const passthrough = new URL("/api/image-passthrough", request.nextUrl.origin);
+      passthrough.searchParams.set("url", decision.to);
+      return withCsp(NextResponse.rewrite(passthrough), csp);
+    }
+    return supabaseResponse;
+  }
 
   // With Fluid compute, don't put this client in a global environment
   // variable. Always create a new one on each request.
@@ -29,8 +89,9 @@ export async function updateSession(request: NextRequest) {
           request.cookies.set(name, value),
         );
         supabaseResponse = NextResponse.next({
-          request,
+          request: { headers: requestHeaders },
         });
+        supabaseResponse.headers.set("Content-Security-Policy", csp);
         cookiesToSet.forEach(({ name, value, options }) =>
           supabaseResponse.cookies.set(name, value, options),
         );
@@ -89,11 +150,11 @@ export async function updateSession(request: NextRequest) {
 
   // Unauthenticated users → login
   if (isProtected && !user) {
-    if (isApi) return jsonError(401, "Authentication required");
+    if (isApi) return jsonError(401, "Authentication required", csp);
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
     url.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
-    return NextResponse.redirect(url);
+    return withCsp(NextResponse.redirect(url), csp);
   }
 
   // Authenticated non-admins → back to app. One rule, shared with the navbars:
@@ -101,10 +162,10 @@ export async function updateSession(request: NextRequest) {
   // `@tomame.ca`, regardless of role — a domain backdoor around the very column
   // that decides this.
   if (isAdminRoute && !canAccessAdmin(user)) {
-    if (isApi) return jsonError(403, "Admin access required");
+    if (isApi) return jsonError(403, "Admin access required", csp);
     const url = request.nextUrl.clone();
     url.pathname = "/app";
-    return NextResponse.redirect(url);
+    return withCsp(NextResponse.redirect(url), csp);
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
@@ -131,6 +192,12 @@ export async function updateSession(request: NextRequest) {
  * here from one made inside a route handler, and `ApiFetchError` reports both
  * the same way.
  */
-function jsonError(status: number, message: string): NextResponse {
-  return NextResponse.json({ success: false, error: message }, { status });
+function jsonError(status: number, message: string, csp: string): NextResponse {
+  return withCsp(NextResponse.json({ success: false, error: message }, { status }), csp);
+}
+
+/** Every response this proxy returns carries the same CSP the request was minted with. */
+function withCsp(response: NextResponse, csp: string): NextResponse {
+  response.headers.set("Content-Security-Policy", csp);
+  return response;
 }

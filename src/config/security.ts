@@ -55,6 +55,22 @@ export const RATE_LIMIT = {
    */
   fxRate: { windowMs: 15 * 60 * 1000, maxRequests: 120 },
   /**
+   * Image proxy — 20 requests per 10 minutes per IP.
+   *
+   * This route is anonymous (no session, so no per-user bucket) and every hit
+   * that isn't a cache miss on the CDN side drives Browserless — a paid
+   * vendor — through a real headless-Chrome navigation that can run up to the
+   * route's own 60 s `maxDuration`. The one-host allowlist (`ALLOWED_HOSTS` in
+   * `src/app/api/img-proxy/route.ts`) already bounds *which* site pays for
+   * this, not *how often*; without a limiter a script can still hammer that
+   * one host's product photos all day on our Browserless budget. 20 per 10
+   * minutes is generous for what a real page load needs — a product screen
+   * pulls this proxy for one image, maybe a handful across a session — while
+   * still capping a loop at a few hundred Browserless calls a day instead of
+   * an unbounded number.
+   */
+  imgProxy: { windowMs: 10 * 60 * 1000, maxRequests: 20 },
+  /**
    * Parcel photo bytes — 300 per 15 minutes per IP.
    *
    * Deliberately loose, because this is an <img src>: one journey screen is

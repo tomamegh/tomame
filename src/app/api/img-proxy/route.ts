@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { browserlessClient } from "@/lib/browserless/client";
 import { logger } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { RATE_LIMIT } from "@/config/security";
 
 // First-fetch needs Browserless to navigate to origin (clear CF) + download
 // image — can take 5-10s. Default Vercel timeout is too tight.
@@ -16,6 +18,11 @@ const ALLOWED_HOSTS: Record<string, string> = {
 };
 
 export async function GET(request: NextRequest) {
+  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+  if (!checkRateLimit(`img-proxy:${ip}`, RATE_LIMIT.imgProxy).allowed) {
+    return NextResponse.json({ error: "Too many requests. Please try again shortly." }, { status: 429 });
+  }
+
   const src = request.nextUrl.searchParams.get("src");
   if (!src) {
     return NextResponse.json({ error: "Missing src" }, { status: 400 });
