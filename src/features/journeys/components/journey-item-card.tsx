@@ -65,7 +65,7 @@ export function JourneyItemCard({ item, note, whatsappHref, orderNo }: JourneyIt
           </span>
 
           {meta && (
-            <p className="text-sm leading-[1.35] font-semibold">{meta}</p>
+            <p className="text-sm leading-[1.35] font-semibold break-words">{meta}</p>
           )}
 
           <a

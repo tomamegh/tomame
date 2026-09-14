@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ORDER_STATUSES } from "@/config/constants";
+import { ALLOWED_TRANSITIONS } from "../../services/order-transitions";
 import {
   adminStatusLabel,
   adminStatusTone,
@@ -9,18 +10,40 @@ import {
 } from "../admin-transitions";
 
 /**
- * These tests pin the mirror of `ALLOWED_TRANSITIONS`.
+ * These tests pin what the admin console OFFERS.
  *
- * The service's table is module-private, so nothing can assert the two are equal
- * at runtime. What CAN be asserted is the shape a drift would break: every
- * status has a decision, no status offers a transition into itself, and the two
- * terminal statuses offer nothing at all. A future edge added to the service and
- * forgotten here shows up as a status with no controls, which these tests make
- * visible the moment someone reads them.
+ * The edges themselves are no longer duplicated — `transitionsFor` reads
+ * `ALLOWED_TRANSITIONS` from `services/order-transitions.ts`, the same table the
+ * service validates against — so the first test below asserts that equality
+ * directly rather than approximating it. The rest pin the part this module does
+ * own: the copy, the tones, and the two context rules that withhold a control
+ * the service would otherwise accept.
  */
 const CONTEXT = { hasSuccessfulPayment: false, needsReview: false };
 
 describe("transitionsFor", () => {
+  it("offers exactly the edges the service permits, and no others", () => {
+    // The whole point of `services/order-transitions.ts`: one table, two
+    // readers. If the service gains an edge, the console gains a button.
+    for (const status of Object.values(ORDER_STATUSES)) {
+      expect(transitionsFor(status, CONTEXT).map((t) => t.to)).toEqual(
+        ALLOWED_TRANSITIONS[status] ?? [],
+      );
+    }
+  });
+
+  it("gives every destination the service can reach a label and a blurb", () => {
+    for (const destinations of Object.values(ALLOWED_TRANSITIONS)) {
+      for (const to of destinations) {
+        const offered = Object.values(ORDER_STATUSES)
+          .flatMap((from) => transitionsFor(from, CONTEXT))
+          .find((t) => t.to === to);
+        expect(offered?.label).toBeTruthy();
+        expect(offered?.blurb).toBeTruthy();
+      }
+    }
+  });
+
   it("walks the pipeline one stop at a time", () => {
     expect(transitionsFor("paid", CONTEXT).map((t) => t.to)).toEqual(["processing"]);
     expect(transitionsFor("processing", CONTEXT).map((t) => t.to)).toEqual(["in_transit"]);

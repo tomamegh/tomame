@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { buildOrderIntake } from "./order-intake.service";
+import { allowedTransitionsFrom } from "./order-transitions";
 import { sendEmail } from "@/lib/email/transport";
 import {
   orderPlacedTemplate,
@@ -429,14 +430,6 @@ export async function listAllOrders(
   return { orders: orders as Order[], count: orders.length };
 }
 
-const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  pending: ["cancelled"],
-  paid: ["processing"],
-  processing: ["in_transit"],
-  in_transit: ["delivered"],
-  delivered: ["completed"],
-};
-
 /**
  * What an admin may attach to a status change.
  *
@@ -481,7 +474,7 @@ export async function updateOrderStatusAdmin(
     throw new APIError(404, "Order not found");
   }
 
-  const allowed = ALLOWED_TRANSITIONS[order.status] ?? [];
+  const allowed: string[] = allowedTransitionsFrom(order.status);
   if (!allowed.includes(newStatus)) {
     throw new APIError(
       400,

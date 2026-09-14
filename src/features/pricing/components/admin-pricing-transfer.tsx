@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AdminButton } from "@/features/settings/components/admin-controls";
+import { AdminButton } from "@/components/layout/admin";
 import { toast } from "@/lib/sonner";
 
 /**

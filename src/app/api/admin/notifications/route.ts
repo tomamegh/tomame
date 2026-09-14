@@ -15,13 +15,15 @@ import {
 /**
  * The admin delivery log, for the header bell.
  *
- * WHAT CHANGED AND WHY. This route used to call `listAllNotifications`, which
- * selects `profiles(id, email, first_name, last_name)` — and `profiles` has no
- * `email` column (migration 001 never created one; the address lives in
- * `auth.users`). PostgREST answers 42703, the service logs the error and
- * returns an empty array, and so this endpoint has been answering
- * `{ notifications: [], count: 0 }` on every environment no matter what the
- * table contained. The bell was permanently empty and looked like good news.
+ * WHAT CHANGED AND WHY. This route used to call `listAllNotifications` in
+ * `features/notifications/services/notifications.service.ts`, which selected
+ * `profiles(id, email, first_name, last_name)` — and `profiles` has no `email`
+ * column (migration 001 never created one; the address lives in `auth.users`).
+ * PostgREST answered 42703, the service logged the error and returned an empty
+ * array, and so this endpoint answered `{ notifications: [], count: 0 }` on
+ * every environment no matter what the table contained. The bell was
+ * permanently empty and looked like good news. That function has since been
+ * deleted — it was dead as well as broken.
  *
  * It now reads through `db/queries/admin-notifications`, which joins the
  * recipient's NAME and leaves the address to the one place that holds it.

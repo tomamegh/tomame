@@ -1,5 +1,6 @@
 import type { AdminTone } from "@/components/layout/admin/admin-page";
 import { journeyStageFor, type JourneyTone } from "../services/journey-stage";
+import { allowedTransitionsFrom } from "../services/order-transitions";
 import type { OrderStatus } from "../types";
 
 /**
@@ -12,14 +13,17 @@ import type { OrderStatus } from "../types";
  * transition against the order's CURRENT status and refuses an illegal one with
  * a 400; this module exists so an illegal transition is never OFFERED in the
  * first place. Two different admins on two laptops can still race, and the loser
- * gets the service's refusal — which is correct, and the reason this is a mirror
- * rather than a replacement.
+ * gets the service's refusal — which is correct: this module decides what to
+ * OFFER, never what is permitted.
  *
- * MIRROR OF `ALLOWED_TRANSITIONS` in `src/features/orders/services/orders.service.ts`.
- * That table is module-private, so the shape below is kept in step by the test
- * beside this file and by the comment you are reading. If the service's table
- * gains an edge, add it here too — a missing edge shows up as a control an admin
- * cannot find, which is a quiet failure.
+ * THE EDGES ARE NOT DEFINED HERE. They come from `ALLOWED_TRANSITIONS` in
+ * `services/order-transitions.ts`, the same table `updateOrderStatusAdmin`
+ * validates against. This module supplies only the WORDS for each destination.
+ * That table used to be module-private inside `orders.service.ts` and was
+ * duplicated here by hand, kept in step by a comment; a new edge added to the
+ * service and forgotten here showed up as a control an admin could not find.
+ * Now an edge cannot exist on one side only, and a destination with no copy is
+ * a compile error rather than a blank button.
  */
 
 export interface AdminTransition {
@@ -39,57 +43,63 @@ export interface AdminTransition {
   destructive: boolean;
 }
 
-const TRANSITIONS: Record<string, AdminTransition[]> = {
-  pending: [
-    {
-      to: "cancelled",
-      label: "Cancel order",
-      blurb: "Only for an order whose payment failed. The customer is emailed and the order stops here.",
-      tone: "coral",
-      carriesTracking: false,
-      destructive: true,
-    },
-  ],
-  paid: [
-    {
-      to: "processing",
-      label: "Mark as purchasing",
-      blurb: "Tells the customer a buyer is placing their order with the store.",
-      tone: "coral",
-      carriesTracking: false,
-      destructive: false,
-    },
-  ],
-  processing: [
-    {
-      to: "in_transit",
-      label: "Mark as shipped",
-      blurb: "Carries the carrier, the tracking number and the delivery window to the customer.",
-      tone: "coral",
-      carriesTracking: true,
-      destructive: false,
-    },
-  ],
-  in_transit: [
-    {
-      to: "delivered",
-      label: "Mark as delivered",
-      blurb: "Stamps the delivery time and closes the journey on the customer's screen.",
-      tone: "green",
-      carriesTracking: false,
-      destructive: false,
-    },
-  ],
-  delivered: [
-    {
-      to: "completed",
-      label: "Mark as complete",
-      blurb: "Files the order away. Nothing further is expected of anyone.",
-      tone: "green",
-      carriesTracking: false,
-      destructive: false,
-    },
-  ],
+/**
+ * What to call each destination, and what it does to the customer.
+ *
+ * Keyed by the status being moved TO, because that is what the words describe.
+ * Every destination `ALLOWED_TRANSITIONS` can reach needs an entry; the
+ * `Record<OrderStatus, …>` makes a missing one a type error.
+ */
+const TRANSITION_COPY: Record<OrderStatus, Omit<AdminTransition, "to">> = {
+  pending: {
+    label: "Reopen for payment",
+    blurb: "Returns the order to awaiting payment.",
+    tone: "muted",
+    carriesTracking: false,
+    destructive: false,
+  },
+  paid: {
+    label: "Mark as paid",
+    blurb: "Records that the money has landed.",
+    tone: "green",
+    carriesTracking: false,
+    destructive: false,
+  },
+  cancelled: {
+    label: "Cancel order",
+    blurb: "Only for an order whose payment failed. The customer is emailed and the order stops here.",
+    tone: "coral",
+    carriesTracking: false,
+    destructive: true,
+  },
+  processing: {
+    label: "Mark as purchasing",
+    blurb: "Tells the customer a buyer is placing their order with the store.",
+    tone: "coral",
+    carriesTracking: false,
+    destructive: false,
+  },
+  in_transit: {
+    label: "Mark as shipped",
+    blurb: "Carries the carrier, the tracking number and the delivery window to the customer.",
+    tone: "coral",
+    carriesTracking: true,
+    destructive: false,
+  },
+  delivered: {
+    label: "Mark as delivered",
+    blurb: "Stamps the delivery time and closes the journey on the customer's screen.",
+    tone: "green",
+    carriesTracking: false,
+    destructive: false,
+  },
+  completed: {
+    label: "Mark as complete",
+    blurb: "Files the order away. Nothing further is expected of anyone.",
+    tone: "green",
+    carriesTracking: false,
+    destructive: false,
+  },
 };
 
 export interface TransitionContext {
@@ -121,7 +131,10 @@ export function transitionsFor(
   status: string,
   context: TransitionContext,
 ): AdminTransition[] {
-  const available = Object.hasOwn(TRANSITIONS, status) ? TRANSITIONS[status]! : [];
+  const available: AdminTransition[] = allowedTransitionsFrom(status).map((to) => ({
+    to,
+    ...TRANSITION_COPY[to],
+  }));
 
   return available.filter((transition) => {
     if (transition.to === "cancelled" && context.hasSuccessfulPayment) return false;

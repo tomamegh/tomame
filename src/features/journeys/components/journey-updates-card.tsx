@@ -34,7 +34,7 @@ export function JourneyUpdatesCard({ updates }: JourneyUpdatesCardProps) {
             const note = noteFor(event);
             const notLast = index < updates.length - 1;
             return (
-              <li key={event.id} className="grid grid-cols-[20px_1fr] gap-3">
+              <li key={event.id} className="grid grid-cols-[20px_minmax(0,1fr)] gap-3">
                 <div className="flex flex-col items-center">
                   {/*
                     The newest event is the live one and takes the coral dot;
@@ -48,8 +48,8 @@ export function JourneyUpdatesCard({ updates }: JourneyUpdatesCardProps) {
                   />
                   {notLast && <span className="my-1 w-0.5 flex-1 bg-[#F5EEE9]" />}
                 </div>
-                <div className="pb-4">
-                  <p className="text-[13px] leading-[1.3] font-semibold">
+                <div className="min-w-0 pb-4">
+                  <p className="text-[13px] leading-[1.3] font-semibold break-words">
                     {event.title}
                     {note && <span className="text-tm-text-2"> · {note}</span>}
                   </p>

@@ -9,7 +9,7 @@ import { formatPercent } from "@/features/marketing/format";
 import type { ExchangeRate } from "@/lib/exchange-rates/types";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import { toast } from "@/lib/sonner";
-import { AdminButton } from "./admin-controls";
+import { AdminButton } from "@/components/layout/admin";
 import { describeRateAge, rateAge, type RateFreshness } from "./fx-freshness";
 
 const FRESHNESS_TONE: Record<RateFreshness, AdminTone> = {

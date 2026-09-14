@@ -11,7 +11,7 @@ import { apiFetch } from "@/lib/auth/api-helpers";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";
-import { AdminButton, AdminConfirm, AdminInput } from "./admin-controls";
+import { AdminButton, AdminConfirm, AdminInput } from "@/components/layout/admin";
 import { formatConstant, fromInputValue, inputSuffix, toInputValue } from "./constant-format";
 
 /**

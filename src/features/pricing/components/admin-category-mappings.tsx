@@ -16,7 +16,7 @@ import type { AdminCategoryMappingRow, AdminPricingGroupRow } from "@/db/queries
 import {
   AdminButton,
   AdminConfirm,
-} from "@/features/settings/components/admin-controls";
+} from "@/components/layout/admin";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";

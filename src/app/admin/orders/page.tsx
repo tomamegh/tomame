@@ -10,7 +10,7 @@ import {
   AdminFilterPills,
   AdminSearchForm,
   type AdminFilterPill,
-} from "@/features/orders/components/admin-filter-pills";
+} from "@/components/layout/admin";
 import { AdminOrdersBoard } from "@/features/orders/components/admin-orders-board";
 
 export const metadata: Metadata = { title: "Orders · Tomame admin" };

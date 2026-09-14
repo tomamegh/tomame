@@ -14,7 +14,7 @@ import type { BoxConstants } from "@/features/bag/services/box-packing";
 import {
   AdminFilterPills,
   type AdminFilterPill,
-} from "@/features/orders/components/admin-filter-pills";
+} from "@/components/layout/admin";
 import { formatAdminDateTime } from "@/features/orders/components/admin-order-display";
 
 export const metadata: Metadata = { title: "Boxes · Tomame admin" };

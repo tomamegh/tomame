@@ -18,7 +18,7 @@ import {
   AdminButton,
   AdminConfirm,
   AdminInput,
-} from "@/features/settings/components/admin-controls";
+} from "@/components/layout/admin";
 import {
   Dialog,
   DialogContent,

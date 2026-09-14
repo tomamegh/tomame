@@ -6,15 +6,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Admin-side reads of `notifications` (019, extended by 041) — the record of
  * what the platform told a customer, on which channel, and whether it landed.
  *
- * WHY THIS FILE EXISTS AT ALL. `listAllNotifications` in
- * `features/notifications/services/notifications.service.ts` selects
- * `profiles(id, email, first_name, last_name)`, and `profiles` HAS NO `email`
- * COLUMN — migration 001 never created one, and `db/queries/notifications.ts`
+ * WHY THIS FILE EXISTS AT ALL. It replaced `listAllNotifications` in
+ * `features/notifications/services/notifications.service.ts`, which selected
+ * `profiles(id, email, first_name, last_name)` — and `profiles` HAS NO `email`
+ * COLUMN. Migration 001 never created one, and `db/queries/notifications.ts`
  * says so in as many words ("`profiles` carries no email column — the address
- * lives in `auth.users`"). PostgREST answers 42703, the service logs and
- * returns `[]`, and so the admin notifications screen and the header bell have
- * both been rendering an empty list on every environment regardless of what the
- * table holds. The delivery log looked clean because it was blank.
+ * lives in `auth.users`"). PostgREST answered 42703, the service logged and
+ * returned `[]`, and so the admin notifications screen and the header bell both
+ * rendered an empty list on every environment regardless of what the table
+ * held. The delivery log looked clean because it was blank. The old function is
+ * now deleted; this is the only admin read of that table.
  *
  * So the admin read is done here, without the phantom column, and the owner's
  * NAME is joined instead. An address, where one is needed, comes from

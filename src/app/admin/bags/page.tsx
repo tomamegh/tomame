@@ -11,7 +11,7 @@ import { AdminBagsBoard } from "@/features/bag/components/admin-bags-board";
 import {
   AdminFilterPills,
   type AdminFilterPill,
-} from "@/features/orders/components/admin-filter-pills";
+} from "@/components/layout/admin";
 import { formatGhs } from "@/features/marketing/format";
 
 export const metadata: Metadata = { title: "Bags · Tomame admin" };

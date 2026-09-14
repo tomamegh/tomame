@@ -60,17 +60,3 @@ export interface MarkAllNotificationsReadResult {
   /** Rows actually transitioned from unread to read by this call. */
   updated: number;
 }
-
-export interface NotificationWithUser extends Notification {
-  user: {
-    id: string;
-    email: string;
-    first_name: string | null;
-    last_name: string | null;
-  } | null;
-}
-
-export interface AdminNotificationListResponse {
-  notifications: NotificationWithUser[];
-  count: number;
-}

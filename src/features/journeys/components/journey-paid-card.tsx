@@ -35,15 +35,15 @@ export function JourneyPaidCard({ pricing, adminTotalGhs, payment }: JourneyPaid
         {rows.map((row) => (
           <div
             key={row.key}
-            className={`flex justify-between ${row.tone === "muted" ? "text-xs text-tm-text-3" : ""}`}
+            className={`flex justify-between gap-3 ${row.tone === "muted" ? "text-xs text-tm-text-3" : ""}`}
           >
             <dt>{row.label}</dt>
-            <dd>{row.value}</dd>
+            <dd className="shrink-0">{row.value}</dd>
           </div>
         ))}
       </dl>
 
-      <div className="flex items-baseline justify-between border-t border-dashed border-[#E8DDD6] pt-3">
+      <div className="flex items-baseline justify-between gap-3 border-t border-dashed border-[#E8DDD6] pt-3">
         <span className="text-sm leading-none font-semibold">Total</span>
         <span className="tm-nums text-[22px] leading-none font-bold">
           {formatGhs(total)}
@@ -61,7 +61,7 @@ export function JourneyPaidCard({ pricing, adminTotalGhs, payment }: JourneyPaid
           {[payment.channelLabel, formatEventStamp(payment.paidAt)]
             .filter((part): part is string => !!part)
             .join(" · ")}
-          <span className="tm-nums text-tm-text-3">· {payment.reference}</span>
+          <span className="tm-nums min-w-0 break-all text-tm-text-3">· {payment.reference}</span>
         </p>
       )}
     </section>

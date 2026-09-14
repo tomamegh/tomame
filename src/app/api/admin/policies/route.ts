@@ -3,8 +3,12 @@ import { z } from "zod";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createPolicy } from "@/features/policies/services/policies.service";
 
+/**
+ * Create one policy. Auth, validation and status codes only — the write and the
+ * audit row it owes are `features/policies/services/policies.service`.
+ */
 const createPolicySchema = z.object({
   slug: z
     .string()
@@ -22,7 +26,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
-    requireAdmin(auth);
+    const admin = requireAdmin(auth);
 
     const body: unknown = await request.json().catch(() => {
       throw new APIError(400, "Invalid JSON");
@@ -33,27 +37,12 @@ export async function POST(request: NextRequest) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const db = createAdminClient();
-    const { data, error } = await db
-      .from("policies")
-      .insert({
-        slug: parsed.data.slug,
-        label: parsed.data.label,
-        content: parsed.data.content,
-        effective_date: parsed.data.effective_date ?? null,
-        is_published: parsed.data.is_published,
-      })
-      .select("id, slug, label, content, effective_date, last_updated, is_published")
-      .single();
+    const policy = await createPolicy(
+      { id: admin.id, email: admin.email ?? null },
+      parsed.data,
+    );
 
-    if (error) {
-      if (error.code === "23505") {
-        throw new APIError(409, `A policy with slug "${parsed.data.slug}" already exists`);
-      }
-      throw error;
-    }
-
-    return successResponse(data, 201);
+    return successResponse(policy, 201);
   } catch (error) {
     return errorResponse(error);
   }

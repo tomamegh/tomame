@@ -27,12 +27,3 @@ export interface CategoryMapping {
     name: string;
   };
 }
-
-export interface PricingGroupsTableMeta {
-  onEdit: (group: PricingGroup) => void;
-  onDelete: (group: PricingGroup) => void;
-}
-
-export interface CategoryMappingsTableMeta {
-  groups: PricingGroup[];
-}

@@ -6,8 +6,6 @@ import type { PlatformUser } from "@/features/users/types";
 import type {
   Notification,
   NotificationListResponse,
-  NotificationWithUser,
-  AdminNotificationListResponse,
   MarkNotificationReadResult,
   MarkAllNotificationsReadResult,
 } from "../types";
@@ -31,32 +29,6 @@ async function getNotificationsByUserId(
     return [];
   }
   return (data ?? []) as Notification[];
-}
-
-async function getAllNotifications(
-  client: SupabaseClient,
-  filters?: { status?: string; userId?: string; channel?: string },
-): Promise<NotificationWithUser[]> {
-  let query = client
-    .from("notifications")
-    .select("*, profiles(id, email, first_name, last_name)")
-    .order("created_at", { ascending: false });
-
-  if (filters?.status) query = query.eq("status", filters.status);
-  if (filters?.userId) query = query.eq("user_id", filters.userId);
-  if (filters?.channel) query = query.eq("channel", filters.channel);
-
-  const { data, error } = await query;
-
-  if (error) {
-    logger.error("getAllNotifications failed", { error: error.message });
-    return [];
-  }
-
-  return (data ?? []).map((row: Notification & { profiles: NotificationWithUser["user"] }) => ({
-    ...row,
-    user: row.profiles ?? null,
-  }));
 }
 
 /**
@@ -249,18 +221,6 @@ export async function markAllNotificationsRead(
     readAt,
   );
   return { updated: updated.length };
-}
-
-export async function listAllNotifications(
-  user: PlatformUser,
-  filters?: { status?: string; userId?: string; channel?: string },
-): Promise<AdminNotificationListResponse> {
-  if (user.profile.role !== "admin") {
-    throw new APIError(403, "Admin access required");
-  }
-
-  const notifications = await getAllNotifications(createAdminClient(), filters);
-  return { notifications, count: notifications.length };
 }
 
 export async function createOrderNotifications(

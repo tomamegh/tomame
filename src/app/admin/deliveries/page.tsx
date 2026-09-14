@@ -11,7 +11,7 @@ import { AdminDeliveriesBoard } from "@/features/deliveries/components/admin-del
 import {
   AdminFilterPills,
   type AdminFilterPill,
-} from "@/features/orders/components/admin-filter-pills";
+} from "@/components/layout/admin";
 import { adminStatusLabel } from "@/features/orders/components/admin-transitions";
 
 export const metadata: Metadata = { title: "Deliveries · Tomame admin" };

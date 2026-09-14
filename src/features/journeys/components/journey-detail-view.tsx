@@ -76,11 +76,25 @@ export function JourneyDetailView({ journey, paymentOutcome }: JourneyDetailView
         Journeys
       </Link>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[1fr_380px]">
+      {/*
+        Below `lg` this is ONE column, and an implicit grid column's floor is its
+        content's min-content width — the 560px track inside would push the card
+        to 606px in a 350px phone column. The explicit single column gives that
+        floor a zero lower bound, so wide children scroll or wrap instead of
+        widening the card. `main` has overflow-x-clip, which HIDES this class of
+        bug rather than fixing it, so it must be fixed here.
+      */}
+      <div className="grid items-start gap-6 grid-cols-[minmax(0,1fr)] lg:grid-cols-[1fr_380px]">
         <div className="flex flex-col gap-5">
           <section className="tm-up flex flex-col gap-[22px] overflow-hidden rounded-[24px] border border-tm-border bg-card px-[22px] py-[26px] [animation-duration:0.5s] lg:px-7">
-            <div className="flex flex-wrap justify-between gap-5">
-              <div className="flex min-w-0 flex-col gap-2">
+            {/*
+              `basis-60` is the wrap trigger: the badge drops to its own line
+              once the title would be squeezed under 240px, which is every phone.
+              Without a basis the title block just shrinks to min-content and the
+              badge stays pinned beside it in a 180px gutter.
+            */}
+            <div className="flex flex-wrap justify-between gap-x-5 gap-y-3">
+              <div className="flex min-w-0 grow basis-60 flex-col gap-2">
                 <span className="text-xs leading-none font-semibold tracking-[0.04em] text-tm-text-3 uppercase">
                   {/*
                     "TM-00042 · PAID 28 AUG". The paid half comes from the
@@ -91,7 +105,7 @@ export function JourneyDetailView({ journey, paymentOutcome }: JourneyDetailView
                     .filter((part): part is string => !!part)
                     .join(" · ")}
                 </span>
-                <h1 className="font-display max-w-[560px] text-[22px] leading-[1.15] font-bold lg:text-[28px]">
+                <h1 className="font-display max-w-full text-[22px] leading-[1.15] font-bold break-words lg:max-w-[560px] lg:text-[28px]">
                   {journey.productName}
                 </h1>
               </div>
@@ -104,8 +118,13 @@ export function JourneyDetailView({ journey, paymentOutcome }: JourneyDetailView
               </span>
             </div>
 
-            {/* The track scrolls rather than crushing five stops into 350px. */}
-            <div className="-mx-[22px] overflow-x-auto px-[22px] lg:mx-0 lg:px-0">
+            {/*
+              The track scrolls rather than crushing five stops into 350px.
+              `min-w-0` on the scroller: an overflow container still reports its
+              content's min-content width up the tree unless its own minimum is
+              zeroed, so without it the 560px below leaks out of this card.
+            */}
+            <div className="-mx-[22px] min-w-0 overflow-x-auto px-[22px] lg:mx-0 lg:px-0">
               <div className="min-w-[560px]">
                 <JourneyTrackRail track={journey.track} eta={journey.eta} />
               </div>
@@ -127,7 +146,7 @@ export function JourneyDetailView({ journey, paymentOutcome }: JourneyDetailView
               </button>
             )}
 
-            <div className="grid gap-3 border-t border-[#F5EEE9] pt-[18px] sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-3 border-t border-[#F5EEE9] pt-[18px] sm:grid-cols-2 lg:grid-cols-3">
               {journey.carrier && (
                 <Tile icon={<Truck weight="duotone" className="size-5 text-tm-coral" aria-hidden />} label="Carrier">
                   {journey.carrier.trackingUrl ? (
@@ -162,7 +181,7 @@ export function JourneyDetailView({ journey, paymentOutcome }: JourneyDetailView
             </div>
           </section>
 
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-2">
             <JourneyUpdatesCard updates={journey.updates} />
             <JourneyPaidCard
               pricing={journey.pricing}
@@ -184,7 +203,7 @@ export function JourneyDetailView({ journey, paymentOutcome }: JourneyDetailView
                       className="flex gap-2 text-[13px] leading-[1.4] font-medium text-tm-text-2 hover:text-tm-ink"
                     >
                       <span className="tm-nums shrink-0 text-tm-text-3">{sibling.orderNo}</span>
-                      <span className="truncate">{sibling.productName}</span>
+                      <span className="min-w-0 truncate">{sibling.productName}</span>
                     </Link>
                   </li>
                 ))}

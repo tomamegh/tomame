@@ -17,11 +17,6 @@ export interface Transaction {
   created_at: string;
 }
 
-export interface TransactionList {
-  transactions: Transaction[];
-  count: number;
-}
-
 export interface TransactionStats {
   total: number;
   totalRevenueGhs: number;

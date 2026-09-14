@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowsClockwise, CheckCircle, WarningCircle } from "@phosphor-icons/react/ssr";
 
 import { AdminBadge } from "@/components/layout/admin";
-import { AdminButton, AdminConfirm } from "@/features/settings/components/admin-controls";
+import { AdminButton, AdminConfirm } from "@/components/layout/admin";
 import { apiFetch } from "@/lib/auth/api-helpers";
 import { toast } from "@/lib/sonner";
 import type { ApiSuccessResponse } from "@/types/api";

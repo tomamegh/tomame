@@ -28,12 +28,13 @@ import type { ApiSuccessResponse } from "@/types/api";
  * badge is absent rather than zero, the same rule the sidebar's queue badges
  * follow.
  *
- * WHY IT HAS ITS OWN QUERY. The shared `useAdminNotifications` hook is typed
- * around `NotificationWithUser`, whose `user.email` comes from a select that
- * cannot succeed — `profiles` has no email column, so the endpoint behind it
- * returned an empty list on every environment and this bell was permanently,
- * silently empty. The route now answers from
- * `db/queries/admin-notifications`, and this reads that shape directly.
+ * WHY IT HAS ITS OWN QUERY. There used to be a shared `useAdminNotifications`
+ * hook typed around a `NotificationWithUser` whose `user.email` came from a
+ * select that could not succeed — `profiles` has no email column, so the
+ * endpoint behind it returned an empty list on every environment and this bell
+ * was permanently, silently empty. The route now answers from
+ * `db/queries/admin-notifications`, this reads that shape directly, and the
+ * hook and its type have been deleted.
  *
  * The panel deliberately does not render `payload`. It is arbitrary JSON
  * written by jobs, and a popover is not the place to print it; the row links to

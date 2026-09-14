@@ -5,6 +5,7 @@ import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { getUserSession } from "@/features/auth/services";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 export async function POST(
   request: NextRequest,
@@ -24,12 +25,8 @@ export async function POST(
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const {session, supabase, user} = await getUserSession();
-
-    if (session?.app_metadata?.role !== "admin") {
-      throw new APIError(403, "Admin access required");
-    }
-
+    const { session, supabase, user } = await getUserSession();
+    if (!canAccessAdmin(session)) throw new APIError(403, "Admin access required");
 
     const { id } = await params;
     const data = await reviewOrder(supabase, user, id, parsed.data);
