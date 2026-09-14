@@ -14,6 +14,7 @@ import {
 import type { OpsAlertLevel, OpsOverview } from "@/features/ops/ops.service";
 import { ageMinutes, describeMinutes } from "@/features/ops/ops-alerts";
 import { formatRelativeTime } from "@/features/app-home/components/format";
+import { ErrorIssueList } from "./error-issue-list";
 
 /**
  * The operations health screen, rendered server-side from one `getOpsOverview`.
@@ -91,10 +92,29 @@ export function OpsOverviewView({ view }: { view: OpsOverview }) {
       </div>
 
       <AdminCard
+        title="Errors"
+        blurb="Every logger.error the app writes, grouped by what broke rather than listed by when. A new issue is the one worth reading: something that had never failed before just did."
+        action={
+          view.errors ? (
+            <AdminBadge tone={view.errors.newToday > 0 ? "coral" : view.errors.openTotal > 0 ? "amber" : "green"}>
+              {view.errors.openTotal === 0 ? "None open" : `${view.errors.openTotal} open, ${view.errors.newToday} new today`}
+            </AdminBadge>
+          ) : null
+        }
+        index={5}
+      >
+        {view.errors ? (
+          <ErrorIssueList issues={view.errors.open} renderedAt={view.generatedAt} />
+        ) : (
+          <AdminEmpty title="Unavailable" body="error_events could not be read. If this database has not had migration 062 applied, that is why." />
+        )}
+      </AdminCard>
+
+      <AdminCard
         title="Scheduled jobs"
         blurb="Two clocks per job: when pg_cron fired it, and when this app actually ran it. They should agree. When pg_cron is on time and the app is silent, pg_net is not reaching the app."
         flush
-        index={5}
+        index={6}
       >
         <AdminTableScroller>
           <table className="w-full min-w-[720px]">
@@ -144,7 +164,7 @@ export function OpsOverviewView({ view }: { view: OpsOverview }) {
       </AdminCard>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <AdminCard title="Payments still pending" blurb={`Oldest first. Anything older than ${view.timeouts.expiryMinutes} minutes should have been released by the reconciliation job.`} flush index={6}>
+        <AdminCard title="Payments still pending" blurb={`Oldest first. Anything older than ${view.timeouts.expiryMinutes} minutes should have been released by the reconciliation job.`} flush index={7}>
           {!view.payments ? (
             <div className="p-5"><AdminEmpty title="Unavailable" body="The payments table could not be read." /></div>
           ) : view.payments.pending.length === 0 ? (
@@ -183,7 +203,7 @@ export function OpsOverviewView({ view }: { view: OpsOverview }) {
         </AdminCard>
 
         <div className="flex flex-col gap-6">
-          <AdminCard title="How payments resolved, 7 days" index={7}>
+          <AdminCard title="How payments resolved, 7 days" index={8}>
             {view.payments ? (
               <dl className="grid grid-cols-2 gap-3 text-[13px]">
                 <Figure label="Succeeded" value={view.payments.resolved7d.successful} />
@@ -196,7 +216,7 @@ export function OpsOverviewView({ view }: { view: OpsOverview }) {
             )}
           </AdminCard>
 
-          <AdminCard title="Vendor budgets this month" index={8}>
+          <AdminCard title="Vendor budgets this month" index={9}>
             {!view.budgets ? (
               <AdminEmpty title="Unavailable" body="job_budgets could not be read." />
             ) : view.budgets.length === 0 ? (
@@ -213,7 +233,7 @@ export function OpsOverviewView({ view }: { view: OpsOverview }) {
             )}
           </AdminCard>
 
-          <AdminCard title="Catalogue" index={9}>
+          <AdminCard title="Catalogue" index={10}>
             {view.catalog ? (
               <dl className="grid grid-cols-2 gap-3 text-[13px]">
                 <Figure label="Products" value={view.catalog.products} />

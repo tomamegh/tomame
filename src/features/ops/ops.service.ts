@@ -2,6 +2,7 @@ import "server-only";
 
 import { CRON_JOBS, type CronJobSpec } from "@/config/cron";
 import { listCronSchedule, listJobHeartbeats, type CronScheduleRow, type JobHeartbeatRow } from "@/db/queries/job-heartbeats";
+import { readErrorHealth, type ErrorHealth } from "@/db/queries/error-events";
 import {
   listJobBudgets,
   readCatalogHealth,
@@ -45,12 +46,13 @@ export interface OpsOverview {
   orders: OrdersHealth | null;
   budgets: JobBudgetRow[] | null;
   catalog: CatalogHealth | null;
+  errors: ErrorHealth | null;
 }
 
 export async function getOpsOverview(now: Date = new Date()): Promise<OpsOverview> {
   const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 
-  const [timeouts, heartbeats, schedule, payments, notifications, extraction, orders, budgets, catalog] = await Promise.all([
+  const [timeouts, heartbeats, schedule, payments, notifications, extraction, orders, budgets, catalog, errors] = await Promise.all([
     degrade(resolvePaymentTimeouts(), { expiryMinutes: 60, unpaidOrderTtlHours: 48 }, "timeouts"),
     degrade(listJobHeartbeats(), null, "heartbeats"),
     degrade(listCronSchedule(), null, "cron schedule"),
@@ -60,6 +62,7 @@ export async function getOpsOverview(now: Date = new Date()): Promise<OpsOvervie
     degrade(readOrdersHealth(now), null, "orders"),
     degrade(listJobBudgets(period), null, "budgets"),
     degrade(readCatalogHealth(now), null, "catalogue"),
+    degrade(readErrorHealth(now), null, "errors"),
   ]);
 
   const jobs = mergeJobs(CRON_JOBS, heartbeats ?? [], schedule ?? [], now);
@@ -74,6 +77,7 @@ export async function getOpsOverview(now: Date = new Date()): Promise<OpsOvervie
     orders,
     budgets,
     catalog,
+    errors,
   };
   view.alerts = deriveOpsAlerts(view, now);
   return view;

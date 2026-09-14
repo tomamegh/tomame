@@ -1,5 +1,6 @@
 import type { CronJobSpec } from "@/config/cron";
 import type { PaymentTimeouts } from "@/features/payments/services/payment-reconciliation.service";
+import type { ErrorHealth } from "@/db/queries/error-events";
 import type { CatalogHealth, ExtractionHealth, JobBudgetRow, NotificationsHealth, OrdersHealth, PaymentsHealth } from "@/db/queries/ops";
 
 /**
@@ -46,6 +47,7 @@ export interface OpsSnapshot {
   orders: OrdersHealth | null;
   budgets: JobBudgetRow[] | null;
   catalog: CatalogHealth | null;
+  errors: ErrorHealth | null;
 }
 
 /** Minutes between an ISO stamp and `now`. */
@@ -153,6 +155,29 @@ export function deriveOpsAlerts(view: OpsSnapshot, now: Date): OpsAlert[] {
   // ── Orders ──────────────────────────────────────────────────────────────────
   if (view.orders && view.orders.pendingOver24h > 0) {
     alerts.push({ level: "info", title: `${view.orders.pendingOver24h} order${view.orders.pendingOver24h === 1 ? "" : "s"} unpaid for over a day`, detail: `Their quote locks have lapsed. reconcile-payments closes them after ${view.timeouts.unpaidOrderTtlHours} hours.`, href: "/admin/orders" });
+  }
+
+  // ── Errors ──────────────────────────────────────────────────────────────────
+  // A new issue is the interesting one: something that has never happened
+  // before started happening, which is exactly the signal the platform never
+  // had. An old issue still recurring is a warning; a long tail of unresolved
+  // ones is a note, not an alarm.
+  if (view.errors) {
+    if (view.errors.newToday > 0) {
+      alerts.push({
+        level: "critical",
+        title: `${view.errors.newToday} new error${view.errors.newToday === 1 ? "" : "s"} today`,
+        detail: "Something that had never failed before started failing in the last day. The list below has the first occurrence and the count.",
+        href: "/admin/ops",
+      });
+    } else if (view.errors.openTotal > 0) {
+      alerts.push({
+        level: "warning",
+        title: `${view.errors.openTotal} open error${view.errors.openTotal === 1 ? "" : "s"}`,
+        detail: `${view.errors.occurrences24h} occurrence${view.errors.occurrences24h === 1 ? "" : "s"} recorded in the last day across issues nobody has filed yet.`,
+        href: "/admin/ops",
+      });
+    }
   }
 
   const rank: Record<OpsAlertLevel, number> = { critical: 0, warning: 1, info: 2 };

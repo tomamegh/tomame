@@ -1,3 +1,5 @@
+import { captureError } from "./error-sink";
+
 type LogLevel = "info" | "warn" | "error";
 
 interface LogEntry {
@@ -17,6 +19,10 @@ function log(level: LogLevel, message: string, meta?: Record<string, unknown>) {
   // Structured JSON output — never log secrets or PII
   if (level === "error") {
     console.error(JSON.stringify(entry));
+    // And a durable, grouped copy in `error_events` (062), because the console
+    // line above reaches a log that alerts on nothing. Fire and forget; it
+    // redacts, never throws, and never calls back into this logger.
+    captureError({ level: "error", message, meta });
   } else if (level === "warn") {
     console.warn(JSON.stringify(entry));
   } else {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 
+import type { ErrorIssueRow } from "@/db/queries/error-events";
 import { deriveOpsAlerts, describeMinutes, type JobHealth, type OpsSnapshot } from "@/features/ops/ops-alerts";
 
 const NOW = new Date("2026-09-14T12:00:00Z");
@@ -27,6 +28,7 @@ function snapshot(overrides: Partial<OpsSnapshot> = {}): OpsSnapshot {
     orders: { pending: 1, pendingOver24h: 0 },
     budgets: [{ job: "catalog-scrape", period: "2026-09", used: 10, cap: 500, updated_at: iso(60) }],
     catalog: { products: 100, new24h: 5, lastSeenAt: iso(30) },
+    errors: { open: [], openTotal: 0, newToday: 0, occurrences24h: 0 },
     ...overrides,
   };
 }
@@ -90,6 +92,37 @@ describe("deriveOpsAlerts", () => {
   it("orders critical before warning before info", () => {
     const view = snapshot({ orders: { pending: 3, pendingOver24h: 2 }, jobs: [job({ scheduled: false })], notifications: { pending: 1, oldestPendingAt: iso(30), failed24h: 0, sent24h: 0 } });
     expect(deriveOpsAlerts(view, NOW).map((a) => a.level)).toEqual(["critical", "warning", "info"]);
+  });
+});
+
+describe("error alerts (062)", () => {
+  function issue(overrides: Partial<ErrorIssueRow> = {}): ErrorIssueRow {
+    return {
+      fingerprint: "a".repeat(32), level: "error", message: "boom", source: "api:/api/orders",
+      context: null, occurrences: 3, first_seen_at: iso(30), last_seen_at: iso(5), resolved_at: null,
+      ...overrides,
+    };
+  }
+
+  it("treats an error that has never happened before as critical", () => {
+    const view = snapshot({ errors: { open: [issue()], openTotal: 1, newToday: 1, occurrences24h: 3 } });
+    expect(deriveOpsAlerts(view, NOW)[0]).toMatchObject({ level: "critical", title: "1 new error today" });
+  });
+
+  it("treats an older unfiled issue as a warning, not an alarm", () => {
+    const view = snapshot({ errors: { open: [issue({ first_seen_at: iso(5000) })], openTotal: 2, newToday: 0, occurrences24h: 9 } });
+    const alerts = deriveOpsAlerts(view, NOW);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({ level: "warning", title: "2 open errors" });
+    expect(alerts[0]!.detail).toContain("9 occurrences");
+  });
+
+  it("says nothing when every issue has been filed", () => {
+    expect(deriveOpsAlerts(snapshot(), NOW)).toEqual([]);
+  });
+
+  it("does not claim all is well when the error table itself could not be read", () => {
+    expect(deriveOpsAlerts(snapshot({ errors: null }), NOW)).toEqual([]);
   });
 });
 

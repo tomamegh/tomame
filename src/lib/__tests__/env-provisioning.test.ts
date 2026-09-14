@@ -32,6 +32,10 @@ const PLATFORM_PROVIDED = new Set([
   "VERCEL_REGION",
   "VERCEL_GIT_COMMIT_SHA",
   "npm_package_version",
+  // Set by Next.js itself, not by us: "nodejs" | "edge" | undefined depending
+  // on which runtime the module is executing in. The error sink reads it to
+  // stay out of the edge bundle (src/lib/logger/error-sink.ts).
+  "NEXT_RUNTIME",
 ]);
 
 // ── Extraction ───────────────────────────────────────────────────────────────
