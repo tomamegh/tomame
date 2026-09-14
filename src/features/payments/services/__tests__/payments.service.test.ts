@@ -29,6 +29,14 @@ vi.mock("@/features/orders/services/orders.service", () => ({
 
 vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn() }));
 
+// The bag path: a group and its lines. Mocked so a review-priced line can be
+// set up without a database.
+vi.mock("@/db/queries/order-groups", () => ({
+  getOrderGroupById: vi.fn(),
+  updateOrderGroupStatus: vi.fn(async () => true),
+}));
+vi.mock("@/db/queries/orders", () => ({ listOrdersByGroup: vi.fn(async () => []) }));
+
 vi.mock("@/features/notifications/services/notifications.service", () => ({
   createOrderNotifications: vi.fn(),
 }));
@@ -52,6 +60,8 @@ import {
   sendOrderStatusEmail,
 } from "@/features/orders/services/orders.service";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { getOrderGroupById } from "@/db/queries/order-groups";
+import { listOrdersByGroup } from "@/db/queries/orders";
 import { createOrderNotifications } from "@/features/notifications/services/notifications.service";
 import { APIError } from "@/lib/auth/api-helpers";
 import { createFakeClient, type FakeDb, type Row } from "./fake-supabase";
@@ -192,6 +202,38 @@ describe("initializePayment — authorization (R1)", () => {
   it("refuses an order that does not exist", async () => {
     vi.mocked(getOrderById).mockResolvedValue(null as never);
     await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 404);
+  });
+
+  it("refuses a BAG whose items are still waiting for review, even though its total is positive", async () => {
+    const GROUP_ID = "44444444-4444-4444-8444-444444444444";
+    vi.mocked(getOrderGroupById).mockResolvedValue({
+      id: GROUP_ID, user_id: USER_ID, status: "pending", total_pesewas: 4000,
+    } as never);
+    vi.mocked(listOrdersByGroup).mockResolvedValue([
+      makeOrder({ id: "a", needs_review: true, admin_total_ghs: null }),
+      makeOrder({ id: "b", needs_review: false }),
+    ] as never);
+
+    // 4000 pesewas is the delivery fee alone: a positive total that proves nothing.
+    await expectApiError(initializePayment(makeUser(), { orderGroupId: GROUP_ID }), 400);
+    expect(initializeTransaction).not.toHaveBeenCalled();
+  });
+
+  it("charges a bag once every item has a price", async () => {
+    const GROUP_ID = "44444444-4444-4444-8444-444444444444";
+    vi.mocked(getOrderGroupById).mockResolvedValue({
+      id: GROUP_ID, user_id: USER_ID, status: "pending", total_pesewas: 150_000,
+    } as never);
+    vi.mocked(listOrdersByGroup).mockResolvedValue([
+      makeOrder({ id: "a", needs_review: true, admin_total_ghs: 900 }),
+      makeOrder({ id: "b", needs_review: false }),
+    ] as never);
+    vi.mocked(generatePaymentReference).mockReturnValue(REFERENCE);
+    vi.mocked(initializeTransaction).mockResolvedValue({ status: true, message: "ok", data: { authorization_url: "https://p", access_code: "a", reference: REFERENCE } });
+
+    await initializePayment(makeUser(), { orderGroupId: GROUP_ID });
+
+    expect(vi.mocked(initializeTransaction).mock.calls[0]![0].amount).toBe(150_000);
   });
 
   it("refuses an order flagged for review until an admin has re-priced it (security review 2026-09-14)", async () => {

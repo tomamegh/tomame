@@ -435,7 +435,26 @@ async function groupCharge(admin: SupabaseClient, user: PlatformUser, groupId: s
     if (!channel) throw new APIError(400, "Choose a payment method");
   }
 
-  const orderIds = (await listOrdersByGroup(admin, groupId)).map((o) => o.id);
+  const orders = await listOrdersByGroup(admin, groupId);
+
+  // A POSITIVE GROUP TOTAL IS NOT PROOF THE BAG IS PAYABLE. `total_pesewas`
+  // includes the delivery fee, which is charged once per checkout and does not
+  // belong to any line, so a bag whose every item is waiting for review still
+  // carries a total above zero: a tomame-7f session found the bag offering to
+  // charge GH₵40, the delivery fee alone, for a $34.50 item nobody had priced.
+  // The same rule the single-order path uses applies here, per line: an order
+  // flagged for review is payable only once an admin has set its total.
+  const unreviewed = orders.filter((o) => o.needs_review && o.admin_total_ghs == null);
+  if (unreviewed.length > 0) {
+    throw new APIError(
+      400,
+      unreviewed.length === orders.length
+        ? "This bag is waiting for our review before it can be paid."
+        : `${unreviewed.length} item${unreviewed.length === 1 ? " is" : "s are"} waiting for our review before this bag can be paid.`,
+    );
+  }
+
+  const orderIds = orders.map((o) => o.id);
   const ids = { order_group_id: groupId, order_ids: orderIds };
   return {
     target: { orderId: null, groupId },
