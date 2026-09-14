@@ -48,6 +48,7 @@ describe("multi-currency item prices", () => {
 
   it("USD listings pass through unchanged and itemPriceUsd still works", async () => {
     const calc = new PricingCalculator();
+    calc.setConstants(constants());
     calc.setCategoryPricing(new Map([[TomameCategory.CELL_PHONES, group()]]));
     const a = await calc.calculate({ itemPrice: 50, itemCurrency: "USD", quantity: 1, category: TomameCategory.CELL_PHONES }, null);
     const b = await calc.calculate({ itemPriceUsd: 50, quantity: 1, category: TomameCategory.CELL_PHONES }, null);
@@ -58,6 +59,7 @@ describe("multi-currency item prices", () => {
 
   it("throws 503 when the store currency has no stored rate", async () => {
     const calc = new PricingCalculator();
+    calc.setConstants(constants());
     calc.setCategoryPricing(new Map([[TomameCategory.CELL_PHONES, group()]]));
     await expect(
       calc.calculate({ itemPrice: 10, itemCurrency: "EUR", quantity: 1, category: TomameCategory.CELL_PHONES }, null),

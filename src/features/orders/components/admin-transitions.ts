@@ -1,6 +1,9 @@
 import type { AdminTone } from "@/components/layout/admin/admin-page";
 import { journeyStageFor, type JourneyTone } from "../services/journey-stage";
-import { allowedTransitionsFrom } from "../services/order-transitions";
+import {
+  allowedTransitionsFrom,
+  type TransitionDestination,
+} from "../services/order-transitions";
 import type { OrderStatus } from "../types";
 
 /**
@@ -46,25 +49,14 @@ export interface AdminTransition {
 /**
  * What to call each destination, and what it does to the customer.
  *
- * Keyed by the status being moved TO, because that is what the words describe.
- * Every destination `ALLOWED_TRANSITIONS` can reach needs an entry; the
- * `Record<OrderStatus, …>` makes a missing one a type error.
+ * Keyed by the status being moved TO, because that is what the words describe,
+ * and keyed by `TransitionDestination` rather than `OrderStatus` so the map holds
+ * words for exactly the destinations that exist. Adding an edge to
+ * `ALLOWED_TRANSITIONS` is then a compile error here until someone writes its
+ * real copy — rather than silently shipping a blurb invented in advance for a
+ * button nobody could press.
  */
-const TRANSITION_COPY: Record<OrderStatus, Omit<AdminTransition, "to">> = {
-  pending: {
-    label: "Reopen for payment",
-    blurb: "Returns the order to awaiting payment.",
-    tone: "muted",
-    carriesTracking: false,
-    destructive: false,
-  },
-  paid: {
-    label: "Mark as paid",
-    blurb: "Records that the money has landed.",
-    tone: "green",
-    carriesTracking: false,
-    destructive: false,
-  },
+const TRANSITION_COPY: Record<TransitionDestination, Omit<AdminTransition, "to">> = {
   cancelled: {
     label: "Cancel order",
     blurb: "Only for an order whose payment failed. The customer is emailed and the order stops here.",

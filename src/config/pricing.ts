@@ -1,12 +1,24 @@
-/** Static tax percentage — configurable via TAX_PERCENTAGE env var (default 10%) */
+/**
+ * NOT PRICING FALLBACKS. Nothing in this file may stand in for a
+ * `pricing_constants` row on a path that quotes a customer: an unconfigured
+ * constant makes `PricingCalculator` return `needs_review`, never a total
+ * built from a literal chosen here.
+ *
+ * What survives below are illustration figures for pages that must render
+ * *something* when the table cannot be read — the marketing copy and the
+ * "roughly this much" strip on the public home page. Being approximately
+ * wrong in prose is a cosmetic problem; being approximately wrong on a quote
+ * is charging the wrong amount.
+ */
+
+/** Display-only tax percentage for marketing copy. Real tax comes from `tax_pct_*`. */
 export const TAX_PERCENTAGE = parseFloat(process.env.TAX_PERCENTAGE ?? "0.10");
 
-/** FX buffer percentage (4%) applied on top of mid-market rate */
+/** Display-only FX buffer for the marketing rate strip. Real buffer is `fx_buffer_pct`. */
 export const DEFAULT_FX_BUFFER_PCT = 0.04;
 
-/** Fallbacks for weight-based freight when pricing_constants cannot be read. Admin values live in the DB. */
+/** Display-only $/lb for the "how pricing works" copy. Real rate is `freight_rate_per_lb`. */
 export const DEFAULT_FREIGHT_RATE_PER_LB = 5;
-export const DEFAULT_HANDLING_FEE_USD = 3;
 
 /**
  * `pricing_constants` key holding the price-drop alert threshold (migration

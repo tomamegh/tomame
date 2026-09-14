@@ -63,12 +63,17 @@ CREATE TABLE IF NOT EXISTS order_photos (
   -- the customer's screen, and a typo would file it nowhere.
   kind           TEXT NOT NULL DEFAULT 'hub_received'
                    CHECK (kind IN ('hub_received', 'packed', 'damaged', 'delivered', 'other')),
-  -- An object key inside `parcel-photos`: "orders/<uuid>/<random>.webp".
+  -- An object key inside `parcel-photos`: "orders/<this row's order_id>/<name>".
   -- No scheme, no host, no "..", no leading slash — the same shape rule 040
   -- applies to marketing uploads, for the same reason: a row must not be able to
   -- point at a third party or climb out of its own prefix.
+  --
+  -- The name may not be "." or ".." and may not start with a dot: a shape check
+  -- of `[A-Za-z0-9._-]+` alone accepts ".." as an object name, which is inert
+  -- against Supabase's opaque keys but not against anything that ever joins this
+  -- value to a filesystem path.
   storage_path   TEXT NOT NULL
-                   CHECK (storage_path ~ '^orders/[0-9a-f-]{36}/[A-Za-z0-9._-]+$'),
+                   CHECK (storage_path ~ '^orders/[0-9a-f-]{36}/[A-Za-z0-9][A-Za-z0-9._-]*$'),
   -- Measured server-side by sharp AFTER re-encoding, never taken from the
   -- upload — the same guarantee 040 makes. WebP only, for the same reason: the
   -- re-encode is what proves the bytes are really an image and not a polyglot.
@@ -86,6 +91,18 @@ CREATE TABLE IF NOT EXISTS order_photos (
   uploaded_by    UUID REFERENCES profiles(id) ON DELETE SET NULL,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- THE CONSTRAINT THAT MATTERS. The shape check above says the path looks like an
+-- order prefix; this says it is THIS row's order prefix. Without it a photo row
+-- for order A may legally name an object under order B, and the serving route —
+-- which authorises by finding a row the caller owns and then streaming whatever
+-- `storage_path` names — would hand customer A a photograph of customer B's
+-- parcel with the ownership check passing. A CHECK may reference other columns of
+-- the same row, so the rule belongs in the database rather than in the one writer
+-- that happens to get it right today.
+ALTER TABLE order_photos DROP CONSTRAINT IF EXISTS order_photos_path_matches_order;
+ALTER TABLE order_photos ADD CONSTRAINT order_photos_path_matches_order
+  CHECK (storage_path LIKE 'orders/' || order_id::text || '/%');
 
 ALTER TABLE order_photos ENABLE ROW LEVEL SECURITY;
 -- Explicit GRANTs: hosted Supabase grants these on new public tables by default

@@ -27,13 +27,28 @@ import type { OrderStatus } from "../types";
  * `completed` and `cancelled` are absent by design: they are ends of the line,
  * and a status with no entry here offers nothing.
  */
-export const ALLOWED_TRANSITIONS: Record<string, OrderStatus[]> = {
+export const ALLOWED_TRANSITIONS = {
   pending: ["cancelled"],
   paid: ["processing"],
   processing: ["in_transit"],
   in_transit: ["delivered"],
   delivered: ["completed"],
-};
+} as const satisfies Record<string, readonly OrderStatus[]>;
+
+/**
+ * The statuses an admin action can actually move an order INTO — the union of
+ * everything on the right-hand side above, derived rather than restated.
+ *
+ * This is what makes the admin console's copy map exhaustive in the useful
+ * direction. Keyed by `OrderStatus` it would demand words for `pending` and
+ * `paid`, destinations no edge reaches, and whoever wrote them would be guessing
+ * at a button nobody can press — then the day an edge IS added, that guess ships
+ * to an admin as a description of what the customer is about to be told. Keyed by
+ * this, a new edge is a COMPILE ERROR until someone writes its real copy, which
+ * is the failure mode this module exists to create.
+ */
+export type TransitionDestination =
+  (typeof ALLOWED_TRANSITIONS)[keyof typeof ALLOWED_TRANSITIONS][number];
 
 /**
  * The statuses reachable from `status`, or an empty list for a terminal or
@@ -46,6 +61,8 @@ export const ALLOWED_TRANSITIONS: Record<string, OrderStatus[]> = {
  * the two would have quietly spread the weaker version. A status arriving here
  * is a string from a database column or a URL, not a value this module chose.
  */
-export function allowedTransitionsFrom(status: string): OrderStatus[] {
-  return Object.hasOwn(ALLOWED_TRANSITIONS, status) ? ALLOWED_TRANSITIONS[status]! : [];
+export function allowedTransitionsFrom(status: string): readonly TransitionDestination[] {
+  return Object.hasOwn(ALLOWED_TRANSITIONS, status)
+    ? ALLOWED_TRANSITIONS[status as keyof typeof ALLOWED_TRANSITIONS]
+    : [];
 }

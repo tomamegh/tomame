@@ -23,11 +23,11 @@ import { collectMissingConstants } from "./pricing-constant-keys";
  * NOTHING HERE WRITES. It is a projection: the overrides live only for the
  * duration of one call.
  *
- * NO DEFAULTS. `pricing.service.ts` fills a missing constant with a literal
- * (`map.freight_rate_per_lb ?? 5`) so the customer flow keeps working; this
- * deliberately does the opposite and refuses, because the console's whole job
- * is to tell an admin the truth about the configuration. A screen that quietly
- * priced a missing row at 5 would hide exactly the gap it exists to surface.
+ * NO DEFAULTS ANYWHERE. The customer flow refuses too — an unconfigured
+ * constant makes `PricingCalculator` return `needs_review` rather than a
+ * total — but it refuses quietly, in the shape a shopper can be shown. Here
+ * the refusal is loud and names the rows, because the console's whole job is
+ * to tell an admin the truth about the configuration.
  */
 
 /** Builds the calculator's constants block, refusing rather than substituting. */

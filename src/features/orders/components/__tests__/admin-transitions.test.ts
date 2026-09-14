@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { ORDER_STATUSES } from "@/config/constants";
-import { ALLOWED_TRANSITIONS } from "../../services/order-transitions";
+import {
+  ALLOWED_TRANSITIONS,
+  allowedTransitionsFrom,
+} from "../../services/order-transitions";
 import {
   adminStatusLabel,
   adminStatusTone,
@@ -27,7 +30,7 @@ describe("transitionsFor", () => {
     // readers. If the service gains an edge, the console gains a button.
     for (const status of Object.values(ORDER_STATUSES)) {
       expect(transitionsFor(status, CONTEXT).map((t) => t.to)).toEqual(
-        ALLOWED_TRANSITIONS[status] ?? [],
+        allowedTransitionsFrom(status),
       );
     }
   });

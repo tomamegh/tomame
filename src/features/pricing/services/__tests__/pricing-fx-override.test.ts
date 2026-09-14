@@ -11,8 +11,23 @@ import { TomameCategory } from "@/config/categories/tomame_category";
 
 beforeEach(() => vi.clearAllMocks());
 
+/**
+ * The constants these assertions were always written against — a 4% FX buffer,
+ * 10% USA/UK tax, no tax floor. They used to be the calculator's own hardcoded
+ * fallbacks; now they have to be handed in, because a calculator with no
+ * constants reviews instead of pricing. The numbers are unchanged.
+ */
+function constants() {
+  return {
+    freight_rate_per_lb: 5, handling_fee_usd: 3, minimum_tax_usd: 0, fx_buffer_pct: 0.04,
+    tax_pct_usa: 0.1, tax_pct_uk: 0.1, tax_pct_china: 0.08,
+    minimum_chargeable_weight_lbs: 0, default_value_fee_pct: 0.05,
+  };
+}
+
 function phonesCalculator(): PricingCalculator {
   const calc = new PricingCalculator();
+  calc.setConstants(constants());
   const group: PricingGroupRow = {
     id: "g1", slug: "phones", name: "Phones", flat_rate_ghs: 500, flat_rate_expression: null,
     value_percentage: 0.05, value_percentage_high: null, value_threshold_usd: null,

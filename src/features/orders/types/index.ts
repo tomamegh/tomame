@@ -50,6 +50,14 @@ export interface Order {
   /** 050: the delivery WINDOW the customer is shown. Null until an operator sets one. */
   eta_from?: string | null;
   eta_to?: string | null;
+  /**
+   * 054: an admin has stopped this order advancing. NOT a status — the parcel is
+   * still wherever `status` says it is; this decides whether it may move.
+   * `updateOrderStatusAdmin` refuses every transition while it is set.
+   */
+  held_at?: string | null;
+  hold_reason?: string | null;
+  held_by?: string | null;
   delivered_at: string | null;
   extraction_data: Record<string, unknown> | null;
   needs_review: boolean;

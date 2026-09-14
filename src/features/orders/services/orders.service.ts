@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { buildOrderIntake } from "./order-intake.service";
 import { allowedTransitionsFrom } from "./order-transitions";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { sendEmail } from "@/lib/email/transport";
 import {
   orderPlacedTemplate,
@@ -465,7 +466,7 @@ export async function updateOrderStatusAdmin(
   newStatus: string,
   trackingData?: OrderTrackingInput,
 ): Promise<Order> {
-  if (user.app_metadata?.role !== "admin") {
+  if (!canAccessAdmin(user)) {
     throw new APIError(403, "Admin access required");
   }
 
@@ -474,7 +475,19 @@ export async function updateOrderStatusAdmin(
     throw new APIError(404, "Order not found");
   }
 
-  const allowed: string[] = allowedTransitionsFrom(order.status);
+  // 054: a hold stops the parcel moving without pretending to be a status.
+  // Checked BEFORE the transition table, because "this order is on hold" is the
+  // useful answer and "cannot go from processing to in_transit" is not. A held
+  // order is released by clearing `held_at`, which is a separate admin action —
+  // advancing it must never be the thing that quietly lifts the hold.
+  if (order.held_at) {
+    throw new APIError(
+      409,
+      `This order is on hold and cannot be moved: ${order.hold_reason ?? "no reason recorded"}`,
+    );
+  }
+
+  const allowed: readonly string[] = allowedTransitionsFrom(order.status);
   if (!allowed.includes(newStatus)) {
     throw new APIError(
       400,

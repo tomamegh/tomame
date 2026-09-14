@@ -1,7 +1,7 @@
 import { APIError } from "@/lib/auth/api-helpers";
 import { getGhsRate } from "@/lib/exchange-rates/service";
-import { TAX_PERCENTAGE, DEFAULT_FX_BUFFER_PCT, DEFAULT_FREIGHT_RATE_PER_LB, DEFAULT_HANDLING_FEE_USD } from "@/config/pricing";
 import { getCategoryPricing } from "@/config/pricing-categories";
+import { REQUIRED_PRICING_CONSTANT_KEYS, collectMissingConstants } from "./required-constants";
 import type { PricingGroupRow } from "@/db/queries/pricing-groups";
 import type { FixedFreightItemRow } from "@/db/queries/fixed-freight-items";
 import { logger } from "@/lib/logger";
@@ -113,6 +113,12 @@ export class PricingCalculator {
   private appliedRate: number | null = null;
   private crossRates = new Map<string, number>();
   private constants: PricingConstants | null = null;
+  /**
+   * The required constants that have no usable value. A fresh calculator is
+   * missing all of them — it prices nothing until somebody hands it a complete
+   * set, which is the point: there is no such thing as a default here.
+   */
+  private missingConstantKeys: string[] = [...REQUIRED_PRICING_CONSTANT_KEYS];
   private categoryPricingMap: Map<string, PricingGroupRow> | null = null;
   private fixedFreightItems: FixedFreightItemRow[] | null = null;
 
@@ -120,9 +126,35 @@ export class PricingCalculator {
     return Math.round(n * 100) / 100;
   }
 
-  /** Inject DB-loaded pricing constants. Falls back to config defaults if not set. */
-  setConstants(constants: PricingConstants): void {
-    this.constants = constants;
+  /**
+   * Inject the admin-controlled pricing constants.
+   *
+   * There is no fallback. An incomplete set is not partially usable: the
+   * calculator records which keys are absent and every subsequent `calculate`
+   * returns `needs_review` instead of a total built from a number nobody chose.
+   * Takes a `Partial` on purpose so the caller can pass the database row set
+   * straight through rather than patching the holes on the way in.
+   */
+  setConstants(constants: Partial<PricingConstants>): void {
+    const missing = collectMissingConstants(constants);
+    this.missingConstantKeys = missing;
+    this.constants = missing.length === 0 ? (constants as PricingConstants) : null;
+  }
+
+  /** Which required constants are absent. Empty means this calculator can price. */
+  get missingConstants(): string[] {
+    return [...this.missingConstantKeys];
+  }
+
+  /**
+   * The constants, guaranteed complete. Only reachable past the guard at the
+   * top of `calculate`; throwing here means a new code path skipped it.
+   */
+  private get required(): PricingConstants {
+    if (!this.constants) {
+      throw new Error(`PricingCalculator has no pricing constants (missing: ${this.missingConstantKeys.join(", ")})`);
+    }
+    return this.constants;
   }
 
   /** Inject DB-loaded category→pricing group map. Falls back to JSON config if not set. */
@@ -136,19 +168,18 @@ export class PricingCalculator {
   }
 
   private get fxBufferPct(): number {
-    return this.constants?.fx_buffer_pct ?? DEFAULT_FX_BUFFER_PCT;
+    return this.required.fx_buffer_pct;
   }
 
   private getTaxPercentage(region?: PricingRegion): number {
-    if (!this.constants) return TAX_PERCENTAGE;
     switch (region) {
       case "uk":
-        return this.constants.tax_pct_uk;
+        return this.required.tax_pct_uk;
       case "china":
-        return this.constants.tax_pct_china;
+        return this.required.tax_pct_china;
       case "usa":
       default:
-        return this.constants.tax_pct_usa;
+        return this.required.tax_pct_usa;
     }
   }
 
@@ -259,6 +290,14 @@ export class PricingCalculator {
    * forgotten on one code path (see docs/phase-3-handoff.md §5, gotcha 8).
    */
   async calculate(input: PricingInput, fx: FxOverride | null): Promise<PricingBreakdown> {
+    // 0. No constants, or a set with a hole in it → review, never a guess.
+    //    Ahead of the FX fetch on purpose: the buffer that turns the mid-market
+    //    rate into the rate we charge is itself one of these constants, so a
+    //    rate loaded here would already be built on an invented number.
+    if (this.missingConstantKeys.length > 0) {
+      return this.reviewForMissingConstants(input);
+    }
+
     if (fx == null && this.appliedRate == null) await this.loadFxRate();
 
     const r2 = PricingCalculator.roundTo2;
@@ -276,7 +315,7 @@ export class PricingCalculator {
     const subtotalUsd = r2(itemPriceUsd * quantity);
     const taxPct = this.getTaxPercentage(region);
     const rawTax = r2(subtotalUsd * taxPct);
-    const minimumTax = this.constants?.minimum_tax_usd ?? 0;
+    const minimumTax = this.required.minimum_tax_usd;
     const taxUsd = Math.max(rawTax, minimumTax);
 
     const base = {
@@ -327,7 +366,7 @@ export class PricingCalculator {
     if (fixed) {
       const feePct = catPricing
         ? tieredFee(catPricing.value_percentage, catPricing.value_percentage_high, catPricing.value_threshold_usd)
-        : this.constants?.default_value_fee_pct ?? 0.05;
+        : this.required.default_value_fee_pct;
       // Freight is per item: a negotiated rate covers one unit.
       return finish(
         "fixed_freight",
@@ -354,7 +393,7 @@ export class PricingCalculator {
     //    only marks the group as weight-based; the rate and handling fee are the
     //    admin constants, so there are two knobs instead of one formula per group.
     if (catPricing.flat_rate_expression != null) {
-      const minWeight = this.constants?.minimum_chargeable_weight_lbs ?? 0;
+      const minWeight = this.required.minimum_chargeable_weight_lbs;
       let weight: number | null = null;
       let weightSource: PricingBreakdown["weight_source"];
 
@@ -376,8 +415,8 @@ export class PricingCalculator {
           : `We couldn't determine the weight of this product, which is needed to calculate shipping for ${catPricing.name.toLowerCase()}.`);
       }
 
-      const ratePerLb = this.constants?.freight_rate_per_lb ?? DEFAULT_FREIGHT_RATE_PER_LB;
-      const handlingUsd = this.constants?.handling_fee_usd ?? DEFAULT_HANDLING_FEE_USD;
+      const ratePerLb = this.required.freight_rate_per_lb;
+      const handlingUsd = this.required.handling_fee_usd;
       // Weight is per item, so freight scales with quantity; handling is once per line.
       const chargeableLbs = r2(weight * quantity);
       const freightUsd = r2(chargeableLbs * ratePerLb + handlingUsd);
@@ -406,6 +445,50 @@ export class PricingCalculator {
     }
 
     return this.buildReview(base, catPricing.group, valueFeePct, `We couldn't calculate shipping for ${catPricing.name.toLowerCase()}.`);
+  }
+
+  /**
+   * The "our own configuration is incomplete" review.
+   *
+   * Deliberately shaped like every other `needs_review`: zero total, zero
+   * pesewas, a reason a customer can read. The operator-facing detail — which
+   * rows are absent — goes to the log, not to the quote screen: a shopper
+   * cannot act on the string "fx_buffer_pct", and printing it would leak the
+   * shape of the pricing table for nothing.
+   *
+   * No FX is fetched and nothing is converted, because both would need a
+   * constant we do not have.
+   */
+  private reviewForMissingConstants(input: PricingInput): PricingBreakdown {
+    logger.error("Pricing constants are not configured; refusing to price", {
+      missing: this.missingConstantKeys,
+      category: input.category ?? null,
+    });
+
+    const itemCurrency = (input.itemCurrency ?? "USD").toUpperCase();
+    const itemPrice = input.itemPrice ?? input.itemPriceUsd;
+    if (itemPrice == null || !(itemPrice > 0)) {
+      throw new APIError(400, "An item price is required to calculate pricing.");
+    }
+    // Only an identity conversion is honest here; anything else needs a rate.
+    const itemPriceUsd = input.itemPriceUsd ?? (itemCurrency === "USD" ? itemPrice : 0);
+
+    return this.buildReview(
+      {
+        item_price: itemPrice,
+        item_currency: itemCurrency,
+        item_price_usd: itemPriceUsd,
+        quantity: input.quantity,
+        subtotal_usd: PricingCalculator.roundTo2(itemPriceUsd * input.quantity),
+        exchange_rate: 0,
+        mid_market_rate: 0,
+        tax_percentage: 0,
+        tax_usd: 0,
+      },
+      null,
+      0,
+      "We couldn't work out a price for this item. Our team needs to check it before you can order.",
+    );
   }
 
   private buildReview(

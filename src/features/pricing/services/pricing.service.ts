@@ -1,4 +1,4 @@
-import { PricingCalculator } from "@/lib/pricing";
+import { PricingCalculator, collectMissingConstants } from "@/lib/pricing";
 import type { PricingInput, PricingBreakdown, PricingConstants, FxOverride } from "@/lib/pricing";
 import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
 import { getCategoryPricingMap } from "@/db/queries/pricing-groups";
@@ -7,7 +7,17 @@ import { logger } from "@/lib/logger";
 
 export type { PricingInput as CalculatePricingInput };
 
-/** Build a calculator with every admin-controlled input loaded from the DB. */
+/**
+ * Build a calculator with every admin-controlled input loaded from the DB.
+ *
+ * NO SUBSTITUTION. What the table holds is what the calculator gets. A missing
+ * row used to be filled with a literal here (`map.freight_rate_per_lb ?? 5`),
+ * which meant a half-configured environment quoted a real customer a real
+ * total built from a number nobody had chosen. Now the gap travels: the
+ * calculator that comes back returns `needs_review` instead of a price, and
+ * the keys that are absent are named in the log, which is the one place a
+ * constant name is useful to anybody.
+ */
 export async function loadPricingCalculator(): Promise<PricingCalculator> {
   const calculator = new PricingCalculator();
 
@@ -19,20 +29,20 @@ export async function loadPricingCalculator(): Promise<PricingCalculator> {
 
   if (constantsRes.status === "fulfilled") {
     const map = constantsRes.value;
-    const constants: PricingConstants = {
-      freight_rate_per_lb: map.freight_rate_per_lb ?? 5,
-      handling_fee_usd: map.handling_fee_usd ?? 3,
-      minimum_tax_usd: map.minimum_tax_usd ?? 2,
-      fx_buffer_pct: map.fx_buffer_pct ?? 0.04,
-      tax_pct_usa: map.tax_pct_usa ?? 0.1,
-      tax_pct_uk: map.tax_pct_uk ?? 0.1,
-      tax_pct_china: map.tax_pct_china ?? 0.08,
-      minimum_chargeable_weight_lbs: map.minimum_chargeable_weight_lbs ?? 1,
-      default_value_fee_pct: map.default_value_fee_pct ?? 0.05,
-    };
-    calculator.setConstants(constants);
+    const missing = collectMissingConstants(map);
+    if (missing.length > 0) {
+      logger.warn("Pricing constants incomplete — quotes will be flagged for review, not priced", {
+        missing,
+        present: Object.keys(map).sort(),
+      });
+    }
+    // Pass the rows through as they are; the calculator decides whether that
+    // set can price, and refuses as a whole rather than per-field.
+    calculator.setConstants(map as Partial<PricingConstants>);
   } else {
-    logger.warn("Failed to load pricing constants from DB, using defaults", { error: String(constantsRes.reason) });
+    logger.warn("Failed to load pricing constants from DB — quotes will be flagged for review, not priced", {
+      error: String(constantsRes.reason),
+    });
   }
 
   if (categoryRes.status === "fulfilled") {
