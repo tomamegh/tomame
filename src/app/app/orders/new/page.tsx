@@ -59,9 +59,11 @@ export const metadata: Metadata = {
  *
  * Public, like the rest of the quote flow (`src/lib/supabase/proxy.ts` carves
  * this route out): a signed-out visitor sees the links they pasted under their
- * own `tm_quote_session` cookie. `/app/products` is NOT carved out, so the
- * "search by name" link is a login wall for a visitor; browsing here is not,
- * which is the whole point of putting the catalogue on this route.
+ * own `tm_quote_session` cookie, and browses the catalogue without an account.
+ * `/app/products`, the fuller search this screen links to, was carved out in the
+ * same change: leaving it gated while browsing the same catalogue here was open
+ * made one half of one feature a login wall, and it was the half a visitor
+ * reaches by following our own link.
  *
  * NOTHING HERE PRICES ANYTHING. Every cedi total on a browse card is struck by
  * the pricing engine inside `browseCatalogCategory`, server side, for quantity
