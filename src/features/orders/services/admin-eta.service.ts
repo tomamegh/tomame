@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { PlatformUser } from "@/features/users/types";
 import type { Order } from "../types";
 import { recordOrderEvent } from "./order-events.service";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 /**
  * Setting and adjusting an order's ETA window, outside a status change.
@@ -53,7 +54,7 @@ export async function setOrderEtaWindow(
   orderId: string,
   input: EtaWindowInput,
 ): Promise<Order> {
-  if (admin.profile.role !== "admin") {
+  if (!canAccessAdmin(admin)) {
     throw new APIError(403, "Admin access required");
   }
 

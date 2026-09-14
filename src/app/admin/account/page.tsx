@@ -8,6 +8,7 @@ import { AccountSecurityPanel } from "@/features/account/components/account-secu
 import { roleGrantSummary } from "@/features/users/components/admin-user-format";
 
 import type { Metadata } from "next";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 export const metadata: Metadata = {
   title: "Account · Tomame admin",
@@ -39,7 +40,7 @@ export default async function AdminAccountPage() {
   const user = await getAuthenticatedUser();
   // `src/proxy.ts` gates `/admin`; this covers the session that ended between
   // that check and this render.
-  if (!user || user.profile.role !== "admin") notFound();
+  if (!user || !canAccessAdmin(user)) notFound();
 
   const profile = await getAccountProfile(user.id, user.email ?? null);
 

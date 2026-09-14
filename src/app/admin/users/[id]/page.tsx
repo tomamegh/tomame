@@ -39,6 +39,7 @@ import {
 } from "@/features/admin/components/dashboard-format";
 import { formatGhs, formatUsd } from "@/features/marketing/format";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 /**
  * `/admin/users/[id]` — one customer, whole.
@@ -62,7 +63,7 @@ export default async function AdminUserDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const viewer = await getAuthenticatedUser();
-  if (!viewer || viewer.profile.role !== "admin") notFound();
+  if (!viewer || !canAccessAdmin(viewer)) notFound();
 
   const { id } = await params;
 

@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  ActivityIcon,
   BellIcon,
   BookmarkIcon,
   CameraIcon,
@@ -100,6 +101,8 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
     links: [
       { title: "Users", url: "/admin/users", icon: UsersRoundIcon },
       { title: "Notifications", url: "/admin/notifications", icon: BellIcon },
+      // Absence detection: jobs, payments and messages that have gone quiet.
+      { title: "Health", url: "/admin/ops", icon: ActivityIcon },
     ],
   },
 ] as const;

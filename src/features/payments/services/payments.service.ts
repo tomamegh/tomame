@@ -22,6 +22,7 @@ import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { createOrderNotifications } from "@/features/notifications/services/notifications.service";
 import { env } from "@/lib/env";
 import { PAYMENT_STATUSES } from "@/config/constants";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 import type { PlatformUser } from "@/features/users/types";
 import type {
   InitializePaymentResponse,
@@ -86,7 +87,7 @@ async function getPaymentsByUserId(
 }
 
 /** What a charge is for: one legacy order, or one bag's order group. */
-type ChargeTarget = { orderId: string; groupId?: never } | { groupId: string; orderId?: never };
+export type ChargeTarget = { orderId: string; groupId?: never } | { groupId: string; orderId?: never };
 
 /**
  * The newest payment that already has a claim on this target — pending or
@@ -99,7 +100,7 @@ type ChargeTarget = { orderId: string; groupId?: never } | { groupId: string; or
  * limit — is the same guard, and the two copies of it drifted apart once
  * already.
  */
-async function findActivePayment(client: SupabaseClient, target: ChargeTarget): Promise<Payment | null> {
+export async function findActivePayment(client: SupabaseClient, target: ChargeTarget): Promise<Payment | null> {
   const base = client.from("payments").select("*");
   const scoped =
     target.groupId != null
@@ -167,7 +168,7 @@ async function getAllPayments(
  * treating a failed write as "someone else won" would report the payment as
  * settled to the customer while the order silently stayed unpaid.
  */
-async function transitionPaymentStatus(
+export async function transitionPaymentStatus(
   client: SupabaseClient,
   paymentId: string,
   fromStatus: string,
@@ -230,6 +231,15 @@ function targetOf(payment: Payment): PayTarget {
 }
 
 const NO_TARGET: PayTarget = { orderId: null, groupId: null };
+
+/**
+ * Did the reconciliation job (059) release this payment for inactivity? Only
+ * those rows carry `metadata.expired_at`; a payment Paystack reported as failed
+ * or reversed never gets it.
+ */
+export function wasExpiredByUs(payment: Pick<Payment, "metadata">): boolean {
+  return typeof (payment.metadata as Record<string, unknown> | null)?.expired_at === "string";
+}
 
 /**
  * Where to send the customer back to after Paystack.
@@ -446,9 +456,17 @@ export async function handlePaymentCallback(
   if (payment.status === PAYMENT_STATUSES.SUCCESS) {
     return { redirectUrl: successUrl(target) };
   }
-  if (payment.status === PAYMENT_STATUSES.FAILED) {
+  // A payment WE released for inactivity (059) is the one kind of `failed` that
+  // can still turn into money: the customer may reopen the Paystack link and
+  // pay. So it goes on to verification, and a success below moves it
+  // `failed → success`. A payment Paystack itself declared failed is final.
+  const recoveringExpired = payment.status === PAYMENT_STATUSES.FAILED && wasExpiredByUs(payment);
+  if (payment.status === PAYMENT_STATUSES.FAILED && !recoveringExpired) {
     return { redirectUrl: failureUrl(target) };
   }
+  // Fixed HERE, before the verify call, so the guarded update below always
+  // names the status this caller READ. The whole race depends on that.
+  const fromStatus = recoveringExpired ? PAYMENT_STATUSES.FAILED : PAYMENT_STATUSES.PENDING;
 
   let verification: Awaited<ReturnType<typeof verifyTransaction>>;
   try {
@@ -490,9 +508,13 @@ export async function handlePaymentCallback(
     const claimed = await transitionPaymentStatus(
       admin,
       payment.id,
-      PAYMENT_STATUSES.PENDING,
+      fromStatus,
       PAYMENT_STATUSES.SUCCESS,
-      { ...baseMetadata, paystack_verification: verifyData },
+      {
+        ...baseMetadata,
+        paystack_verification: verifyData,
+        ...(recoveringExpired && { recovered_after_expiry_at: new Date().toISOString() }),
+      },
       verification.data.channel,
     );
 
@@ -501,24 +523,44 @@ export async function handlePaymentCallback(
       return { redirectUrl: successUrl(target) };
     }
 
+    let ordersSettled = 0;
     if (target.groupId) {
-      await settleGroup(admin, payment, target.groupId);
+      ordersSettled = await settleGroup(admin, payment, target.groupId);
     } else if (orderId) {
       const order = await settleOrder(admin, payment, orderId);
+      if (order) ordersSettled = 1;
       // One order, one email — the group path sends its own.
       if (order) sendOrderStatusEmail(payment.user_id, order, "paid");
+    }
+
+    // Money that arrived after we released the payment and (possibly) closed
+    // the order for non-payment. Nothing settled means the customer has paid
+    // for a cancelled order and is owed a refund or a reinstatement — an admin
+    // decision, made visible here rather than inferred later.
+    if (recoveringExpired && ordersSettled === 0) {
+      logger.error("Late payment for an order that is no longer pending — refund review needed", {
+        reference,
+        ...target,
+        paymentId: payment.id,
+      });
     }
 
     await logAuditEvent({
       actorId: payment.user_id,
       actorRole: "system",
-      action: "payment_successful",
+      action: recoveringExpired ? "payment_recovered_after_expiry" : "payment_successful",
       entityType: "payment",
       entityId: payment.id,
-      metadata: { reference, ...target },
+      metadata: { reference, ...target, ordersSettled, ...(recoveringExpired && { needsRefundReview: ordersSettled === 0 }) },
     });
 
     return { redirectUrl: successUrl(target) };
+  }
+
+  // An expired payment that still is not paid is already `failed`; there is
+  // nothing to move and nothing new to audit.
+  if (recoveringExpired) {
+    return { redirectUrl: failureUrl(target) };
   }
 
   const failed = await transitionPaymentStatus(
@@ -595,12 +637,16 @@ async function settleOrder(admin: SupabaseClient, payment: Payment, orderId: str
  * Each step is guarded on its own current status, so a second pass (a webhook
  * after a callback that died halfway) finishes what is left and repeats nothing.
  */
-async function settleGroup(admin: SupabaseClient, payment: Payment, groupId: string): Promise<void> {
+async function settleGroup(admin: SupabaseClient, payment: Payment, groupId: string): Promise<number> {
   const orders = await listOrdersByGroup(admin, groupId);
   let first: Order | null = null;
+  let settledCount = 0;
   for (const order of orders) {
     const settled = await settleOrder(admin, payment, order.id);
-    if (settled) first ??= settled;
+    if (settled) {
+      first ??= settled;
+      settledCount += 1;
+    }
   }
 
   const flipped = await updateOrderGroupStatus(groupId, "pending", "paid", { payment_id: payment.id });
@@ -618,6 +664,7 @@ async function settleGroup(admin: SupabaseClient, payment: Payment, groupId: str
   // One email per group. A group template is Phase 5+; until then the first
   // order's "paid" mail stands in for the whole bag.
   if (first) sendOrderStatusEmail(payment.user_id, first, "paid");
+  return settledCount;
 }
 
 /**
@@ -686,7 +733,7 @@ export async function listAllTransactions(
   user: PlatformUser,
   filters?: { status?: string; userId?: string },
 ): Promise<TransactionListResponse> {
-  if (user.profile.role !== "admin") {
+  if (!canAccessAdmin(user)) {
     throw new APIError(403, "Admin access required");
   }
 

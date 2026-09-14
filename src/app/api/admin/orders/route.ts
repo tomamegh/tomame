@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,9 +25,7 @@ export async function GET(request: NextRequest) {
 
     const { session, supabase } = await getUserSession();
 
-    if (session.app_metadata?.role !== "admin") {
-      throw new APIError(403, "Admin access required");
-    }
+    if (!canAccessAdmin(session)) throw new APIError(403, "Admin access required");
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") ?? undefined;

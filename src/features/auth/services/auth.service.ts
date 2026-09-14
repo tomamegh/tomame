@@ -9,6 +9,35 @@ import { type AuthenticatedUser } from "../types";
 import { PlatformUser } from "@/features/users/types";
 import { JwtPayload, User } from "@supabase/supabase-js";
 
+/**
+ * Carries the role from the access token onto the user object.
+ *
+ * `custom_access_token_hook` injects `app_metadata.role` into the JWT CLAIMS as
+ * the token is minted. It never writes `auth.users.raw_app_meta_data`, and
+ * `supabase.auth.getUser()` is built from that row, so on a hosted project
+ * `user.app_metadata.role` is undefined for EVERY account, admins included.
+ * `canAccessAdmin` reads `app_metadata.role`, so a `PlatformUser` built from
+ * `getUser()` alone was refused by every service that asked it the question:
+ * "Mark as purchasing" on an order answered "Admin access required" to the
+ * owner's own account on both hosted projects, 2026-09-14.
+ *
+ * It hid locally because the hook is commented out in `supabase/config.toml`
+ * and the local admin has the role set directly on `raw_app_meta_data`, where
+ * `getUser()` does see it. The workaround and the real mechanism populate
+ * different places, and only the hosted one is real.
+ *
+ * So the claims are the authority, merged over what the row said. A decoded
+ * token never carries `undefined` values, so a claim set without a role leaves
+ * whatever the row had (the local case) untouched. The result is that
+ * `canAccessAdmin(platformUser)` is true exactly when `src/lib/supabase/proxy.ts`
+ * would have admitted that same session to `/admin`.
+ */
+export function withClaimMetadata<T extends User>(user: T, claims: JwtPayload | null | undefined): T {
+  const claimed = claims?.app_metadata;
+  if (!claimed || typeof claimed !== "object") return user;
+  return { ...user, app_metadata: { ...user.app_metadata, ...claimed } };
+}
+
 export async function signup(email: string, password: string): Promise<User> {
   const supabase = await createClient();
 
@@ -49,6 +78,8 @@ export async function login(details: LoginSchemaType): Promise<PlatformUser> {
     throw new APIError(401, "Invalid email or password");
   }
 
+  const { data: claimsData } = await supabase.auth.getClaims();
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, role")
@@ -67,7 +98,10 @@ export async function login(details: LoginSchemaType): Promise<PlatformUser> {
     entityId: profile.id,
   });
 
-  return { ...data.user, profile: profile as PlatformUser["profile"] };
+  return {
+    ...withClaimMetadata(data.user, claimsData?.claims),
+    profile: profile as PlatformUser["profile"],
+  };
 }
 
 /**
@@ -168,8 +202,13 @@ export async function changePassword(
 }
 
 /**
- * Validates the current session and loads the user's authoritative role from DB.
+ * Validates the current session and loads the user's profile from DB.
  * Returns null if unauthenticated or if the user record is missing.
+ *
+ * The admin decision is NOT `profile.role`: it is `canAccessAdmin`, which reads
+ * `app_metadata.role`, and that comes from the token claims (see
+ * `withClaimMetadata`). The profile row is still loaded because everything else
+ * about the person (names, bio) lives there.
  */
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
   const supabase = await createClient();
@@ -178,16 +217,15 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
 
   if (!data.user || userError) return null;
 
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", data.user.id)
-    .single();
+  const [{ data: claimsData }, { data: profile, error }] = await Promise.all([
+    supabase.auth.getClaims(),
+    supabase.from("profiles").select("*").eq("id", data.user.id).single(),
+  ]);
 
   if (!profile || error) return null;
 
   return {
-    ...data.user,
+    ...withClaimMetadata(data.user, claimsData?.claims),
     profile: {
       id: profile.id,
       role: profile.role,
@@ -225,18 +263,18 @@ export async function getUserSession(): Promise<{
 
   return {
     supabase,
-    session: claimsData?.claims,
+    session: claimsData.claims,
     user: {
-      ...data.user,
-    profile: {
-      id: profile.id,
-      role: profile.role,
-      first_name: profile.first_name ?? undefined,
-      last_name: profile.last_name ?? undefined,
-      bio: profile.bio ?? undefined,
-      created_at: new Date(profile.created_at),
-      updated_at: new Date(profile.updated_at),
-    },
+      ...withClaimMetadata(data.user, claimsData.claims),
+      profile: {
+        id: profile.id,
+        role: profile.role,
+        first_name: profile.first_name ?? undefined,
+        last_name: profile.last_name ?? undefined,
+        bio: profile.bio ?? undefined,
+        created_at: new Date(profile.created_at),
+        updated_at: new Date(profile.updated_at),
+      },
     },
   };
 }

@@ -351,7 +351,7 @@ export interface AdminMediaOverrideRow {
 /**
  * Which marketing images have been overridden away from the shipped manifest.
  *
- * Read-only here. Writes belong to the in-page builder
+ * Read-only here. Writes belong to the builder screen at `/builder`
  * (`/api/admin/builder/[key]`), which owns upload, crop and reset and does the
  * storage work an override implies — a second write path would let this screen
  * orphan a file in the `marketing-media` bucket.

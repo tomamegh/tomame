@@ -14,6 +14,7 @@ import {
 import { getDeliveryRecord } from "@/db/queries/admin-deliveries";
 import { listOrderEvents } from "@/db/queries/order-events";
 import { getOrderGroupById } from "@/db/queries/order-groups";
+import { AdminOrderParcelPanel } from "@/features/order-photos/components/admin-parcel-panel";
 import { AdminOrderDetail } from "@/features/orders/components/admin-order-detail";
 import { AdminOrderOps } from "@/features/orders/components/admin-order-ops";
 import { AdminOrderReviewPanel } from "@/features/orders/components/admin-order-review-panel";
@@ -95,6 +96,17 @@ export default async function AdminOrderDetailPage({
         order={order}
         hasSuccessfulPayment={payment?.status === "success"}
         index={order.needs_review ? 1 : 0}
+      />
+
+      {/*
+        The camera, and the customer's answer to it. Above the detail grid on
+        purpose: when there is a parcel on a shelf, photographing it is the job,
+        and burying the control under the receipt is how it goes unfound.
+      */}
+      <AdminOrderParcelPanel
+        orderId={order.id}
+        status={order.status}
+        index={order.needs_review ? 2 : 1}
       />
 
       <AdminOrderDetail

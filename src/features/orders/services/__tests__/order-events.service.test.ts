@@ -25,7 +25,14 @@ import {
 
 const customer = { id: "u1", profile: { role: "user" } } as unknown as PlatformUser;
 const otherCustomer = { id: "u2", profile: { role: "user" } } as unknown as PlatformUser;
-const admin = { id: "a1", profile: { role: "admin" } } as unknown as PlatformUser;
+// The admin decision is `canAccessAdmin`, which reads the token's
+// `app_metadata.role` (what `getAuthenticatedUser` now carries onto the user),
+// not the `profiles` column.
+const admin = {
+  id: "a1",
+  app_metadata: { role: "admin" },
+  profile: { role: "admin" },
+} as unknown as PlatformUser;
 
 const row = (over: Partial<q.OrderEventRow> = {}): q.OrderEventRow => ({
   id: "e1",

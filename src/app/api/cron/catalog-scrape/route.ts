@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runCatalogScrapeJob } from "@/features/catalog/services/catalog-scrape.service";
-import { logger } from "@/lib/logger";
+import { runCronJob } from "@/lib/auth/cron";
 
 /** One vendor call per run; eBay search measured at 25 s live. */
 export const maxDuration = 60;
@@ -16,27 +16,11 @@ export const maxDuration = 60;
  * table, an unreachable database — and that is a 500 so it is visible.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    logger.warn("Cron endpoint unauthorized access attempt");
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    logger.info("Starting catalog-scrape cron job");
-
+  return runCronJob(request, "catalog-scrape", async () => {
     const summary = await runCatalogScrapeJob();
-
-    return NextResponse.json({
-      success: true,
+    return {
       message: summary.skipped ? `Catalog scrape skipped: ${summary.skipped}` : "Catalog scrape run",
       ...summary,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    logger.error("Catalog-scrape cron job failed", { error: message });
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+    };
+  });
 }

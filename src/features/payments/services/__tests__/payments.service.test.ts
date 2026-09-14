@@ -606,3 +606,59 @@ describe("handleWebhookEvent — retry contract (R9)", () => {
     expect(sendOrderStatusEmail).toHaveBeenCalledTimes(1);
   });
 });
+
+// ── 059: money that arrives after we released the payment ────────────────────
+
+describe("handlePaymentCallback — late payment after expiry (059)", () => {
+  it("moves a payment the reconciliation job released from failed to success and settles the order", async () => {
+    seedPayment({
+      status: "failed",
+      metadata: { order_id: ORDER_ID, expired_at: "2026-09-14T10:00:00Z", paystack_status_at_expiry: "abandoned" },
+    });
+    vi.mocked(verifyTransaction).mockResolvedValue(verification());
+    vi.mocked(linkOrderToPayment).mockResolvedValue(makeOrder({ status: "paid" }) as never);
+
+    const { redirectUrl } = await handlePaymentCallback(REFERENCE);
+
+    expect(redirectUrl).toContain("payment=success");
+    expect(db.payments[0]!.status).toBe("success");
+    expect((db.payments[0]!.metadata as Record<string, unknown>).recovered_after_expiry_at).toBeTypeOf("string");
+    expect(linkOrderToPayment).toHaveBeenCalledTimes(1);
+    const actions = vi.mocked(logAuditEvent).mock.calls.map(([e]) => e.action);
+    expect(actions).toContain("payment_recovered_after_expiry");
+    expect(actions).not.toContain("payment_successful");
+  });
+
+  it("flags a late payment whose order was already closed for refund review", async () => {
+    seedPayment({ status: "failed", metadata: { order_id: ORDER_ID, expired_at: "2026-09-14T10:00:00Z" } });
+    vi.mocked(verifyTransaction).mockResolvedValue(verification());
+    // The order is cancelled: the guarded pending→paid update matches nothing.
+    vi.mocked(linkOrderToPayment).mockResolvedValue(null);
+
+    await handlePaymentCallback(REFERENCE);
+
+    expect(db.payments[0]!.status).toBe("success");
+    const recovered = vi.mocked(logAuditEvent).mock.calls.find(([e]) => e.action === "payment_recovered_after_expiry");
+    expect(recovered?.[0].metadata).toMatchObject({ ordersSettled: 0, needsRefundReview: true });
+  });
+
+  it("leaves an expired payment failed, with no new audit row, when Paystack still has no money for it", async () => {
+    seedPayment({ status: "failed", metadata: { order_id: ORDER_ID, expired_at: "2026-09-14T10:00:00Z" } });
+    vi.mocked(verifyTransaction).mockResolvedValue(verification({ status: "abandoned" }));
+
+    const { redirectUrl } = await handlePaymentCallback(REFERENCE);
+
+    expect(redirectUrl).toContain("payment=failed");
+    expect(db.payments[0]!.status).toBe("failed");
+    expect(logAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("never re-verifies a payment Paystack itself declared failed", async () => {
+    seedPayment({ status: "failed", metadata: { order_id: ORDER_ID } });
+
+    const { redirectUrl } = await handlePaymentCallback(REFERENCE);
+
+    expect(redirectUrl).toContain("payment=failed");
+    expect(verifyTransaction).not.toHaveBeenCalled();
+  });
+});

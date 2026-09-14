@@ -21,7 +21,9 @@ import {
   listMediaOverrides,
   listWaitlistSignups,
 } from "@/db/queries/admin-content";
+import { isBuilderEnabled } from "@/config/builder";
 import { AdminBlocksPanel } from "@/features/marketing/components/admin-blocks-panel";
+import { AdminBuilderPanel } from "@/features/marketing/components/admin-builder-panel";
 import { AdminRegionsPanel } from "@/features/marketing/components/admin-regions-panel";
 import { AdminSettingsPanel } from "@/features/marketing/components/admin-settings-panel";
 import { AdminZonesPanel } from "@/features/marketing/components/admin-zones-panel";
@@ -30,6 +32,7 @@ import { formatJoined } from "@/features/users/components/admin-user-format";
 import { cn } from "@/lib/utils";
 
 import type { Metadata } from "next";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 export const metadata: Metadata = {
   title: "Content · Tomame admin",
@@ -66,7 +69,7 @@ const TABS: { value: ContentTab; label: string }[] = [
   { value: "zones", label: "Delivery zones" },
   { value: "blocks", label: "Copy blocks" },
   { value: "waitlist", label: "Waitlist" },
-  { value: "media", label: "Images" },
+  { value: "media", label: "Photo builder" },
 ];
 
 const TAB_BLURBS: Record<ContentTab, string> = {
@@ -80,7 +83,7 @@ const TAB_BLURBS: Record<ContentTab, string> = {
     "The marketing copy: FAQs, process steps, feature cards, fee lines and the quote screen's assurance cards. Unpublished blocks are filtered out of every storefront read.",
   waitlist: "People who asked to be told when a lane opens.",
   media:
-    "Marketing images that have been overridden away from the shipped manifest. Changes are made with the in-page builder, not here.",
+    "The photography on the marketing site, one page at a time. Open the builder on a page to replace a photo or drag its crop; what each photo is doing now is folded under the page it belongs to.",
 };
 
 function parseTab(value: string | string[] | undefined): ContentTab {
@@ -94,7 +97,7 @@ export default async function AdminContentPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const viewer = await getAuthenticatedUser();
-  if (!viewer || viewer.profile.role !== "admin") notFound();
+  if (!viewer || !canAccessAdmin(viewer)) notFound();
 
   const tab = parseTab((await searchParams).tab);
 
@@ -344,64 +347,23 @@ async function WaitlistTab() {
 
 async function MediaTab() {
   const overrides = await listMediaOverrides();
+  const changed = overrides.length;
 
   return (
-    <AdminCard index={1} title="Image overrides" blurb={TAB_BLURBS.media} flush={overrides.length > 0}>
-      {overrides.length === 0 ? (
-        <AdminEmpty
-          title="No images overridden"
-          body="Every marketing image is coming from the shipped manifest. Overrides are created with the in-page builder. Open a marketing page as an admin and re-crop or replace a photo there."
-        />
-      ) : (
-        <AdminTableScroller>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th scope="col" className={ADMIN_TH}>
-                  Image
-                </th>
-                <th scope="col" className={ADMIN_TH}>
-                  Source
-                </th>
-                <th scope="col" className={ADMIN_TH}>
-                  Crop
-                </th>
-                <th scope="col" className={ADMIN_TH}>
-                  Alt text
-                </th>
-                <th scope="col" className={ADMIN_TH}>
-                  Changed
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {overrides.map((override) => (
-                <tr key={override.key} className={ADMIN_TR}>
-                  <td className={`${ADMIN_TD} font-semibold`}>{override.key}</td>
-                  <td className={ADMIN_TD}>
-                    {override.storage_path ? (
-                      <AdminBadge tone="coral">Uploaded file</AdminBadge>
-                    ) : override.src ? (
-                      <span className="tm-nums text-tm-text-2">{override.src}</span>
-                    ) : (
-                      <span className="text-tm-text-3">Manifest default</span>
-                    )}
-                  </td>
-                  <td className={`${ADMIN_TD} tm-nums text-tm-text-2`}>
-                    {override.position ?? "—"}
-                  </td>
-                  <td className={`${ADMIN_TD} max-w-[32ch] truncate text-tm-text-2`}>
-                    {override.alt ?? "—"}
-                  </td>
-                  <td className={`${ADMIN_TD} tm-nums whitespace-nowrap text-tm-text-2`}>
-                    {formatJoined(override.updated_at) ?? "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </AdminTableScroller>
-      )}
+    <AdminCard
+      index={1}
+      title="Photo builder"
+      blurb={TAB_BLURBS.media}
+      flush
+      action={
+        <AdminBadge tone={changed > 0 ? "coral" : "muted"}>
+          {changed === 0
+            ? "All manifest defaults"
+            : `${formatCount(changed)} ${changed === 1 ? "photo" : "photos"} changed`}
+        </AdminBadge>
+      }
+    >
+      <AdminBuilderPanel overrides={overrides} builderEnabled={isBuilderEnabled()} />
     </AdminCard>
   );
 }

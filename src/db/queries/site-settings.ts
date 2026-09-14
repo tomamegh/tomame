@@ -11,6 +11,8 @@ export const SITE_SETTING_KEYS = [
   "company_address",
   "payment_channels",
   "payment_hold_note",
+  "payment_expiry_minutes",
+  "unpaid_order_ttl_hours",
 ] as const;
 
 export type SiteSettingKey = (typeof SITE_SETTING_KEYS)[number];

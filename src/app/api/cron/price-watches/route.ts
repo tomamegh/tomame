@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runPriceWatchJob } from "@/features/watches/services/watches.service";
-import { logger } from "@/lib/logger";
+import { runCronJob } from "@/lib/auth/cron";
 
 /**
  * One batch of the price-watch re-check (8 watches, 4 at a time). Two waves of
@@ -28,27 +28,8 @@ export const maxDuration = 300;
  * visible rather than a cheerful summary of zero.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    logger.warn("Cron endpoint unauthorized access attempt");
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    logger.info("Starting price-watch cron job");
-
+  return runCronJob(request, "recheck-price-watches", async () => {
     const summary = await runPriceWatchJob();
-
-    return NextResponse.json({
-      success: true,
-      message: "Price watches re-checked",
-      ...summary,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    logger.error("Price-watch cron job failed", { error: message });
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+    return { ...summary };
+  });
 }

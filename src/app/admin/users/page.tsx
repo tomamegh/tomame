@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { cn } from "@/lib/utils";
 
 import type { Metadata } from "next";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 export const metadata: Metadata = {
   title: "Users · Tomame admin",
@@ -50,7 +51,7 @@ export default async function AdminUsersPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const viewer = await getAuthenticatedUser();
-  if (!viewer || viewer.profile.role !== "admin") notFound();
+  if (!viewer || !canAccessAdmin(viewer)) notFound();
 
   const params = await searchParams;
   const rawRole = Array.isArray(params.role) ? params.role[0] : params.role;

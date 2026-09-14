@@ -30,7 +30,13 @@ interface PaystackVerifyResponse {
   message: string;
   data: {
     id: number;
-    status: "success" | "failed" | "abandoned";
+    /**
+     * Paystack's own vocabulary is wider than the three everyone remembers:
+     * `success`, `failed`, `abandoned`, `reversed`, `ongoing`, `pending`,
+     * `processing`, `queued`. Callers compare against the ones they act on and
+     * treat anything else as "not settled yet".
+     */
+    status: string;
     reference: string;
     amount: number;
     currency: string;

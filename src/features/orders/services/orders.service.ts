@@ -407,7 +407,7 @@ export async function getOrder(
     throw new APIError(404, "Order not found");
   }
 
-  if (user.profile.role !== "admin" && order.user_id !== user.id) {
+  if (!canAccessAdmin(user) && order.user_id !== user.id) {
     throw new APIError(404, "Order not found");
   }
 
@@ -682,7 +682,7 @@ export async function getOrderAuditHistory(
   const supabase = createAdminClient();
   const order = await getOrderById(supabase, orderId);
   if (!order) throw new APIError(404, "Order not found");
-  if (user.profile.role !== "admin" && order.user_id !== user.id) {
+  if (!canAccessAdmin(user) && order.user_id !== user.id) {
     throw new APIError(404, "Order not found");
   }
 

@@ -14,6 +14,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import type { PlatformUser } from "@/features/users/types";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 /**
  * `order_events` — the customer narrative of a journey (migration 050).
@@ -91,7 +92,7 @@ export async function listCustomerOrderEvents(
   const admin = createAdminClient();
   const order = await getOrderOwner(admin, orderId);
   if (!order) throw new APIError(404, "Order not found");
-  if (user.profile.role !== "admin" && order.user_id !== user.id) {
+  if (!canAccessAdmin(user) && order.user_id !== user.id) {
     throw new APIError(404, "Order not found");
   }
 

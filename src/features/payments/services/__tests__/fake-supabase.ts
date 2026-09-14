@@ -11,9 +11,9 @@ import crypto from "crypto";
 
 export type Row = Record<string, unknown>;
 
-export type TableName = "payments";
+export type TableName = "payments" | "orders" | "order_groups";
 
-export type FakeDb = Record<TableName, Row[]> & {
+export type FakeDb = Partial<Record<TableName, Row[]>> & { payments: Row[] } & {
   /** Set to make subsequent writes fail, as a dropped connection would. */
   failWrites?: boolean;
 };
@@ -70,6 +70,20 @@ class FakeQuery implements PromiseLike<Result> {
     return this;
   }
 
+  /** `lt` on ISO timestamps and numbers alike — string comparison is fine for ISO. */
+  lt(column: string, value: unknown): this {
+    this.predicates.push((row) => {
+      const v = readColumn(row, column);
+      return v != null && (v as string | number) < (value as string | number);
+    });
+    return this;
+  }
+
+  is(column: string, value: null | boolean): this {
+    this.predicates.push((row) => (readColumn(row, column) ?? null) === value);
+    return this;
+  }
+
   filter(column: string, _operator: string, value: unknown): this {
     this.predicates.push((row) => readColumn(row, column) === value);
     return this;
@@ -86,7 +100,7 @@ class FakeQuery implements PromiseLike<Result> {
   }
 
   private matches(): Row[] {
-    const rows = this.db[this.table];
+    const rows = (this.db[this.table] ??= []);
 
     if (this.op === "insert") {
       const inserted: Row = {

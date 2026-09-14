@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-
 import { sweepExtractions } from "@/features/extraction/services/extraction-queue.service";
+import { runCronJob } from "@/lib/auth/cron";
 import { logger } from "@/lib/logger";
 
 /**
@@ -25,26 +25,12 @@ export const maxDuration = 300;
  * unreachable database — and that is a 500 so it is visible.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    logger.warn("Cron endpoint unauthorized access attempt", { job: "sweep-extractions" });
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
+  return runCronJob(request, "sweep-extractions", async () => {
     const summary = await sweepExtractions();
-
     // Only worth a line when it actually did something — this runs 1,440 times a day.
     if (summary.claimed || summary.reclaimed) {
       logger.info("sweep-extractions run", { ...summary });
     }
-
-    return NextResponse.json({ success: true, ...summary });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    logger.error("sweep-extractions cron job failed", { error: message });
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+    return { ...summary };
+  });
 }

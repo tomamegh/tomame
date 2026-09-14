@@ -12,6 +12,7 @@ import type {
   TransactionDetailOrder,
   TransactionStats,
 } from "../types";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ export async function listTransactions(
   client: SupabaseClient,
   user: PlatformUser,
 ): Promise<TransactionResponse> {
-  if (user.profile.role !== "admin") {
+  if (!canAccessAdmin(user)) {
     throw new APIError(403, "Admin access required");
   }
 
@@ -155,7 +156,7 @@ export async function getTransactionDetail(
   user: PlatformUser,
   id: string,
 ): Promise<TransactionDetail> {
-  if (user.profile.role !== "admin") {
+  if (!canAccessAdmin(user)) {
     throw new APIError(403, "Admin access required");
   }
 
@@ -177,7 +178,7 @@ export async function syncTransactionStatus(
   user: PlatformUser,
   id: string,
 ): Promise<SyncResult> {
-  if (user.profile.role !== "admin") {
+  if (!canAccessAdmin(user)) {
     throw new APIError(403, "Admin access required");
   }
 

@@ -34,6 +34,7 @@ import { formatPercent } from "@/features/marketing/format";
 import { PRICE_WATCH_JOB } from "@/config/security";
 
 import type { Metadata } from "next";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 export const metadata: Metadata = {
   title: "Price watches · Tomame admin",
@@ -63,7 +64,7 @@ export const metadata: Metadata = {
  */
 export default async function AdminWatchesPage() {
   const viewer = await getAuthenticatedUser();
-  if (!viewer || viewer.profile.role !== "admin") notFound();
+  if (!viewer || !canAccessAdmin(viewer)) notFound();
 
   const now = new Date();
 

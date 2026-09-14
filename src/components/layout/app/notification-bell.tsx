@@ -156,6 +156,8 @@ function notificationTitle(event: string, payload: Record<string, unknown>): str
     price_drop: "A price you're watching dropped",
     paste_priced: host ? `Your ${host} link is priced` : "Your link is priced",
     paste_unreadable: host ? `We couldn't read your ${host} link` : "We couldn't read your link",
+    payment_expired: "Your payment did not go through",
+    order_expired_unpaid: "We closed an unpaid order",
   };
   if (known[event]) return known[event];
   const words = event.replace(/_/g, " ").trim();
