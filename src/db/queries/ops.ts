@@ -73,7 +73,7 @@ export async function readPaymentsHealth(now: Date): Promise<PaymentsHealth> {
     client
       .from("audit_logs")
       .select("entity_id, created_at")
-      .eq("action", "payment_recovered_after_expiry")
+      .in("action", ["payment_successful", "payment_recovered_after_expiry"])
       .eq("metadata->>needsRefundReview", "true")
       .gte("created_at", monthAgo)
       .order("created_at", { ascending: false })

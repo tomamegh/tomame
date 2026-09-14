@@ -231,4 +231,26 @@ describe("buildOrderIntake — lock failure policy", () => {
     vi.mocked(priceExtractionWith).mockResolvedValue({ pricing: null, reason: "Exchange rate for USD/GHS not available." });
     await expect(buildOrderIntake(input, viewer)).rejects.toMatchObject({ statusCode: 503 });
   });
+
+  // ── The link is bound to the priced snapshot (security review 2026-09-14) ────
+
+  it("stores the snapshot's own URL, so the price and the product cannot name different things", async () => {
+    const intake = await buildOrderIntake({ ...input, product_url: "https://www.amazon.com/dp/B0EXPENSIVE1" }, viewer);
+
+    expect(intake.product_url).toBe(URL);
+    expect(intake.needs_review).toBe(true);
+    expect(intake.review_reasons.join(" ")).toMatch(/Link pasted differs/);
+  });
+
+  it("does not flag a link that matches its snapshot", async () => {
+    const intake = await buildOrderIntake(input, viewer);
+    expect(intake.product_url).toBe(URL);
+    expect(intake.review_reasons.some((r) => /Link pasted differs/.test(r))).toBe(false);
+  });
+
+  it("keeps the client's link when there is no snapshot to bind to", async () => {
+    vi.mocked(getExtractionSnapshot).mockResolvedValue(null);
+    const intake = await buildOrderIntake({ ...input, extraction_cache_id: undefined, estimated_price_usd: 20 }, viewer);
+    expect(intake.product_url).toBe(URL);
+  });
 });

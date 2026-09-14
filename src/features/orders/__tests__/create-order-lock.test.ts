@@ -29,6 +29,7 @@ const input = { product_url: "https://www.amazon.com/dp/B0D1XD1ZV3", product_nam
 
 function intake(rateLockId: string | null): OrderIntake {
   return {
+    product_url: "https://www.amazon.com/dp/B0D1XD1ZV3",
     product_name: "AirPods", product_image_url: null, estimated_price_usd: 263.86, origin_country: "USA",
     pricing: { exchange_rate: 14.49, total_ghs: 4608.59, pricing_method: "flat_rate" } as OrderIntake["pricing"],
     needs_review: false, review_reasons: [], extraction_metadata: null, extraction_cache_id: CACHE_ID, rate_lock_id: rateLockId,

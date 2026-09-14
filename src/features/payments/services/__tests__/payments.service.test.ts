@@ -193,6 +193,22 @@ describe("initializePayment — authorization (R1)", () => {
     vi.mocked(getOrderById).mockResolvedValue(null as never);
     await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 404);
   });
+
+  it("refuses an order flagged for review until an admin has re-priced it (security review 2026-09-14)", async () => {
+    vi.mocked(getOrderById).mockResolvedValue(makeOrder({ needs_review: true, pricing: { total_ghs: 1 } }) as never);
+    await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 400);
+    expect(initializeTransaction).not.toHaveBeenCalled();
+  });
+
+  it("charges a reviewed order at the admin's total", async () => {
+    vi.mocked(getOrderById).mockResolvedValue(makeOrder({ needs_review: true, admin_total_ghs: 1500, pricing: { total_ghs: 1 } }) as never);
+    vi.mocked(generatePaymentReference).mockReturnValue(REFERENCE);
+    vi.mocked(initializeTransaction).mockResolvedValue({ status: true, message: "ok", data: { authorization_url: "https://p", access_code: "a", reference: REFERENCE } });
+
+    await initializePayment(makeUser(), { orderId: ORDER_ID });
+
+    expect(vi.mocked(initializeTransaction).mock.calls[0]![0].amount).toBe(150_000);
+  });
 });
 
 // ── R2: never a second live payment for one order ────────────────────────────
@@ -627,6 +643,17 @@ describe("handlePaymentCallback — late payment after expiry (059)", () => {
     const actions = vi.mocked(logAuditEvent).mock.calls.map(([e]) => e.action);
     expect(actions).toContain("payment_recovered_after_expiry");
     expect(actions).not.toContain("payment_successful");
+  });
+
+  it("flags any settled payment whose order was no longer pending for refund review", async () => {
+    seedPayment();
+    vi.mocked(verifyTransaction).mockResolvedValue(verification());
+    vi.mocked(linkOrderToPayment).mockResolvedValue(null);
+
+    await handlePaymentCallback(REFERENCE);
+
+    const settled = vi.mocked(logAuditEvent).mock.calls.find(([e]) => e.action === "payment_successful");
+    expect(settled?.[0].metadata).toMatchObject({ ordersSettled: 0, needsRefundReview: true });
   });
 
   it("flags a late payment whose order was already closed for refund review", async () => {

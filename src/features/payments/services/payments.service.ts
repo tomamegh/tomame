@@ -393,6 +393,15 @@ async function orderCharge(admin: SupabaseClient, user: PlatformUser, orderId: s
   // these to the bag instead, but the rule is money, so it is enforced here too.
   if (order.order_group_id) throw new APIError(400, "This item is part of a bag. Pay for the bag as one.");
 
+  // An order flagged for review carries a total nobody has verified: a price
+  // the customer typed, a link that did not match its snapshot, an extraction
+  // that came back incomplete. Only the UI used to hide the Pay button, so a
+  // direct POST could pay a $1 estimate for a $2,000 item. The admin's re-price
+  // (`admin_total_ghs`) is what makes it payable.
+  if (order.needs_review && order.admin_total_ghs == null) {
+    throw new APIError(400, "This order is waiting for our review before it can be paid.");
+  }
+
   await assertNoActivePayment(admin, { orderId }, "order");
 
   // Use admin-set price if available, otherwise use calculated pricing
@@ -533,12 +542,14 @@ export async function handlePaymentCallback(
       if (order) sendOrderStatusEmail(payment.user_id, order, "paid");
     }
 
-    // Money that arrived after we released the payment and (possibly) closed
-    // the order for non-payment. Nothing settled means the customer has paid
-    // for a cancelled order and is owed a refund or a reinstatement — an admin
-    // decision, made visible here rather than inferred later.
-    if (recoveringExpired && ordersSettled === 0) {
-      logger.error("Late payment for an order that is no longer pending — refund review needed", {
+    // Money arrived and nothing was left to settle: the order (or bag) had
+    // already been cancelled, by the customer or by the unpaid-order sweep. The
+    // customer has paid for something that is no longer theirs and is owed a
+    // refund or a reinstatement — an admin decision, made visible here rather
+    // than inferred later.
+    const needsRefundReview = ordersSettled === 0;
+    if (needsRefundReview) {
+      logger.error("Payment settled for an order that is no longer pending — refund review needed", {
         reference,
         ...target,
         paymentId: payment.id,
@@ -551,7 +562,7 @@ export async function handlePaymentCallback(
       action: recoveringExpired ? "payment_recovered_after_expiry" : "payment_successful",
       entityType: "payment",
       entityId: payment.id,
-      metadata: { reference, ...target, ordersSettled, ...(recoveringExpired && { needsRefundReview: ordersSettled === 0 }) },
+      metadata: { reference, ...target, ordersSettled, needsRefundReview },
     });
 
     return { redirectUrl: successUrl(target) };

@@ -289,7 +289,7 @@ export async function createOrder(
 
   const orderToCreate = {
     user_id: user.id,
-    product_url: input.product_url,
+    product_url: intake.product_url,
     product_name: intake.product_name,
     product_image_url: intake.product_image_url,
     estimated_price_usd: intake.estimated_price_usd,
@@ -358,7 +358,7 @@ export async function createOrder(
     entityType: "order",
     entityId: order.id,
     metadata: {
-      product_url: input.product_url,
+      product_url: intake.product_url,
       order_group_id: links.order_group_id ?? null,
       origin_country: intake.origin_country,
       total_ghs: pricing.total_ghs,
@@ -646,6 +646,14 @@ export async function cancelOrderByUser(
     throw new APIError(400, "Only pending orders can be cancelled");
   }
 
+  // A Paystack transaction may be open for this order right now. Cancelling
+  // underneath it would let the charge land on a cancelled order and put the
+  // customer in the refund queue; the reconciliation job releases an abandoned
+  // payment within the expiry window, after which cancelling is fine.
+  if (await hasPendingPayment(supabase, order)) {
+    throw new APIError(409, "A payment for this order is still in progress. Wait for it to finish or fail, then try again.");
+  }
+
   const updated = await updateOrderStatus(supabase, orderId, {
     status: "cancelled",
   });
@@ -673,6 +681,21 @@ export async function cancelOrderByUser(
   sendOrderStatusEmail(user.id, updated, "cancelled");
 
   return updated as Order;
+}
+
+/** Is a Paystack transaction still open for this order, or for the bag it belongs to? */
+async function hasPendingPayment(client: SupabaseClient, order: Order): Promise<boolean> {
+  const base = client.from("payments").select("id").eq("status", "pending").limit(1);
+  const scoped = order.order_group_id
+    ? base.eq("order_group_id", order.order_group_id)
+    : base.filter("metadata->>order_id", "eq", order.id);
+  const { data, error } = await scoped;
+  if (error) {
+    logger.error("hasPendingPayment failed", { orderId: order.id, message: error.message });
+    // Fail closed: refusing a cancel is recoverable, cancelling under a live charge is not.
+    return true;
+  }
+  return (data?.length ?? 0) > 0;
 }
 
 export async function getOrderAuditHistory(

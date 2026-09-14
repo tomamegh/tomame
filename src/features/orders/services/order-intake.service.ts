@@ -4,7 +4,7 @@ import { getExtractionSnapshot } from "@/features/extraction/extraction.service"
 import { gapFillOverrides, priceExtractionWith } from "@/features/extraction/quote.service";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
-import { regionForUrl } from "@/features/extraction/url";
+import { hashUrl, regionForUrl } from "@/features/extraction/url";
 import { hasRequiredFields } from "@/features/extraction/resolvers/merge";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { extractionPricer, priceLowerOf, resolveLockForOrder } from "@/features/quotes/services/quote-lock.service";
@@ -16,6 +16,12 @@ import type { CreateOrderSchemaType } from "../schema";
 import type { OriginCountry } from "../types";
 
 export interface OrderIntake {
+  /**
+   * The link the order is FOR. When a snapshot priced this order, this is the
+   * snapshot's own URL, never the client's: the price and the product must name
+   * the same thing, or a $13 snapshot id could be paired with a $2,000 link.
+   */
+  product_url: string;
   product_name: string;
   product_image_url: string | null;
   /** USD-normalised price used for pricing. */
@@ -56,6 +62,19 @@ export async function buildOrderIntake(input: CreateOrderSchemaType, viewer: Vie
   const product = extraction?.product ?? null;
 
   const reasons: string[] = [];
+
+  // ── The link ─────────────────────────────────────────────────────────────
+  // The snapshot's URL is authoritative whenever a snapshot priced the order.
+  // A client link that names a different product is kept out of the order and
+  // flagged: legitimately a short link or a variant, illegitimately an attempt
+  // to buy one product at another's price. Either way a person looks first.
+  const productUrl = snapshot?.productUrl ?? input.product_url;
+  if (snapshot && hashUrl(input.product_url) !== hashUrl(snapshot.productUrl)) {
+    logger.warn("order intake: client link differs from priced snapshot", {
+      extraction_cache_id: snapshot.id,
+    });
+    reasons.push("Link pasted differs from the priced product; the priced product's link was kept.");
+  }
 
   // ── Price ────────────────────────────────────────────────────────────────
   // Server snapshot wins; the client's estimate only fills a gap, and is flagged.
@@ -147,6 +166,7 @@ export async function buildOrderIntake(input: CreateOrderSchemaType, viewer: Vie
   }
 
   return {
+    product_url: productUrl,
     product_name: input.product_name,
     product_image_url: input.product_image_url ?? product?.image ?? null,
     estimated_price_usd: pricing.item_price_usd,
