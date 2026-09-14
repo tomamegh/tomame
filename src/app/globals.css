@@ -1048,3 +1048,22 @@ html[data-tm-splash="force"] .tm-splash {
     animation-duration: 0.01ms;
   }
 }
+
+/*
+ * While the first-run tour is up, every other floating invitation stands down.
+ *
+ * `src/features/onboarding` sets `data-tm-tour="active"` on the document for as
+ * long as a tour is running. The install prompt (`src/features/pwa`) is a fixed
+ * card that asks the customer to add Tomame to their home screen; it is useful,
+ * and it is the wrong thing to show on top of a tour that is pointing somewhere
+ * else. On a phone it landed inside the spotlight itself, covering the very card
+ * the step was highlighting.
+ *
+ * Matched on the prompt's own labelling id rather than a class, so a restyle
+ * does not quietly switch this back on. Anything else that wants the same
+ * treatment can carry `data-tm-stands-down` instead of being named here.
+ */
+[data-tm-tour="active"] [aria-labelledby="tm-install-title"],
+[data-tm-tour="active"] [data-tm-stands-down] {
+  display: none !important;
+}

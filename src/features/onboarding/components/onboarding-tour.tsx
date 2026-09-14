@@ -270,6 +270,9 @@ export function OnboardingTour({ signals }: OnboardingTourProps) {
       setPlacement(null);
       return;
     }
+    // The card still keeps clear of the tab bar's strip on a phone. The bar is
+    // dimmed rather than hidden, and a card sitting on top of it would put the
+    // tour's own buttons where the customer's thumb expects navigation.
     const tabBarClearance = isDesktop ? 0 : MOBILE_TAB_BAR_HEIGHT + safeAreaBottom;
     const usableTop = EDGE_MARGIN;
     const usableBottom = window.innerHeight - tabBarClearance - EDGE_MARGIN;
@@ -303,6 +306,23 @@ export function OnboardingTour({ signals }: OnboardingTourProps) {
     // Re-run once the card's own height is known (first pass uses a fallback).
   }, [rect, isDesktop, safeAreaBottom, stepIndex]);
 
+  // ── 5b. Tell the rest of the app to stand down while the tour is up. ────
+  //
+  // The install prompt (`src/features/pwa`) is a fixed card at z-60 that
+  // invites the customer to add Tomame to their home screen. It is worth
+  // showing, but not on top of a tour that is pointing at something else:
+  // Kelvin caught it sitting inside the spotlight, over the very card stop two
+  // was highlighting. A data attribute on the document is the lightest contract
+  // that works for any such overlay, current or future, without this component
+  // needing to know one exists. The matching rule lives in `globals.css`.
+  useEffect(() => {
+    if (!isActive) return;
+    document.documentElement.dataset.tmTour = "active";
+    return () => {
+      delete document.documentElement.dataset.tmTour;
+    };
+  }, [isActive]);
+
   // ── 6. Escape closes it; Tab is never intercepted. ───────────────────────
   useEffect(() => {
     if (!isActive) return;
@@ -325,8 +345,13 @@ export function OnboardingTour({ signals }: OnboardingTourProps) {
   if (!isActive || !currentStep || !rect || !placement) return null;
 
   const isLastStep = stepIndex === steps.length - 1;
-  const tabBarClearance = isDesktop ? 0 : MOBILE_TAB_BAR_HEIGHT + safeAreaBottom;
-  const dimBottom = window.innerHeight - tabBarClearance;
+  // THE DIM REACHES THE BOTTOM OF THE SCREEN, tab bar included. It used to
+  // stop short of the tab bar to keep it lit, and on a real phone that read as
+  // a bug: every other pixel dimmed and the bar glowing underneath, as if the
+  // tour had failed to cover it. Kelvin: "put the menu bar behind when
+  // displaying the tour, everything should be behind". The bar is z-50 and this
+  // overlay is z-100, so covering it needs nothing but the height.
+  const dimBottom = window.innerHeight;
 
   const spotTop = rect.top - TARGET_PADDING;
   const spotLeft = rect.left - TARGET_PADDING;
@@ -341,8 +366,8 @@ export function OnboardingTour({ signals }: OnboardingTourProps) {
         Four bands frame the spotlight instead of dimming the target — never
         the whole viewport in one box-shadow trick, which would either block
         every click under it or (with pointer-events:none) block none of them.
-        Each band stops at `dimBottom`, which excludes the fixed tab bar on a
-        phone: the dimming, like the card below, never covers it.
+        Each band stops at `dimBottom`, which is the full height of the
+        viewport: nothing on the page stays lit except the spotlight itself.
       */}
       <div
         className="pointer-events-none absolute bg-tm-ink/55"
