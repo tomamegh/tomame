@@ -405,6 +405,19 @@ const DEFAULT_CHANNELS = ["card", "mobile_money"];
  *
  * A buyer-sourced price is neither: `order-intake.service.ts` deliberately does
  * not flag those, because a buyer IS the human review.
+ *
+ * KNOWN BLIND SPOT, recorded rather than guessed at. On the order row a buyer's
+ * price and a customer's typed price look identical: both are an
+ * `estimated_price_usd` with no store price behind them, and the provenance of
+ * the buyer's figure lives on the `price_watches` row and in `audit_logs`, not
+ * here. So if anything ever flags a sourced order again, this predicate WILL
+ * refuse to charge it, exactly as it did for the ten minutes between bcb86be
+ * and edfeab9 when sourcing was unpayable in production. The protection today
+ * is that intake does not flag those orders, and the test named "a buyer
+ * sourced order is chargeable" is what holds that in place: if it ever fails,
+ * sourcing checkout is broken, whatever the rest of the suite says. Making this
+ * robust rather than merely correct needs the provenance ON the order, which is
+ * a column and a migration, and belongs with whoever next touches intake.
  */
 function chargeBlockedReason(order: Order): string | null {
   if (!isPayablePricing(order.pricing)) return "priced";

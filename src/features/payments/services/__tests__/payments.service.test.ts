@@ -266,6 +266,29 @@ describe("initializePayment — authorization (R1)", () => {
     expect(vi.mocked(initializeTransaction).mock.calls[0]![0].amount).toBe(150_000);
   });
 
+  it("a buyer sourced order is chargeable, which is the case that broke sourcing in production", async () => {
+    // What intake produces for an item a buyer priced by hand: no store price
+    // on the snapshot (that is WHY it went to sourcing), and deliberately not
+    // flagged, because the buyer is the human review. If a future change starts
+    // flagging these again, this test fails and sourcing checkout is broken.
+    vi.mocked(getOrderById).mockResolvedValue(
+      makeOrder({
+        needs_review: false,
+        review_reasons: [],
+        admin_total_ghs: null,
+        estimated_price_usd: 34.5,
+        pricing: { total_ghs: 840.34, pricing_method: "flat_rate" },
+        extraction_metadata: { product: { price: null } },
+      }) as never,
+    );
+    vi.mocked(generatePaymentReference).mockReturnValue(REFERENCE);
+    vi.mocked(initializeTransaction).mockResolvedValue({ status: true, message: "ok", data: { authorization_url: "https://p", access_code: "a", reference: REFERENCE } });
+
+    await initializePayment(makeUser(), { orderId: ORDER_ID });
+
+    expect(vi.mocked(initializeTransaction).mock.calls[0]![0].amount).toBe(84_034);
+  });
+
   it("refuses an order flagged for review whose price nobody verified, until an admin re-prices it", async () => {
     // No store price on the snapshot: the $1 is the customer's own figure.
     vi.mocked(getOrderById).mockResolvedValue(
