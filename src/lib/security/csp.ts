@@ -78,6 +78,14 @@ export function buildCsp({ supabaseOrigin, isProd }: CspOptions): string {
     `img-src 'self' data: blob: https:`,
     `font-src 'self' data:`,
     `connect-src 'self' ${supabaseOrigin}`,
+    // The installed app's two extra fetches. `manifest-src` would otherwise
+    // fall back to `default-src`, which happens to allow it today — naming it
+    // means a future tightening of `default-src` cannot silently uninstall the
+    // app. `worker-src` is NOT redundant: it falls back through `child-src` to
+    // `script-src`, and registering `/sw.js` against a `script-src` carrying
+    // `'strict-dynamic'` is refused outright.
+    `manifest-src 'self'`,
+    `worker-src 'self'`,
     `frame-src 'none'`,
     `frame-ancestors 'none'`,
     `object-src 'none'`,

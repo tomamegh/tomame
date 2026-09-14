@@ -55,7 +55,7 @@ export default async function AuthLayout({
         the hero's own radial tints for depth, the mark reads exactly as it does
         everywhere else, and the headline carries the gradient instead.
       */}
-      <div className="relative hidden overflow-hidden bg-tm-paper lg:flex lg:w-[45%]">
+      <div className="tm-safe-top relative hidden overflow-hidden bg-tm-paper lg:flex lg:w-[45%]">
         <div
           aria-hidden
           className="pointer-events-none absolute -top-[220px] -right-[220px] size-[760px] rounded-full bg-[radial-gradient(circle,var(--tm-tint)_0%,transparent_65%)]"
@@ -108,7 +108,14 @@ export default async function AuthLayout({
       </div>
 
       {/* ── Branded header (mobile) ─────────────────────────────────────── */}
-      <div className="flex flex-col items-center gap-2 border-b border-tm-hairline bg-tm-paper px-6 py-6 text-center lg:hidden">
+      {/*
+        `tm-safe-top` matters more here than anywhere else: the manifest starts
+        the installed app at `/app`, the proxy sends a signed-out visitor to
+        `/auth/login`, so this is the FIRST screen after an install — and the
+        status bar is translucent there. Without the inset the clock is drawn
+        over the logo. No-op in a browser.
+      */}
+      <div className="tm-safe-top flex flex-col items-center gap-2 border-b border-tm-hairline bg-tm-paper px-6 py-6 text-center lg:hidden">
         <Link href="/" aria-label="Tomame home" className="rounded-sm">
           <Logo variant="horizontal" height={22} decorative priority />
         </Link>

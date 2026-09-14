@@ -21,7 +21,12 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     <SidebarProvider className="relative">
       <Sidebar />
       <SidebarInset className="bg-tm-paper">
-        <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center gap-2 border-b border-tm-hairline bg-card/92 backdrop-blur-[12px]">
+        {/*
+          `tm-safe-top`: no-op in a browser, reserves the notch inset in the
+          installed app, where the status bar is translucent and would otherwise
+          be drawn over the sidebar trigger. See globals.css.
+        */}
+        <header className="tm-safe-top sticky top-0 z-50 flex h-16 shrink-0 items-center gap-2 border-b border-tm-hairline bg-card/92 backdrop-blur-[12px]">
           <div className="flex w-full items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1 text-tm-text-2 hover:bg-tm-hairline hover:text-tm-ink" />
             <Separator

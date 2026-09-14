@@ -51,7 +51,10 @@ export function AppNav({
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 border-b border-tm-border bg-card/92 backdrop-blur-[12px]",
+        // `tm-safe-top` is a no-op in a browser and reserves the notch inset in
+        // the installed app, where the status bar is translucent and would
+        // otherwise sit on top of the logo. See globals.css.
+        "tm-safe-top sticky top-0 z-50 border-b border-tm-border bg-card/92 backdrop-blur-[12px]",
         className,
       )}
     >

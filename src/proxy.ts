@@ -34,6 +34,20 @@ export const config = {
     // `updateSession` in `src/lib/supabase/proxy.ts` inspects it (the
     // open-image-proxy fix's graceful-degradation half) before Next's own
     // image handler ever sees the request.
-    "/((?!_next/static|favicon\\.ico|icon\\.png|apple-icon\\.png|opengraph-image\\.png|images/|icons/).*)",
+    //
+    // `sw.js` and `manifest.webmanifest` are excluded for a reason beyond
+    // cost. The service worker is fetched by the browser's worker thread with
+    // no cookies attached in some update paths, and the manifest is fetched
+    // cross-context; running either through the Supabase session refresh
+    // achieves nothing and risks issuing a `Set-Cookie` on a response the page
+    // never sees. Neither is HTML, so neither needs the CSP.
+    //
+    // `/offline` is deliberately NOT excluded, though it was at first. It is an
+    // HTML document, and `updateSession` is where the Content-Security-Policy
+    // header is set — excluding it made it the one page in the app served with
+    // no CSP at all. It needs no exclusion to be reachable either: it is not
+    // under `/app` or `/admin`, so the proxy already lets it through with no
+    // session.
+    "/((?!_next/static|favicon\\.ico|icon\\.png|apple-icon\\.png|opengraph-image\\.png|sw\\.js|manifest\\.webmanifest|images/|icons/).*)",
   ],
 };

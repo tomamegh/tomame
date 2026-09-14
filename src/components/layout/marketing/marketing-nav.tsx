@@ -34,7 +34,7 @@ export function MarketingNav({
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 border-b border-tm-hairline bg-card",
+        "tm-safe-top sticky top-0 z-50 border-b border-tm-hairline bg-card",
         className,
       )}
     >

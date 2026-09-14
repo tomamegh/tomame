@@ -799,3 +799,252 @@
   background: var(--tm-gradient-cta);
   color: #fff;
 }
+
+/* ── Installed-app surfaces (PWA) ───────────────────────────────────────────
+ *
+ * Everything in this block is scoped to `display-mode`, so a browser visitor
+ * sees none of it. `standalone` covers an installed app on iOS and Android;
+ * `minimal-ui` and `fullscreen` are the two other ways a launcher can start us.
+ */
+
+/*
+ * The launch screen — `src/features/pwa/components/pwa-splash.tsx`.
+ *
+ * Hidden by default and revealed only by the media query below, which is what
+ * lets the markup be server-rendered unconditionally: no `useEffect` gate, so
+ * no frame where the app is visible before the splash covers it, and no
+ * hydration mismatch.
+ */
+.tm-splash {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
+  /* Never intercept a tap. The app underneath is live from the first frame. */
+  pointer-events: none;
+}
+
+@media (display-mode: standalone), (display-mode: minimal-ui), (display-mode: fullscreen) {
+  .tm-splash {
+    display: block;
+    /*
+     * `forwards` is load-bearing: the animation's last keyframe is
+     * `opacity: 0; visibility: hidden`, so the splash clears itself even if the
+     * component's teardown timer never fires.
+     */
+    animation: tmSplashOut 0.45s var(--tm-ease) 1.7s forwards;
+  }
+}
+
+/*
+ * Set by the inline script in the root layout when this document load is not a
+ * launch — a reload, or the return from Paystack. `!important` and the extra
+ * specificity are both deliberate: this has to beat the `display-mode` rule
+ * above whichever order the two end up in.
+ */
+html[data-tm-splash="seen"] .tm-splash {
+  display: none !important;
+  animation: none !important;
+}
+
+/* A hook for checking the launch screen in a normal browser tab, without
+ * installing the app first: `document.documentElement.dataset.tmSplash = "force"`. */
+html[data-tm-splash="force"] .tm-splash {
+  display: block;
+  animation: tmSplashOut 0.45s var(--tm-ease) 1.7s forwards;
+}
+
+.tm-splash-sky,
+.tm-splash-glow {
+  position: absolute;
+  inset: 0;
+}
+/* The sky drifts in very slightly — enough to read as alive, not as movement. */
+.tm-splash-sky {
+  animation: tmSplashSky 2.2s var(--tm-ease) both;
+}
+/*
+ * The sun. It is NOT baked into the iOS startup image (a radial gradient
+ * quadrupled that PNG's size — see the generator script), so it blooms in here
+ * instead. That makes the overlay's first frame identical to the startup image
+ * iOS has already painted, and the handover invisible.
+ */
+.tm-splash-glow {
+  animation: tmSplashGlow 1.1s ease-out both;
+}
+.tm-splash-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tm-splash-art {
+  position: relative;
+  width: min(72vw, 480px);
+}
+.tm-splash-lockup {
+  display: block;
+  width: 100%;
+  height: auto;
+  animation: tmSplashRise 0.9s var(--tm-ease) 0.1s both;
+}
+/* The lockup mirrored in the water, exactly as in the supplied artwork. */
+.tm-splash-reflection {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: auto;
+  transform: scaleY(-1);
+  /*
+   * Default (centre) transform-origin, deliberately. `transform-origin: top`
+   * with `top: 100%` flips the copy back UP over the lockup — the reflection
+   * lands on top of the wordmark and reads as a rendering fault. Around the
+   * centre the box stays put and only its content mirrors, which is the whole
+   * effect.
+   *
+   * The mask is in the element's own coordinates, applied before the flip, so
+   * "to bottom" here is the reflection's visible TOP: opaque where it meets the
+   * lockup, gone by the time it reaches the water.
+   */
+  opacity: 0;
+  mask-image: linear-gradient(to bottom, transparent 55%, #000 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 55%, #000 100%);
+  animation: tmSplashReflect 1s var(--tm-ease) 0.45s both;
+}
+
+@keyframes tmSplashSky {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes tmSplashGlow {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes tmSplashRise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes tmSplashReflect {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.22;
+  }
+}
+@keyframes tmSplashOut {
+  from {
+    opacity: 1;
+  }
+  99% {
+    opacity: 0;
+    visibility: visible;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/*
+ * Someone who has asked their phone to stop animating things still needs the
+ * splash to appear and, more importantly, to leave. It holds still and fades.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .tm-splash-sky,
+  .tm-splash-glow,
+  .tm-splash-lockup {
+    animation: none;
+  }
+  .tm-splash-reflection {
+    animation: none;
+    opacity: 0.22;
+  }
+  @media (display-mode: standalone), (display-mode: minimal-ui), (display-mode: fullscreen) {
+    .tm-splash {
+      animation: tmSplashOut 0.2s linear 0.9s forwards;
+    }
+  }
+}
+
+/*
+ * Chrome that stops the installed app feeling like a page in a browser.
+ *
+ * `overscroll-behavior: none` kills the rubber-band bounce that reveals a blank
+ * strip above the nav on iOS, and the pull-to-refresh gesture that reloads the
+ * whole app mid-checkout on Android. Both are wanted on the website and wrong
+ * in an app, hence the media query.
+ */
+@media (display-mode: standalone), (display-mode: minimal-ui), (display-mode: fullscreen) {
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+  body {
+    /* No grey flash under a tap: native apps do not do that. */
+    -webkit-tap-highlight-color: transparent;
+  }
+  /*
+   * The status bar is translucent in the installed app (`black-translucent` in
+   * the layout's metadata) so our sky can run under it. Everything pinned to
+   * the top of the viewport therefore has to reserve the inset itself.
+   */
+  .tm-safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* The install card's entrance and exit — see
+ * `src/features/pwa/components/install-prompt.tsx`. Not `@utility`, because
+ * these are one component's own transitions, not a vocabulary. */
+.tm-install-enter {
+  animation: tmInstallIn 0.34s var(--tm-ease) both;
+}
+.tm-install-leave {
+  animation: tmInstallOut 0.22s ease-in both;
+}
+@keyframes tmInstallIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes tmInstallOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tm-install-enter,
+  .tm-install-leave {
+    animation-duration: 0.01ms;
+  }
+}

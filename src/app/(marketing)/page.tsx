@@ -24,6 +24,7 @@ import { DEFAULT_FX_BUFFER_PCT } from "@/config/pricing";
 import { getGhsRate } from "@/lib/exchange-rates/service";
 import { getMediaOverrides } from "@/db/queries/media-overrides";
 import { isAuthenticated } from "@/lib/supabase/current-user";
+import { StandaloneHomeRedirect } from "@/features/pwa/components";
 
 export const metadata: Metadata = {
   title: "Tomame: Shop the world. Pay in cedis.",
@@ -105,6 +106,11 @@ export default async function HomePage() {
 
   return (
     <>
+      {/*
+        The installed app has no use for the sales pitch — it goes straight to
+        `/app`. Renders nothing in a browser tab.
+      */}
+      <StandaloneHomeRedirect />
       <LandingHero
         usdToGhs={usdToGhs}
         originLabel={primary ? originLabel(primary) : "the USA"}
