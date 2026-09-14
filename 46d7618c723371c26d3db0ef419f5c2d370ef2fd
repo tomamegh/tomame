@@ -1,0 +1,8 @@
+The message describes only the next.config.ts fix. 43 of the 44 files here are
+the catalogue-search and sourcing-request work (migrations 063 and 065), staged
+by session tomame-7f and swept in because `git add next.config.ts && git commit`
+commits the whole index, not the path just added.
+
+Not rewritten: it was already pushed and deployed, and three sessions shared the
+checkout. Recorded here so anyone reading this range is not left looking for a
+commit that does not exist.
