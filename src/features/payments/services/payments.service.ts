@@ -22,6 +22,7 @@ import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { createOrderNotifications } from "@/features/notifications/services/notifications.service";
 import { env } from "@/lib/env";
 import { PAYMENT_STATUSES } from "@/config/constants";
+import { isPayablePricing } from "@/lib/pricing/payable";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
 import type { PlatformUser } from "@/features/users/types";
 import type {
@@ -383,6 +384,38 @@ interface Charge {
 
 const DEFAULT_CHANNELS = ["card", "mobile_money"];
 
+/**
+ * Is this order safe to charge without a person looking at it first?
+ *
+ * `needs_review` is a broad flag: it is set by anything worth a human glance,
+ * including a customer renaming a product or an origin country we could not
+ * infer. Refusing payment on all of it was too blunt — it stopped a bag being
+ * paid for over a renamed item whose price came straight from the store, and
+ * nothing in the app told the customer why.
+ *
+ * What actually matters at the moment money moves is narrower: is the PRICE one
+ * we verified? Two things make it not:
+ *
+ *  - the breakdown is not a real price at all (`needs_review` pricing method, or
+ *    a total of zero). `isPayablePricing` is the shared predicate for that;
+ *  - the item price came from the CUSTOMER rather than the store, which is the
+ *    gap-filler path. That is the one that lets somebody name a dollar for a
+ *    two thousand dollar laptop, so it stays blocked until an admin sets a
+ *    total.
+ *
+ * A buyer-sourced price is neither: `order-intake.service.ts` deliberately does
+ * not flag those, because a buyer IS the human review.
+ */
+function chargeBlockedReason(order: Order): string | null {
+  if (!isPayablePricing(order.pricing)) return "priced";
+  if (!order.needs_review) return null;
+  if (order.admin_total_ghs != null) return null;
+  // The snapshot's own price is the evidence the store named this figure.
+  const storePrice = order.extraction_metadata?.product?.price;
+  const fromStore = typeof storePrice === "number" && storePrice > 0;
+  return fromStore ? null : "unverified";
+}
+
 async function orderCharge(admin: SupabaseClient, user: PlatformUser, orderId: string): Promise<Charge> {
   const order = await getOrderById(admin, orderId);
   if (!order) throw new APIError(404, "Order not found");
@@ -398,7 +431,7 @@ async function orderCharge(admin: SupabaseClient, user: PlatformUser, orderId: s
   // that came back incomplete. Only the UI used to hide the Pay button, so a
   // direct POST could pay a $1 estimate for a $2,000 item. The admin's re-price
   // (`admin_total_ghs`) is what makes it payable.
-  if (order.needs_review && order.admin_total_ghs == null) {
+  if (chargeBlockedReason(order)) {
     throw new APIError(400, "This order is waiting for our review before it can be paid.");
   }
 
@@ -444,7 +477,7 @@ async function groupCharge(admin: SupabaseClient, user: PlatformUser, groupId: s
   // charge GH₵40, the delivery fee alone, for a $34.50 item nobody had priced.
   // The same rule the single-order path uses applies here, per line: an order
   // flagged for review is payable only once an admin has set its total.
-  const unreviewed = orders.filter((o) => o.needs_review && o.admin_total_ghs == null);
+  const unreviewed = orders.filter((o) => chargeBlockedReason(o) !== null);
   if (unreviewed.length > 0) {
     throw new APIError(
       400,

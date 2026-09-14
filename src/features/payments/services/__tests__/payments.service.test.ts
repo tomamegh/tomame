@@ -95,7 +95,10 @@ function makeOrder(overrides: Record<string, unknown> = {}) {
     product_name: "Sony WH-1000XM5",
     admin_total_ghs: null,
     admin_pricing_note: null,
-    pricing: { total_ghs: 1250.5 },
+    pricing: { total_ghs: 1250.5, pricing_method: "flat_rate" },
+    // A store-priced snapshot: the evidence the figure is not the customer's.
+    extraction_metadata: { product: { price: 99.99 } },
+    needs_review: false,
     ...overrides,
   };
 }
@@ -204,13 +207,40 @@ describe("initializePayment — authorization (R1)", () => {
     await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 404);
   });
 
+  it("still charges a flagged order whose price came from the store (a renamed product must not block money)", async () => {
+    vi.mocked(getOrderById).mockResolvedValue(
+      makeOrder({ needs_review: true, admin_total_ghs: null, review_reasons: ["Customer edited the product name."] }) as never,
+    );
+    vi.mocked(generatePaymentReference).mockReturnValue(REFERENCE);
+    vi.mocked(initializeTransaction).mockResolvedValue({ status: true, message: "ok", data: { authorization_url: "https://p", access_code: "a", reference: REFERENCE } });
+
+    await initializePayment(makeUser(), { orderId: ORDER_ID });
+
+    expect(initializeTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a flagged order whose price the CUSTOMER supplied, which is the one that must not slip through", async () => {
+    vi.mocked(getOrderById).mockResolvedValue(
+      makeOrder({ needs_review: true, admin_total_ghs: null, extraction_metadata: { product: { price: null } } }) as never,
+    );
+    await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 400);
+    expect(initializeTransaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses an order whose pricing is a review verdict rather than a price", async () => {
+    vi.mocked(getOrderById).mockResolvedValue(
+      makeOrder({ pricing: { total_ghs: 0, pricing_method: "needs_review" } }) as never,
+    );
+    await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 400);
+  });
+
   it("refuses a BAG whose items are still waiting for review, even though its total is positive", async () => {
     const GROUP_ID = "44444444-4444-4444-8444-444444444444";
     vi.mocked(getOrderGroupById).mockResolvedValue({
       id: GROUP_ID, user_id: USER_ID, status: "pending", total_pesewas: 4000,
     } as never);
     vi.mocked(listOrdersByGroup).mockResolvedValue([
-      makeOrder({ id: "a", needs_review: true, admin_total_ghs: null }),
+      makeOrder({ id: "a", needs_review: true, admin_total_ghs: null, extraction_metadata: { product: { price: null } } }),
       makeOrder({ id: "b", needs_review: false }),
     ] as never);
 
@@ -236,8 +266,15 @@ describe("initializePayment — authorization (R1)", () => {
     expect(vi.mocked(initializeTransaction).mock.calls[0]![0].amount).toBe(150_000);
   });
 
-  it("refuses an order flagged for review until an admin has re-priced it (security review 2026-09-14)", async () => {
-    vi.mocked(getOrderById).mockResolvedValue(makeOrder({ needs_review: true, pricing: { total_ghs: 1 } }) as never);
+  it("refuses an order flagged for review whose price nobody verified, until an admin re-prices it", async () => {
+    // No store price on the snapshot: the $1 is the customer's own figure.
+    vi.mocked(getOrderById).mockResolvedValue(
+      makeOrder({
+        needs_review: true,
+        pricing: { total_ghs: 1, pricing_method: "flat_rate" },
+        extraction_metadata: { product: { price: null } },
+      }) as never,
+    );
     await expectApiError(initializePayment(makeUser(), { orderId: ORDER_ID }), 400);
     expect(initializeTransaction).not.toHaveBeenCalled();
   });
