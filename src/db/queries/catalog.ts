@@ -176,3 +176,60 @@ export async function incrementBudget(job: string, period: string, n: number, de
   if (error) throw new Error(`Failed to increment job budget: ${error.message}`);
   return data as unknown as JobBudgetRow;
 }
+
+/**
+ * Record a search term a pasted product suggested (055).
+ *
+ * `ON CONFLICT DO NOTHING` against `uq_catalog_queries_store_term`: ten
+ * customers pasting the same headphones enqueue ONE term. The first one wins and
+ * keeps its `derived_from_cache_id`, so the row points at the product that
+ * actually earned it rather than at whoever pasted most recently.
+ *
+ * Returns whether a row was created, which is the only thing the caller needs:
+ * "enqueued" is worth a log line, "already known" is not.
+ *
+ * Priority is fixed at the ceiling migration 057 enforces, and the direction is
+ * the opposite of what it looks like: `claim_next_catalog_query` orders by
+ * `priority DESC`, so LOW is scraped last. Seeded terms sit at 2 to 10, so a
+ * derived guess at 1 is only ever claimed when nothing curated is due. Passing
+ * the number from here rather than letting a caller choose is what keeps that
+ * true. (055 set this floor at >= 100, which guaranteed the reverse; 057 fixes
+ * both the constraint and this constant.)
+ */
+export const DERIVED_QUERY_PRIORITY = 1;
+
+export async function enqueueDerivedQuery(input: {
+  store: CatalogStore;
+  category: string;
+  query: string;
+  cacheId: string | null;
+}): Promise<boolean> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("catalog_queries")
+    .upsert(
+      {
+        store: input.store,
+        category: input.category,
+        query: input.query,
+        source: "paste",
+        priority: DERIVED_QUERY_PRIORITY,
+        derived_from_cache_id: input.cacheId,
+      },
+      { onConflict: "store,query", ignoreDuplicates: true },
+    )
+    .select("id");
+
+  // A unique violation here means somebody already enqueued this term, which is
+  // the answer, not a fault. Two indexes can raise it: 045's exact
+  // `(store, query)` — declared above as the conflict target, so that one
+  // resolves to DO NOTHING — and 055's case- and whitespace-insensitive
+  // `uq_catalog_queries_store_term`, which is STRICTER and is not the declared
+  // target, so "AirPods Pro" against a stored "airpods pro" raises 23505 instead
+  // of being ignored. Both mean the same thing to the caller.
+  if (error) {
+    if (error.code === "23505") return false;
+    throw new Error(`Failed to enqueue a catalogue query: ${error.message}`);
+  }
+  return (data?.length ?? 0) > 0;
+}

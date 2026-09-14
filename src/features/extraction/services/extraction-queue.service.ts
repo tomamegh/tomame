@@ -16,6 +16,7 @@ import { EXTRACTION } from "@/config/extraction";
 import { logger } from "@/lib/logger";
 import { extractPrepared, prepareProductUrl } from "../extraction.service";
 import { notifyPasteFinished, type PasteFinishedResult } from "./paste-notify.service";
+import { enqueueCatalogQueryFromPaste } from "@/features/catalog/services/catalog-enqueue.service";
 
 /**
  * The paste queue — extraction as a background job (migration 049).
@@ -166,6 +167,25 @@ export async function runExtractionJob(requestId: string): Promise<"ran" | "skip
         id: claimed.id,
         error: error instanceof Error ? error.message : String(error),
       });
+    }
+
+    // The catalogue learns from the paste (055), in the same safe position and
+    // for the same reason. This does NOT call a vendor: it records a search term
+    // for the hourly budget-capped scrape job to spend a call on later, so the
+    // next customer who wants something similar finds it already priced. It
+    // swallows its own failures and cannot throw, but it is wrapped anyway
+    // because the rule this block exists to enforce is that nothing after the
+    // job has settled may change its outcome, and that rule should not depend
+    // on a service in another feature keeping its promise.
+    if (finished.status === "ready") {
+      try {
+        await enqueueCatalogQueryFromPaste(finished.extractionCacheId);
+      } catch (error) {
+        logger.error("catalogue enqueue threw after the job had already settled", {
+          id: claimed.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
