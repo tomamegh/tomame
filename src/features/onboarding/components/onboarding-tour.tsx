@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, ArrowRight, X } from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/utils";
@@ -386,8 +386,17 @@ export function OnboardingTour({ signals }: OnboardingTourProps) {
         style={{ top: spotTop, left: spotLeft, width: spotWidth, height: spotHeight, ...transitionStyle }}
       />
 
-      <AnimatePresence mode="wait">
-        <motion.div
+      {/*
+        NO AnimatePresence, deliberately. It was wrapping this card with
+        `mode="wait"`, which holds the incoming step back until the outgoing one
+        has finished its exit animation. When frames are throttled — a
+        backgrounded tab, a phone in low power mode — that exit never finishes,
+        so the next step never mounts and the tour simply disappears mid-walk
+        with no way back. Reproduced: pressing Next left no card on screen at
+        all. A keyed remount needs no exit, cannot be gated on one, and is
+        instant.
+      */}
+      <motion.div
           key={currentStep.id}
           ref={cardRef}
           role="dialog"
@@ -396,9 +405,16 @@ export function OnboardingTour({ signals }: OnboardingTourProps) {
           aria-describedby="onboarding-tour-body"
           className="pointer-events-auto absolute rounded-[20px] border border-tm-border bg-card p-5 shadow-[0_16px_56px_-8px_rgba(43,36,34,0.22)]"
           style={{ top: placement.top, left: placement.left, width: placement.width }}
-          initial={shouldReduceMotion ? false : { opacity: 0, y: placement.arrowEdge === "top" ? 8 : -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: placement.arrowEdge === "top" ? -8 : 8 }}
+          // NOTHING HERE ANIMATES OPACITY, deliberately. The card used to fade
+          // in, and a fade is only ever as reliable as the frames it gets: a
+          // backgrounded tab, a phone in low power mode or a browser that
+          // throttles requestAnimationFrame freezes the tween wherever it
+          // stopped. Caught at rest with a computed opacity of 0.74, which puts
+          // the page's own text straight through the card and makes the copy
+          // unreadable. Movement alone is safe, because a frozen transform is
+          // still a perfectly legible card that is a few pixels out of place.
+          initial={shouldReduceMotion ? false : { y: placement.arrowEdge === "top" ? 8 : -8 }}
+          animate={{ y: 0 }}
           transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
         >
           {/* The arrow — a rotated square peeking out of the edge nearest the target. */}
@@ -472,8 +488,7 @@ export function OnboardingTour({ signals }: OnboardingTourProps) {
               </button>
             </div>
           </div>
-        </motion.div>
-      </AnimatePresence>
+      </motion.div>
     </div>
   );
 }

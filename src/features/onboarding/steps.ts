@@ -9,7 +9,11 @@
  *
  * `targetId` is a real DOM id on a real element already on the page — see the
  * components it was added to: `hero-paste-bar.tsx`, `live-receipt-card.tsx`,
- * `bag-view.tsx` (`BagHeader`) and `journeys-view.tsx`.
+ * `bag-view.tsx` (`BagHeader`) and `journeys-view.tsx`. Every one of those
+ * renders unconditionally, including its empty state, so a first-time customer
+ * with no receipt, no bag and no parcels still has all four targets to point
+ * at. Each stop's copy is therefore written to be true of an EMPTY screen, not
+ * of a populated one.
  */
 export interface OnboardingTourStep {
   id: "ask" | "price" | "bag" | "journey";
@@ -37,8 +41,17 @@ export function buildOnboardingTourSteps(firstName: string | null): OnboardingTo
       id: "price",
       route: "/app",
       targetId: "onboarding-tour-receipt",
-      title: "See the whole price, in cedis",
-      body: "Item, shipping, our fee and today's exchange rate, all folded into one number before you pay. No surprises when your parcel lands.",
+      // WRITTEN FOR AN EMPTY CARD FIRST. The receipt shows the last link the
+      // customer pasted, and a first-time customer has pasted nothing, so it
+      // renders its empty state. The old copy said "See the whole price" while
+      // pointing at a card with no price in it, which teaches nobody anything.
+      // Prefilling it with a sample was never an option: CLAUDE.md forbids
+      // showing invented data, and a made-up price is the worst thing to invent
+      // on a screen whose whole promise is that the number is real. So the copy
+      // says where the number will land, which is true whether the card is
+      // empty or full.
+      title: "The whole price lands here, in cedis",
+      body: "Paste a link and the item, shipping, our fee and today's exchange rate arrive as one number. That is what you pay, with nothing added when your parcel reaches you.",
     },
     {
       id: "bag",
