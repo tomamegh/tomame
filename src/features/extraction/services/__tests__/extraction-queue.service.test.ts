@@ -14,6 +14,13 @@ vi.mock("@/db/queries/extraction-requests", () => ({
 }));
 vi.mock("@/db/queries/extraction-cache", () => ({ getCachedExtractionByHash: vi.fn() }));
 vi.mock("../paste-notify.service", () => ({ notifyPasteFinished: vi.fn(async () => "too_quick") }));
+// The catalogue enqueue (055/057) runs beside the notification after the job has
+// settled. Mocked for the same reason the notifier is: it reaches a service-role
+// client at module scope, so an unmocked import constructs one with no env and
+// the whole FILE fails to load rather than any test failing.
+vi.mock("@/features/catalog/services/catalog-enqueue.service", () => ({
+  enqueueCatalogQueryFromPaste: vi.fn(async () => "enqueued"),
+}));
 vi.mock("../../extraction.service", () => ({
   extractPrepared: vi.fn(),
   prepareProductUrl: vi.fn(async (url: string) => ({ canonicalUrl: url, urlHash: `hash:${url}` })),
@@ -30,6 +37,7 @@ import {
 import { getCachedExtractionByHash } from "@/db/queries/extraction-cache";
 import { notifyPasteFinished } from "../paste-notify.service";
 import { extractPrepared } from "../../extraction.service";
+import { enqueueCatalogQueryFromPaste } from "@/features/catalog/services/catalog-enqueue.service";
 import {
   MAX_EXTRACTION_ATTEMPTS,
   enqueuePaste,
@@ -117,6 +125,38 @@ describe("runExtractionJob", () => {
     expect(await runExtractionJob("req-1")).toBe("ran");
     expect(completeExtractionRequest).toHaveBeenCalledWith(
       expect.objectContaining({ id: "req-1", status: "ready", extractionCacheId: "cache-1", attempts: 1 }),
+    );
+  });
+
+  it("teaches the catalogue what the customer pasted", async () => {
+    // 055/057: a successful paste enqueues a search term for the hourly scraper,
+    // so the next customer who wants something similar finds it already priced.
+    vi.mocked(claimExtractionRequest).mockResolvedValue(job({ status: "running" }));
+    vi.mocked(extractPrepared).mockResolvedValue({ extraction_cache_id: "cache-1" } as never);
+
+    expect(await runExtractionJob("req-1")).toBe("ran");
+    expect(enqueueCatalogQueryFromPaste).toHaveBeenCalledWith("cache-1");
+  });
+
+  it("does not enqueue a term for a paste that produced nothing", async () => {
+    vi.mocked(claimExtractionRequest).mockResolvedValue(job({ status: "running" }));
+    vi.mocked(extractPrepared).mockResolvedValue({ extraction_cache_id: null } as never);
+
+    await runExtractionJob("req-1");
+    expect(enqueueCatalogQueryFromPaste).not.toHaveBeenCalled();
+  });
+
+  it("still succeeds when the catalogue enqueue throws", async () => {
+    // The paste is already priced and its row already written by this point. A
+    // throw here once requeued a finished extraction and charged a vendor twice,
+    // which is why the call sits outside the try/catch AND is wrapped again.
+    vi.mocked(claimExtractionRequest).mockResolvedValue(job({ status: "running" }));
+    vi.mocked(extractPrepared).mockResolvedValue({ extraction_cache_id: "cache-1" } as never);
+    vi.mocked(enqueueCatalogQueryFromPaste).mockRejectedValueOnce(new Error("catalogue is down"));
+
+    expect(await runExtractionJob("req-1")).toBe("ran");
+    expect(completeExtractionRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "ready" }),
     );
   });
 

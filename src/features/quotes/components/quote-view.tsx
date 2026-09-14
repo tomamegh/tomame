@@ -9,6 +9,7 @@ import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { Quote } from "@/features/extraction/types";
 import type { OriginCountry } from "@/features/orders/types";
 import { storeForUrl } from "@/features/extraction/stores";
+import { SimilarProductsRail } from "@/features/catalog/components/similar-products-rail";
 import { useAddToBag } from "@/features/bag/hooks/useAddToBag";
 import { apiFetch, ApiFetchError } from "@/lib/auth/api-helpers";
 import { toast } from "@/lib/sonner";
@@ -394,6 +395,18 @@ export function QuoteView({
           />
         </div>
       </div>
+
+      {/*
+        Alternatives we have already priced, LAST and lowest in the order: the
+        customer came here for the price of their own product, not for a shop.
+        It renders nothing at all when the catalogue has no hits for this
+        product, so the screen never ends on an empty shelf.
+      */}
+      <SimilarProductsRail
+        title={quote.product.title}
+        brand={quote.product.brand}
+        productUrl={quote.product_url}
+      />
 
       <QuoteActionBar
         canContinue={canContinue && !!quote.extraction_cache_id}
