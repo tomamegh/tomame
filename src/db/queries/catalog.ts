@@ -142,6 +142,71 @@ export async function searchCatalogProducts(input: { q: string; limit: number })
   return (data ?? []) as unknown as CatalogSearchHit[];
 }
 
+/**
+ * The categories the catalogue actually holds, largest first.
+ *
+ * DERIVED, NOT DECLARED. There is no list of categories anywhere to drift out of
+ * date: a category exists on the browse screen precisely because products are
+ * sitting in it, and it disappears when they stop being. That also means the
+ * screen can never offer a heading that opens onto nothing.
+ *
+ * `is_active` is not a column here; a product row IS the availability. Rows are
+ * refreshed in place by the scraper, so an old `last_seen_at` means stale, not
+ * absent, and staleness is shown per card rather than hidden by a filter.
+ */
+export interface CatalogCategoryCount {
+  category: string;
+  count: number;
+}
+
+export async function listCatalogCategories(): Promise<CatalogCategoryCount[]> {
+  const client = createAdminClient();
+  // An RPC, not a select-and-count-in-JS. PostgREST caps a response at
+  // `max-rows` (1000 on Supabase), so counting client side silently becomes
+  // "counts of the first thousand products" the moment the catalogue passes it,
+  // which hosted dev was days away from doing. The GROUP BY has no such ceiling
+  // and reads one row per category rather than one per product (058).
+  const { data, error } = await client.rpc("catalog_categories");
+
+  if (error) throw new Error(`Failed to list catalog categories: ${error.message}`);
+
+  return ((data ?? []) as { category: string; count: number | string }[]).map((row) => ({
+    category: row.category,
+    // `count(*)` is BIGINT, which PostgREST may render as a string.
+    count: Number(row.count),
+  }));
+}
+
+/**
+ * One category's products, cheapest listed price first.
+ *
+ * Ordered by `price_usd` rather than by the landed cedi total because that total
+ * does not exist yet at this layer: it is struck per row by the pricing engine
+ * one layer up. The store price is a good proxy for the order, and the service
+ * re-sorts on the real figure once it has it.
+ *
+ * Rows with no listed price sort last rather than being dropped: the engine may
+ * still decline them, and a product we hold is worth showing as "open it and we
+ * will price it live" instead of being silently missing from its own category.
+ */
+export async function listCatalogProductsByCategory(input: {
+  category: string;
+  limit: number;
+}): Promise<CatalogSearchHit[]> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("catalog_products")
+    .select(
+      "id, store, external_id, title, image_url, product_url, price_usd, currency, rating, review_count, category, last_seen_at",
+    )
+    .eq("category", input.category)
+    .order("price_usd", { ascending: true, nullsFirst: false })
+    .limit(input.limit);
+
+  if (error) throw new Error(`Failed to load catalog category: ${error.message}`);
+  return (data ?? []) as unknown as CatalogSearchHit[];
+}
+
 // ── job_budgets ─────────────────────────────────────────────────────────────
 
 /** Read the period's budget row, creating it with `defaultCap` on first use. */

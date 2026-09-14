@@ -278,6 +278,16 @@
   --color-tm-ink: var(--tm-ink);
   --color-tm-paper: var(--tm-paper);
   --color-tm-tint: var(--tm-tint);
+  /*
+    Registered here, not only on :root. A custom property declared on :root is a
+    VALUE; Tailwind v4 only generates a utility for one listed in @theme. So
+    `--tm-pill-bg` existed while `bg-tm-pill-bg` compiled to nothing, and the
+    admin filter pills' ACTIVE state had no background at all: an active pill was
+    indistinguishable from an inactive one, which on a filter row is the whole
+    control. Confirmed by grepping the built stylesheet for the class.
+  */
+  --color-tm-pill-bg: var(--tm-pill-bg);
+  --color-tm-pill-border: var(--tm-pill-border);
   --color-tm-green: var(--tm-green);
   --color-tm-green-ink: var(--tm-green-ink);
   --color-tm-green-bg: var(--tm-green-bg);

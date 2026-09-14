@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   ArrowsClockwise,
+  CaretDown,
   ChatCircleText,
   CheckCircle,
   LinkSimple,
+  Storefront,
   Tote,
   WarningCircle,
 } from "@phosphor-icons/react/ssr";
@@ -21,6 +23,7 @@ import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import { useAddPasteToBag, useCreatePaste, usePastes } from "../hooks/usePastes";
 import type { PasteStatus } from "../services/paste-status";
+import { buyForMeHref, type BuyForMeMode } from "./buy-for-me-mode";
 import { ReadingIndicator } from "./reading-indicator";
 
 export interface PasteQueueViewProps {
@@ -36,8 +39,27 @@ export interface PasteQueueViewProps {
    * row is priced, so a link pasted on Home still lands on its price.
    */
   watchId?: string | null;
-  /** Whether a finished paste will reach this viewer by bell and email — signed-in only. */
+  /** Whether a finished paste will reach this viewer by bell and email, signed-in only. */
   notifies?: boolean;
+  /** Which half of the screen is open. Comes from `?mode=`; paste is the default. */
+  mode?: BuyForMeMode;
+  /**
+   * The pre-priced catalogue, rendered on the SERVER and handed down as a node.
+   *
+   * It has to arrive this way. The browse panel prices every card with the live
+   * pricing engine, which is server-only by the rules in CLAUDE.md, and this
+   * component is a client island. Passing the finished tree as a prop keeps the
+   * pricing where it belongs and keeps the paste form, the reading rows and the
+   * mode switch in one place instead of duplicating them per mode.
+   */
+  browse?: React.ReactNode;
+  /**
+   * How many products the catalogue holds. Zero hides the browse half entirely:
+   * offering a shelf we cannot fill is worse than not offering it.
+   */
+  catalogueCount?: number;
+  /** The fuller search by name, `/app/products`. */
+  searchHref?: string;
 }
 
 /**
@@ -56,6 +78,20 @@ export interface PasteQueueViewProps {
  * followed, and forwarded to its price the moment it is priced — as long as
  * they have not started typing the next one, because pulling a screen out from
  * under a half-typed URL is worse than one extra click.
+ *
+ * TWO HALVES, ONE TAB. Pasting a link is one way to say what you want; the
+ * other is to look at what we have already read and priced, which until now had
+ * no way in that did not start with pasting a link. The switch under the title
+ * alternates between them and the choice lives in `?mode=`, so the back button
+ * works and a browsed shelf is an address. See `buy-for-me-mode.ts` for why
+ * paste is the default.
+ *
+ * Reading rows stay on screen in BOTH halves. A link being read right now is
+ * the one time-sensitive thing here, and hiding it behind a mode switch would
+ * mean a customer browsing while their link reads never sees it land. Recently
+ * pasted is the opposite: settled, referable, and no longer the point of the
+ * screen, so it is a quiet card at the bottom of the paste half showing the
+ * last few, and it opens in place when there are more.
  */
 export function PasteQueueView({
   initialPastes,
@@ -63,6 +99,10 @@ export function PasteQueueView({
   renderedAt,
   watchId: initialWatchId = null,
   notifies = false,
+  mode = "paste",
+  browse = null,
+  catalogueCount = 0,
+  searchHref = "/app/products",
 }: PasteQueueViewProps) {
   const router = useRouter();
   const [url, setUrl] = useState("");
@@ -111,10 +151,12 @@ export function PasteQueueView({
       return;
     }
     // Drop `?watch=` so a reload does not re-arm a watch that has already ended.
+    // The mode goes back into the address with it: stripping to the bare path
+    // would silently throw a browsing customer back to the paste half.
     if (initialWatchId && typeof window !== "undefined") {
-      window.history.replaceState(null, "", "/app/orders/new");
+      window.history.replaceState(null, "", buyForMeHref(mode));
     }
-  }, [pastes, watchId, typing, router, initialWatchId]);
+  }, [pastes, watchId, typing, router, initialWatchId, mode]);
 
   const onPaste = useCallback(() => {
     const trimmed = url.trim();
@@ -185,6 +227,11 @@ export function PasteQueueView({
   );
 
   const { reading, done } = useMemo(() => splitPastes(pastes), [pastes]);
+  const browsing = mode === "browse";
+  // A switch is worth drawing when there is something on the other side of it,
+  // and always when the customer is already standing on that side and needs the
+  // way back.
+  const showSwitch = catalogueCount > 0 || browsing;
 
   const rowProps = (paste: PasteStatus) => ({
     paste,
@@ -204,74 +251,121 @@ export function PasteQueueView({
           What should we buy for you?
         </h1>
         <p className="text-sm leading-[1.5] text-tm-text-2">
-          Paste a link from {stores.slice(0, 3).join(", ")} or anywhere else. We read it in the
-          background. Add as many as you like and come back when you are ready.
+          {showSwitch
+            ? `Paste a link from ${stores.slice(0, 3).join(", ")} or anywhere else and we read it in the background. Or look through what we have already read and priced.`
+            : `Paste a link from ${stores.slice(0, 3).join(", ")} or anywhere else. We read it in the background. Add as many as you like and come back when you are ready.`}
         </p>
       </header>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onPaste();
-        }}
-        className="tm-up flex flex-col gap-2.5 sm:flex-row [animation-delay:0.06s] [animation-duration:0.5s]"
-      >
-        <label className="sr-only" htmlFor="paste-url">
-          Product link
-        </label>
-        {/*
-          `sm:flex-1`, NOT `flex-1`. Below `sm` the form is a column, and in a
-          column `flex: 1 1 0%` makes the box's HEIGHT the flexed axis — the
-          basis of 0 beats `h-[52px]`, and the paste box collapsed to the height
-          of its placeholder text (Kelvin: "the space to post the link in is very
-          small and bad"). The box is 56px on a phone; the input is 16px there
-          because iOS zooms the page into any field smaller than that on focus.
-        */}
-        <div className="flex min-h-[56px] items-center gap-2.5 rounded-[14px] border border-tm-border bg-card px-4 sm:h-[52px] sm:min-h-0 sm:flex-1">
-          <LinkSimple className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
-          <input
-            id="paste-url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            inputMode="url"
-            autoComplete="off"
-            placeholder="Paste a product link…"
-            className="min-w-0 flex-1 bg-transparent text-base leading-none outline-none placeholder:text-tm-text-3 sm:text-[15px]"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={!url.trim() || createPaste.isPending}
-          className={cn(
-            "tm-cta-gradient flex h-[52px] items-center justify-center gap-2 rounded-[14px] px-6 text-[15px] leading-none font-bold text-white",
-            "transition-opacity disabled:cursor-not-allowed disabled:opacity-60",
-          )}
-        >
-          {createPaste.isPending ? "Adding…" : "Read this link"}
-          {!createPaste.isPending && <ArrowRight weight="bold" className="size-4" aria-hidden />}
-        </button>
-      </form>
+      {showSwitch && (
+        <ModeSwitch mode={mode} catalogueCount={catalogueCount} delay={0.06} />
+      )}
 
+      {!browsing && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onPaste();
+          }}
+          className="tm-up flex flex-col gap-2.5 sm:flex-row [animation-delay:0.1s] [animation-duration:0.5s]"
+        >
+          <label className="sr-only" htmlFor="paste-url">
+            Product link
+          </label>
+          {/*
+            `sm:flex-1`, NOT `flex-1`. Below `sm` the form is a column, and in a
+            column `flex: 1 1 0%` makes the box's HEIGHT the flexed axis — the
+            basis of 0 beats the fixed height, and the paste box collapsed to the
+            height of its placeholder text (Kelvin: "the space to post the link in
+            is very small and bad"). The box is 56px on a phone; the input is 16px
+            there because iOS zooms the page into any field smaller than that on
+            focus.
+          */}
+          <div className="flex min-h-[56px] items-center gap-2.5 rounded-[14px] border border-tm-border bg-card px-4 sm:h-[52px] sm:min-h-0 sm:flex-1">
+            <LinkSimple className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
+            <input
+              id="paste-url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              inputMode="url"
+              autoComplete="off"
+              placeholder="Paste a product link…"
+              className="min-w-0 flex-1 bg-transparent text-base leading-none outline-none placeholder:text-tm-text-3 sm:text-[15px]"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!url.trim() || createPaste.isPending}
+            className={cn(
+              "tm-cta-gradient flex h-[52px] items-center justify-center gap-2 rounded-[14px] px-6 text-[15px] leading-none font-bold text-white",
+              "transition-opacity disabled:cursor-not-allowed disabled:opacity-60",
+            )}
+          >
+            {createPaste.isPending ? "Adding…" : "Read this link"}
+            {!createPaste.isPending && <ArrowRight weight="bold" className="size-4" aria-hidden />}
+          </button>
+        </form>
+      )}
+
+      {/*
+        Live in both halves. A link that is reading right now is the only
+        time-sensitive thing on this screen, and a customer who wandered off to
+        browse while it read would otherwise never see it land.
+      */}
       {reading.length > 0 && (
-        <Group label={`Reading now · ${reading.length}`} delay={0.12}>
+        <Group label={`Reading now · ${reading.length}`} delay={0.14}>
           {reading.map((paste) => (
             <PasteRow key={paste.id} {...rowProps(paste)} />
           ))}
         </Group>
       )}
 
-      {done.length > 0 && (
-        <Group label="Recently pasted" delay={0.18}>
-          {done.map((paste) => (
-            <PasteRow key={paste.id} {...rowProps(paste)} />
-          ))}
-        </Group>
-      )}
+      {browsing ? (
+        browse
+      ) : (
+        <>
+          {done.length > 0 && (
+            <RecentlyPastedCard count={done.length} delay={0.2}>
+              {(shown) =>
+                done.slice(0, shown).map((paste) => (
+                  <PasteRow key={paste.id} {...rowProps(paste)} />
+                ))
+              }
+            </RecentlyPastedCard>
+          )}
 
-      {pastes.length === 0 && (
-        <p className="tm-up rounded-[24px] border border-tm-border bg-card px-6 py-12 text-center text-sm leading-[1.5] text-tm-text-2 [animation-delay:0.12s] [animation-duration:0.5s]">
-          Nothing pasted yet. Drop a product link above and we will price it in cedis, all in.
-        </p>
+          {pastes.length === 0 && (
+            <p className="tm-up rounded-[24px] border border-tm-border bg-card px-6 py-12 text-center text-sm leading-[1.5] text-tm-text-2 [animation-delay:0.16s] [animation-duration:0.5s]">
+              Nothing pasted yet. Drop a product link above and we will price it in cedis, all in.
+              {catalogueCount > 0 && (
+                <>
+                  {" "}
+                  Or{" "}
+                  <Link
+                    href={buyForMeHref("browse")}
+                    className="font-semibold text-tm-coral underline-offset-2 hover:underline"
+                  >
+                    look through what we have already priced
+                  </Link>
+                  .
+                </>
+              )}
+            </p>
+          )}
+
+          {catalogueCount > 0 && (
+            <p className="text-[13px] leading-[1.45] font-medium text-tm-text-3">
+              Know what it is called but not where to buy it?{" "}
+              <Link
+                href={searchHref}
+                className="font-semibold text-tm-coral underline-offset-2 hover:underline"
+              >
+                Search by name
+              </Link>{" "}
+              through the products we have already priced.
+            </p>
+          )}
+        </>
       )}
 
       <AssistedRequestDialog
@@ -297,6 +391,165 @@ function splitPastes(pastes: PasteStatus[]): { reading: PasteStatus[]; done: Pas
     else done.push(paste);
   }
   return { reading, done };
+}
+
+/**
+ * The switch between the two halves of this tab.
+ *
+ * Links, not buttons, and the mode is in the URL. Same reasoning as the admin
+ * filter pills and the catalogue search: the back button then moves between the
+ * halves, the browse half is a thing somebody can send, and nothing has to be
+ * held in client state to remember which one is open.
+ *
+ * The count on the browse side is the catalogue's real size. It is there
+ * because "browse" alone says nothing about whether the shelf is worth a tap,
+ * and the whole point of this screen is that the customer can see what we hold
+ * before they commit to anything.
+ */
+function ModeSwitch({
+  mode,
+  catalogueCount,
+  delay,
+}: {
+  mode: BuyForMeMode;
+  catalogueCount: number;
+  delay: number;
+}) {
+  return (
+    <nav
+      aria-label="Ways to tell us what you want"
+      className="tm-up flex w-full items-center gap-1 rounded-[16px] border border-tm-border bg-card p-1 sm:w-fit [animation-duration:0.5s]"
+      style={{ animationDelay: `${delay}s` }}
+    >
+      <ModeSwitchLink
+        href={buyForMeHref("paste")}
+        active={mode === "paste"}
+        icon={<LinkSimple weight="bold" className="size-4 shrink-0" aria-hidden />}
+        label="Paste a link"
+      />
+      <ModeSwitchLink
+        href={buyForMeHref("browse")}
+        active={mode === "browse"}
+        icon={<Storefront weight="bold" className="size-4 shrink-0" aria-hidden />}
+        label="Already priced"
+        count={catalogueCount > 0 ? catalogueCount : null}
+      />
+    </nav>
+  );
+}
+
+function ModeSwitchLink({
+  href,
+  active,
+  icon,
+  label,
+  count = null,
+}: {
+  href: string;
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+  count?: number | null;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[12px] px-3.5 py-2.5 text-[13.5px] leading-none font-semibold transition-colors sm:flex-none",
+        "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+        // `bg-tm-tint`, NOT the pill background the admin filter pills reach
+        // for. `--tm-pill-bg` is defined in `:root` but never registered in the
+        // theme block, so Tailwind emits no rule for it at all: verified by
+        // grepping the built stylesheet, which has a tint rule and no pill-bg
+        // rule. An active state with no background is indistinguishable from an
+        // inactive one, which on a two-way switch is the whole control.
+        active
+          ? "bg-tm-tint text-tm-coral-strong"
+          : "text-tm-text-2 hover:bg-tm-paper hover:text-tm-ink",
+      )}
+    >
+      {icon}
+      <span className="truncate">{label}</span>
+      {count != null && (
+        <span
+          className={cn(
+            "tm-nums shrink-0 rounded-full px-1.5 py-0.5 text-[11px] leading-none font-bold",
+            active ? "bg-card text-tm-coral-strong" : "bg-tm-paper text-tm-text-3",
+          )}
+        >
+          {count}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+/** How many settled pastes the quiet card shows before it has to be opened. */
+const RECENT_PREVIEW = 3;
+
+/**
+ * Recently pasted, demoted.
+ *
+ * It used to be the body of this screen: a full-width section that grew with
+ * every link and pushed everything else off the phone. Kelvin: "The recently
+ * pasted should be in a card and not be the centre anymore." So it is a quiet
+ * card at the bottom, showing the last few, opening in place when there are
+ * more. Nothing is thrown away, because for a signed-out visitor this list is
+ * the only record of what they have asked us to price.
+ *
+ * Nothing collapses a row that still needs attention: those are reading, and
+ * reading rows never reach this card.
+ */
+function RecentlyPastedCard({
+  count,
+  delay,
+  children,
+}: {
+  count: number;
+  delay: number;
+  children: (shown: number) => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const collapsible = count > RECENT_PREVIEW;
+  const shown = open || !collapsible ? count : RECENT_PREVIEW;
+
+  return (
+    <section
+      aria-label="Recently pasted"
+      className="tm-up overflow-hidden rounded-[20px] border border-tm-border bg-card [animation-duration:0.5s]"
+      style={{ animationDelay: `${delay}s` }}
+    >
+      <header className="flex items-center justify-between gap-3 px-[18px] py-3.5 lg:px-[22px]">
+        <h2 className="text-[12px] leading-none font-bold tracking-[0.06em] text-tm-text-3 uppercase">
+          Recently pasted
+        </h2>
+        <span className="tm-nums shrink-0 text-[12px] leading-none font-semibold text-tm-text-3">
+          {collapsible && !open ? `${RECENT_PREVIEW} of ${count}` : count}
+        </span>
+      </header>
+
+      <ul>{children(shown)}</ul>
+
+      {collapsible && (
+        <div className="border-t border-tm-hairline px-[18px] py-3 lg:px-[22px]">
+          <button
+            type="button"
+            onClick={() => setOpen((previous) => !previous)}
+            aria-expanded={open}
+            className="inline-flex items-center gap-1.5 text-[13px] leading-none font-semibold text-tm-coral transition-colors hover:text-tm-coral-strong focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none"
+          >
+            {open ? "Show fewer" : `Show all ${count}`}
+            <CaretDown
+              weight="bold"
+              className={cn("size-3.5 transition-transform", open && "rotate-180")}
+              aria-hidden
+            />
+          </button>
+        </div>
+      )}
+    </section>
+  );
 }
 
 const ROW_ACTION = cn(

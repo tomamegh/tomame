@@ -1,6 +1,13 @@
 import "server-only";
 import { logger } from "@/lib/logger";
-import { searchCatalogProducts, type CatalogSearchHit, type CatalogStore } from "@/db/queries/catalog";
+import {
+  listCatalogCategories,
+  listCatalogProductsByCategory,
+  searchCatalogProducts,
+  type CatalogCategoryCount,
+  type CatalogSearchHit,
+  type CatalogStore,
+} from "@/db/queries/catalog";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import type { PricingCalculator } from "@/lib/pricing/calculator";
 
@@ -118,4 +125,55 @@ async function priceHit(calculator: PricingCalculator, hit: CatalogSearchHit): P
     logger.warn("catalog-search: could not price hit", { id: hit.id, error: error instanceof Error ? error.message : String(error) });
     return base;
   }
+}
+
+
+/**
+ * Browsing, rather than searching: one category's products, already priced.
+ *
+ * WHY THIS EXISTS. The search screen answered "say what you want", but a
+ * customer who has not yet pasted anything does not know what we hold, and until
+ * now the only route to it was a rail on a quote screen you could reach only by
+ * pasting a link first. Kelvin: "To access search without a link, a user must
+ * first search with a link, and then navigate there." Browsing by category is
+ * the way in that needs nothing from the customer.
+ *
+ * It shares `priceHit` with `searchCatalog`, so a browsed card and a searched
+ * card carry the same landed total struck the same way. The ordering is redone
+ * here on the real figure: the query can only order by the store's own price,
+ * which is not the number the customer pays.
+ */
+export async function browseCatalogCategory(
+  category: string,
+  options: { limit: number },
+): Promise<CatalogSearchResponse> {
+  const hits = await listCatalogProductsByCategory({ category, limit: options.limit });
+  if (hits.length === 0) return { query: category, count: 0, results: [] };
+
+  const calculator = await loadPricingCalculator();
+  const results: CatalogSearchResult[] = [];
+  // Sequential, for the reason `searchCatalog` gives: the first `calculate`
+  // lazily loads the FX rate onto the instance and a parallel burst races it.
+  for (const hit of hits) results.push(await priceHit(calculator, hit));
+
+  const priced = results
+    .filter((r) => !r.unpriceable)
+    .sort((a, b) => a.total_ghs! - b.total_ghs!);
+  const unpriceable = results.filter((r) => r.unpriceable);
+
+  const seenStore = new Set<CatalogStore>();
+  for (const r of priced) {
+    if (!seenStore.has(r.store)) {
+      r.cheapest_in_store = true;
+      seenStore.add(r.store);
+    }
+  }
+
+  const ordered = [...priced, ...unpriceable];
+  return { query: category, count: ordered.length, results: ordered };
+}
+
+/** What the browse screen offers, largest category first. Never throws upward. */
+export async function listBrowsableCategories(): Promise<CatalogCategoryCount[]> {
+  return listCatalogCategories();
 }

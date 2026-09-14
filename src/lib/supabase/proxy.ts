@@ -68,7 +68,13 @@ export async function updateSession(request: NextRequest) {
   const adminRoutes = ["/admin", "/api/admin"];
   // The quote flow (paste link → preview → review) is open to visitors; the
   // order submit API and everything after it still require a session.
-  const publicRoutes = ["/app/orders/new", "/app/orders/review", "/app/bag"];
+  // `/app/products` is the catalogue search, and it belongs here for the same
+  // reason the rest of the quote flow does: it shows pre-scraped public listings
+  // and a landed price, nothing belonging to anybody. Browsing that same
+  // catalogue on `/app/orders/new` is already public, so leaving search behind a
+  // login made one half of one feature a wall and the other half open, and the
+  // wall was the half a visitor reaches by following our own link.
+  const publicRoutes = ["/app/orders/new", "/app/orders/review", "/app/bag", "/app/products"];
 
   const isPublic = publicRoutes.some((p) => pathname.startsWith(p));
   const isAdminRoute = adminRoutes.some((p) => pathname.startsWith(p));

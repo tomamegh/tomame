@@ -8,6 +8,8 @@ vi.mock("@/db/queries/catalog", () => ({
   markQueryResult: vi.fn(),
   upsertCatalogProducts: vi.fn(),
   searchCatalogProducts: vi.fn(),
+  listCatalogCategories: vi.fn(),
+  listCatalogProductsByCategory: vi.fn(),
   getOrCreateBudget: vi.fn(),
   incrementBudget: vi.fn(),
 }));
@@ -17,9 +19,18 @@ vi.mock("@/features/pricing/services/pricing.service", () => ({
   loadPricingCalculator: vi.fn(async () => ({ calculate })),
 }));
 
-import { searchCatalogProducts, type CatalogSearchHit } from "@/db/queries/catalog";
+import {
+  listCatalogCategories,
+  listCatalogProductsByCategory,
+  searchCatalogProducts,
+  type CatalogSearchHit,
+} from "@/db/queries/catalog";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
-import { searchCatalog } from "../services/catalog-search.service";
+import {
+  browseCatalogCategory,
+  listBrowsableCategories,
+  searchCatalog,
+} from "../services/catalog-search.service";
 
 function hit(overrides: Partial<CatalogSearchHit>): CatalogSearchHit {
   return {
@@ -105,5 +116,82 @@ describe("searchCatalog", () => {
     vi.mocked(searchCatalogProducts).mockResolvedValue([hit({ id: "gbp", price_usd: 20, currency: "GBP" })]);
     await searchCatalog("kettle", { limit: 5 });
     expect(calculate).toHaveBeenCalledWith(expect.objectContaining({ itemPrice: 20, itemCurrency: "GBP" }), null);
+  });
+});
+
+
+/**
+ * Browsing is the way into the catalogue that needs nothing from the customer.
+ * Kelvin: "To access search without a link, a user must first search with a
+ * link, and then navigate there."
+ */
+describe("browseCatalogCategory", () => {
+  it("prices a category and re-sorts on the landed total, not the store price", async () => {
+    // The query can only order by `price_usd`. That is not the number the
+    // customer pays: freight is per weight and per group, so a cheaper listing
+    // can land dearer. The service must redo the ordering on the real figure.
+    vi.mocked(listCatalogProductsByCategory).mockResolvedValue([
+      hit({ id: "a", price_usd: 30 }),
+      hit({ id: "b", price_usd: 10 }),
+    ]);
+    calculate.mockImplementation(async (input: { itemPriceUsd?: number }) => ({
+      // Deliberately inverts the store order: the $30 item lands cheapest.
+      total_ghs: input.itemPriceUsd === 30 ? 100 : 900,
+      pricing_group: "g",
+      pricing_method: "flat_rate",
+      exchange_rate: 15.5,
+    }));
+
+    const out = await browseCatalogCategory("Headphones", { limit: 12 });
+    expect(out.results.map((r) => r.id)).toEqual(["a", "b"]);
+    expect(out.results[0]!.total_ghs).toBe(100);
+  });
+
+  it("puts what it could not price last, and flags rather than hides it", async () => {
+    vi.mocked(listCatalogProductsByCategory).mockResolvedValue([
+      hit({ id: "priced", price_usd: 10 }),
+      hit({ id: "no-price", price_usd: null }),
+    ]);
+
+    const out = await browseCatalogCategory("Headphones", { limit: 12 });
+    expect(out.results.map((r) => r.id)).toEqual(["priced", "no-price"]);
+    expect(out.results[1]!.unpriceable).toBe(true);
+    expect(out.results[1]!.total_ghs).toBeNull();
+  });
+
+  it("marks the cheapest in each store once the real totals are known", async () => {
+    vi.mocked(listCatalogProductsByCategory).mockResolvedValue([
+      hit({ id: "az-dear", store: "amazon", price_usd: 30 }),
+      hit({ id: "az-cheap", store: "amazon", price_usd: 10 }),
+      hit({ id: "eb", store: "ebay", price_usd: 20 }),
+    ]);
+
+    const out = await browseCatalogCategory("Headphones", { limit: 12 });
+    const cheapest = out.results.filter((r) => r.cheapest_in_store).map((r) => r.id);
+    expect(cheapest).toEqual(["az-cheap", "eb"]);
+  });
+
+  it("does not load the pricing engine for an empty category", async () => {
+    vi.mocked(listCatalogProductsByCategory).mockResolvedValue([]);
+
+    const out = await browseCatalogCategory("Nothing Here", { limit: 12 });
+    expect(out).toEqual({ query: "Nothing Here", count: 0, results: [] });
+    expect(loadPricingCalculator).not.toHaveBeenCalled();
+  });
+});
+
+describe("listBrowsableCategories", () => {
+  it("hands back what the catalogue holds, largest first", async () => {
+    // Derived from the products themselves, so the browse screen can never
+    // offer a heading that opens onto nothing.
+    vi.mocked(listCatalogCategories).mockResolvedValue([
+      { category: "Headphones", count: 175 },
+      { category: "Computers", count: 108 },
+    ]);
+
+    expect(await listBrowsableCategories()).toEqual([
+      { category: "Headphones", count: 175 },
+      { category: "Computers", count: 108 },
+    ]);
   });
 });
