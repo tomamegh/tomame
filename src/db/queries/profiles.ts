@@ -86,3 +86,55 @@ export async function updateAccountProfile(
   }
   return data as AccountProfileRow;
 }
+
+// ── Onboarding (064) ──────────────────────────────────────────────────────────
+//
+// A separate narrow projection, on the same principle as `ACCOUNT_COLUMNS`
+// above: the app shell reads this on every signed-in `/app` render, and it has
+// no business seeing `bio` or `phone` to answer "has this customer seen the
+// tour".
+
+const ONBOARDING_COLUMNS = "onboarding_completed_at, onboarding_dismissed_at";
+
+export interface OnboardingStateRow {
+  onboarding_completed_at: string | null;
+  onboarding_dismissed_at: string | null;
+}
+
+export async function selectOnboardingState(
+  client: SupabaseClient,
+  userId: string,
+): Promise<OnboardingStateRow | null> {
+  const { data, error } = await client
+    .from("profiles")
+    .select(ONBOARDING_COLUMNS)
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load onboarding state: ${error.message}`);
+  }
+  return (data as OnboardingStateRow | null) ?? null;
+}
+
+/**
+ * Stamps exactly one of the two terminal columns with `now()`. Never both in
+ * one call — "completed" and "dismissed" are alternatives, not a sequence.
+ */
+export async function updateOnboardingState(
+  client: SupabaseClient,
+  userId: string,
+  column: "onboarding_completed_at" | "onboarding_dismissed_at",
+): Promise<OnboardingStateRow> {
+  const { data, error } = await client
+    .from("profiles")
+    .update({ [column]: new Date().toISOString() })
+    .eq("id", userId)
+    .select(ONBOARDING_COLUMNS)
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update onboarding state: ${error.message}`);
+  }
+  return data as OnboardingStateRow;
+}

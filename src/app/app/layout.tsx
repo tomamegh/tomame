@@ -3,6 +3,8 @@ import { APP_BOTTOM_TABS_PADDING } from "@/components/layout/app/styles";
 import { APP_NAV_ITEMS } from "@/components/layout/app/links";
 import { cn } from "@/lib/utils";
 import { getAppChrome } from "@/features/app-shell/services/app-chrome.service";
+import { getOnboardingSignals } from "@/features/onboarding/services/onboarding-state.service";
+import { OnboardingTour } from "@/features/onboarding/components";
 
 /**
  * The signed-in app shell — `design/TmNavLight.dc.html` plus the 390px bottom
@@ -24,7 +26,9 @@ export default async function AppDashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const chrome = await getAppChrome();
+  // Independent of the chrome read above (a separate concern: whose tour has
+  // this customer seen, not what the nav shows), run in parallel with it.
+  const [chrome, onboarding] = await Promise.all([getAppChrome(), getOnboardingSignals()]);
 
   return (
     <div className="flex min-h-dvh flex-col bg-tm-paper font-sans text-tm-ink">
@@ -56,6 +60,15 @@ export default async function AppDashboardLayout({
         login screen and discard the quote they were building.
       */}
       {chrome.isAuthenticated && <AppBottomTabs items={APP_NAV_ITEMS} />}
+
+      {/*
+        The first-run tour. Mounted only for a signed-in viewer — a signed-out
+        visitor on the public quote routes has no profile row for it to check
+        and must never see it. `OnboardingTour` decides FOR ITSELF whether to
+        actually start (see `shouldShowOnboardingTour`); mounting it here just
+        makes the signals available on every /app render.
+      */}
+      {chrome.isAuthenticated && <OnboardingTour signals={onboarding} />}
     </div>
   );
 }

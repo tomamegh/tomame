@@ -18,7 +18,13 @@ import {
 import { Input } from "@/components/ui/form";
 import SocialAuthButtons from "./social-auth-button";
 
-export default function SignUpForm() {
+/**
+ * `next` comes from the page (a server component) rather than a search-param
+ * hook, because `/auth/signup` is prerendered. It is where the visitor was
+ * heading before they were asked to create an account, and it has to survive
+ * both links out of this screen or a customer pricing an item loses their quote.
+ */
+export default function SignUpForm({ next }: { next?: string | null }) {
   const router = useRouter();
   const { mutateAsync, error, isPending } = useSignup();
 
@@ -33,7 +39,9 @@ export default function SignUpForm() {
 
   const onSubmit = async (data: SignupSchemaType) => {
     await mutateAsync(data);
-    router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`);
+    const verify = new URLSearchParams({ email: data.email });
+    if (next) verify.set("next", next);
+    router.push(`/auth/verify-email?${verify.toString()}`);
   };
 
   return (
@@ -161,7 +169,7 @@ export default function SignUpForm() {
           <FieldDescription className="text-center">
             Already have an account?{" "}
             <Link
-              href="/auth/login"
+              href={next ? `/auth/login?next=${encodeURIComponent(next)}` : "/auth/login"}
               className="text-rose-500 hover:text-amber-600 transition-colors"
             >
               Sign in

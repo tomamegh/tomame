@@ -89,7 +89,16 @@ export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="tm-up flex flex-wrap items-end justify-between gap-4 [animation-duration:0.5s]">
+      {/*
+        `id="onboarding-tour-journeys"` is stop four's anchor for the
+        first-run tour (`src/features/onboarding`) — "here is the journey,
+        where you watch it arrive". Renders before the filter pills and the
+        empty/populated split below, so it is stable across both.
+      */}
+      <header
+        id="onboarding-tour-journeys"
+        className="tm-up flex flex-wrap items-end justify-between gap-4 [animation-duration:0.5s]"
+      >
         <div className="flex w-full items-center justify-between gap-3 lg:w-auto">
           <div>
             <h1 className="font-display text-[30px] leading-none font-bold lg:text-[34px]">

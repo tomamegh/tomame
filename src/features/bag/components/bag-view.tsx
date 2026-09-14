@@ -322,10 +322,20 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   );
 }
 
-/** "Your bag" + the one-line promise — `v2-bag` line 216, `tmUp .5s both`. */
+/**
+ * "Your bag" + the one-line promise — `v2-bag` line 216, `tmUp .5s both`.
+ *
+ * `id="onboarding-tour-bag"` is stop three's anchor for the first-run tour
+ * (`src/features/onboarding`) — "here is your bag". It renders in both the
+ * empty and non-empty branches below, so the tour has one stable target
+ * regardless of which state the bag is in when it arrives.
+ */
 function BagHeader() {
   return (
-    <header className="tm-up flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 [animation-duration:0.5s]">
+    <header
+      id="onboarding-tour-bag"
+      className="tm-up flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 [animation-duration:0.5s]"
+    >
       <h1 className="font-display text-[34px] leading-none font-bold whitespace-nowrap">Your bag</h1>
       <p className="text-[13px] leading-none font-medium text-tm-text-3">Items travel together in one box when bought the same week</p>
     </header>

@@ -173,7 +173,10 @@ export default function LoginForm() {
       <p className="text-center text-sm text-stone-400">
         Don&apos;t have an account?{" "}
         <Link
-          href="/auth/signup"
+          // Carry the destination across. A visitor pricing a link who decides
+          // to create an account instead of signing in was losing their quote
+          // here, the same way the Google button lost it.
+          href={rawNext ? `/auth/signup?next=${encodeURIComponent(rawNext)}` : "/auth/signup"}
           className="font-semibold text-rose-500 hover:text-amber-600 transition-colors"
         >
           Create one free

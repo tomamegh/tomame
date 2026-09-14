@@ -8,7 +8,8 @@
         "run",
         "dev"
       ],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
     },
     {
       "name": "design-kit",
@@ -21,6 +22,18 @@
         "design"
       ],
       "port": 4321
+    },
+    {
+      "name": "tomame-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start",
+        "--",
+        "-p",
+        "3100"
+      ],
+      "port": 3100
     }
   ]
 }

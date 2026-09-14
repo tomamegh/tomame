@@ -31,6 +31,9 @@ export interface HeroPasteBarProps {
  * an aria-hidden overlay rather than a real `placeholder` attribute, because a
  * placeholder attribute cannot contain a moving element; the input keeps a
  * proper visually-hidden `<label>` so it is still announced.
+ *
+ * The form's `id` is stop one's anchor for the first-run tour
+ * (`src/features/onboarding`) — "here is where you say what you want".
  */
 export function HeroPasteBar({ stores, className }: HeroPasteBarProps) {
   const router = useRouter();
@@ -50,6 +53,7 @@ export function HeroPasteBar({ stores, className }: HeroPasteBarProps) {
 
   return (
     <form
+      id="onboarding-tour-ask"
       onSubmit={handleSubmit}
       className={cn(
         "flex flex-col gap-2 rounded-[18px] border-[1.5px] border-tm-border bg-card p-1.5",

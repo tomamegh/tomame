@@ -33,6 +33,9 @@ export interface LiveReceiptCardProps {
  * This card used to stop at "Price could not be read from the product page." and
  * leave it there, which told someone their link had failed and offered them no
  * way out of it.
+ *
+ * The section's `id` is stop two's anchor for the first-run tour
+ * (`src/features/onboarding`) — "here is the landed price, all of it".
  */
 export function LiveReceiptCard({
   receipt,
@@ -41,6 +44,7 @@ export function LiveReceiptCard({
 }: LiveReceiptCardProps) {
   return (
     <section
+      id="onboarding-tour-receipt"
       aria-labelledby="live-receipt-heading"
       className={cn(
         "tm-up flex min-w-0 flex-col gap-3.5 rounded-[24px] border border-tm-border bg-card p-[22px]",

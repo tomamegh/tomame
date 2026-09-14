@@ -77,6 +77,7 @@ export async function countMovingOrders(
   return count ?? 0;
 }
 
+
 /**
  * Just enough of an order to answer "may this person see it?".
  *

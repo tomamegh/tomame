@@ -19,6 +19,12 @@ const remotePatterns: RemotePattern[] = IMAGE_HOST_ALLOWLIST.flatMap((entry): Re
 });
 
 const nextConfig: NextConfig = {
+    // Next 16.3 writes its own "rules for AI agents" block into CLAUDE.md every
+    // time `next dev` starts. CLAUDE.md is this project's instruction file and
+    // the authority for how the repo is worked; a framework appending to it
+    // means the rules an agent reads are partly written by a tool nobody asked,
+    // and it shows up as a spurious dirty file in every `git status`.
+    agentRules: false,
     images: {
         remotePatterns: [
             ...remotePatterns,
