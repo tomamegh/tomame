@@ -25,14 +25,14 @@ const nextConfig: NextConfig = {
     // means the rules an agent reads are partly written by a tool nobody asked,
     // and it shows up as a spurious dirty file in every `git status`.
     //
-    // COMMENTED OUT, not deleted. The option is real in 16.3, but the version
-    // pinned here is 16.2.9, where it does not exist: Next logged
-    // "Unrecognized key(s) in object: 'agentRules'" and `next build` then died
-    // on `Object literal may only specify known properties` because
-    // `NextConfig` has no such field. That failed the build outright, so
-    // nothing could deploy at all. Re-enable it in the same change that bumps
-    // Next to 16.3.
-    // agentRules: false,
+    // If this line ever fails the build with "Unrecognized key(s) in object:
+    // 'agentRules'" and `Object literal may only specify known properties`, the
+    // answer is `npm install`, NOT removing the line. The option arrived in
+    // Next 16.3; package.json asks for ^16.3.5, but node_modules on a checkout
+    // that has not installed since that bump can still hold 16.2.9, which has
+    // no such field. Diagnosed the wrong way round once already and briefly
+    // commented this out, which quietly handed CLAUDE.md back to the framework.
+    agentRules: false,
     images: {
         remotePatterns: [
             ...remotePatterns,
