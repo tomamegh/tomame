@@ -12,10 +12,24 @@ import { postAuthDestination } from "@/lib/auth/post-auth-destination";
  * everyone else in the storefront. This used to be a hardcoded `/app`, so an
  * administrator signing in with Google was dropped into the customer app.
  *
- * The role is read from the session that was just minted, where
- * `custom_access_token_hook` puts `app_metadata.role`, using the same
- * `canAccessAdmin` predicate the proxy gates `/admin` with — so the destination
- * and the gate cannot disagree and bounce the person straight back out.
+ * THE ROLE COMES FROM THE ACCESS TOKEN, NOT FROM `session.user`.
+ *
+ * `custom_access_token_hook` injects `app_metadata.role` into the JWT CLAIMS as
+ * the token is minted. It does not write `auth.users.raw_app_meta_data`, and
+ * `session.user` is built from that row — so `session.user.app_metadata.role` is
+ * undefined for every account on a hosted project, including real admins. This
+ * route used to read exactly that, so an administrator signing in with Google
+ * was sent to the customer storefront: the value it tested was always absent.
+ *
+ * It was invisible locally because the hook is commented out in
+ * `supabase/config.toml`, so the one local admin has the role set directly on
+ * `raw_app_meta_data` instead — where `session.user` DOES see it. The local
+ * workaround and the hosted mechanism populate different places, and only the
+ * hosted one is real.
+ *
+ * `getClaims()` reads the decoded token, which is what `src/lib/supabase/proxy.ts`
+ * gates `/admin` on — so the destination and the gate now read the same value
+ * and cannot bounce the person straight back out.
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -24,12 +38,13 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
+      const { data: claimsData } = await supabase.auth.getClaims();
       const destination = postAuthDestination({
         next,
-        isAdmin: canAccessAdmin(data.session?.user ?? null),
+        isAdmin: canAccessAdmin(claimsData?.claims ?? null),
       });
 
       // The original host before the load balancer. Without this the redirect

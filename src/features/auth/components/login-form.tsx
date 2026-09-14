@@ -19,6 +19,8 @@ import { Suspense } from "react";
 import ResetSuccess from "./reset-success";
 import SocialAuthButtons from "./social-auth-button";
 import { postAuthDestination } from "@/lib/auth/post-auth-destination";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -44,12 +46,20 @@ export default function LoginForm() {
     // administrator signing in was dropped into the customer app and had to
     // know to type /admin.
     //
-    // The role comes from the freshly-signed-in user the server just returned,
-    // not from anything the browser held beforehand.
-    const user = result?.data as { profile?: { role?: string } } | undefined;
+    // THE ROLE COMES FROM THE ACCESS TOKEN, like everywhere else.
+    //
+    // This read `profile.role` — the database column — while `src/lib/supabase/proxy.ts`
+    // gates `/admin` on the JWT claim that `custom_access_token_hook` injects.
+    // Two answers to one question: they agree only while the hook has run for
+    // that session, and when they disagree the form sends an admin to `/admin`
+    // and the proxy immediately returns them to `/app`, which reads as a login
+    // that silently refuses. `canAccessAdmin` on the decoded token is the single
+    // rule (`lib/auth/admin-access.ts`), and the destination now cannot disagree
+    // with the gate it is sending the browser through.
+    const { data: claimsData } = await createClient().auth.getClaims();
     const destination = postAuthDestination({
       next: rawNext,
-      isAdmin: user?.profile?.role === "admin",
+      isAdmin: canAccessAdmin(claimsData?.claims ?? null),
     });
 
     // `replace`, not `push`: the back button should not return to a login form
