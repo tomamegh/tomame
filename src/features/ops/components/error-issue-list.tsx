@@ -3,6 +3,8 @@
 import { useState } from "react";
 
 import { AdminBadge, AdminEmpty } from "@/components/layout/admin";
+import { apiFetch } from "@/lib/auth/api-helpers";
+import { toast } from "@/lib/sonner";
 import type { ErrorIssueRow } from "@/db/queries/error-events";
 import { formatRelativeTime } from "@/features/app-home/components/format";
 
@@ -26,11 +28,23 @@ export function ErrorIssueList({ issues, renderedAt }: { issues: ErrorIssueRow[]
     return <AdminEmpty title="Nothing unhandled" body="No error has been recorded that somebody has not already looked at." />;
   }
 
+  /**
+   * A failure here must SAY so. Filing silently doing nothing would be exactly
+   * the bug this whole screen exists to catch, on the screen that catches it:
+   * the row would stay put with no explanation and the admin would assume the
+   * click missed. `apiFetch` throws on a non-2xx, which is what carries the
+   * server's message into the toast.
+   */
   async function file(fingerprint: string) {
     setBusy(fingerprint);
     try {
-      const res = await fetch(`/api/admin/ops/errors/${fingerprint}`, { method: "POST" });
-      if (res.ok) setFiled((f) => ({ ...f, [fingerprint]: true }));
+      await apiFetch(`/api/admin/ops/errors/${fingerprint}`, { method: "POST" });
+      setFiled((f) => ({ ...f, [fingerprint]: true }));
+    } catch (error) {
+      toast.error({
+        title: "Could not file that issue",
+        description: error instanceof Error ? error.message : "Something went wrong.",
+      });
     } finally {
       setBusy(null);
     }
