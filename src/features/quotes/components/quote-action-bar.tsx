@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookmarkSimple, Plus, Tote } from "@phosphor-icons/react/ssr";
+import { ArrowRight, BookmarkSimple, HandWaving, Plus, Tote } from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/utils";
 
@@ -17,6 +17,10 @@ export interface QuoteActionBarProps {
   watching: boolean;
   watchPending: boolean;
   onToggleWatch: () => void;
+  /** Nobody has confirmed we can buy this (065); the bar asks a person instead. */
+  needsSourcing?: boolean;
+  onAskToSource?: () => void;
+  sourcePending?: boolean;
 }
 
 /**
@@ -41,6 +45,9 @@ export function QuoteActionBar({
   watching,
   watchPending,
   onToggleWatch,
+  needsSourcing = false,
+  onAskToSource,
+  sourcePending = false,
 }: QuoteActionBarProps) {
   return (
     <div
@@ -52,6 +59,11 @@ export function QuoteActionBar({
       )}
     >
       <div className="mx-auto flex w-full max-w-[1280px] items-center gap-2.5">
+        {/*
+          No watch button on a sourcing item: there is no price to watch, and
+          the nightly job is kept off these rows entirely (065).
+        */}
+        {!needsSourcing && (
         <button
           type="button"
           onClick={onToggleWatch}
@@ -73,6 +85,7 @@ export function QuoteActionBar({
             aria-hidden
           />
         </button>
+        )}
 
         {addedCount != null ? (
           <>
@@ -106,6 +119,22 @@ export function QuoteActionBar({
               <ArrowRight weight="bold" className="size-4" aria-hidden />
             </Link>
           </>
+        ) : needsSourcing ? (
+          /* The unpriceable item's CTA, in the thumb position. */
+          <button
+            type="button"
+            onClick={onAskToSource}
+            disabled={sourcePending}
+            className={cn(
+              "tm-cta-gradient flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
+              "transition-[filter,opacity] hover:brightness-105",
+              "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+              "disabled:cursor-not-allowed disabled:opacity-60",
+            )}
+          >
+            <HandWaving weight="bold" className="size-[18px]" aria-hidden />
+            {sourcePending ? "Sending…" : "Ask us to source this"}
+          </button>
         ) : (
           <button
             type="button"

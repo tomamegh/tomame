@@ -272,6 +272,17 @@ export interface CreateOrderLinks {
   delivery_address_id?: string | null;
   /** The group's "paid" email covers its orders; skip the per-order "placed" one. */
   suppress_placed_email?: boolean;
+  /**
+   * A buyer's verified item price, USD (065).
+   *
+   * SERVER-ONLY ON PURPOSE, which is why it rides here and not on
+   * `createOrderSchema`: that schema is parsed straight from a customer's request
+   * body, and a field there that outranks the store's own price would let a
+   * browser name what it pays. This bag only ever carries values the server put
+   * in it — `checkoutBag` reads it off the cart line, where only an
+   * admin-guarded route can write it.
+   */
+  sourced_price_usd?: number | null;
 }
 
 export async function createOrder(
@@ -284,7 +295,7 @@ export async function createOrder(
   // Every money-relevant field is decided server-side from the extraction
   // snapshot and the viewer's rate lock. See order-intake.service.ts — the
   // client never sets pricing, a rate, or a lock id.
-  const intake = await buildOrderIntake(input, viewer);
+  const intake = await buildOrderIntake(input, viewer, links.sourced_price_usd ?? null);
   const { pricing, needs_review: needsReview, review_reasons: reviewReasons } = intake;
 
   const orderToCreate = {

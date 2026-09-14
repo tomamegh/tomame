@@ -10,6 +10,7 @@ import {
   ChatCircleText,
   CheckCircle,
   LinkSimple,
+  MagnifyingGlass,
   Storefront,
   Tote,
   WarningCircle,
@@ -20,10 +21,11 @@ import { describePendingWait, hostOf, type PendingWait } from "@/features/bag/co
 import type { BagLinePending } from "@/features/bag/types";
 import { ApiFetchError } from "@/lib/auth/api-helpers";
 import { toast } from "@/lib/sonner";
+import { CATALOG_SEARCH } from "@/config/catalog";
 import { cn } from "@/lib/utils";
 import { useAddPasteToBag, useCreatePaste, usePastes } from "../hooks/usePastes";
 import type { PasteStatus } from "../services/paste-status";
-import { buyForMeHref, type BuyForMeMode } from "./buy-for-me-mode";
+import { buyForMeHref, looksLikeUrl, type BuyForMeMode } from "./buy-for-me-mode";
 import { ReadingIndicator } from "./reading-indicator";
 
 export interface PasteQueueViewProps {
@@ -58,8 +60,6 @@ export interface PasteQueueViewProps {
    * offering a shelf we cannot fill is worse than not offering it.
    */
   catalogueCount?: number;
-  /** The fuller search by name, `/app/products`. */
-  searchHref?: string;
 }
 
 /**
@@ -102,7 +102,6 @@ export function PasteQueueView({
   mode = "paste",
   browse = null,
   catalogueCount = 0,
-  searchHref = "/app/products",
 }: PasteQueueViewProps) {
   const router = useRouter();
   const [url, setUrl] = useState("");
@@ -226,6 +225,37 @@ export function PasteQueueView({
     [createPaste, router],
   );
 
+  const typed = url.trim();
+  // WHICH BRANCH THE ONE BOX TAKES. A link is read; anything else is searched
+  // against the catalogue. The customer is told which before they press it —
+  // the icon, the placeholder and the button label all follow this, so the box
+  // never silently does the other thing.
+  const isLink = looksLikeUrl(typed);
+  // There is no point offering to search an empty catalogue, so with nothing
+  // priced the box goes back to being a paste box and says so.
+  const canSearch = catalogueCount > 0;
+  const searchable = canSearch && !isLink && typed.length >= CATALOG_SEARCH.minQueryLength;
+
+  const onSubmitTerm = useCallback(() => {
+    if (!typed) return;
+    if (isLink || !canSearch) {
+      onPaste();
+      return;
+    }
+    if (typed.length < CATALOG_SEARCH.minQueryLength) {
+      toast.error({
+        title: "A little more to go on",
+        description: `Type at least ${CATALOG_SEARCH.minQueryLength} characters, or paste a product link.`,
+      });
+      return;
+    }
+    // A search is a navigation, not client state: the browse half renders it on
+    // the server, where the pricing engine lives. The box is not cleared — the
+    // term is about to appear in the search field over there, and clearing it
+    // here would make the back button land on an empty box.
+    router.push(buyForMeHref("browse", { q: typed }));
+  }, [typed, isLink, canSearch, onPaste, router]);
+
   const { reading, done } = useMemo(() => splitPastes(pastes), [pastes]);
   const browsing = mode === "browse";
   // A switch is worth drawing when there is something on the other side of it,
@@ -251,8 +281,8 @@ export function PasteQueueView({
           What should we buy for you?
         </h1>
         <p className="text-sm leading-[1.5] text-tm-text-2">
-          {showSwitch
-            ? `Paste a link from ${stores.slice(0, 3).join(", ")} or anywhere else and we read it in the background. Or look through what we have already read and priced.`
+          {canSearch
+            ? `Paste a link from ${stores.slice(0, 3).join(", ")} or anywhere else and we read it in the background, or type what you want and we will show you what we have already priced.`
             : `Paste a link from ${stores.slice(0, 3).join(", ")} or anywhere else. We read it in the background. Add as many as you like and come back when you are ready.`}
         </p>
       </header>
@@ -261,16 +291,23 @@ export function PasteQueueView({
         <ModeSwitch mode={mode} catalogueCount={catalogueCount} delay={0.06} />
       )}
 
+      {/*
+        ONE BOX, BOTH JOBS. It used to take links only, and the way to search by
+        name was a sentence underneath with a link in it — Kelvin, 2026-09-14: "a
+        link very small beneath that most users will miss". So the box takes
+        either, `looksLikeUrl` picks the branch, and the icon, placeholder and
+        button label say which branch is armed before anybody presses it.
+      */}
       {!browsing && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onPaste();
+            onSubmitTerm();
           }}
           className="tm-up flex flex-col gap-2.5 sm:flex-row [animation-delay:0.1s] [animation-duration:0.5s]"
         >
           <label className="sr-only" htmlFor="paste-url">
-            Product link
+            {canSearch ? "Product link, or what you are looking for" : "Product link"}
           </label>
           {/*
             `sm:flex-1`, NOT `flex-1`. Below `sm` the form is a column, and in a
@@ -282,26 +319,35 @@ export function PasteQueueView({
             focus.
           */}
           <div className="flex min-h-[56px] items-center gap-2.5 rounded-[14px] border border-tm-border bg-card px-4 sm:h-[52px] sm:min-h-0 sm:flex-1">
-            <LinkSimple className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
+            {searchable ? (
+              <MagnifyingGlass weight="bold" className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
+            ) : (
+              <LinkSimple className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
+            )}
             <input
               id="paste-url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              inputMode="url"
+              // `url` only while it still could be one. Locking the keyboard to
+              // a URL layout would put a customer typing "wireless earbuds"
+              // behind a `.com` key and no space bar.
+              inputMode={canSearch && !isLink ? "search" : "url"}
               autoComplete="off"
-              placeholder="Paste a product link…"
+              placeholder={
+                canSearch ? "Paste a product link, or type what you want…" : "Paste a product link…"
+              }
               className="min-w-0 flex-1 bg-transparent text-base leading-none outline-none placeholder:text-tm-text-3 sm:text-[15px]"
             />
           </div>
           <button
             type="submit"
-            disabled={!url.trim() || createPaste.isPending}
+            disabled={!typed || createPaste.isPending}
             className={cn(
               "tm-cta-gradient flex h-[52px] items-center justify-center gap-2 rounded-[14px] px-6 text-[15px] leading-none font-bold text-white",
               "transition-opacity disabled:cursor-not-allowed disabled:opacity-60",
             )}
           >
-            {createPaste.isPending ? "Adding…" : "Read this link"}
+            {createPaste.isPending ? "Adding…" : searchable ? "Search" : "Read this link"}
             {!createPaste.isPending && <ArrowRight weight="bold" className="size-4" aria-hidden />}
           </button>
         </form>
@@ -334,35 +380,29 @@ export function PasteQueueView({
             </RecentlyPastedCard>
           )}
 
+          {/*
+            The "Search by name" footnote that used to sit under this is gone:
+            the box above does that job now, and a second, smaller way to reach
+            the same search was exactly the thing nobody found.
+          */}
           {pastes.length === 0 && (
             <p className="tm-up rounded-[24px] border border-tm-border bg-card px-6 py-12 text-center text-sm leading-[1.5] text-tm-text-2 [animation-delay:0.16s] [animation-duration:0.5s]">
-              Nothing pasted yet. Drop a product link above and we will price it in cedis, all in.
-              {catalogueCount > 0 && (
+              {canSearch
+                ? "Nothing pasted yet. Drop a product link above and we will price it in cedis, all in — or type what you are after and we will show you what we have already priced."
+                : "Nothing pasted yet. Drop a product link above and we will price it in cedis, all in."}
+              {canSearch && (
                 <>
                   {" "}
-                  Or{" "}
+                  You can also{" "}
                   <Link
                     href={buyForMeHref("browse")}
                     className="font-semibold text-tm-coral underline-offset-2 hover:underline"
                   >
-                    look through what we have already priced
+                    browse by category
                   </Link>
                   .
                 </>
               )}
-            </p>
-          )}
-
-          {catalogueCount > 0 && (
-            <p className="text-[13px] leading-[1.45] font-medium text-tm-text-3">
-              Know what it is called but not where to buy it?{" "}
-              <Link
-                href={searchHref}
-                className="font-semibold text-tm-coral underline-offset-2 hover:underline"
-              >
-                Search by name
-              </Link>{" "}
-              through the products we have already priced.
             </p>
           )}
         </>

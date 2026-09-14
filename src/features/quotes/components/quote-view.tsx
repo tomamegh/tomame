@@ -11,6 +11,7 @@ import type { OriginCountry } from "@/features/orders/types";
 import { storeForUrl } from "@/features/extraction/stores";
 import { SimilarProductsRail } from "@/features/catalog/components/similar-products-rail";
 import { useAddToBag } from "@/features/bag/hooks/useAddToBag";
+import { useRequestSourcing } from "@/features/sourcing/hooks/useRequestSourcing";
 import { apiFetch, ApiFetchError } from "@/lib/auth/api-helpers";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
@@ -20,7 +21,7 @@ import { AssuranceCards } from "./assurance-cards";
 import { BuyerNoteCard, ProductColourCard, ProductFacts } from "./product-facts";
 import { QuoteActionBar } from "./quote-action-bar";
 import { QuoteBreadcrumb } from "./quote-breadcrumb";
-import { canContinueToPayment, formatStorePillLabel } from "./format";
+import { canContinueToPayment, formatStorePillLabel, needsSourcing } from "./format";
 import { QuoteGallery, QuoteThumbRail } from "./quote-gallery";
 import { QuoteGapFillers } from "./quote-gap-fillers";
 import { QuoteMobileHeader } from "./quote-mobile-header";
@@ -103,6 +104,7 @@ export function QuoteView({
   const [gapCountry, setGapCountry] = useState<OriginCountry | null>(null);
 
   const { mutate: addToBag, isPending: addingToBag } = useAddToBag();
+  const { mutate: requestSourcing, isPending: requestingSourcing } = useRequestSourcing();
   // Count in the bag after this screen added the line, so the CTA can hand off
   // to the bag instead of adding the same product a second time by accident.
   const [addedCount, setAddedCount] = useState<number | null>(null);
@@ -246,6 +248,59 @@ export function QuoteView({
     );
   }, [addToBag, instructions, quantity, quote, router]);
 
+  /**
+   * "Ask us to source this" — the CTA an unpriceable item gets instead of a
+   * live "Add to bag" over a total nobody has stood behind (065).
+   *
+   * It still puts the item in the bag; that was never the wrong part. What
+   * changes is that the line arrives flagged for a buyer, and the bag refuses
+   * to check out while it is there.
+   *
+   * 401 SENDS THEM TO SIGN IN, exactly as watching a price does. A sourcing
+   * request is a promise that somebody will come back to you, so it needs an
+   * account to come back to — and the session cookie travels with the request,
+   * so the bag they built signed-out is already theirs when they land back.
+   */
+  const askToSource = useCallback(() => {
+    if (!quote?.extraction_cache_id) return;
+    // Parsed here rather than read from the render-scope `gapPriceValue`: this
+    // is a hook, so it is declared above the early returns that guard that
+    // value's existence.
+    const hintUsd = parsePositiveUsd(gapPriceUsd);
+    requestSourcing(
+      {
+        extraction_cache_id: quote.extraction_cache_id,
+        quantity,
+        // Whatever the customer typed into the gap-fillers goes along as a HINT
+        // for the buyer. It is stored apart from the price the line is finally
+        // charged against, and it can never become that price.
+        ...(hintUsd != null ? { estimated_price_usd: hintUsd } : {}),
+        ...(gapCountry ? { origin_country: gapCountry } : {}),
+      },
+      {
+        onSuccess: (result) => {
+          setAddedCount(result.item_count);
+          toast.success({
+            title: "We are on it",
+            description:
+              "This one needs a person. We will price it and tell you as soon as you can pay for it.",
+          });
+          router.refresh();
+        },
+        onError: (error) => {
+          if (error instanceof ApiFetchError && error.status === 401) {
+            signIn();
+            return;
+          }
+          toast.error({
+            title: "Could not send that to our team",
+            description: error.message,
+          });
+        },
+      },
+    );
+  }, [quote, quantity, gapPriceUsd, gapCountry, requestSourcing, router, signIn]);
+
   if (loadError && !quote) return <QuoteLoadError message={loadError} />;
   if (!quote || !receivedAt) return <QuoteSkeleton />;
 
@@ -257,6 +312,27 @@ export function QuoteView({
     (quote.product.price == null || !(quote.product.price > 0));
   const countryMissing = !quote.country;
   const gapPriceValue = parsePositiveUsd(gapPriceUsd);
+  /*
+    WE HAVE NOT PROMISED TO BUY THIS (065).
+
+    An unknown store, or one whose shipping region we do not carry, or a product
+    the engine cannot price at all. `canContinueToPayment` would happily light
+    "Add to bag" the moment the customer picks a country — the calculator has
+    everything it needs and a total appears — but a total is not a promise, and
+    the screenshot Kelvin sent was exactly that: "Not priced yet · This store
+    region is not supported yet", with a live Add to bag underneath and a
+    GH₵0.00 pay button waiting at the end of it.
+
+    So the CTA becomes "Ask us to source this", and payment stays shut until a
+    buyer has answered. The server re-decides this for itself on the request;
+    what is here only chooses which button to draw.
+  */
+  const sourcingNeeded = needsSourcing({
+    platform: quote.platform,
+    country: quote.country,
+    hasPricing: Boolean(quote.pricing),
+    priceMissing,
+  });
   const canContinue = canContinueToPayment({
     hasPricing: Boolean(quote.pricing),
     priceMissing,
@@ -365,6 +441,9 @@ export function QuoteView({
             canContinue={canContinue && !!quote.extraction_cache_id}
             continuePending={addingToBag}
             addedCount={addedCount}
+            needsSourcing={sourcingNeeded}
+            onAskToSource={askToSource}
+            sourcePending={requestingSourcing}
             watching={watching}
             watchPending={watchPending}
             onToggleWatch={toggleWatch}
@@ -414,6 +493,9 @@ export function QuoteView({
         addedCount={addedCount}
         repricing={repricing}
         onContinue={addLineToBag}
+        needsSourcing={sourcingNeeded}
+        onAskToSource={askToSource}
+        sourcePending={requestingSourcing}
         watching={watching}
         watchPending={watchPending}
         onToggleWatch={toggleWatch}

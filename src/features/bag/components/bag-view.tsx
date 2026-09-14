@@ -108,7 +108,15 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
 
   // A signed-out viewer keeps a live button: it sends them to sign in, where
   // they can then choose a delivery. Everything else is a genuine blocker.
-  const blocked = bag.lines.length === 0 || bag.has_unpriced_lines || (isSignedIn && !bag.delivery);
+  // `has_sourcing_lines` is implied by `has_unpriced_lines` today — an
+  // unanswered line has no price — but it is named here anyway: the day a buyer
+  // answers one and the re-price lands in the same read, the two stop agreeing,
+  // and the pay button must follow the request's state rather than the price's.
+  const blocked =
+    bag.lines.length === 0 ||
+    bag.has_unpriced_lines ||
+    bag.has_sourcing_lines ||
+    (isSignedIn && !bag.delivery);
 
   const linesById = useMemo(() => new Map(bag.lines.map((l) => [l.id, l])), [bag.lines]);
   const unboxed = bag.unboxed_line_ids.map((id) => linesById.get(id)).filter((l): l is BagLine => !!l);

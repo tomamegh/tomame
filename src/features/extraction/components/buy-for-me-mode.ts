@@ -38,13 +38,64 @@ export function resolveBuyForMeMode(raw: string | string[] | undefined): BuyForM
   return (first ?? "").trim().toLowerCase() === "browse" ? "browse" : "paste";
 }
 
-/** The address of a mode, and of one category inside browse mode. */
-export function buyForMeHref(mode: BuyForMeMode, category?: string | null): string {
+/** Everything browse mode can carry in the address. All of it optional. */
+export interface BuyForMeQuery {
+  /** The open shelf. Null or absent means "whatever the catalogue offers first". */
+  category?: string | null;
+  /** A search over the catalogue. Lives alongside `category`, which then filters it. */
+  q?: string | null;
+  /** How many rows to render. Absent means the first page. */
+  n?: number | null;
+}
+
+/**
+ * The address of a mode, and of a shelf, a search and a page size inside browse
+ * mode.
+ *
+ * All four pieces of state are query parameters and nothing else, which is what
+ * keeps this screen a server component: a search is shareable, the back button
+ * walks back through searches and shelves, and "show more" is a link rather
+ * than a piece of client state that a reload would forget.
+ */
+export function buyForMeHref(mode: BuyForMeMode, query?: BuyForMeQuery): string {
   if (mode === "paste") return BUY_FOR_ME_PATH;
   const params = new URLSearchParams({ mode: "browse" });
-  const trimmed = category?.trim();
-  if (trimmed) params.set("category", trimmed);
+  const category = query?.category?.trim();
+  if (category) params.set("category", category);
+  const q = query?.q?.trim();
+  if (q) params.set("q", q);
+  // The first page is the default, so it is never written into the address.
+  if (query?.n != null && query.n > 0) params.set("n", String(query.n));
   return `${BUY_FOR_ME_PATH}?${params.toString()}`;
+}
+
+/**
+ * Does this look like a link the extractor should go and read, rather than
+ * words to search the catalogue for?
+ *
+ * ONE BOX NOW DOES BOTH JOBS. The screen used to have a paste box and, below
+ * it, a sentence with "Search by name" in it — Kelvin, 2026-09-14: "a link very
+ * small beneath that most users will miss". So the box takes either, and this
+ * is the fork.
+ *
+ * Deliberately permissive about the scheme and deliberately strict about the
+ * shape: people paste `amazon.com/dp/...` without a scheme all day, and the
+ * paste endpoint normalises that perfectly well. What must NOT be read as a link
+ * is ordinary search text, so a match needs a dot inside a first token that
+ * carries no space, and a plausible TLD after it. "wireless earbuds" has a
+ * space. "3.5mm jack" has a space too, and even alone its "mm" fails the TLD
+ * test below.
+ *
+ * Framework free and regex only, because this module is imported by the client
+ * island as well as the route. `src/features/extraction/url.ts` is the real
+ * parser and it pulls in `node:crypto`, so it can never come along.
+ */
+export function looksLikeUrl(raw: string): boolean {
+  const value = raw.trim();
+  if (!value || /\s/.test(value)) return false;
+  if (/^https?:\/\//i.test(value)) return true;
+  // host[:port][/path…] where the host's last label is 2+ letters.
+  return /^[\w-]+(\.[\w-]+)*\.[a-z]{2,}(:\d+)?([/?#].*)?$/i.test(value);
 }
 
 /**

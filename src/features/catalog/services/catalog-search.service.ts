@@ -9,6 +9,7 @@ import {
   type CatalogStore,
 } from "@/db/queries/catalog";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
+import { isPayablePricing } from "@/lib/pricing/payable";
 import type { PricingCalculator } from "@/lib/pricing/calculator";
 
 export interface CatalogSearchResult {
@@ -38,7 +39,14 @@ export interface CatalogSearchResult {
 
 export interface CatalogSearchResponse {
   query: string;
+  /** How many rows are in `results` — this page, not the whole match. */
   count: number;
+  /**
+   * Everything that matched, before the page limit. `count` and `total` are
+   * equal on the last page and that is exactly how the screen decides whether
+   * to offer "show more" — and how it can say "24 of 63" without guessing.
+   */
+  total: number;
   results: CatalogSearchResult[];
 }
 
@@ -49,10 +57,21 @@ export interface CatalogSearchResponse {
  * ascending so "cheapest option" is the first row; unpriceable rows keep
  * their text rank and sit at the end, flagged rather than hidden.
  */
-export async function searchCatalog(q: string, options: { limit: number }): Promise<CatalogSearchResponse> {
+export async function searchCatalog(
+  q: string,
+  options: { limit: number; category?: string | null },
+): Promise<CatalogSearchResponse> {
   const query = q.trim();
-  const hits = await searchCatalogProducts({ q: query, limit: options.limit });
-  if (hits.length === 0) return { query, count: 0, results: [] };
+  const hits = await searchCatalogProducts({
+    q: query,
+    limit: options.limit,
+    category: options.category ?? null,
+  });
+  if (hits.length === 0) return { query, count: 0, total: 0, results: [] };
+  // Off the first row, because that is where the RPC's window function put it
+  // (062). An older stored procedure that does not carry it leaves the page
+  // total equal to the page, which is the honest reading of "we cannot tell".
+  const total = hits[0]?.total_count ?? hits.length;
 
   const calculator = await loadPricingCalculator();
   const results: CatalogSearchResult[] = [];
@@ -72,7 +91,7 @@ export async function searchCatalog(q: string, options: { limit: number }): Prom
   }
 
   const ordered = [...priced, ...unpriceable];
-  return { query, count: ordered.length, results: ordered };
+  return { query, count: ordered.length, total, results: ordered };
 }
 
 async function priceHit(calculator: PricingCalculator, hit: CatalogSearchHit): Promise<CatalogSearchResult> {
@@ -112,7 +131,18 @@ async function priceHit(calculator: PricingCalculator, hit: CatalogSearchHit): P
       },
       null,
     );
-    if (breakdown.total_ghs == null || !Number.isFinite(breakdown.total_ghs)) return base;
+    // `needs_review` IS NOT A PRICE, and it does not announce itself as missing.
+    // `buildReview` returns a fully-formed breakdown whose every total is ZERO
+    // (calculator.ts:506) — which is how a Smart Home speaker with no listed
+    // weight, a group priced by a weight expression, reached this screen reading
+    // "GH₵0.00 delivered to your door" against a $79.99 listing. Worse, zero is
+    // the smallest number on the page, so it sorted to the front and wore the
+    // "Cheapest on eBay" badge.
+    //
+    // So the guard is on the METHOD as well as the number, and the number has to
+    // be positive rather than merely finite. A row we cannot price is flagged
+    // and parked at the end, which the screen already knows how to say.
+    if (!isPayablePricing(breakdown)) return base;
     return {
       ...base,
       total_ghs: breakdown.total_ghs,
@@ -148,7 +178,9 @@ export async function browseCatalogCategory(
   options: { limit: number },
 ): Promise<CatalogSearchResponse> {
   const hits = await listCatalogProductsByCategory({ category, limit: options.limit });
-  if (hits.length === 0) return { query: category, count: 0, results: [] };
+  // The shelf's real size is the category's own count, which the caller already
+  // holds from `listBrowsableCategories`; this figure is only ever the page.
+  if (hits.length === 0) return { query: category, count: 0, total: 0, results: [] };
 
   const calculator = await loadPricingCalculator();
   const results: CatalogSearchResult[] = [];
@@ -170,7 +202,7 @@ export async function browseCatalogCategory(
   }
 
   const ordered = [...priced, ...unpriceable];
-  return { query: category, count: ordered.length, results: ordered };
+  return { query: category, count: ordered.length, total: ordered.length, results: ordered };
 }
 
 /** What the browse screen offers, largest category first. Never throws upward. */

@@ -4,28 +4,36 @@ import {
   LinkSimple,
   MagnifyingGlass,
   Storefront,
+  X,
 } from "@phosphor-icons/react/ssr";
 
+import { CATALOG_SEARCH } from "@/config/catalog";
 import { cn } from "@/lib/utils";
 import type { CatalogProduct } from "../types";
 import { CatalogResultsGrid } from "./catalog-results";
 
 /**
- * Browsing the pre-priced catalogue, grouped by the categories it actually
- * holds.
+ * Browsing and searching the pre-priced catalogue, grouped by the categories it
+ * actually holds.
  *
  * This is the half of the catalogue a customer can reach with nothing in their
- * hands. Search asks them to already know the words; this asks nothing and just
- * shows what we have. The categories are derived from the products themselves,
- * so there is no list of shelves here that the data does not fill: an empty
- * catalogue says so in one sentence rather than offering eight dead shelves.
+ * hands. The categories are derived from the products themselves, so there is no
+ * list of shelves here that the data does not fill: an empty catalogue says so
+ * in one sentence rather than offering eight dead shelves.
+ *
+ * IT SEARCHES NOW TOO. It used to only browse, and the only search over the same
+ * products lived on another screen behind a footnote (Kelvin, 2026-09-14: "there
+ * is no search button... a user will not painfully go through all the items,
+ * searching is better and maintain the category breakdown"). So the box is here,
+ * the pills stayed, and the two compose: a pill pressed during a search narrows
+ * the search rather than discarding it.
  *
  * ONE SHELF IS OPEN AT A TIME, and that is a cost decision rather than a taste
  * one. Every total on a card is struck live by the pricing engine when the page
- * renders, and the engine's inputs are loaded once per category read. Opening
- * every category at once would multiply that by the number of shelves to show
- * four products from each. The category row shows the whole shape of the
- * catalogue; the grid shows the shelf that is open.
+ * renders, and the engine's inputs are loaded once per read. Opening every
+ * category at once would multiply that by the number of shelves to show four
+ * products from each. The category row shows the whole shape of the catalogue;
+ * the grid shows the shelf that is open.
  *
  * Nothing here calculates money. `total_ghs` arrives already struck server
  * side, and the card refuses to print a figure the engine declined to give.
@@ -47,9 +55,28 @@ export type CatalogBrowseState =
   | { kind: "unavailable" }
   | {
       kind: "ready";
+      /** The open shelf, or the search term when one is running. */
       category: string;
       /** Everything we hold in that category, which may be more than is shown. */
       held: number;
+      results: readonly CatalogProduct[];
+    }
+  /** A search, which may or may not have been narrowed to one category. */
+  | {
+      kind: "searched";
+      query: string;
+      /** The pill the search is narrowed to, or null for the whole catalogue. */
+      category: string | null;
+      /** Everything that matched, uncapped. May exceed what we ranked. */
+      total: number;
+      /**
+       * How many of those matches we actually ranked and priced.
+       * Equal to `total` unless the match set overflowed the cap, and the
+       * difference is what the copy has to own: "cheapest first" is only true
+       * over the rows we priced, so when it is less than `total` the screen
+       * says the rest were never in the running rather than implying they were.
+       */
+      considered: number;
       results: readonly CatalogProduct[];
     };
 
@@ -58,8 +85,15 @@ export interface CatalogBrowsePanelProps {
   state: CatalogBrowseState;
   /** One clock for the whole render, so every card agrees on how old a price is. */
   now: Date;
-  /** The fuller search by name. */
-  searchHref: string;
+  /** What is in the box, so a shared search reopens with its own term. */
+  query: string;
+  /**
+   * Where "show more" goes, or null when everything that matched is on screen.
+   * Assembled by the caller, which owns the address.
+   */
+  moreHref: string | null;
+  /** Back to the whole catalogue with no search. Null when nothing is being searched. */
+  clearSearchHref: string | null;
   /** Back to the paste half of this screen. */
   pasteHref: string;
 }
@@ -68,10 +102,14 @@ export function CatalogBrowsePanel({
   categories,
   state,
   now,
-  searchHref,
+  query,
+  moreHref,
+  clearSearchHref,
   pasteHref,
 }: CatalogBrowsePanelProps) {
-  if (state.kind === "empty") {
+  // Nothing at all, and nothing being searched for: there is no box worth
+  // drawing over an empty catalogue.
+  if (state.kind === "empty" && !query) {
     return <CatalogBrowseEmpty pasteHref={pasteHref} />;
   }
 
@@ -95,33 +133,33 @@ export function CatalogBrowsePanel({
         </p>
       </header>
 
+      <CatalogBrowseSearchField defaultValue={query} clearHref={clearSearchHref} />
+
       <CatalogCategoryNav categories={categories} />
 
       {state.kind === "unavailable" ? (
         <CatalogBrowseUnavailable pasteHref={pasteHref} />
-      ) : (
+      ) : state.kind === "searched" ? (
+        <CatalogSearchShelf state={state} now={now} moreHref={moreHref} pasteHref={pasteHref} />
+      ) : state.kind === "ready" ? (
         <CatalogBrowseShelf
           category={state.category}
           held={state.held}
           results={state.results}
           now={now}
+          moreHref={moreHref}
         />
+      ) : (
+        <CatalogBrowseEmptyShelf pasteHref={pasteHref} />
       )}
 
       <p className="max-w-[64ch] text-[13px] leading-[1.45] font-medium text-tm-text-3">
-        Looking for something in particular?{" "}
-        <Link
-          href={searchHref}
-          className="font-semibold text-tm-coral underline-offset-2 hover:underline"
-        >
-          Search by name
-        </Link>
-        , or{" "}
+        Cannot see it here?{" "}
         <Link
           href={pasteHref}
           className="font-semibold text-tm-coral underline-offset-2 hover:underline"
         >
-          paste a product link
+          Paste a product link
         </Link>{" "}
         and we will price that exact item, from any store we support.
       </p>
@@ -130,11 +168,96 @@ export function CatalogBrowsePanel({
 }
 
 /**
+ * The search box over the catalogue.
+ *
+ * A plain GET form, like the one it replaces on `/app/products`: submitting
+ * navigates, the server re-renders, and the term stays in the URL. That is what
+ * makes a search shareable, what makes the back button honest, and why this
+ * whole panel is still a server component.
+ *
+ * `mode` rides along in a hidden field because a GET form REPLACES the query
+ * string wholesale — without it, searching would drop the customer back onto the
+ * paste half of the screen. `category` deliberately does NOT ride along: a new
+ * search starts over the whole catalogue, and the pills are right there to
+ * narrow it again.
+ */
+export function CatalogBrowseSearchField({
+  defaultValue,
+  clearHref,
+}: {
+  defaultValue: string;
+  clearHref: string | null;
+}) {
+  return (
+    <form
+      action="/app/orders/new"
+      method="get"
+      role="search"
+      className="flex w-full min-w-0 flex-col gap-2.5 sm:flex-row"
+    >
+      <input type="hidden" name="mode" value="browse" />
+      <label htmlFor="catalog-browse-search" className="sr-only">
+        Search products we have already priced
+      </label>
+
+      {/*
+        `sm:flex-1`, never `flex-1`. Below `sm` this is a column, and in a column
+        `flex: 1 1 0%` flexes the box's HEIGHT: the basis of 0 beats the fixed
+        height and the field collapses to the height of its placeholder. Same
+        trap the paste box fell into. 16px text on a phone, because iOS zooms the
+        page into any field smaller than that on focus.
+      */}
+      <div className="relative flex min-h-[52px] min-w-0 items-center sm:h-[52px] sm:min-h-0 sm:flex-1">
+        <MagnifyingGlass
+          weight="bold"
+          className="pointer-events-none absolute left-4 size-[18px] text-tm-text-3"
+          aria-hidden
+        />
+        <input
+          id="catalog-browse-search"
+          type="search"
+          name="q"
+          defaultValue={defaultValue}
+          autoComplete="off"
+          maxLength={CATALOG_SEARCH.maxQueryLength}
+          placeholder="wireless earbuds, air fryer, laptop stand"
+          className={cn(
+            "h-full min-h-[52px] w-full min-w-0 rounded-[14px] border border-tm-border bg-card pr-4 pl-11",
+            "text-base font-medium text-tm-ink placeholder:text-tm-text-3 sm:text-[15px]",
+            "focus:border-tm-coral focus:outline-none",
+          )}
+        />
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2.5">
+        <button
+          type="submit"
+          className="tm-cta-gradient inline-flex h-[52px] flex-1 items-center justify-center rounded-[14px] px-6 text-[15px] leading-none font-bold text-white focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none sm:flex-none"
+        >
+          Search
+        </button>
+
+        {clearHref && (
+          <Link
+            href={clearHref}
+            className="inline-flex h-[52px] shrink-0 items-center justify-center gap-1.5 rounded-[14px] border border-tm-border bg-card px-4 text-[13.5px] leading-none font-semibold text-tm-text-2 transition-colors hover:border-tm-coral/30 hover:text-tm-ink focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none"
+          >
+            <X weight="bold" className="size-3.5" aria-hidden />
+            Clear
+          </Link>
+        )}
+      </div>
+    </form>
+  );
+}
+
+/**
  * The shelves, with their real sizes on them.
  *
  * Links, not buttons: the open shelf is in the address bar, so the back button
  * walks back through the shelves somebody looked at and a category is a thing
- * they can send to a friend.
+ * they can send to a friend. During a search the same pills carry the term with
+ * them, so pressing one narrows what is on screen instead of throwing it away.
  */
 export function CatalogCategoryNav({
   categories,
@@ -163,6 +286,13 @@ export function CatalogCategoryNav({
           )}
         >
           <span className="truncate">{entry.category}</span>
+          {/*
+            The count is how many we HOLD on that shelf, in both modes. It is
+            deliberately not a match count during a search: the search RPC
+            returns one total over the whole match, not a breakdown per
+            category, and inventing a per-shelf figure the query never produced
+            would be a number on a price screen that nothing backs.
+          */}
           <span
             className={cn(
               "tm-nums shrink-0 rounded-full px-1.5 py-0.5 text-[11px] leading-none font-bold",
@@ -183,11 +313,13 @@ function CatalogBrowseShelf({
   held,
   results,
   now,
+  moreHref,
 }: {
   category: string;
   held: number;
   results: readonly CatalogProduct[];
   now: Date;
+  moreHref: string | null;
 }) {
   const unpriced = results.filter((result) => result.unpriceable).length;
   const showing = results.length;
@@ -218,6 +350,121 @@ function CatalogBrowseShelf({
       </p>
 
       <CatalogResultsGrid results={results} now={now} />
+
+      <ShowMore href={moreHref} />
+    </div>
+  );
+}
+
+/** A search over the catalogue, optionally narrowed to one shelf. */
+function CatalogSearchShelf({
+  state,
+  now,
+  moreHref,
+  pasteHref,
+}: {
+  state: Extract<CatalogBrowseState, { kind: "searched" }>;
+  now: Date;
+  moreHref: string | null;
+  pasteHref: string;
+}) {
+  const showing = state.results.length;
+
+  if (showing === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-[20px] border border-tm-border bg-card px-6 py-10 text-center">
+        <p className="max-w-[52ch] text-sm leading-[1.5] font-medium text-tm-text-2">
+          Nothing we have already priced matches{" "}
+          <span className="font-semibold text-tm-ink">{state.query}</span>
+          {state.category && (
+            <>
+              {" "}
+              in <span className="font-semibold text-tm-ink">{state.category}</span>
+            </>
+          )}
+          . That does not mean we cannot buy it — the catalogue is a head start,
+          not the shop.
+        </p>
+        <BrowseFooterLink href={pasteHref} label="Paste a product link" icon="link" />
+      </div>
+    );
+  }
+
+  const unpriced = state.results.filter((result) => result.unpriceable).length;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      {/*
+        WHAT "CHEAPEST FIRST" IS ALLOWED TO CLAIM. The whole ranked match set is
+        priced and sorted before any of it is shown, and `?n=` only slices that
+        settled list — so the first card really is the cheapest of everything
+        counted here, and pressing "show more" appends instead of reshuffling
+        rows somebody is already reading.
+
+        The one thing that can still be left out is a match set bigger than the
+        cap: those rows were never ranked, so they are reported separately
+        rather than folded into a total the ordering does not cover.
+      */}
+      <p className="text-[13px] leading-[1.45] font-medium text-tm-text-2">
+        <span className="font-semibold text-tm-ink">{state.query}</span>
+        {state.category && (
+          <>
+            {" in "}
+            <span className="font-semibold text-tm-ink">{state.category}</span>
+          </>
+        )}
+        {": "}
+        {showing < state.considered
+          ? `showing ${showing} of ${state.considered}, cheapest first.`
+          : showing === 1
+            ? "one match, priced all in."
+            : `all ${showing} matches, cheapest first.`}
+        {state.considered < state.total &&
+          ` We ranked the ${state.considered} closest of ${state.total} matches; add a word or pick a category to narrow it.`}
+        {unpriced > 0 &&
+          (unpriced === 1
+            ? " One of these we could not price; it is at the end."
+            : ` ${unpriced} of these we could not price; they are at the end.`)}
+      </p>
+
+      <CatalogResultsGrid results={state.results} now={now} />
+
+      <ShowMore href={moreHref} />
+    </div>
+  );
+}
+
+/**
+ * "Show more" is a LINK, not a button.
+ *
+ * The page size lives in `?n=`, so pressing it is a navigation the server
+ * answers: a reload keeps what the customer had opened, the back button closes
+ * it again, and a longer page is an address they can send. A client-side
+ * "load more" would have to price its extra rows somewhere, and pricing belongs
+ * on the server.
+ */
+function ShowMore({ href }: { href: string | null }) {
+  if (!href) return null;
+  return (
+    <Link
+      href={href}
+      className="mx-auto inline-flex h-[46px] items-center justify-center gap-1.5 rounded-[14px] border-[1.5px] border-tm-border bg-card px-6 text-[14px] leading-none font-semibold text-tm-ink transition-colors hover:border-tm-coral hover:text-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none"
+    >
+      Show more
+      <ArrowRight weight="bold" className="size-4" aria-hidden />
+    </Link>
+  );
+}
+
+/** The shelf is open and holds nothing. The catalogue itself is not empty. */
+function CatalogBrowseEmptyShelf({ pasteHref }: { pasteHref: string }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-[20px] border border-tm-border bg-card px-6 py-10 text-center">
+      <p className="max-w-[52ch] text-sm leading-[1.5] font-medium text-tm-text-2">
+        We hold nothing on that shelf right now. Try another category, or paste
+        the link to the product you want and we will price that one.
+      </p>
+      <BrowseFooterLink href={pasteHref} label="Paste a product link" icon="link" />
     </div>
   );
 }

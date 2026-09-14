@@ -50,7 +50,15 @@ export interface OrderIntake {
  * snapshot is never a price source — only the live snapshot or a flagged
  * customer gap-filler is.
  */
-export async function buildOrderIntake(input: CreateOrderSchemaType, viewer: Viewer): Promise<OrderIntake> {
+export async function buildOrderIntake(
+  input: CreateOrderSchemaType,
+  viewer: Viewer,
+  /**
+   * A buyer's verified item price (065), from the cart line. Never from the
+   * request body — see `CreateOrderLinks.sourced_price_usd`.
+   */
+  sourcedPriceUsd: number | null = null,
+): Promise<OrderIntake> {
   const platform = resolvePlatform(input.product_url);
   if (!platform) throw new APIError(400, "We currently do not support this store. Please try again");
 
@@ -79,7 +87,15 @@ export async function buildOrderIntake(input: CreateOrderSchemaType, viewer: Vie
   // ── Price ────────────────────────────────────────────────────────────────
   // Server snapshot wins; the client's estimate only fills a gap, and is flagged.
   let priceOverrideUsd: number | undefined;
-  if (product?.price != null && product.price > 0) {
+  if (sourcedPriceUsd != null && sourcedPriceUsd > 0) {
+    // A BUYER'S PRICE OUTRANKS THE SNAPSHOT. This is the one override that is
+    // allowed to beat a scraped figure, because it is the only one a person
+    // verified against the store — and on these orders the scraped figure came
+    // off a page the extractor does not understand. It cannot arrive from a
+    // request body; `createOrder` reads it off the cart line.
+    priceOverrideUsd = sourcedPriceUsd;
+    reasons.push("Price confirmed by our buyer, not read from the store page.");
+  } else if (product?.price != null && product.price > 0) {
     // Snapshot has a price; the client's estimate is ignored.
   } else if (input.estimated_price_usd != null) {
     priceOverrideUsd = input.estimated_price_usd;
@@ -126,7 +142,12 @@ export async function buildOrderIntake(input: CreateOrderSchemaType, viewer: Vie
     country,
   };
 
-  const overrides = gapFillOverrides(pricingBase, priceOverrideUsd);
+  // `gapFillOverrides` would drop a buyer's price whenever the snapshot has one
+  // of its own, which is exactly the case it exists for; built directly here.
+  const overrides =
+    sourcedPriceUsd != null && sourcedPriceUsd > 0
+      ? { itemPriceUsd: sourcedPriceUsd }
+      : gapFillOverrides(pricingBase, priceOverrideUsd);
   const calculator = await loadPricingCalculator();
   const live = await priceExtractionWith(calculator, pricingBase, input.quantity, overrides, null);
   if (!live.pricing) {

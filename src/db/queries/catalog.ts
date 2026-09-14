@@ -62,6 +62,14 @@ export interface CatalogSearchHit {
   category: string | null;
   last_seen_at: string;
   rank: number;
+  /**
+   * Everything that matched, before `limit` cut the page (062). It rides on
+   * every row because a `returns table` RPC has nowhere else to put it, so the
+   * caller reads it off the first row. Optional: `listCatalogProductsByCategory`
+   * builds the same hit shape from a plain select and has no window to count
+   * over — the category's own count answers that question there.
+   */
+  total_count?: number;
 }
 
 export interface JobBudgetRow {
@@ -130,12 +138,25 @@ export async function upsertCatalogProducts(rows: readonly CatalogProductInput[]
   return data?.length ?? 0;
 }
 
-/** Ranked text search (websearch tsquery + trigram fallback) via `search_catalog_products`. */
-export async function searchCatalogProducts(input: { q: string; limit: number }): Promise<CatalogSearchHit[]> {
+/**
+ * Ranked text search (websearch tsquery + trigram fallback) via
+ * `search_catalog_products`.
+ *
+ * `category` narrows the same search rather than replacing it, which is what
+ * lets the browse screen's pills stay live while a query is running: pressing
+ * one filters the matches instead of throwing the query away. Omit it for every
+ * category — that is what the "All" pill sends.
+ */
+export async function searchCatalogProducts(input: {
+  q: string;
+  limit: number;
+  category?: string | null;
+}): Promise<CatalogSearchHit[]> {
   const client = createAdminClient();
   const { data, error } = await client.rpc("search_catalog_products", {
     p_q: input.q,
     p_limit: input.limit,
+    p_category: input.category ?? null,
   });
 
   if (error) throw new Error(`Failed to search catalog: ${error.message}`);
@@ -201,6 +222,8 @@ export async function listCatalogProductsByCategory(input: {
     )
     .eq("category", input.category)
     .order("price_usd", { ascending: true, nullsFirst: false })
+    // Ordered by price and then limited, so "show more" grows the page from the
+    // cheap end rather than re-shuffling what is already on screen.
     .limit(input.limit);
 
   if (error) throw new Error(`Failed to load catalog category: ${error.message}`);

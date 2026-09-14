@@ -37,7 +37,7 @@ const pricing = (total_ghs: number): PricingBreakdown =>
 const line = (id: string, total_ghs: number, over: Partial<BagLine> = {}): BagLine => ({
   id, extraction_cache_id: `cache-${id}`, pending: null, quantity: 1, special_instructions: null,
   product: { title: `Item ${id}`, image: "https://x/1.jpg", url: `https://www.amazon.com/dp/${id}`, store: "Amazon", variant: null, weight_lbs: 1, country: "USA" },
-  pricing: pricing(total_ghs), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null, ...over,
+  pricing: pricing(total_ghs), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null, sourced_price_usd: null, sourcing: null, ...over,
 });
 
 const bag = (over: Partial<BagView> = {}): BagView => ({
@@ -54,7 +54,7 @@ const bag = (over: Partial<BagView> = {}): BagView => ({
   total_ghs: 160, // 150 − 10 + 20
   total_usd: 10,
   rate_locked_until: null,
-  has_unpriced_lines: false, has_pending_lines: false,
+  has_unpriced_lines: false, has_pending_lines: false, has_sourcing_lines: false,
   ...over,
 });
 
@@ -84,7 +84,9 @@ describe("checkoutBag", () => {
     }));
 
     expect(createOrder).toHaveBeenCalledTimes(2);
-    const links = { order_group_id: "g1", consolidation_box_id: "box-1", delivery_address_id: "a1", suppress_placed_email: true };
+    // `sourced_price_usd` rides the server-only links bag (065): null for an
+    // ordinary line, and the buyer's verified figure for one they answered.
+    const links = { order_group_id: "g1", consolidation_box_id: "box-1", delivery_address_id: "a1", suppress_placed_email: true, sourced_price_usd: null };
     expect(createOrder).toHaveBeenNthCalledWith(1, expect.anything(), user,
       { product_url: "https://www.amazon.com/dp/a", product_name: "Item a", product_image_url: "https://x/1.jpg", quantity: 1, extraction_cache_id: "cache-a" }, viewer, links);
     expect(createOrder).toHaveBeenNthCalledWith(2, expect.anything(), user,
@@ -144,6 +146,29 @@ describe("checkoutBag", () => {
     vi.mocked(getBag).mockResolvedValue(bag({ has_unpriced_lines: true }));
     await expect(checkoutBag(user, viewer, {})).rejects.toMatchObject({ statusCode: 409 });
     expect(groups.insertOrderGroup).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The money seam for 065. A line a buyer is still answering must not reach
+   * Paystack, and the customer must not be told to "paste the link again" —
+   * there is nothing they can do, and the loop ends back here.
+   */
+  it("refuses a bag holding a line a buyer has not answered, and says so in its own words", async () => {
+    vi.mocked(getBag).mockResolvedValue(bag({ has_sourcing_lines: true }));
+    await expect(checkoutBag(user, viewer, {})).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining("still with our team"),
+    });
+    expect(groups.insertOrderGroup).not.toHaveBeenCalled();
+  });
+
+  it("refuses a sourcing line BEFORE the generic unpriced message, which would be the wrong advice", async () => {
+    // An unanswered line is unpriced too, so both flags are up. The order of the
+    // guards is what decides which sentence the customer reads.
+    vi.mocked(getBag).mockResolvedValue(bag({ has_sourcing_lines: true, has_unpriced_lines: true }));
+    await expect(checkoutBag(user, viewer, {})).rejects.toMatchObject({
+      message: expect.stringContaining("still with our team"),
+    });
   });
 
   it("retires the group and keeps the cart open when an order cannot be created", async () => {

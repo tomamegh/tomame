@@ -4,8 +4,12 @@ import { logger } from "@/lib/logger";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { getExtractionRequestById } from "@/db/queries/extraction-requests";
 import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
+// The QUERY, not `sourcing.service` — that module imports `addToBag` from here,
+// so reaching for its wrapper would close an import cycle.
+import { getSourcingByCartItems } from "@/db/queries/price-watches";
 import { getExtractionSnapshot } from "@/features/extraction/extraction.service";
 import { gapFillOverrides } from "@/features/extraction/quote.service";
+import { isPayablePricing } from "@/lib/pricing/payable";
 import { applyRateLock } from "@/features/quotes/services/quote-lock.service";
 import { pickProductColour } from "@/features/quotes/components/format";
 import { findStore } from "@/features/extraction/stores";
@@ -73,6 +77,7 @@ export async function getBag(viewer: Viewer): Promise<BagView> {
   const [allRows, delivery] = await Promise.all([listCartItems(cart.id), resolveDelivery(viewer, cart)]);
   const rows = await reconcilePendingLines(allRows);
   const lines = await Promise.all(rows.map((row) => priceLine(viewer, row)));
+  await attachSourcing(lines);
   const packed = await packIntoBoxes(rows, lines);
   return summarize(cart.id, lines, packed, delivery);
 }
@@ -100,7 +105,10 @@ export async function addToBag(viewer: Viewer, input: AddToBagInput): Promise<Ad
   const gapCountry = input.origin_country ?? existing?.gap_origin_country ?? null;
   const note = input.special_instructions?.trim() || existing?.special_instructions || null;
 
-  const priced = await priceSnapshot(viewer, snapshot.result, input.extraction_cache_id!, quantity, gapPrice, gapCountry);
+  // The buyer's price carries over from the existing line: re-adding an item a
+  // buyer already answered must not silently fall back to the snapshot's figure.
+  const sourcedPrice = existing?.sourced_price_usd ?? null;
+  const priced = await priceSnapshot(viewer, snapshot.result, input.extraction_cache_id!, quantity, gapPrice, gapCountry, sourcedPrice);
 
   const row = existing
     ? await updateLineRow(existing.id, { quantity, special_instructions: note, gap_price_usd: gapPrice, gap_origin_country: gapCountry, pricing: priced.pricing, quote_lock_id: priced.pricing?.rate_lock_id ?? existing.quote_lock_id })
@@ -197,7 +205,7 @@ export async function updateBagLine(viewer: Viewer, lineId: string, input: Updat
 
   const quantity = input.quantity ?? row.quantity;
   const note = input.special_instructions === undefined ? row.special_instructions : input.special_instructions;
-  const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, quantity, row.gap_price_usd, row.gap_origin_country);
+  const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, quantity, row.gap_price_usd, row.gap_origin_country, row.sourced_price_usd);
   const updated = await updateLineRow(row.id, { quantity, special_instructions: note, pricing: priced.pricing, quote_lock_id: priced.pricing?.rate_lock_id ?? row.quote_lock_id });
   await touchCart(row.cart_id);
   return toLine(updated, snapshot, priced);
@@ -345,16 +353,62 @@ async function priceSnapshot(
   quantity: number,
   gapPriceUsd: number | null,
   gapCountry: OriginCountry | null,
+  sourcedPriceUsd: number | null = null,
 ): Promise<Priced> {
   const extraction: ExtractionResult = { ...result, country: result.country ?? gapCountry };
   try {
-    return await applyRateLock({
+    const priced = await applyRateLock({
       viewer,
       extraction,
       extractionCacheId,
       quantity,
-      overrides: gapFillOverrides(extraction, gapPriceUsd ?? undefined),
+      /*
+        A BUYER'S PRICE OUTRANKS THE SNAPSHOT; a customer's only fills a gap.
+
+        `gapFillOverrides` refuses to build an override when the snapshot already
+        carries a price, which is right for a number somebody typed into a form
+        and wrong for one a buyer went and checked. On a store we could not price
+        the scraped figure is exactly the number nobody should trust: local
+        verification had a snapshot reading $29.99, a buyer answering $34.50, and
+        the line pricing off $29.99 — then charging neither, because the category
+        was unknown and the whole breakdown came back as review.
+
+        `priceExtractionWith` already prefers an explicit override
+        (`overrides?.itemPriceUsd ?? product.price`), so passing one straight
+        through is all that is needed.
+      */
+      overrides:
+        sourcedPriceUsd != null
+          ? { itemPriceUsd: sourcedPriceUsd }
+          : gapFillOverrides(extraction, gapPriceUsd ?? undefined),
     });
+
+    /*
+      "NEEDS REVIEW" IS NOT A PRICE OF ZERO.
+
+      `buildReview` returns a fully-formed breakdown whose every total is 0
+      (calculator.ts:506) rather than a null, so a line the engine declined to
+      price arrives here looking priced. The bag then counted it in
+      `has_unpriced_lines` as PRICED, printed "GH₵0.00" beside it, and lit the
+      pay button for the delivery fee alone — a customer one tap from paying
+      GH₵40 for a $34.50 item, which is what local verification found.
+
+      Order intake deliberately keeps these breakdowns (it flags the order
+      `needs_review` for an admin), so the fix belongs here rather than in
+      `priceExtractionWith`: the bag's only question is "can this be paid for",
+      and the answer for a review verdict is no.
+    */
+    // Read before the check: `isPayablePricing` is a type predicate, so its
+    // negative branch narrows `priced.pricing` to null and the reason on the
+    // review breakdown becomes unreachable to the compiler.
+    const reviewReason = priced.pricing?.review_reason ?? null;
+    if (!isPayablePricing(priced.pricing)) {
+      return {
+        pricing: null,
+        reason: reviewReason ?? priced.reason ?? "We need to price this one by hand.",
+      };
+    }
+    return priced;
   } catch (error) {
     if (isSchemaMissingError(error)) throw error;
     logger.error("bag: pricing a line failed", { extractionCacheId, error: error instanceof Error ? error.message : String(error) });
@@ -374,7 +428,7 @@ async function priceLine(viewer: Viewer, row: CartItemRow): Promise<BagLine> {
   if (!snapshot) {
     return toLine(row, null, { pricing: null, reason: "This quote has expired. Remove the line and paste the link again." });
   }
-  const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, row.quantity, row.gap_price_usd, row.gap_origin_country);
+  const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, row.quantity, row.gap_price_usd, row.gap_origin_country, row.sourced_price_usd);
   return toLine(row, snapshot, priced);
 }
 
@@ -649,6 +703,8 @@ function pendingLine(row: CartItemRow, pending: BagLinePending, productUrl: stri
     pricing_unavailable_reason: null,
     gap_price_usd: row.gap_price_usd,
     gap_origin_country: row.gap_origin_country,
+    sourced_price_usd: row.sourced_price_usd,
+    sourcing: null,
   };
 }
 
@@ -678,6 +734,9 @@ function toLine(row: CartItemRow, snapshot: Snapshot, priced: Priced): BagLine {
     pricing_unavailable_reason: priced.pricing ? null : priced.reason,
     gap_price_usd: row.gap_price_usd,
     gap_origin_country: row.gap_origin_country,
+    sourced_price_usd: row.sourced_price_usd,
+    // Attached by `getBag` in one query for the whole bag, never per line.
+    sourcing: null,
   };
 }
 
@@ -715,7 +774,51 @@ export function summarize(cartId: string | null, lines: BagLine[], packed: Packe
     rate_locked_until: locks[0] ?? null,
     has_unpriced_lines: priced.length < lines.length,
     has_pending_lines: lines.some((l) => l.pending != null),
+    // `unavailable` counts too: a buyer has said we cannot get it, so the line
+    // is not merely unpriced — it is not coming, and the bag must say so rather
+    // than leaving it looking like something that might still resolve.
+    has_sourcing_lines: lines.some(
+      (l) => l.sourcing != null && l.sourcing.status !== "available",
+    ),
   };
+}
+
+/**
+ * Mark the lines a person is answering (065).
+ *
+ * ONE QUERY FOR THE WHOLE BAG, not one per line — this runs on every bag read
+ * and on the nav badge's parent route, so a per-line lookup would be a round
+ * trip per item on a screen that already does several.
+ *
+ * Never throws upward. A bag that cannot read its sourcing state must still
+ * render its lines and their prices; the cost of failing here is that an
+ * answered line looks like an ordinary one for a moment, and the cost of
+ * throwing is the customer's whole bag. `has_sourcing_lines` is what gates
+ * payment, and `checkoutBag` re-reads the bag itself, so a blank here cannot
+ * let an unanswered line through to Paystack on its own — the unpriced guard
+ * still stands behind it.
+ */
+async function attachSourcing(lines: BagLine[]): Promise<void> {
+  if (lines.length === 0) return;
+  try {
+    const byLine = await getSourcingByCartItems(lines.map((l) => l.id));
+    if (byLine.size === 0) return;
+    for (const line of lines) {
+      const row = byLine.get(line.id);
+      if (!row || !row.sourcing_status) continue;
+      line.sourcing = {
+        watch_id: row.id,
+        status: row.sourcing_status,
+        note: row.sourced_note,
+        reviewed_at: row.reviewed_at,
+      };
+    }
+  } catch (error) {
+    if (isSchemaMissingError(error)) return;
+    logger.error("bag: could not read sourcing state", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function emptyBag(): BagView {

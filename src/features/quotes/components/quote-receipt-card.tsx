@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  HandWaving,
   BookmarkSimple,
   LockSimple,
   Minus,
@@ -43,6 +44,16 @@ export interface QuoteReceiptCardProps {
   addedCount: number | null;
   /** False when a gap is unfilled or the last re-price failed. */
   canContinue: boolean;
+  /**
+   * True when nobody has confirmed we can buy this (065). The CTA then asks a
+   * person instead of promising a price, and "Watch price instead" stands down:
+   * there is no price to watch on a store we have not confirmed, and the cron
+   * would never check it anyway.
+   */
+  needsSourcing?: boolean;
+  /** Fires the sourcing request. Only used when `needsSourcing`. */
+  onAskToSource?: () => void;
+  sourcePending?: boolean;
   continuePending: boolean;
   watching: boolean;
   watchPending: boolean;
@@ -72,6 +83,9 @@ export function QuoteReceiptCard({
   onContinue,
   addedCount,
   canContinue,
+  needsSourcing = false,
+  onAskToSource,
+  sourcePending = false,
   continuePending,
   watching,
   watchPending,
@@ -256,6 +270,33 @@ export function QuoteReceiptCard({
               Add another item
             </Link>
           </div>
+        ) : needsSourcing ? (
+          /*
+            THE UNPRICEABLE ITEM'S OWN CTA (065). Not a disabled "Add to bag"
+            over a total nobody stood behind — a live button that does the one
+            thing that can actually move this forward. The sentence under it is
+            the honest version of what the receipt above is saying.
+          */
+          <div className="hidden flex-col gap-2 lg:flex">
+            <button
+              type="button"
+              onClick={onAskToSource}
+              disabled={sourcePending}
+              className={cn(
+                "tm-cta-gradient flex h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
+                "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
+                "hover:brightness-105 focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+                "disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none",
+              )}
+            >
+              <HandWaving weight="bold" className="size-[18px]" aria-hidden />
+              {sourcePending ? "Sending to our team…" : "Ask us to source this"}
+            </button>
+            <p className="text-center text-[12px] leading-[1.45] font-medium text-tm-text-3">
+              It goes in your bag while a buyer checks it. You pay nothing until
+              we have confirmed we can get it.
+            </p>
+          </div>
         ) : (
           <button
             type="button"
@@ -273,6 +314,13 @@ export function QuoteReceiptCard({
           </button>
         )}
 
+        {/*
+          No "watch this price" on a sourcing item. There is no price to watch —
+          that is the whole reason it is here — and the nightly job is explicitly
+          kept off these rows (065), so the button would promise a check that
+          will never run.
+        */}
+        {!needsSourcing && (
         <button
           type="button"
           onClick={onToggleWatch}
@@ -294,6 +342,7 @@ export function QuoteReceiptCard({
           />
           {watching ? "Watching this price" : "Watch price instead"}
         </button>
+        )}
       </div>
     </section>
   );

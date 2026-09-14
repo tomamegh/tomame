@@ -144,6 +144,28 @@ export function BagLineRow({
           <span className="text-xs leading-[1.4] font-medium text-tm-text-3">
             Price to follow
           </span>
+        ) : line.sourcing && line.sourcing.status !== "available" ? (
+          /*
+            A line a PERSON is answering (065). Deliberately not the amber
+            "could not be priced" treatment the generic unpriced line gets:
+            that one reads as a fault the customer should fix, and this is a
+            promise we have made them. Nothing they can do either way, so the
+            copy says who is doing it instead.
+          */
+          <span className="max-w-[190px] text-[12px] leading-[1.4] font-medium text-tm-text-2">
+            {line.sourcing.status === "unavailable" ? (
+              <>
+                <span className="font-semibold text-tm-amber">We cannot get this one.</span>{" "}
+                {line.sourcing.note ?? "Take it out of your bag to carry on."}
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-tm-ink">With our team.</span>{" "}
+                We are pricing this by hand and will tell you the moment you can
+                pay for it.
+              </>
+            )}
+          </span>
         ) : line.pricing ? (
           <>
             <span className="tm-nums text-[18px] leading-none font-bold">

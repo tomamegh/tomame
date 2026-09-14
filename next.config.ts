@@ -24,7 +24,15 @@ const nextConfig: NextConfig = {
     // the authority for how the repo is worked; a framework appending to it
     // means the rules an agent reads are partly written by a tool nobody asked,
     // and it shows up as a spurious dirty file in every `git status`.
-    agentRules: false,
+    //
+    // COMMENTED OUT, not deleted. The option is real in 16.3, but the version
+    // pinned here is 16.2.9, where it does not exist: Next logged
+    // "Unrecognized key(s) in object: 'agentRules'" and `next build` then died
+    // on `Object literal may only specify known properties` because
+    // `NextConfig` has no such field. That failed the build outright, so
+    // nothing could deploy at all. Re-enable it in the same change that bumps
+    // Next to 16.3.
+    // agentRules: false,
     images: {
         remotePatterns: [
             ...remotePatterns,

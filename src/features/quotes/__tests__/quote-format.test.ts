@@ -14,6 +14,8 @@ import {
   formatStorePillLabel,
   pickProductColour,
   canContinueToPayment,
+  needsSourcing,
+  UNKNOWN_STORE,
 } from "../components/format";
 
 function product(overrides: Partial<ScrapedProduct>): ScrapedProduct {
@@ -355,3 +357,39 @@ describe("canContinueToPayment", () => {
   });
 });
 
+
+/**
+ * The gate that decides whether a person has to look at this before anyone can
+ * pay. Deliberately not the inverse of `canContinueToPayment`: that one asks
+ * whether a number exists, this one asks whether we have promised anything.
+ */
+describe("needsSourcing", () => {
+  const known = { platform: "amazon", country: "USA", hasPricing: true, priceMissing: false };
+
+  it("lets an ordinary priced listing from a store we know straight through", () => {
+    expect(needsSourcing(known)).toBe(false);
+  });
+
+  it("stops a store we have never heard of, even when everything else is readable", () => {
+    // The walmartcontacts.com case: title, image and price all read fine, and a
+    // total could be struck the moment somebody picks a country. Nobody has
+    // confirmed we can buy from there, so the total is not a promise.
+    expect(needsSourcing({ ...known, platform: UNKNOWN_STORE })).toBe(true);
+  });
+
+  it("stops a store whose shipping region we do not carry", () => {
+    expect(needsSourcing({ ...known, country: null })).toBe(true);
+  });
+
+  it("stops a known store the engine could not price and offers no gap for", () => {
+    // `needs_review`: uncategorised, or weight-priced with no weight. There is
+    // nothing the customer could type that would fix it.
+    expect(needsSourcing({ ...known, hasPricing: false, priceMissing: false })).toBe(true);
+  });
+
+  it("leaves a merely unreadable price to the gap-filler it already has", () => {
+    // Known store, known region, and the one thing missing is the one thing a
+    // customer can actually answer. Sending this to a buyer would be busywork.
+    expect(needsSourcing({ ...known, hasPricing: false, priceMissing: true })).toBe(false);
+  });
+});

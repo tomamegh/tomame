@@ -52,7 +52,9 @@ describe("createOrder — lock consumption", () => {
 
     const order = await createOrder(client(), user, input, viewer);
 
-    expect(buildOrderIntake).toHaveBeenCalledWith(input, viewer);
+    // The third argument is the buyer's verified price (065) — null unless the
+    // caller read one off a sourced cart line.
+    expect(buildOrderIntake).toHaveBeenCalledWith(input, viewer, null);
     expect(order.id).toBe("order-9");
     expect(consumeQuoteLocksForOrder).toHaveBeenCalledWith({
       viewer, extractionCacheId: CACHE_ID, lockId: "lock-1", orderId: "order-9", actorId: "user-1", exchangeRate: 14.49,

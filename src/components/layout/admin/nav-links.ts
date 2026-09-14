@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  HandCoinsIcon,
   ActivityIcon,
   BellIcon,
   BookmarkIcon,
@@ -72,6 +73,9 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
     label: "Requests",
     links: [
       { title: "Assisted", url: "/admin/assisted-requests", icon: MessageCircleIcon, badge: "assistedOpen" },
+      // Blocking in a way the others are not: every open row is a bag that
+      // cannot be paid for until a buyer prices it.
+      { title: "Sourcing", url: "/admin/sourcing-requests", icon: HandCoinsIcon, badge: "sourcingOpen" },
       { title: "Messages", url: "/admin/contact-messages", icon: MailIcon, badge: "contactOpen" },
       // A customer looking at the photograph of their own parcel, still on a
       // shelf in America. The badge counts only `open` rows, so it disappears

@@ -25,5 +25,20 @@ export const CATALOG_SEARCH = {
   minQueryLength: 2,
   maxQueryLength: 120,
   defaultLimit: 12,
-  maxLimit: 24,
+  /**
+   * The browse and search screens' first page, and the step "show more" adds.
+   * Four rows of the six-up grid at desktop width.
+   */
+  pageSize: 24,
+  /**
+   * The ceiling on one rendered page. Every card's landed total is struck live
+   * by the pricing engine when the page renders, so this is a render-cost cap,
+   * not a database one: 120 is what `search_catalog_products` will return (062)
+   * and what that pricing loop absorbs comfortably.
+   *
+   * It was 24, which was also the page size — the catalogue passed 700 products
+   * while every shelf still stopped at its first two dozen, with nothing to
+   * press for the rest.
+   */
+  maxLimit: 120,
 } as const;

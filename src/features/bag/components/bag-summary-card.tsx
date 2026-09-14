@@ -80,10 +80,23 @@ export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, pa
         </span>
       </div>
 
-      {view.has_unpriced_lines && (
+      {/*
+        A line with our team comes FIRST and replaces the generic message (065).
+        Both flags are up at once — an unanswered line is unpriced too — and
+        "could not be priced" reads as something the customer should go and fix,
+        which would send them round a loop that ends back here.
+      */}
+      {view.has_sourcing_lines ? (
         <p className="text-xs leading-[1.5] font-medium text-tm-amber">
-          One or more lines could not be priced right now, so the total leaves them out.
+          One of your items is with our team. We are pricing it by hand, and you
+          can pay for everything together as soon as it is done.
         </p>
+      ) : (
+        view.has_unpriced_lines && (
+          <p className="text-xs leading-[1.5] font-medium text-tm-amber">
+            One or more lines could not be priced right now, so the total leaves them out.
+          </p>
+        )
       )}
 
       {paymentChannels.length > 0 && (

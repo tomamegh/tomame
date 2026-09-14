@@ -61,6 +61,17 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
   if (bag.has_pending_lines) {
     throw new APIError(409, "We are still reading one of your links. Give it a moment and try again.");
   }
+  // Checked BEFORE the generic unpriced guard, for the same reason the pending
+  // one is: a line a buyer is looking up is not a failure the customer can fix
+  // by pasting the link again, and telling them to would be sending them round a
+  // loop that ends here. `unavailable` lands here too — a buyer has said we
+  // cannot get it, so the only way on is to take it out.
+  if (bag.has_sourcing_lines) {
+    throw new APIError(
+      409,
+      "One of your items is still with our team. We will let you know as soon as it is priced.",
+    );
+  }
   if (bag.has_unpriced_lines) {
     throw new APIError(409, "One or more lines could not be priced. Remove them or paste the link again.");
   }
@@ -94,6 +105,11 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
           consolidation_box_id: box?.id ?? null,
           delivery_address_id: bag.delivery.address_id,
           suppress_placed_email: true,
+          // The buyer's verified price travels SERVER-SIDE, off the cart line
+          // and never through `orderInputFor` — that object mirrors the
+          // customer-facing create-order schema, and a price there would be a
+          // number the browser could name.
+          sourced_price_usd: line.sourced_price_usd,
         }),
       );
     }

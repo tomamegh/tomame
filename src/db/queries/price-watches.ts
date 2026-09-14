@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { OriginCountry } from "@/features/orders/types";
 
 /**
  * Data access for `price_watches` and `price_observations` (migration 041).
@@ -18,6 +19,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 
 // ── Row types ───────────────────────────────────────────────────────────────
+
+/**
+ * `price` is the original watch: the nightly cron re-reads the listing and tells
+ * the customer when it drops. `sourcing` is the one a PERSON answers — an item
+ * the pricing engine could not price, held in the bag until a buyer confirms we
+ * can actually buy it and attaches what it costs (065).
+ */
+export type PriceWatchKind = "price" | "sourcing";
+
+/**
+ * Where a sourcing request has got to. `available` is the only state that lets
+ * the customer pay, and the database refuses to record it without the price and
+ * origin that make paying possible.
+ */
+export type SourcingStatus = "requested" | "available" | "unavailable";
 
 export interface PriceWatchRow {
   id: string;
@@ -43,6 +59,23 @@ export interface PriceWatchRow {
    */
   notified_price_usd: number | null;
   is_active: boolean;
+  /**
+   * Which kind of watch this is (065). `price` is re-read by the nightly cron;
+   * `sourcing` is worked by a person and the cron must never claim it.
+   */
+  kind: PriceWatchKind;
+  /** Sourcing rows only; NULL on a price watch, and the CHECK enforces both ways. */
+  sourcing_status: SourcingStatus | null;
+  sourcing_cart_item_id: string | null;
+  /** What the buyer found. Facts for the pricing engine, never a total. */
+  sourced_price_usd: number | null;
+  sourced_origin_country: OriginCountry | null;
+  sourced_note: string | null;
+  /** What the customer offered when they raised it. A hint, not a price. */
+  customer_price_hint_usd: number | null;
+  customer_origin_hint: OriginCountry | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -81,7 +114,9 @@ const WATCH_COLUMNS =
   "id, user_id, product_url, url_hash, product_name, product_image_url, extraction_cache_id, " +
   "baseline_price_usd, baseline_total_ghs, last_price_usd, last_total_ghs, last_checked_at, " +
   "consecutive_failures, last_error, notify_on_drop, notified_at, notified_price_usd, " +
-  "is_active, created_at, updated_at";
+  "is_active, kind, sourcing_status, sourcing_cart_item_id, sourced_price_usd, " +
+  "sourced_origin_country, sourced_note, customer_price_hint_usd, customer_origin_hint, " +
+  "reviewed_by, reviewed_at, created_at, updated_at";
 
 const OBSERVATION_COLUMNS = "id, watch_id, price_usd, total_ghs, exchange_rate, observed_at";
 
@@ -95,6 +130,10 @@ export async function listActiveWatchesByUser(userId: string): Promise<PriceWatc
     .select(WATCH_COLUMNS)
     .eq("user_id", userId)
     .eq("is_active", true)
+    // The Price watch screen is about prices moving. A sourcing request is a
+    // different promise — a person is looking it up — and it lives on the bag
+    // line it is holding, not in a list of things whose price we are tracking.
+    .eq("kind", "price")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`Failed to load price watches: ${error.message}`);
@@ -122,6 +161,9 @@ export async function listRetiredWatchesByUser(userId: string): Promise<PriceWat
     .eq("user_id", userId)
     .eq("is_active", false)
     .gt("consecutive_failures", 0)
+    // Price watches only, for the reason `listActiveWatchesByUser` gives: a
+    // sourcing row is never retired by the job, because the job never has it.
+    .eq("kind", "price")
     .order("updated_at", { ascending: false });
 
   if (error) throw new Error(`Failed to load retired price watches: ${error.message}`);
@@ -237,7 +279,21 @@ export async function listWatchesDueForCheck(
   let query = client
     .from("price_watches")
     .select(WATCH_COLUMNS)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    // THE LINE THAT KEEPS THE SCRAPER OFF SOURCING ROWS (065).
+    //
+    // A sourcing watch is active by definition — it is waiting for a person to
+    // answer it — so `is_active` alone hands every one of them to the nightly
+    // job, which would spend ScraperAPI credit (1000/month, shared with the live
+    // paste flow) re-reading pages we already know the engine cannot price,
+    // every night, forever. Kelvin: "a cron will not be checking for price
+    // differences, find a way to label such products so is not treated as an
+    // item a cron has to pick up in the watch list."
+    //
+    // `idx_price_watches_due` is partial on the same predicate, so this filter
+    // costs nothing — but the filter is the guarantee and the index is only the
+    // optimisation, which is why both exist.
+    .eq("kind", "price");
 
   // A never-checked watch has no `last_checked_at` to compare, and it is the
   // one most deserving of a turn — `is.null` must stay in the OR.
@@ -387,4 +443,150 @@ export async function listObservationsForWatches(
 
   if (error) throw new Error(`Failed to load price observations: ${error.message}`);
   return (data ?? []) as unknown as PriceObservationRow[];
+}
+
+// ── sourcing watches (065) ──────────────────────────────────────────────────
+// The rows a PERSON answers. Same table, same owner RLS, same URL identity —
+// the only difference is who does the telling, which `kind` records and
+// `listWatchesDueForCheck` reads so the nightly scraper never touches them.
+
+export interface SourcingRequestUpsert {
+  user_id: string;
+  product_url: string;
+  url_hash: string;
+  product_name: string | null;
+  product_image_url: string | null;
+  extraction_cache_id: string | null;
+  sourcing_cart_item_id: string | null;
+  /** What the customer guessed, if they filled the quote screen's gap-fillers. */
+  customer_price_hint_usd: number | null;
+  customer_origin_hint: OriginCountry | null;
+  /**
+   * The status to write. The SERVICE resolves this from whatever the row
+   * already holds — see `upsertSourcingRequest` for why it cannot be a constant
+   * here.
+   */
+  sourcing_status: SourcingStatus;
+}
+
+/**
+ * Raise a sourcing request, or reuse the one this customer already has on the
+ * link.
+ *
+ * UPSERT ON (user_id, url_hash), which is 041's unique key and deliberately
+ * spans both kinds: a customer cannot hold a price watch AND a sourcing request
+ * on one URL, so asking us to source something they were watching converts the
+ * row rather than creating a second record of one intention.
+ *
+ * `sourcing_status` COMES FROM THE CALLER, and it must. PostgREST's upsert is
+ * `ON CONFLICT DO UPDATE SET` over every column in the payload, so a literal
+ * `"requested"` here would be written on conflict as well as on insert — and a
+ * request a buyer had already answered would be dragged back into the queue
+ * the next time the customer opened the quote and pressed the button again.
+ * That leaves a bag that was payable a moment ago refusing checkout, and
+ * finished work re-entering somebody's list. `requestSourcing` reads the
+ * existing row and passes its status back, so a conflict rewrites what is
+ * already there.
+ */
+export async function upsertSourcingRequest(input: SourcingRequestUpsert): Promise<PriceWatchRow> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("price_watches")
+    .upsert(
+      {
+        ...input,
+        kind: "sourcing",
+        // A sourcing row has no price to baseline and no series to observe; the
+        // cron never reaches it, so `last_checked_at` stays null forever.
+        is_active: true,
+        notify_on_drop: false,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,url_hash", ignoreDuplicates: false },
+    )
+    .select(WATCH_COLUMNS)
+    .single();
+
+  if (error) throw new Error(`Failed to raise the sourcing request: ${error.message}`);
+  return data as unknown as PriceWatchRow;
+}
+
+/** The buyer's queue. Oldest first: somebody has been waiting longest. */
+export async function listSourcingRequests(
+  status: SourcingStatus | null,
+  limit: number,
+): Promise<PriceWatchRow[]> {
+  const client = createAdminClient();
+  let query = client.from("price_watches").select(WATCH_COLUMNS).eq("kind", "sourcing");
+  if (status) query = query.eq("sourcing_status", status);
+
+  const { data, error } = await query.order("created_at", { ascending: true }).limit(limit);
+  if (error) throw new Error(`Failed to load sourcing requests: ${error.message}`);
+  return (data ?? []) as unknown as PriceWatchRow[];
+}
+
+/**
+ * The sourcing rows behind a set of bag lines, keyed by line id.
+ *
+ * This is how the bag knows a line is waiting on a person rather than merely
+ * unpriced. One query for the whole bag, not one per line.
+ */
+export async function getSourcingByCartItems(
+  cartItemIds: readonly string[],
+): Promise<Map<string, PriceWatchRow>> {
+  const ids = cartItemIds.filter(Boolean);
+  if (ids.length === 0) return new Map();
+
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("price_watches")
+    .select(WATCH_COLUMNS)
+    .eq("kind", "sourcing")
+    .in("sourcing_cart_item_id", ids);
+
+  if (error) throw new Error(`Failed to load sourcing state for the bag: ${error.message}`);
+
+  const rows = (data ?? []) as unknown as PriceWatchRow[];
+  return new Map(rows.map((row) => [row.sourcing_cart_item_id as string, row]));
+}
+
+/**
+ * The buyer's answer.
+ *
+ * `sourced_price_usd` and `sourced_origin_country` are FACTS, not a total: the
+ * pricing engine strikes the cedi figure from them like any other line. The
+ * database refuses `available` without both (065), so a request cannot be
+ * cleared for payment with nothing attached to pay against.
+ */
+export async function answerSourcingRequest(
+  watchId: string,
+  /**
+   * The status the buyer saw when they opened the queue. The update is guarded
+   * on it, so two buyers working the list at once cannot silently overwrite each
+   * other — the second gets no row back and the service answers 409.
+   */
+  from: SourcingStatus,
+  input: {
+    sourcing_status: SourcingStatus;
+    sourced_price_usd: number | null;
+    sourced_origin_country: OriginCountry | null;
+    sourced_note: string | null;
+    reviewed_by: string;
+    reviewed_at: string;
+  },
+): Promise<PriceWatchRow | null> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("price_watches")
+    .update({ ...input, updated_at: input.reviewed_at })
+    .eq("id", watchId)
+    // Scoped to the kind as well as the id, so a mis-typed id can never rewrite
+    // somebody's price watch into a sourcing answer.
+    .eq("kind", "sourcing")
+    .eq("sourcing_status", from)
+    .select(WATCH_COLUMNS)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to record the sourcing answer: ${error.message}`);
+  return (data as unknown as PriceWatchRow) ?? null;
 }

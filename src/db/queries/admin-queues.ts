@@ -50,6 +50,13 @@ export interface AdminQueueCounts {
    * photo was taken for.
    */
   feedbackOpen: number;
+  /**
+   * Sourcing requests still `requested` (065) — a customer is holding an item
+   * in their bag that they cannot pay for until somebody prices it by hand.
+   * The most directly blocking of the lot: this badge is money that cannot be
+   * taken until it clears.
+   */
+  sourcingOpen: number;
 }
 
 export const EMPTY_QUEUE_COUNTS: AdminQueueCounts = {
@@ -58,12 +65,13 @@ export const EMPTY_QUEUE_COUNTS: AdminQueueCounts = {
   ordersNeedingReview: 0,
   pastesFailed: 0,
   feedbackOpen: 0,
+  sourcingOpen: 0,
 };
 
 export async function getAdminQueueCounts(): Promise<AdminQueueCounts> {
   const db = createAdminClient();
 
-  const [assistedOpen, contactOpen, ordersNeedingReview, pastesFailed, feedbackOpen] =
+  const [assistedOpen, contactOpen, ordersNeedingReview, pastesFailed, feedbackOpen, sourcingOpen] =
     await Promise.all([
       countWhere(db, "assisted_requests", (q) => q.eq("status", "open")),
       countWhere(db, "contact_messages", (q) => q.eq("status", "open")),
@@ -79,9 +87,15 @@ export async function getAdminQueueCounts(): Promise<AdminQueueCounts> {
       countWhere(db, "order_feedback", (q) =>
         q.eq("status", "open").neq("verdict", "looks_right"),
       ),
+      // No age cut-off either, and for a stronger reason than the feedback above:
+      // an unanswered sourcing request is a bag that cannot be checked out. It
+      // does not become history, it just stays unpaid.
+      countWhere(db, "price_watches", (q) =>
+        q.eq("kind", "sourcing").eq("sourcing_status", "requested"),
+      ),
     ]);
 
-  return { assistedOpen, contactOpen, ordersNeedingReview, pastesFailed, feedbackOpen };
+  return { assistedOpen, contactOpen, ordersNeedingReview, pastesFailed, feedbackOpen, sourcingOpen };
 }
 
 type CountQuery = {

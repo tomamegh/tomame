@@ -355,3 +355,58 @@ export function canContinueToPayment(input: ContinueGateInput): boolean {
   if (input.countryMissing && input.gapCountry == null) return false;
   return true;
 }
+
+// ── Sourcing (065) ──────────────────────────────────────────────────────────
+
+export interface SourcingGateInput {
+  /** The extraction's store slug. `generic` means the host is not in the registry. */
+  platform: string | null;
+  /** The extraction's own verdict on where the store ships from. */
+  country: string | null;
+  /** True once the server has struck a real total for this line. */
+  hasPricing: boolean;
+  /** The extraction read no usable price. */
+  priceMissing: boolean;
+}
+
+/**
+ * The store slug an unknown host gets. Every URL the registry does not
+ * recognise resolves to this (CLAUDE.md), which is precisely the signal that
+ * nobody has confirmed we can buy from there.
+ */
+export const UNKNOWN_STORE = "generic";
+
+/**
+ * Does this quote need a PERSON before anyone can pay for it?
+ *
+ * WHY THIS IS NOT JUST `!canContinueToPayment`. The two questions look alike and
+ * are not. `canContinueToPayment` asks "is there a number we could charge",
+ * and it will happily say yes once the customer picks a country for a store we
+ * have never heard of — the calculator has everything it needs, so a total
+ * appears and "Add to bag" lights up. But a total is not a promise: nobody has
+ * checked that walmartcontacts.com ships anywhere we collect from, or that we
+ * can buy from it at all. Kelvin, 2026-09-14: "A user cannot be directed or
+ * shown the add to bag like the normal flow and payment cannot be allowed in
+ * such cases."
+ *
+ * So there are two independent triggers, and neither is about arithmetic:
+ *
+ * 1. WE DO NOT KNOW THE STORE. An unrecognised host, or a store whose shipping
+ *    region the registry does not carry. A customer's guess at the country
+ *    cannot resolve this, which is exactly why the gap-filler must not.
+ * 2. WE KNOW THE STORE AND STILL CANNOT PRICE IT. The engine returned
+ *    `needs_review` (an uncategorised product, or a weight-priced group with no
+ *    weight), so there is no fillable gap and no total — `hasPricing` false with
+ *    nothing the customer could type to change it.
+ *
+ * A readable price we simply failed to scrape is NOT here on purpose: that one
+ * the customer really can answer, on a store we do know, and the existing
+ * gap-filler is the right tool for it.
+ */
+export function needsSourcing(input: SourcingGateInput): boolean {
+  if (input.platform === UNKNOWN_STORE) return true;
+  if (input.country == null) return true;
+  // Known store, known region, and still no number — and no gap to close.
+  if (!input.hasPricing && !input.priceMissing) return true;
+  return false;
+}

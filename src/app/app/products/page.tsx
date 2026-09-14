@@ -59,7 +59,12 @@ export default async function ProductsPage({
   let searchFailed = false;
   if (state.kind === "ready") {
     try {
-      response = await searchCatalog(state.query, { limit: CATALOG_SEARCH.maxLimit });
+      // `pageSize`, not `maxLimit`. This screen has no "show more", so the cap it
+      // asks for IS the page it renders; `maxLimit` is the ceiling the browse
+      // panel climbs to one press at a time, and pointing this at it would make
+      // every search here five times the cards and five times the pricing work
+      // with no control to ask for them.
+      response = await searchCatalog(state.query, { limit: CATALOG_SEARCH.pageSize });
     } catch (error) {
       searchFailed = true;
       logger.error("catalogue search failed", {

@@ -28,6 +28,11 @@ vi.mock("@/db/queries/assisted-requests", () => ({
   listOpenAssistedRequestsByUrl: vi.fn(async () => new Map()),
 }));
 vi.mock("@/db/queries/extraction-requests", () => ({ getExtractionRequestById: vi.fn(async () => null) }));
+// Same reason: price-watches builds the admin client at module scope, and the
+// bag now reads it to mark the lines a buyer is sourcing (065).
+vi.mock("@/db/queries/price-watches", () => ({
+  getSourcingByCartItems: vi.fn(async () => new Map()),
+}));
 vi.mock("@/db/queries/delivery-addresses", () => ({
   getDeliveryAddressById: vi.fn(async () => null),
   listDeliveryAddresses: vi.fn(async () => []),
@@ -84,7 +89,7 @@ const cart = (over: Partial<carts.CartRow> = {}): carts.CartRow => ({
 });
 const item = (over: Partial<carts.CartItemRow> = {}): carts.CartItemRow => ({
   id: "i1", cart_id: "c1", extraction_cache_id: CACHE_ID, extraction_request_id: null, quantity: 1, special_instructions: null, gap_price_usd: null,
-  gap_origin_country: null, pricing: null, quote_lock_id: null, consolidation_box_id: null, created_at: "", updated_at: "", ...over,
+  gap_origin_country: null, sourced_price_usd: null, pricing: null, quote_lock_id: null, consolidation_box_id: null, created_at: "", updated_at: "", ...over,
 });
 const address = (over: Partial<DeliveryAddress> = {}): DeliveryAddress => ({
   id: "a1", user_id: "u1", label: "Home", kind: "door", recipient_name: "K", phone: "0", line1: "1 St", line2: null, area: "East Legon",
@@ -158,6 +163,45 @@ describe("addToBag", () => {
     vi.mocked(getExtractionSnapshot).mockResolvedValue({ id: CACHE_ID, productUrl: "https://shop.example/x", result: extraction });
     await addToBag(USER, { extraction_cache_id: CACHE_ID, quantity: 1, estimated_price_usd: 1 });
     expect(applyRateLock).toHaveBeenLastCalledWith(expect.objectContaining({ overrides: null }));
+  });
+
+  /**
+   * Both of these were found in local verification of the sourcing flow (065),
+   * and both are ways a customer could be shown a price nobody stood behind.
+   */
+  it("lets a BUYER's price beat the snapshot, where a customer's gap-filler is ignored", async () => {
+    vi.mocked(carts.findOpenCart).mockResolvedValue(cart());
+    // The snapshot has a price, so `gapFillOverrides` would refuse to build an
+    // override at all — which is right for a customer and wrong for a buyer who
+    // went and looked at the store.
+    vi.mocked(getExtractionSnapshot).mockResolvedValue({ id: CACHE_ID, productUrl: "https://shop.example/x", result: extraction });
+    vi.mocked(carts.findCartItem).mockResolvedValue(item({ sourced_price_usd: 34.5 }));
+    vi.mocked(carts.updateCartItem).mockImplementation(async (_id, patch) => item({ sourced_price_usd: 34.5, ...patch } as Partial<carts.CartItemRow>));
+
+    await addToBag(USER, { extraction_cache_id: CACHE_ID, quantity: 1 });
+
+    expect(applyRateLock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ overrides: { itemPriceUsd: 34.5 } }),
+    );
+  });
+
+  it("treats a needs_review breakdown as unpriced, not as a line that costs GH₵0.00", async () => {
+    vi.mocked(carts.findOpenCart).mockResolvedValue(cart());
+    vi.mocked(carts.insertCartItem).mockImplementation(async (input) => item(input));
+    vi.mocked(carts.findCartItem).mockResolvedValue(null);
+    vi.mocked(getExtractionSnapshot).mockResolvedValue({ id: CACHE_ID, productUrl: "https://shop.example/x", result: extraction });
+    // `buildReview` returns every total as ZERO rather than null, so without the
+    // guard this arrives looking like a priced line that costs nothing — and the
+    // bag lights its pay button for the delivery fee alone.
+    vi.mocked(applyRateLock).mockResolvedValue({
+      pricing: breakdown({ pricing_method: "needs_review", total_ghs: 0, review_reason: "No freight rule for that category." }),
+      reason: null,
+    });
+
+    const result = await addToBag(USER, { extraction_cache_id: CACHE_ID, quantity: 1 });
+
+    expect(result.line.pricing).toBeNull();
+    expect(result.line.pricing_unavailable_reason).toBe("No freight rule for that category.");
   });
 
   it("404s on an expired quote and 400s on a viewer with no identity", async () => {
@@ -277,7 +321,7 @@ describe("line ownership", () => {
 
 describe("summarize", () => {
   it("sums only priced lines and counts every quantity", () => {
-    const priced: BagLine = { id: "a", extraction_cache_id: "x", pending: null, quantity: 2, special_instructions: null, product: { title: null, image: null, url: "", store: null, variant: null, weight_lbs: null, country: null }, pricing: breakdown({ subtotal_usd: 10, tax_usd: 1, value_fee_usd: 0.5, flat_rate_ghs: 20, total_ghs: 200, total_usd: 13 }), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null };
+    const priced: BagLine = { id: "a", extraction_cache_id: "x", pending: null, quantity: 2, special_instructions: null, product: { title: null, image: null, url: "", store: null, variant: null, weight_lbs: null, country: null }, pricing: breakdown({ subtotal_usd: 10, tax_usd: 1, value_fee_usd: 0.5, flat_rate_ghs: 20, total_ghs: 200, total_usd: 13 }), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null, sourced_price_usd: null, sourcing: null };
     const unpriced: BagLine = { ...priced, id: "b", quantity: 1, pricing: null, pricing_unavailable_reason: "x" };
     expect(summarize("c", [priced, unpriced])).toMatchObject({ item_count: 3, subtotal_usd: 10, tax_usd: 1, fee_usd: 0.5, freight_ghs: 20, total_ghs: 200, total_usd: 13, has_unpriced_lines: true });
   });

@@ -42,7 +42,7 @@ describe("buildBagSummaryRows", () => {
     delivery: null, delivery_fee_ghs: 0,
     cart_id: "c", lines: [], boxes: [box], unboxed_line_ids: [], consolidation_saving_ghs: 96, consolidation_saving_pct: 0.2, item_count: 2,
     subtotal_usd: 817, tax_usd: 65.36, fee_usd: 40.85, freight_ghs: 264, boxed_weight_lbs: 5.4, total_ghs: 13489.66, total_usd: 934.84,
-    rate_locked_until: null, has_unpriced_lines: false, has_pending_lines: false,
+    rate_locked_until: null, has_unpriced_lines: false, has_pending_lines: false, has_sourcing_lines: false,
   };
   const doorFree: BagDelivery = { kind: "door", address_id: "a1", zone_id: "z1", zone_name: "Greater Accra", label: "Home · East Legon", fee_ghs: 0 };
 

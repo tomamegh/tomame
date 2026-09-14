@@ -23,6 +23,24 @@ export interface BagLinePending {
   assisted_open: boolean;
 }
 
+/**
+ * A line held for a person to answer (065).
+ *
+ * The item could not be priced by the engine — an unknown store, an unsupported
+ * region, a category with no freight rule — so instead of a dead "Pay GH₵0.00"
+ * the line sits here while a buyer looks it up. `available` means the buyer
+ * attached a price and the line now prices like any other; nothing else in the
+ * bag needs to know that a human filled the gap.
+ */
+export interface BagLineSourcing {
+  watch_id: string;
+  status: "requested" | "available" | "unavailable";
+  /** The buyer's message to the customer: what they found, or why not. */
+  note: string | null;
+  /** When a buyer answered, ISO. Null while it is still in the queue. */
+  reviewed_at: string | null;
+}
+
 /** One line of the bag, re-priced on every read from the server-owned snapshot. */
 export interface BagLine {
   id: string;
@@ -49,6 +67,14 @@ export interface BagLine {
   /** The quote screen's gap-fillers, echoed so the bag can show what the customer supplied. */
   gap_price_usd: number | null;
   gap_origin_country: OriginCountry | null;
+  /**
+   * A buyer's verified item price (065). Outranks the snapshot, which is what
+   * separates it from `gap_price_usd`; checkout hands it to order intake so the
+   * ORDER is struck on the same number the bag showed.
+   */
+  sourced_price_usd: number | null;
+  /** Non-null when a buyer is (or was) answering this line by hand. */
+  sourcing: BagLineSourcing | null;
 }
 
 /** One consolidation box in the bag, as the customer sees it. All derived server-side. */
@@ -139,6 +165,13 @@ export interface BagView {
   has_unpriced_lines: boolean;
   /** True while any line is still being read. Checkout is refused until it clears. */
   has_pending_lines: boolean;
+  /**
+   * True while a line is waiting on a buyer, or a buyer has said we cannot get
+   * it. Checkout is refused either way, and separately from `has_unpriced_lines`
+   * so the screen can say which of the two is true — "a person is looking at
+   * this" and "we could not price this" are different promises.
+   */
+  has_sourcing_lines: boolean;
 }
 
 export interface AddToBagResult {
