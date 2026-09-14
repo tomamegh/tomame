@@ -71,9 +71,18 @@ function rethrowIfSchemaMissing(error: unknown): void {
 /**
  * The admin-controlled buffer. A missing `pricing_constants` table rethrows
  * (deploy-before-migration must be loud). A transient read failure falls back
- * to `DEFAULT_FX_BUFFER_PCT`, which is exactly what the calculator does in the
- * same situation (calculator.ts:107, pricing.service.ts:26), so the pill and
- * the quote still agree.
+ * to `DEFAULT_FX_BUFFER_PCT`.
+ *
+ * THAT FALLBACK NO LONGER MATCHES THE CALCULATOR, and the divergence is
+ * deliberate but unresolved. This used to read "exactly what the calculator does
+ * in the same situation, so the pill and the quote still agree" — true until the
+ * calculator was changed to refuse to price at all without a complete constants
+ * set (Kelvin's call: fail the quote loudly). So on a transient read failure the
+ * nav pill now shows a confident rate while every quote comes back
+ * `needs_review`. Nothing is MISPRICED by this — the pill is a display, not a
+ * charge, and the decision was about quotes — but a customer can be shown a rate
+ * we cannot currently honour. Whether the pill should go quiet in that window is
+ * Kelvin's to decide; it is recorded here rather than changed unasked.
  */
 async function loadFxBufferPct(): Promise<number> {
   try {
