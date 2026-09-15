@@ -44,7 +44,6 @@ export const CATALOG_SEARCH = {
 } as const;
 
 /**
-/**
  * Sanity bounds on a single vendor search row, applied in the mapper so that
  * search, browse and the home shelf are all covered by one guard.
  *
