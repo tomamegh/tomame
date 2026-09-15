@@ -25,6 +25,12 @@
  */
 
 export interface OnboardingTourViewer {
+  /**
+   * `site_settings.onboarding_tour_enabled` (066). The admin's switch, and the
+   * first thing checked: when it is off nobody new is shown the tour, whatever
+   * else is true of them.
+   */
+  tourEnabled: boolean;
   /** Signed-out visitors never see the tour — the quote flow is public by design. */
   isAuthenticated: boolean;
   /** From `usePathname()`. Null (no route resolved yet) never fires. */
@@ -69,6 +75,7 @@ function stripTrailingSlash(pathname: string): string {
  * field meaningless.
  */
 export function shouldShowOnboardingTour(viewer: OnboardingTourViewer): boolean {
+  if (!viewer.tourEnabled) return false;
   if (!viewer.isAuthenticated) return false;
   if (!viewer.pathname) return false;
   if (!isAppRoute(viewer.pathname)) return false;

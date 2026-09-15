@@ -1,6 +1,8 @@
 import "server-only";
 
+import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/server";
 import { selectOnboardingState, updateOnboardingState } from "@/db/queries/profiles";
 import { APIError } from "@/lib/auth/api-helpers";
@@ -18,6 +20,13 @@ export interface OnboardingSignals {
   firstName: string | null;
   onboardingCompletedAt: string | null;
   onboardingDismissedAt: string | null;
+  /**
+   * `site_settings.onboarding_tour_enabled` (066) — the admin's off switch.
+   * False whenever the row is missing or unreadable, never true by default:
+   * whether to interrupt a customer's first screen is a decision somebody has
+   * to have made, and silence is not that decision.
+   */
+  tourEnabled: boolean;
 }
 
 const SIGNED_OUT_SIGNALS: OnboardingSignals = {
@@ -26,6 +35,7 @@ const SIGNED_OUT_SIGNALS: OnboardingSignals = {
   firstName: null,
   onboardingCompletedAt: null,
   onboardingDismissedAt: null,
+  tourEnabled: false,
 };
 
 /**
@@ -39,8 +49,9 @@ export async function getOnboardingSignals(): Promise<OnboardingSignals> {
   if (!user) return SIGNED_OUT_SIGNALS;
 
   const client = await createClient();
-  const [state] = await Promise.all([
+  const [state, tourEnabled] = await Promise.all([
     selectOnboardingState(client, user.id),
+    readTourEnabled(),
   ]);
 
   return {
@@ -49,7 +60,30 @@ export async function getOnboardingSignals(): Promise<OnboardingSignals> {
     firstName: user.profile.first_name?.trim() || null,
     onboardingCompletedAt: state?.onboarding_completed_at ?? null,
     onboardingDismissedAt: state?.onboarding_dismissed_at ?? null,
+    tourEnabled,
   };
+}
+
+/**
+ * The admin's switch, read through the same cookieless client the rest of the
+ * storefront's settings use (the row is public, 066).
+ *
+ * Only a stored `true` turns the tour on. A missing row, an unreadable table
+ * and a value of any other shape all answer false, and a failure is logged
+ * rather than thrown: a settings read that goes wrong must not take the app
+ * shell down, and the safe answer for a thing that interrupts a customer is to
+ * leave them alone.
+ */
+async function readTourEnabled(): Promise<boolean> {
+  try {
+    const settings = await getSiteSettingsMap();
+    return settings.onboarding_tour_enabled === true;
+  } catch (error) {
+    logger.warn("onboarding: could not read the tour setting; leaving the tour off", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
 }
 
 /**

@@ -5,6 +5,7 @@ import { shouldShowOnboardingTour, type OnboardingTourViewer } from "../tour-pre
 /** A fresh, first-time customer on Home — the one case that must say yes. */
 function baseViewer(overrides: Partial<OnboardingTourViewer> = {}): OnboardingTourViewer {
   return {
+    tourEnabled: true,
     isAuthenticated: true,
     pathname: "/app",
     hasPaymentReturnParam: false,
@@ -62,6 +63,18 @@ describe("shouldShowOnboardingTour", () => {
     // tour still gets it. What somebody has bought is not evidence of what
     // they have been shown, and every account on production has orders.
     expect(shouldShowOnboardingTour(baseViewer())).toBe(true);
+  });
+
+  it("never fires when the admin has turned the tour off", () => {
+    expect(shouldShowOnboardingTour(baseViewer({ tourEnabled: false }))).toBe(false);
+  });
+
+  it("stays off when the switch is off even for somebody who has never seen it", () => {
+    expect(
+      shouldShowOnboardingTour(
+        baseViewer({ tourEnabled: false, onboardingCompletedAt: null, onboardingDismissedAt: null }),
+      ),
+    ).toBe(false);
   });
 
   it("never fires on /app/bag", () => {
@@ -124,6 +137,7 @@ describe("shouldShowOnboardingTour", () => {
   it("stacks every exclusion at once without false-positiving", () => {
     expect(
       shouldShowOnboardingTour({
+        tourEnabled: false,
         isAuthenticated: true,
         pathname: "/app/bag",
         hasPaymentReturnParam: true,

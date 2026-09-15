@@ -29,20 +29,31 @@ import type { AdminTone } from "@/components/layout/admin";
  * How a setting's JSONB value should be edited.
  *
  * `text` is a bare JSON string — the vast majority (`whatsapp_number`,
- * `support_hours`, `company_address`, `payment_hold_note`). Everything else is
- * edited as JSON, because collapsing an object into a friendly form and back is
- * exactly where a required key goes missing.
+ * `support_hours`, `company_address`, `payment_hold_note`). `switch` is a
+ * boolean, which has exactly two valid values and therefore deserves a control
+ * that cannot express a third: asking an admin to type `false` into a JSON box
+ * to turn a feature off invites `"false"`, which is a non-empty string and
+ * truthy everywhere it is read. Everything else is edited as JSON, because
+ * collapsing an object into a friendly form and back is exactly where a
+ * required key goes missing.
  */
-export type SettingShape = "text" | "json";
+export type SettingShape = "text" | "switch" | "json";
 
 export function settingShape(value: unknown): SettingShape {
-  return typeof value === "string" ? "text" : "json";
+  if (typeof value === "string") return "text";
+  if (typeof value === "boolean") return "switch";
+  return "json";
 }
 
 /** A JSON string's contents, or pretty-printed JSON for anything else. */
 export function settingToEditorValue(value: unknown): string {
   if (typeof value === "string") return value;
   return JSON.stringify(value, null, 2);
+}
+
+/** A `switch` setting's draft string ("true"/"false") as the boolean it means. */
+export function switchDraftToBoolean(raw: string): boolean {
+  return raw === "true";
 }
 
 export interface SettingParseResult {
@@ -62,6 +73,8 @@ export interface SettingParseResult {
  */
 export function parseSettingInput(shape: SettingShape, raw: string): SettingParseResult {
   if (shape === "text") return { ok: true, value: raw };
+  // A switch is stored as a real JSONB boolean, never the string "false".
+  if (shape === "switch") return { ok: true, value: switchDraftToBoolean(raw) };
   try {
     return { ok: true, value: JSON.parse(raw) };
   } catch (error) {
@@ -86,6 +99,8 @@ export function settingWarning(key: string): string | null {
       return "The bag's pay selector reads this. Every entry must keep its `paystack_channel` (mobile_money or card). That value is sent to Paystack. Removing it takes the channel off checkout while the footer carries on showing the label.";
     case "fees_worked_example":
       return "Input only. The Fees page prices this live through the pricing engine, so the figures on the page are never taken from here, but the shape must match workedExampleInputSchema or the worked example stops rendering.";
+    case "onboarding_tour_enabled":
+      return "Off means nobody new is shown the tour. Anyone part-way through keeps the tour they are already in until they finish or dismiss it, and nobody who has already seen it sees it again either way.";
     case "whatsapp_number":
       return "Shown in the marketing footer, on the contact page and on Home's “Ask a buyer” card. It is the number customers actually message.";
     default:

@@ -189,6 +189,7 @@ export function OnboardingTour({ signals }: OnboardingTourProps) {
     }
 
     const shouldStart = shouldShowOnboardingTour({
+      tourEnabled: signals.tourEnabled,
       isAuthenticated: signals.isAuthenticated,
       pathname,
       hasPaymentReturnParam: searchParams.has("payment"),

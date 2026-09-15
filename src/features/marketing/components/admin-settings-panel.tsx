@@ -57,9 +57,8 @@ function SettingRow({ setting }: { setting: AdminSiteSettingRow }) {
   const warning = settingWarning(setting.key);
   const fieldId = `setting-${setting.key}`;
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const parsed = parseSettingInput(shape, draft);
+  async function save(next: string) {
+    const parsed = parseSettingInput(shape, next);
     if (!parsed.ok) {
       setError(parsed.error ?? "That value could not be read.");
       return;
@@ -77,6 +76,23 @@ function SettingRow({ setting }: { setting: AdminSiteSettingRow }) {
     );
   }
 
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    await save(draft);
+  }
+
+  /**
+   * A switch applies on the flick, with no Save to press afterwards. An admin
+   * turning a feature off expects it to be off; a toggle that silently waits
+   * for a second click is how somebody walks away believing they have turned
+   * something off when they have not.
+   */
+  async function toggle(next: boolean) {
+    const value = next ? "true" : "false";
+    setDraft(value);
+    await save(value);
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3 py-5 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -91,7 +107,7 @@ function SettingRow({ setting }: { setting: AdminSiteSettingRow }) {
             {setting.key}
           </code>
         </div>
-        <ContentSaveButton isDirty={isDirty} isSaving={isSaving} />
+        {shape === "switch" ? null : <ContentSaveButton isDirty={isDirty} isSaving={isSaving} />}
       </div>
 
       {setting.description ? (
@@ -106,7 +122,26 @@ function SettingRow({ setting }: { setting: AdminSiteSettingRow }) {
         </p>
       ) : null}
 
-      {shape === "text" ? (
+      {shape === "switch" ? (
+        <label className="flex w-fit cursor-pointer items-center gap-3">
+          <input
+            id={fieldId}
+            type="checkbox"
+            role="switch"
+            checked={draft === "true"}
+            disabled={isSaving}
+            onChange={(event) => void toggle(event.target.checked)}
+            className="peer sr-only"
+          />
+          <span
+            aria-hidden
+            className="relative h-6 w-11 shrink-0 rounded-full bg-tm-border transition-colors peer-checked:bg-tm-green peer-focus-visible:ring-2 peer-focus-visible:ring-tm-coral/40 peer-disabled:opacity-60 after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5"
+          />
+          <span className="text-[13px] leading-none font-semibold text-tm-ink">
+            {draft === "true" ? "On" : "Off"}
+          </span>
+        </label>
+      ) : shape === "text" ? (
         <input
           id={fieldId}
           type="text"

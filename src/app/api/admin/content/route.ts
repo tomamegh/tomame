@@ -200,6 +200,14 @@ function validateSettingValue(key: string, value: unknown): unknown {
     }
     return parsed.data;
   }
+  if (key === "onboarding_tour_enabled") {
+    // Two valid values and no third. Stored as a real JSONB boolean so the app
+    // never has to decide what the string "false" means.
+    if (typeof value !== "boolean") {
+      throw new APIError(400, "The first-run tour setting is either true or false.");
+    }
+    return value;
+  }
   return value;
 }
 
