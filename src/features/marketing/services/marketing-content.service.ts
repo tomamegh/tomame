@@ -119,10 +119,20 @@ export async function resolveMarketingFigures(): Promise<MarketingFigures> {
  * (`src/lib/pricing/calculator.ts`).
  *
  * Choice: publish `default_value_fee_pct` as the headline, and carry the real
- * min/max off the active groups in `range` plus a "from X%" note. A flat "5%"
- * on its own would be false for a 4% or an 8% category; "5%, from 4%" is true
- * of the engine as configured and stays true when an admin edits either the
- * constant or a group.
+ * min/max off the active groups in `range` and in the note.
+ *
+ * THE NOTE MUST NAME THE CEILING. It used to say only "from 4%" — the floor —
+ * while the same function computed `range.max` and threw it away. "5%, from
+ * 4%" is each word true and the whole thing misleading: nobody reads it and
+ * concludes they might be charged 8%, which six categories do charge (Car
+ * Parts, Shoes, Fashion, Furniture, Collectibles, Fashion Accessories).
+ * Release QA, 2026-09-15, priced a 6% item against this page and filed it as
+ * the fee exceeding the published schedule; they were right, and the true
+ * spread is wider than the 6% they happened to hit.
+ *
+ * So the note states the span. It is derived, not written, so an admin editing
+ * a group re-publishes the page with no code change — which is the whole
+ * reason the ceiling was reachable here in the first place.
  */
 function resolveServiceFee({ constants, groups }: FigureInputs): ResolvedFigure {
   const defaultPct = constants.default_value_fee_pct ?? 0.05;
@@ -140,8 +150,7 @@ function resolveServiceFee({ constants, groups }: FigureInputs): ResolvedFigure 
       ? { min: Math.min(...percentages), max: Math.max(...percentages) }
       : null;
 
-  const note =
-    range && range.min < defaultPct ? `from ${formatPercent(range.min)}` : null;
+  const note = describeFeeSpread(range, defaultPct);
 
   return {
     source: "value_fee_pct",
@@ -152,6 +161,25 @@ function resolveServiceFee({ constants, groups }: FigureInputs): ResolvedFigure 
     unit: "percent",
     range,
   };
+}
+
+/**
+ * The qualifier beside the headline fee: "4%–8%, depending on the category".
+ *
+ * Null only when every active group charges exactly the headline — there is
+ * then nothing the single number leaves out, and a qualifier would be noise.
+ *
+ * Pure. Exported for its test — the resolver around it reaches the database.
+ */
+export function describeFeeSpread(
+  range: { min: number; max: number } | null,
+  defaultPct: number,
+): string | null {
+  if (!range) return null;
+  if (range.min === range.max) {
+    return range.min === defaultPct ? null : `${formatPercent(range.min)} on every category`;
+  }
+  return `${formatPercent(range.min)}–${formatPercent(range.max)}, depending on the category`;
 }
 
 /**

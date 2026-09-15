@@ -72,9 +72,13 @@ export default async function FeesPage({ searchParams }: FeesPageProps) {
               {serviceFee.display}
             </strong>{" "}
             of the item price
-            {serviceFee.note
-              ? ` (${serviceFee.note}, depending on what you're buying)`
-              : ""}
+            {/*
+              The note carries its own qualifier now — "4%–8%, depending on the
+              category" — because it has to name the ceiling, not just the
+              floor. The old copy appended "depending on what you're buying" to
+              a bare "from 4%"; keeping both would say it twice.
+            */}
+            {serviceFee.note ? ` (${serviceFee.note})` : ""}
             . Tax, freight and today&apos;s rate are charged at the rates below,
             and every one of them is on your receipt before you pay.
           </p>

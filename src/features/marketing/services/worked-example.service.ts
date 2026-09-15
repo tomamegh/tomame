@@ -2,6 +2,7 @@ import "server-only";
 
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
 import type { PricingBreakdown } from "@/lib/pricing";
+import { taxRowLabel } from "@/lib/pricing/tax-label";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { logger } from "@/lib/logger";
 import { workedExampleInputSchema } from "../schema";
@@ -116,7 +117,7 @@ export function buildWorkedExample(
     },
     {
       key: "tax",
-      label: `${REGION_TAX_LABEL[input.region]} ${formatPercent(breakdown.tax_percentage)}`,
+      label: taxRowLabel(breakdown, REGION_TAX_LABEL[input.region]),
       value: formatUsd(breakdown.tax_usd),
       bar_pct: toBarPct(breakdown.tax_usd, subtotalUsd),
       tone: "muted",

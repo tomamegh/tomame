@@ -120,8 +120,12 @@ describe("safeImageSrc", () => {
 
 describe("buildReceiptRows", () => {
   it("takes every percentage off the breakdown, never a literal", () => {
+    // `tax_usd` moves with `tax_percentage`: 7.5% of $298 is $22.35. The
+    // override used to change only the rate and leave $23.84 beside it, which
+    // is 8% — a breakdown the calculator cannot produce, and one the tax-floor
+    // check now reads (correctly) as "the charge is not the rate".
     const rows = buildReceiptRows(
-      breakdown({ tax_percentage: 0.075, value_fee_percentage: 0.04 }),
+      breakdown({ tax_percentage: 0.075, tax_usd: 22.35, value_fee_percentage: 0.04 }),
     );
 
     expect(rows.map((row) => row.label)).toEqual([
@@ -131,6 +135,19 @@ describe("buildReceiptRows", () => {
       "Freight",
       "Rate",
     ]);
+  });
+
+  it("names the minimum when the floor decided the tax, not the rate", () => {
+    // The release blocker: $6.78 of goods billed $2.00 under "10% sales tax",
+    // which is 29.5%. QA, 2026-09-15.
+    const rows = buildReceiptRows(
+      breakdown({ item_price_usd: 6.78, subtotal_usd: 6.78, tax_percentage: 0.1, tax_usd: 2 }),
+    );
+
+    expect(rows.find((row) => row.key === "tax")).toMatchObject({
+      label: "Sales tax (min. $2.00)",
+      value: "$2.00",
+    });
   });
 
   it("prints GH₵ for the freight and the rate, $ for the US-side figures", () => {

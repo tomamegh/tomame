@@ -4,6 +4,7 @@ import type {
 } from "@/db/queries/order-feedback";
 import type { OrderPhotoKind } from "@/db/queries/order-photos";
 import { formatGhs, formatPercent, formatUsd } from "@/features/marketing/format";
+import { taxRowLabel } from "@/lib/pricing/tax-label";
 import type { OrderPricingBreakdown } from "@/features/orders/types";
 import type { JourneyCtaKind, JourneyEta } from "./types";
 
@@ -180,7 +181,7 @@ export function paidRows(pricing: OrderPricingBreakdown): PaidRow[] {
   if (pricing.tax_usd > 0) {
     rows.push({
       key: "tax",
-      label: `US sales tax ${formatPercent(pricing.tax_percentage)}`,
+      label: taxRowLabel(pricing, "US sales tax"),
       value: formatUsd(pricing.tax_usd),
     });
   }

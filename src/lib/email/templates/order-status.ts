@@ -8,6 +8,7 @@ import {
   infoRow,
   infoTable,
 } from "./layout";
+import { taxRowLabel } from "@/lib/pricing/tax-label";
 
 interface OrderEmailData {
   productName: string;
@@ -179,7 +180,7 @@ export function orderApprovedTemplate(data: OrderReviewEmailData) {
         ${infoRow("Order ID", data.orderId)}
         ${infoRow("Item", data.productName)}
         ${infoRow("Item price (USD)", `$${data.pricing.subtotalUsd.toFixed(2)}`)}
-        ${infoRow(`Tax (${(data.pricing.taxPercentage * 100).toFixed(0)}%)`, `$${data.pricing.taxUsd.toFixed(2)}`)}
+        ${infoRow(taxRowLabel({ subtotal_usd: data.pricing.subtotalUsd, tax_percentage: data.pricing.taxPercentage, tax_usd: data.pricing.taxUsd }, "tax"), `$${data.pricing.taxUsd.toFixed(2)}`)}
         ${infoRow(`Value fee (${(data.pricing.valueFeePercentage * 100).toFixed(0)}%)`, `$${data.pricing.valueFeeUsd.toFixed(2)}`)}
         ${infoRow("Freight", `GH₵ ${data.pricing.flatRateGhs.toFixed(2)}`)}
         ${infoRow("Rate", `1 USD = ${data.pricing.exchangeRate} GHS`)}

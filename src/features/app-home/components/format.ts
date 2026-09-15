@@ -11,6 +11,7 @@
  * from the breakdown and are never written as a literal.
  */
 
+import { taxRowLabel } from "@/lib/pricing/tax-label";
 import type { PricingBreakdown } from "@/lib/pricing";
 import { formatRatePill } from "@/components/layout/app/links";
 import {
@@ -198,11 +199,15 @@ export const RECEIPT_ROW_DELAYS = [
  * so a partial breakdown renders a shorter honest receipt instead of "$NaN".
  */
 /**
- * "10% sales tax", or just "Sales tax" when the rate is missing.
+ * "10% value fee", or just "Value fee" when the rate is missing.
  *
  * The amount and the percentage are two different fields, so a row can carry a
  * real figure with no usable rate beside it. Dropping the prefix is honest;
- * `formatPercent(NaN)` would print "NaN% sales tax" next to a correct amount.
+ * `formatPercent(NaN)` would print "NaN% value fee" next to a correct amount.
+ *
+ * NOT USED FOR TAX. The tax row goes through `taxRowLabel`, because the tax
+ * charge is `max(rate, floor)` and this helper would print the rate beside a
+ * figure the floor decided.
  */
 function labelWithPercent(fraction: number, noun: string): string {
   if (!Number.isFinite(fraction)) {
@@ -227,7 +232,7 @@ export function buildReceiptRows(pricing: PricingBreakdown): ReceiptRow[] {
     rows.push({
       key: "tax",
       icon: "tax",
-      label: labelWithPercent(pricing.tax_percentage, "sales tax"),
+      label: taxRowLabel(pricing, "sales tax"),
       value: formatUsd(pricing.tax_usd),
     });
   }

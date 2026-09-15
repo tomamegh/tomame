@@ -1,4 +1,5 @@
 import { formatGhs, formatUsd } from "@/features/marketing/format";
+import { taxGroupRowLabel, type TaxFacts } from "@/lib/pricing/tax-label";
 import type { BagBox, BagLine, BagLinePending, BagView } from "../types";
 
 /** "Fri 12 Sep" — the box's departure day. Null when the region has no schedule. */
@@ -96,6 +97,14 @@ function sharedPercent(lines: BagLine[], pick: (p: NonNullable<BagLine["pricing"
   return pcts.size === 1 ? [...pcts][0]! : null;
 }
 
+/** The priced lines, as the tax helpers want them. Unpriced lines drop out. */
+function taxFactsOf(lines: BagLine[]): TaxFacts[] {
+  return lines
+    .map((l) => l.pricing)
+    .filter((p): p is NonNullable<BagLine["pricing"]> => !!p)
+    .map((p) => ({ subtotal_usd: p.subtotal_usd, tax_percentage: p.tax_percentage, tax_usd: p.tax_usd }));
+}
+
 function pctLabel(base: string, pct: number | null): string {
   return pct == null ? base : `${base} ${Math.round(pct * 1000) / 10}%`;
 }
@@ -111,7 +120,16 @@ export function buildBagSummaryRows(view: BagView): BagSummaryRow[] {
   const rows: BagSummaryRow[] = [];
   const n = view.item_count;
   rows.push({ key: "items", label: `${n} item${n === 1 ? "" : "s"}`, value: formatUsd(view.subtotal_usd) });
-  rows.push({ key: "tax", label: pctLabel("Sales tax", sharedPercent(view.lines, (p) => p.tax_percentage)), value: formatUsd(view.tax_usd) });
+  // THE GROUP CASE. `view.tax_usd` sums lines that may have been charged the
+  // rate and lines that hit the floor, so a bare "Sales tax 10%" can be false
+  // of the total even when every line shares a rate — QA measured $49.47 of
+  // items billed $6.00 under a 10% label, an effective 12.1%. `taxGroupRowLabel`
+  // states the whole rule when any line was floored.
+  rows.push({
+    key: "tax",
+    label: taxGroupRowLabel(taxFactsOf(view.lines), sharedPercent(view.lines, (p) => p.tax_percentage), "sales tax"),
+    value: formatUsd(view.tax_usd),
+  });
   rows.push({ key: "fee", label: pctLabel("Tomame fee", sharedPercent(view.lines, (p) => p.value_fee_percentage)), value: formatUsd(view.fee_usd) });
   const boxes = view.boxes.length;
   const freightLabel = boxes > 0 ? `Freight · ${boxes} box${boxes === 1 ? "" : "es"}, ${formatLbs(view.boxed_weight_lbs)}` : "Freight";

@@ -117,11 +117,22 @@ describe("paidRows — read from the stored breakdown, never recomputed", () => 
   it("prints the receipt the mock draws", () => {
     expect(paidRows(pricing())).toEqual([
       { key: "item", label: "Item", value: "$298.00" },
-      { key: "tax", label: "US sales tax 8%", value: "$23.84" },
+      // Noun-last now, matching the live receipt and the bag: every money
+      // surface builds this label from one helper so they cannot drift apart.
+      { key: "tax", label: "8% US sales tax", value: "$23.84" },
       { key: "fee", label: "Tomame fee 5%", value: "$14.90" },
       { key: "freight", label: "Freight", value: "GH₵180.00" },
       { key: "rate", label: "Rate", value: "1 USD = 14.43", tone: "muted" },
     ]);
+  });
+
+  it("names the minimum when the floor decided the tax", () => {
+    const rows = paidRows(pricing({ subtotal_usd: 6.78, tax_percentage: 0.1, tax_usd: 2 }));
+    expect(rows.find((r) => r.key === "tax")).toEqual({
+      key: "tax",
+      label: "US sales tax (min. $2.00)",
+      value: "$2.00",
+    });
   });
 
   it("omits a zero line rather than printing '$0.00'", () => {
