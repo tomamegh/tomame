@@ -99,9 +99,32 @@ export default function RootLayout({
         */}
         <PwaSplash />
         <Providers>{children}</Providers>
+        {/*
+          The offsets are not decoration. Sonner measures from the top of the
+          LAYOUT viewport — 24px on desktop, 16px on a phone — and knows nothing
+          about safe areas. Since the installed app sets `viewport-fit: cover`
+          and a translucent status bar, that viewport now starts at the physical
+          top of the screen, so a 16px toast landed entirely inside the status
+          bar: "Added to your bag" was drawn behind the clock and the notch and
+          nobody ever saw it. Adding the inset puts it back under the status bar
+          on a device, and changes nothing in a browser tab, where
+          `env(safe-area-inset-top)` is 0 and these resolve to the defaults.
+        */}
         <Toaster
           position="top-center"
           duration={5000}
+          offset={{
+            top: "calc(env(safe-area-inset-top) + 24px)",
+            right: "24px",
+            bottom: "calc(env(safe-area-inset-bottom) + 24px)",
+            left: "24px",
+          }}
+          mobileOffset={{
+            top: "calc(env(safe-area-inset-top) + 16px)",
+            right: "16px",
+            bottom: "calc(env(safe-area-inset-bottom) + 16px)",
+            left: "16px",
+          }}
         />
         <InstallPrompt />
         <ServiceWorkerRegistrar />
