@@ -34,9 +34,19 @@ describe("taxFloorApplied", () => {
     expect(taxFloorApplied(line(20, 2.0))).toBe(false);
   });
 
+  it("catches a floor charged at a ZERO rate — the worst version of the bug", () => {
+    // A lane configured with no sales tax still gets max(0, 2.00) = $2.00.
+    // Bailing out on rate === 0 would print "0% sales tax" beside $2.00.
+    expect(taxFloorApplied(line(50, 2.0, 0))).toBe(true);
+    expect(taxRowLabel(line(50, 2.0, 0), "sales tax")).toBe("Sales tax (min. $2.00)");
+  });
+
+  it("leaves a genuinely untaxed line alone", () => {
+    expect(taxFloorApplied(line(50, 0, 0))).toBe(false);
+  });
+
   it("says no rather than guessing when there is nothing to take a percentage of", () => {
     expect(taxFloorApplied(line(0, 2.0))).toBe(false);
-    expect(taxFloorApplied(line(10, 2.0, 0))).toBe(false);
     expect(taxFloorApplied(line(NaN, 2.0))).toBe(false);
     expect(taxFloorApplied(line(10, NaN))).toBe(false);
   });
@@ -77,7 +87,7 @@ describe("taxGroupRowLabel", () => {
     // Two items, $49.47 of goods, $6.00 of tax — 12.1% under a "10%" label.
     const lines = [line(9.48, 2.0), line(39.99, 4.0)];
     expect(taxGroupRowLabel(lines, 0.1, "sales tax")).toBe(
-      "Sales tax (10%, min. $2.00 per item)",
+      "Sales tax (10%, min. $2.00 per product)",
     );
   });
 
@@ -90,12 +100,21 @@ describe("taxGroupRowLabel", () => {
   it("drops the rate when the lines do not share one", () => {
     const lines = [line(6.78, 2.0), line(100, 8.0, 0.08)];
     expect(taxGroupRowLabel(lines, null, "sales tax")).toBe(
-      "Sales tax (min. $2.00 per item)",
+      "Sales tax (min. $2.00 per product)",
     );
   });
 
   it("is the bare noun when there is neither a floor nor a shared rate", () => {
     expect(taxGroupRowLabel([line(39.99, 4.0)], null, "sales tax")).toBe("Sales tax");
+  });
+
+  it("says 'per product', because the floor is charged once however many units", () => {
+    // One line of 3 × $1.00: subtotal $3.00, rate tax $0.30, floor $2.00, and
+    // $2.00 is charged for the LINE. "per item" beside a bag that counts 3
+    // items would have the customer expecting $6.00.
+    const label = taxGroupRowLabel([line(3, 2.0)], 0.1, "sales tax");
+    expect(label).toBe("Sales tax (10%, min. $2.00 per product)");
+    expect(label).not.toContain("per item");
   });
 
   it("handles an empty bag without inventing a floor", () => {

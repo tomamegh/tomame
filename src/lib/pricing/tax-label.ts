@@ -46,11 +46,17 @@ export interface TaxFacts {
  *
  * Returns false on a non-finite or zero subtotal rather than guessing: with
  * nothing to take a percentage of there is no floor to detect.
+ *
+ * A ZERO RATE IS NOT AN EXIT. The floor is `max(rate, minimum)`, so a lane
+ * configured with no sales tax at all still charges $2.00, and that is the
+ * case where claiming a percentage is most obviously wrong — "0% sales tax"
+ * printed beside $2.00. The guard is therefore `rate >= 0`: at zero, `byRate`
+ * is zero and the comparison below does exactly the right thing.
  */
 export function taxFloorApplied(pricing: TaxFacts): boolean {
   const { subtotal_usd: subtotal, tax_percentage: rate, tax_usd: charged } = pricing;
   if (!Number.isFinite(subtotal) || !Number.isFinite(rate) || !Number.isFinite(charged)) return false;
-  if (!(subtotal > 0) || !(rate > 0)) return false;
+  if (!(subtotal > 0) || !(rate >= 0)) return false;
   const byRate = Math.round(subtotal * rate * 100) / 100;
   return charged - byRate > 0.005;
 }
@@ -95,8 +101,15 @@ export function taxRowLabel(pricing: TaxFacts, noun: string): string {
  * where one was floored and one was not add up to a figure that is neither the
  * rate nor the minimum (QA's example: $49.47 of items, "Sales tax 10%",
  * $6.00 charged, 12.1% effective). So when ANY line was floored the label
- * states the whole rule — "10%, min. $2.00 per item" — which is true of every
- * line in the group whichever side of the floor it fell.
+ * states the whole rule — "10%, min. $2.00 per product" — which is true of
+ * every line in the group whichever side of the floor it fell.
+ *
+ * "PER PRODUCT", NOT "PER ITEM", and the difference is money. The calculator
+ * compares the floor against `subtotal_usd`, which is already price ×
+ * quantity, so the minimum is charged ONCE for a line however many units it
+ * holds. The bag counts "items" as sum(quantity), so "min. $2.00 per item"
+ * beside a line of three would have a customer expecting $6.00 of tax where
+ * $2.00 was charged.
  *
  * `percentage` is the rate shared by the lines, or null when they disagree;
  * the caller already works that out to decide its own row.
@@ -113,8 +126,8 @@ export function taxGroupRowLabel(
   }
   const rule =
     percentage != null && Number.isFinite(percentage)
-      ? `${formatPercent(percentage)}, min. ${formatUsd(floor)} per item`
-      : `min. ${formatUsd(floor)} per item`;
+      ? `${formatPercent(percentage)}, min. ${formatUsd(floor)} per product`
+      : `min. ${formatUsd(floor)} per product`;
   return `${capitalise(noun)} (${rule})`;
 }
 
