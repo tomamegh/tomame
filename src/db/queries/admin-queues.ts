@@ -57,6 +57,17 @@ export interface AdminQueueCounts {
    * taken until it clears.
    */
   sourcingOpen: number;
+  /**
+   * `car_enquiries` still `open` (067) — a customer has asked what a car costs,
+   * or made an offer on one, and nobody has replied.
+   *
+   * Badged for the same reason the others are and NOT on the number of
+   * listings: a listing count is non-zero the moment the feature is in use,
+   * which is furniture rather than signal (see `NavLink.badge`). An enquiry is
+   * the opposite — it is one named person waiting on one answer, on a vehicle
+   * that is only on the water for so long.
+   */
+  carEnquiriesOpen: number;
 }
 
 export const EMPTY_QUEUE_COUNTS: AdminQueueCounts = {
@@ -66,36 +77,55 @@ export const EMPTY_QUEUE_COUNTS: AdminQueueCounts = {
   pastesFailed: 0,
   feedbackOpen: 0,
   sourcingOpen: 0,
+  carEnquiriesOpen: 0,
 };
 
 export async function getAdminQueueCounts(): Promise<AdminQueueCounts> {
   const db = createAdminClient();
 
-  const [assistedOpen, contactOpen, ordersNeedingReview, pastesFailed, feedbackOpen, sourcingOpen] =
-    await Promise.all([
-      countWhere(db, "assisted_requests", (q) => q.eq("status", "open")),
-      countWhere(db, "contact_messages", (q) => q.eq("status", "open")),
-      countWhere(db, "orders", (q) => q.eq("needs_review", true)),
-      // Only recent failures. A paste that failed three weeks ago is history, not
-      // a queue — the customer has long since re-pasted it or given up, and
-      // counting it forever would leave a badge burning that nobody can clear.
-      countWhere(db, "extraction_requests", (q) =>
-        q.eq("status", "failed").gt("updated_at", sevenDaysAgo()),
-      ),
-      // No age cut-off, unlike the pastes above: an open objection about a parcel
-      // is not history a customer works around, it is a box nobody answered for.
-      countWhere(db, "order_feedback", (q) =>
-        q.eq("status", "open").neq("verdict", "looks_right"),
-      ),
-      // No age cut-off either, and for a stronger reason than the feedback above:
-      // an unanswered sourcing request is a bag that cannot be checked out. It
-      // does not become history, it just stays unpaid.
-      countWhere(db, "price_watches", (q) =>
-        q.eq("kind", "sourcing").eq("sourcing_status", "requested"),
-      ),
-    ]);
+  const [
+    assistedOpen,
+    contactOpen,
+    ordersNeedingReview,
+    pastesFailed,
+    feedbackOpen,
+    sourcingOpen,
+    carEnquiriesOpen,
+  ] = await Promise.all([
+    countWhere(db, "assisted_requests", (q) => q.eq("status", "open")),
+    countWhere(db, "contact_messages", (q) => q.eq("status", "open")),
+    countWhere(db, "orders", (q) => q.eq("needs_review", true)),
+    // Only recent failures. A paste that failed three weeks ago is history, not
+    // a queue — the customer has long since re-pasted it or given up, and
+    // counting it forever would leave a badge burning that nobody can clear.
+    countWhere(db, "extraction_requests", (q) =>
+      q.eq("status", "failed").gt("updated_at", sevenDaysAgo()),
+    ),
+    // No age cut-off, unlike the pastes above: an open objection about a parcel
+    // is not history a customer works around, it is a box nobody answered for.
+    countWhere(db, "order_feedback", (q) =>
+      q.eq("status", "open").neq("verdict", "looks_right"),
+    ),
+    // No age cut-off either, and for a stronger reason than the feedback above:
+    // an unanswered sourcing request is a bag that cannot be checked out. It
+    // does not become history, it just stays unpaid.
+    countWhere(db, "price_watches", (q) =>
+      q.eq("kind", "sourcing").eq("sourcing_status", "requested"),
+    ),
+    // No age cut-off. An unanswered offer on a car does not become history —
+    // the customer is still waiting, and the vessel is still arriving.
+    countWhere(db, "car_enquiries", (q) => q.eq("status", "open")),
+  ]);
 
-  return { assistedOpen, contactOpen, ordersNeedingReview, pastesFailed, feedbackOpen, sourcingOpen };
+  return {
+    assistedOpen,
+    contactOpen,
+    ordersNeedingReview,
+    pastesFailed,
+    feedbackOpen,
+    sourcingOpen,
+    carEnquiriesOpen,
+  };
 }
 
 type CountQuery = {

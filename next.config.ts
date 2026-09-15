@@ -63,6 +63,14 @@ const nextConfig: NextConfig = {
             {
                 pathname: "/api/media/**",
             },
+            // Car photographs (067), streamed from the private `car-photos`
+            // bucket by /api/cars/photos/[photoId]. Without this entry
+            // `next/image` REFUSES the src outright — `localPatterns` is an
+            // allowlist, so a same-origin path that is not on it renders
+            // nothing at all, with no error the component can see.
+            {
+                pathname: "/api/cars/photos/**",
+            },
         ],
         // A host that isn't on the allowlist above must still render — the
         // catalogue scrapes whatever store the customer pasted, so "unknown
