@@ -6,6 +6,7 @@ vi.mock("@/lib/env", () => ({ env: { extraction: { scraperApiKey: "test-key" } }
 
 import amazonFixture from "./fixtures/scraperapi-amazon-search.json";
 import ebayFixture from "./fixtures/scraperapi-ebay-search.json";
+import ebayConcatenatedFixture from "./fixtures/scraperapi-ebay-search-concatenated.json";
 import { hashUrl } from "@/features/extraction/url";
 import {
   fetchCatalogSearch,
@@ -84,6 +85,42 @@ describe("mapEbaySearchResults", () => {
     const items = mapEbaySearchResults(results, ctx);
     expect(items.some((i) => i.product_url.endsWith("/itm/1"))).toBe(false);
     expect(items).toHaveLength(4);
+  });
+
+  // ScraperAPI occasionally collapses a whole results block into one row: the
+  // title is a dozen listings run together and the price is their prices
+  // concatenated into one 39-digit number. One reached the catalogue as a
+  // "GH₵1,995,202,244,743,568,400,000,… delivered to your door" deal.
+  describe("concatenated vendor rows", () => {
+    const bad = ebayConcatenatedFixture.results as ScraperApiEbaySearchResult[];
+
+    it("rejects every concatenated row in the live fixture and keeps the sound one", () => {
+      const items = mapEbaySearchResults(bad, ctx);
+      expect(items.map((i) => i.external_id)).toEqual(["335099887766"]);
+      expect(items[0]!.price_usd).toBe(289.99);
+    });
+
+    it("rejects on the price tell: a title under eBay's 80-character limit but an absurd price", () => {
+      const items = mapEbaySearchResults([{ product_title: "Fossil Juliana HR Smartwatch", product_url: "https://www.ebay.com/itm/407192567612", item_price: { value: 16508506.5, currency: "USD" } }], ctx);
+      expect(items).toEqual([]);
+    });
+
+    it("rejects on the title tell alone — a concatenated row can carry no price at all", () => {
+      const overlong = "Apple iPhone 5c".repeat(30);
+      const items = mapEbaySearchResults([{ product_title: overlong, product_url: "https://www.ebay.com/itm/205123456789" }], ctx);
+      expect(items).toEqual([]);
+    });
+
+    it("keeps a sound listing sitting exactly on eBay's 80-character title limit", () => {
+      const title = "A".repeat(80);
+      const items = mapEbaySearchResults([{ product_title: title, product_url: "https://www.ebay.com/itm/335099887766", item_price: { value: 99.5, currency: "USD" } }], ctx);
+      expect(items.map((i) => i.title)).toEqual([title]);
+    });
+
+    it("keeps a genuinely expensive listing under the plausibility bound", () => {
+      const items = mapEbaySearchResults([{ product_title: "Rolex Daytona 116500LN Panda Dial Stainless Steel Watch Box & Papers 2023", product_url: "https://www.ebay.com/itm/335099887767", item_price: { value: 38500, currency: "USD" } }], ctx);
+      expect(items.map((i) => i.price_usd)).toEqual([38500]);
+    });
   });
 });
 

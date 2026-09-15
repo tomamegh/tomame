@@ -44,6 +44,33 @@ export const CATALOG_SEARCH = {
 } as const;
 
 /**
+/**
+ * Sanity bounds on a single vendor search row, applied in the mapper so that
+ * search, browse and the home shelf are all covered by one guard.
+ *
+ * ScraperAPI's eBay search endpoint occasionally collapses a whole results
+ * block into one row: `product_title` is a dozen listings' titles run
+ * together and `item_price.value` is their prices concatenated into one
+ * 39-digit number. Mapped straight through, one reached the catalogue as a
+ * "GH₵1,995,202,244,743,568,400,000,… delivered to your door" deal wearing
+ * the "Cheapest on eBay" badge.
+ */
+export const CATALOG_ROW_SANITY = {
+  /**
+   * eBay caps a listing title at 80 characters, so a longer one is not a long
+   * title — it is several listings. Measured against the live catalogue:
+   * every sound eBay row is ≤ 80, every concatenated one is > 80. Amazon
+   * titles are legitimately several hundred characters, so this is eBay-only.
+   */
+  maxEbayTitleChars: 80,
+  /**
+   * Neither tell subsumes the other: a concatenated row can carry no price at
+   * all, and three short titles concatenate to only 85 characters.
+   */
+  maxPlausiblePriceUsd: 100_000,
+} as const;
+
+/**
  * The signed-in Home screen's "Hot right now" shelf.
  */
 export const CATALOG_DEALS = {
@@ -53,16 +80,18 @@ export const CATALOG_DEALS = {
    * A SANITY BOUND AGAINST MALFORMED VENDOR ROWS, not a business rule about
    * what Tomame will buy — nothing is refused anywhere else because of this
    * number, and a customer who pastes the link to a $200,000 listing still
-   * gets it read and priced. It exists because ScraperAPI's eBay endpoint
-   * occasionally returns one row that is eight listings run together, with
-   * their prices concatenated into a single 39-digit number; one of those
-   * reached this shelf reading "GH₵1,995,202,244,743,568,400,000,…".
+   * gets it read and priced.
    *
    * The shelf is the one catalogue screen nobody asked for a specific row on,
    * so it is the one screen that may decline a row it cannot vouch for — the
    * same reasoning that drops unpriceable rows here and keeps them in search.
-   * The real fix is in `mapEbaySearchResults`, and the rows already stored
-   * need cleaning; both are their own piece of work.
+   *
+   * `mapEbaySearchResults` now rejects these rows on the way in and the ones
+   * already stored have been deleted, so this is the belt to that fix's
+   * braces: it still covers a row from before the fix in an environment
+   * nobody cleaned, an admin-inserted row, and the Amazon side, which the
+   * 80-character title tell deliberately leaves alone. One number, defined
+   * once above.
    */
-  maxPlausiblePriceUsd: 100_000,
+  maxPlausiblePriceUsd: CATALOG_ROW_SANITY.maxPlausiblePriceUsd,
 } as const;

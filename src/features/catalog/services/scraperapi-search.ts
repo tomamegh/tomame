@@ -1,6 +1,6 @@
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
-import { CATALOG_JOB } from "@/config/catalog";
+import { CATALOG_JOB, CATALOG_ROW_SANITY } from "@/config/catalog";
 import { amazonAsinOf, ebayItemIdOf, hashUrl } from "@/features/extraction/url";
 import { cleanString, normalizeImageUrl, parseRating, parseReviewCount } from "@/features/extraction/scrapers/parse";
 import type { CatalogProductInput, CatalogStore } from "@/db/queries/catalog";
@@ -160,8 +160,19 @@ export function mapAmazonSearchResults(results: readonly ScraperApiAmazonSearchR
   return dedupe(items);
 }
 
+/**
+ * True when the row is several eBay listings collapsed into one — see
+ * `CATALOG_ROW_SANITY`. Rejected outright rather than repaired: the title,
+ * the price and the identity all belong to different listings, so there is no
+ * sound product left in the row.
+ */
+function isConcatenatedEbayRow(title: string, priceUsd: number | null): boolean {
+  return title.length > CATALOG_ROW_SANITY.maxEbayTitleChars || (priceUsd !== null && priceUsd > CATALOG_ROW_SANITY.maxPlausiblePriceUsd);
+}
+
 export function mapEbaySearchResults(results: readonly ScraperApiEbaySearchResult[], ctx: MapContext): CatalogProductInput[] {
   const items: CatalogProductInput[] = [];
+  const rejected: string[] = [];
   for (const r of results) {
     const title = cleanString(r.product_title);
     const url = cleanString(r.product_url);
@@ -175,6 +186,10 @@ export function mapEbaySearchResults(results: readonly ScraperApiEbaySearchResul
     const low = price.from && typeof price.from === "object" ? price.from : null;
     const priceValue = toNumber(price.value) ?? toNumber(low?.value);
     const priceCurrency = price.value != null ? price.currency : low?.currency;
+    if (isConcatenatedEbayRow(title, priceValue)) {
+      rejected.push(title.slice(0, 80));
+      continue;
+    }
     items.push({
       store: "ebay",
       external_id: itemId,
@@ -190,6 +205,9 @@ export function mapEbaySearchResults(results: readonly ScraperApiEbaySearchResul
       query_id: ctx.queryId,
       raw: trimRaw(r, ["product_title", "image", "product_url", "item_price"]),
     });
+  }
+  if (rejected.length > 0) {
+    logger.warn("catalog: rejected concatenated eBay search rows", { queryId: ctx.queryId, category: ctx.category, count: rejected.length, sample: rejected.slice(0, 3) });
   }
   return dedupe(items);
 }
