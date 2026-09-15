@@ -42,3 +42,27 @@ export const CATALOG_SEARCH = {
    */
   maxLimit: 120,
 } as const;
+
+/**
+ * The signed-in Home screen's "Hot right now" shelf.
+ */
+export const CATALOG_DEALS = {
+  /**
+   * The highest listed price the shelf will vouch for, in USD.
+   *
+   * A SANITY BOUND AGAINST MALFORMED VENDOR ROWS, not a business rule about
+   * what Tomame will buy — nothing is refused anywhere else because of this
+   * number, and a customer who pastes the link to a $200,000 listing still
+   * gets it read and priced. It exists because ScraperAPI's eBay endpoint
+   * occasionally returns one row that is eight listings run together, with
+   * their prices concatenated into a single 39-digit number; one of those
+   * reached this shelf reading "GH₵1,995,202,244,743,568,400,000,…".
+   *
+   * The shelf is the one catalogue screen nobody asked for a specific row on,
+   * so it is the one screen that may decline a row it cannot vouch for — the
+   * same reasoning that drops unpriceable rows here and keeps them in search.
+   * The real fix is in `mapEbaySearchResults`, and the rows already stored
+   * need cleaning; both are their own piece of work.
+   */
+  maxPlausiblePriceUsd: 100_000,
+} as const;

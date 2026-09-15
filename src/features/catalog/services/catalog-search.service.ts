@@ -3,11 +3,13 @@ import { logger } from "@/lib/logger";
 import {
   listCatalogCategories,
   listCatalogProductsByCategory,
+  listHotCatalogProducts,
   searchCatalogProducts,
   type CatalogCategoryCount,
   type CatalogSearchHit,
   type CatalogStore,
 } from "@/db/queries/catalog";
+import { CATALOG_DEALS } from "@/config/catalog";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { isPayablePricing } from "@/lib/pricing/payable";
 import type { PricingCalculator } from "@/lib/pricing/calculator";
@@ -203,6 +205,133 @@ export async function browseCatalogCategory(
 
   const ordered = [...priced, ...unpriceable];
   return { query: category, count: ordered.length, total: ordered.length, results: ordered };
+}
+
+/**
+ * How many catalogue rows the deals shelf reads before choosing eight.
+ *
+ * Deliberately far larger than the shelf, and a flat number rather than a
+ * multiple of it: the pool exists so the spread below has every shelf to
+ * choose from, and how many shelves the catalogue holds has nothing to do with
+ * how many cards Home draws.
+ *
+ * IT HAS TO CLEAR THE POPULAR CATEGORIES ENTIRELY. Rows are read most-reviewed
+ * first, and only some of a scraped catalogue carries review counts at all —
+ * on dev, 74 of the first 96 rows were two categories, so a pool of 96 never
+ * reached Headphones or Video Games and the shelf fell back to a fourth and a
+ * fifth power bank. Reading these is one indexed select of a dozen columns and
+ * costs nothing near what pricing them would; only as many as the shelf can
+ * hold are ever priced.
+ */
+export const DEALS_POOL_SIZE = 500;
+
+/**
+ * How many rows one category may contribute to the head of the shelf.
+ *
+ * Two, not one: a pair reads as a shelf with a spread on it, where one of each
+ * reads as a list of categories. Everything past the pair is one press away in
+ * browse mode, which is what the category pills above the grid are for.
+ */
+export const DEALS_MAX_PER_CATEGORY = 2;
+
+/**
+ * "Hot right now" — the most-reviewed listings from across the shelves we
+ * hold, cheapest landed total first.
+ *
+ * The signed-in Home screen's shelf, and the answer to a customer who has
+ * nothing in their hands and no link to paste.
+ *
+ * THREE STEPS, AND THE ORDER OF THEM IS THE POINT.
+ *   1. Read a wide pool ordered by `review_count` — the only popularity signal
+ *      the scraper stores.
+ *   2. Reorder it so no one category owns the head of the list.
+ *   3. Price down that list only until the shelf is full, then sort the
+ *      shelf on the landed cedi total.
+ *
+ * SELECTION IS POPULARITY AND SPREAD; ORDERING IS PRICE. Sorting the whole
+ * priced pool would undo step 2 — the cheapest rows in a scraped catalogue
+ * cluster in one category — so only as many rows as the shelf can hold are
+ * ever priced, and the sort then arranges what was already chosen. That also
+ * makes this the cheapest of the three catalogue reads despite running on the
+ * app's busiest screen: `limit` pricing calls, plus one for each row the
+ * engine declines.
+ *
+ * NOTHING UNPRICEABLE SURVIVES, which is the one way this differs from search
+ * and browse. There, an unpriceable row is still the thing the customer asked
+ * for, so it is flagged and parked at the end. Here nobody asked for any
+ * particular row, so a card that cannot say what it costs has no business on a
+ * shelf whose entire promise is the cedi figure.
+ */
+export async function listCatalogDeals(options: { limit: number }): Promise<CatalogSearchResponse> {
+  const limit = Math.max(0, options.limit);
+  const empty: CatalogSearchResponse = { query: "", count: 0, total: 0, results: [] };
+  if (limit === 0) return empty;
+
+  const pool = await listHotCatalogProducts({
+    limit: DEALS_POOL_SIZE,
+    maxPriceUsd: CATALOG_DEALS.maxPlausiblePriceUsd,
+  });
+  if (pool.length === 0) return empty;
+
+  const calculator = await loadPricingCalculator();
+  const results: CatalogSearchResult[] = [];
+  // Sequential, for the reason `searchCatalog` gives: the first `calculate`
+  // lazily loads the FX rate onto the instance and a parallel burst races it.
+  for (const hit of spreadAcrossCategories(pool, DEALS_MAX_PER_CATEGORY)) {
+    if (results.length >= limit) break;
+    const result = await priceHit(calculator, hit);
+    if (!result.unpriceable) results.push(result);
+  }
+
+  results.sort((a, b) => a.total_ghs! - b.total_ghs!);
+
+  // NO "CHEAPEST ON <STORE>" BADGE HERE, unlike search and browse. That badge
+  // means "the lowest landed total among this store's rows IN THIS RESPONSE",
+  // which is a true and useful thing to say about a set of results somebody
+  // asked for. This shelf is not that: it is eight cards chosen for spread,
+  // shown to somebody who asked for nothing, so the badge reads as a claim
+  // about the store itself — and it would be wrong by construction, since the
+  // cap deliberately passes over cheaper rows. It did read "Cheapest on
+  // Amazon" on a GH₵1,347 power bank while the catalogue held a priceable
+  // Amazon one at GH₵489.
+  return { query: "", count: results.length, total: results.length, results };
+}
+
+/**
+ * The same rows, reordered so no one category owns the head of the list.
+ *
+ * The first `maxPerCategory` rows of each category come first, in the order
+ * they arrived; everything the cap held back follows, also in order. NOTHING
+ * IS DROPPED — a catalogue holding one category still fills the shelf from it
+ * rather than showing two cards and six gaps, and the caller decides how far
+ * down the list it wants to go.
+ *
+ * Rows with no category share one bucket: the scraper leaves `category` null
+ * when it could not place a listing, and those are no more interchangeable
+ * with each other than any other shelf.
+ *
+ * Pure. Exported for its test.
+ */
+export function spreadAcrossCategories<T extends { category: string | null }>(
+  rows: readonly T[],
+  maxPerCategory: number,
+): T[] {
+  const head: T[] = [];
+  const tail: T[] = [];
+  const perCategory = new Map<string, number>();
+
+  for (const row of rows) {
+    const key = row.category ?? "";
+    const used = perCategory.get(key) ?? 0;
+    if (used >= maxPerCategory) {
+      tail.push(row);
+      continue;
+    }
+    perCategory.set(key, used + 1);
+    head.push(row);
+  }
+
+  return [...head, ...tail];
 }
 
 /** What the browse screen offers, largest category first. Never throws upward. */

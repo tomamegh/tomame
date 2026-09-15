@@ -10,6 +10,7 @@ vi.mock("@/db/queries/catalog", () => ({
   searchCatalogProducts: vi.fn(),
   listCatalogCategories: vi.fn(),
   listCatalogProductsByCategory: vi.fn(),
+  listHotCatalogProducts: vi.fn(),
   getOrCreateBudget: vi.fn(),
   incrementBudget: vi.fn(),
 }));
@@ -22,14 +23,20 @@ vi.mock("@/features/pricing/services/pricing.service", () => ({
 import {
   listCatalogCategories,
   listCatalogProductsByCategory,
+  listHotCatalogProducts,
   searchCatalogProducts,
   type CatalogSearchHit,
 } from "@/db/queries/catalog";
+import { CATALOG_DEALS } from "@/config/catalog";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import {
+  DEALS_MAX_PER_CATEGORY,
+  DEALS_POOL_SIZE,
   browseCatalogCategory,
   listBrowsableCategories,
+  listCatalogDeals,
   searchCatalog,
+  spreadAcrossCategories,
 } from "../services/catalog-search.service";
 
 function hit(overrides: Partial<CatalogSearchHit>): CatalogSearchHit {
@@ -265,5 +272,119 @@ describe("listBrowsableCategories", () => {
       { category: "Headphones", count: 175 },
       { category: "Computers", count: 108 },
     ]);
+  });
+});
+
+// ── The Home shelf ───────────────────────────────────────────────────────────
+
+describe("spreadAcrossCategories", () => {
+  const row = (id: string, category: string | null) => ({ id, category });
+
+  it("puts at most the cap from any one category at the head, in the order given", () => {
+    const out = spreadAcrossCategories(
+      [
+        row("a", "Phones"),
+        row("b", "Phones"),
+        row("c", "Phones"),
+        row("d", "Computers"),
+        row("e", "Computers"),
+      ],
+      2,
+    );
+    expect(out.map((r) => r.id)).toEqual(["a", "b", "d", "e", "c"]);
+  });
+
+  it("drops nothing, so one category can still fill a shelf on its own", () => {
+    const out = spreadAcrossCategories(
+      [row("a", "Phones"), row("b", "Phones"), row("c", "Phones"), row("d", "Phones")],
+      2,
+    );
+    expect(out.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("treats uncategorised rows as one shelf, not as a shelf each", () => {
+    const out = spreadAcrossCategories(
+      [row("a", null), row("b", null), row("c", null), row("d", "Phones")],
+      2,
+    );
+    expect(out.map((r) => r.id)).toEqual(["a", "b", "d", "c"]);
+  });
+});
+
+describe("listCatalogDeals", () => {
+  it("asks for nothing and prices nothing when the shelf has no room", async () => {
+    expect(await listCatalogDeals({ limit: 0 })).toEqual({
+      query: "",
+      count: 0,
+      total: 0,
+      results: [],
+    });
+    expect(listHotCatalogProducts).not.toHaveBeenCalled();
+    expect(loadPricingCalculator).not.toHaveBeenCalled();
+  });
+
+  it("reads a pool far larger than the shelf, so the spread has every shelf to choose from", async () => {
+    vi.mocked(listHotCatalogProducts).mockResolvedValue([]);
+    await listCatalogDeals({ limit: 8 });
+    expect(listHotCatalogProducts).toHaveBeenCalledWith({
+      limit: DEALS_POOL_SIZE,
+      // The shelf will not vouch for a row priced past the sanity bound: one
+      // malformed eBay row put GH₵1,995,202,244,743,568,400,000,… on Home.
+      maxPriceUsd: CATALOG_DEALS.maxPlausiblePriceUsd,
+    });
+    expect(loadPricingCalculator).not.toHaveBeenCalled();
+  });
+
+  it("takes the spread, not the cheapest of the pool, and then sorts it on landed cedis", async () => {
+    // Popularity order is four phone accessories then two computers, and the
+    // three cheapest rows in the pool are all phone accessories. Sorting the
+    // priced pool would have made this shelf four chargers; the cap decides
+    // what gets priced, so it is two of each.
+    vi.mocked(listHotCatalogProducts).mockResolvedValue([
+      hit({ id: "p1", category: "Phones", price_usd: 30 }),
+      hit({ id: "p2", category: "Phones", price_usd: 8 }),
+      hit({ id: "p3", category: "Phones", price_usd: 5 }),
+      hit({ id: "p4", category: "Phones", price_usd: 4 }),
+      hit({ id: "c1", category: "Computers", price_usd: 20 }),
+      hit({ id: "c2", category: "Computers", price_usd: 12 }),
+    ]);
+
+    const out = await listCatalogDeals({ limit: 4 });
+
+    expect(loadPricingCalculator).toHaveBeenCalledTimes(1);
+    // Only the four it shows were priced — p3 and p4 never reach the engine.
+    expect(calculate).toHaveBeenCalledTimes(4);
+    expect(out.results.map((r) => r.id)).toEqual(["p2", "c2", "c1", "p1"]);
+    expect(out.results.map((r) => r.total_ghs)).toEqual([160, 240, 400, 600]);
+    // No card wears "Cheapest on <store>" here: nobody asked for these rows,
+    // so the badge would read as a claim about the whole store.
+    expect(out.results.some((r) => r.cheapest_in_store)).toBe(false);
+    expect(DEALS_MAX_PER_CATEGORY).toBe(2);
+  });
+
+  it("walks past a row the engine could not price rather than leaving a gap", async () => {
+    vi.mocked(listHotCatalogProducts).mockResolvedValue([
+      hit({ id: "no-price", category: "Computers", price_usd: null }),
+      hit({ id: "ok", category: "Phones", price_usd: 10 }),
+      hit({ id: "next", category: "TV", price_usd: 11 }),
+    ]);
+
+    const out = await listCatalogDeals({ limit: 2 });
+
+    expect(out.results.map((r) => r.id)).toEqual(["ok", "next"]);
+    expect(out.results.every((r) => !r.unpriceable)).toBe(true);
+  });
+
+  it("never shows more than the shelf asked for", async () => {
+    vi.mocked(listHotCatalogProducts).mockResolvedValue([
+      hit({ id: "a", category: "Phones", price_usd: 10 }),
+      hit({ id: "b", category: "Computers", price_usd: 11 }),
+      hit({ id: "c", category: "TV", price_usd: 12 }),
+    ]);
+
+    const out = await listCatalogDeals({ limit: 2 });
+
+    expect(out.count).toBe(2);
+    expect(out.results.map((r) => r.id)).toEqual(["a", "b"]);
   });
 });

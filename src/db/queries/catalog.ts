@@ -230,6 +230,53 @@ export async function listCatalogProductsByCategory(input: {
   return (data ?? []) as unknown as CatalogSearchHit[];
 }
 
+/**
+ * "Hot right now" — the listings we hold that most people have bought from.
+ *
+ * The signed-in Home screen's shelf. It is deliberately NOT "our cheapest
+ * products": the cheapest rows in a scraped catalogue are phone-case filler,
+ * and a screen that opens on those teaches a customer that we sell tat. The
+ * ordering here is `review_count`, which is the only popularity signal the
+ * scraper actually stores, and the CALLER then re-sorts the pool it gets back
+ * by the landed cedi total (`listCatalogDeals`). "Well reviewed, cheapest
+ * first" is a claim both halves of that can support; "the best deals" is not,
+ * and is not made anywhere in the copy.
+ *
+ * `price_usd > 0` also excludes nulls, which is the point: a row with no store
+ * price cannot be priced, and a deal with no price is not a deal. The upper
+ * bound is the caller's, and guards against a malformed vendor row rather than
+ * expressing any policy about price — see `CATALOG_DEALS` for why. The other
+ * catalogue reads keep both kinds of row and flag them, because there the
+ * customer asked for that specific thing; nobody asked for these.
+ *
+ * Staleness is NOT filtered here, for the reason `listCatalogCategories`
+ * gives: an old `last_seen_at` means stale, not absent, and every card already
+ * prints how old its price is.
+ */
+export async function listHotCatalogProducts(input: {
+  limit: number;
+  /** Upper bound on the listed price, passed in by the caller — see `CATALOG_DEALS`. */
+  maxPriceUsd: number;
+}): Promise<CatalogSearchHit[]> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("catalog_products")
+    .select(
+      "id, store, external_id, title, image_url, product_url, price_usd, currency, rating, review_count, category, last_seen_at",
+    )
+    .gt("price_usd", 0)
+    .lte("price_usd", input.maxPriceUsd)
+    .order("review_count", { ascending: false, nullsFirst: false })
+    // A tiebreaker, so a catalogue whose scraper never captured review counts
+    // still comes back in a stable, defensible order rather than whatever the
+    // heap hands over.
+    .order("rating", { ascending: false, nullsFirst: false })
+    .limit(input.limit);
+
+  if (error) throw new Error(`Failed to load catalog deals: ${error.message}`);
+  return (data ?? []) as unknown as CatalogSearchHit[];
+}
+
 // ── job_budgets ─────────────────────────────────────────────────────────────
 
 /** Read the period's budget row, creating it with `defaultCap` on first use. */

@@ -33,7 +33,12 @@ vi.mock("@/db/queries/extraction-cache", () => ({
   getExtractionById: vi.fn(),
   getCachedExtractionByHash: vi.fn(),
 }));
-vi.mock("@/db/queries/regions", () => ({ listRegions: vi.fn() }));
+// The deals shelf's two catalogue reads. Both reach `catalog_products` through
+// the admin client at module scope, which is exactly what this file must not do.
+vi.mock("@/features/catalog/services/catalog-search.service", () => ({
+  listCatalogDeals: vi.fn(),
+  listBrowsableCategories: vi.fn(),
+}));
 // The freight-box card reads the open bag; the bag service reaches Supabase at
 // module scope, so it is stubbed like every other data dependency here.
 vi.mock("@/features/bag/services/bag.service", () => ({ getBag: vi.fn(async () => null) }));
@@ -68,7 +73,11 @@ import {
   getCachedExtractionByHash,
   getExtractionById,
 } from "@/db/queries/extraction-cache";
-import { listRegions, type RegionRow } from "@/db/queries/regions";
+import {
+  listBrowsableCategories,
+  listCatalogDeals,
+} from "@/features/catalog/services/catalog-search.service";
+import type { CatalogProduct } from "@/features/catalog/types";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { applyRateLock, priceUnderExistingLock } from "@/features/quotes/services/quote-lock.service";
 import { loadQuoteConstants, QuoteConstantsMissingError } from "@/features/quotes/services/quote-constants.service";
@@ -76,6 +85,7 @@ import { logger } from "@/lib/logger";
 
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import {
+  HOME_DEALS_LIMIT,
   HOME_JOURNEY_LIMIT,
   getHomeView,
   timeOfDayFor,
@@ -121,45 +131,27 @@ function extraction(overrides: Record<string, unknown> = {}) {
 }
 
 /** The three lanes migrations 036/037 seed. */
-function seededRegions(): RegionRow[] {
-  const base = {
-    hub_city: null,
-    store_names: [],
-    tag_names: [],
-    blurb: null,
-    photo_key: null,
-    departure_weekday: null,
-    departure_cutoff_hours: 24,
+function catalogProduct(id: string, totalGhs: number): CatalogProduct {
+  return {
+    id,
+    store: "amazon",
+    external_id: null,
+    title: `Product ${id}`,
+    image_url: null,
+    product_url: `https://amazon.com/dp/${id}`,
+    price_usd: 20,
+    currency: "USD",
+    rating: 4.5,
+    review_count: 100,
+    category: "Electronics",
+    last_seen_at: "2026-09-14T00:00:00.000Z",
+    total_ghs: totalGhs,
+    pricing_group: "electronics",
+    pricing_method: "weight",
+    exchange_rate: 12,
+    unpriceable: false,
+    cheapest_in_store: true,
   };
-  return [
-    {
-      ...base,
-      code: "USA",
-      name: "United States",
-      status: "live",
-      transit_days_min: 14,
-      transit_days_max: 18,
-      sort_order: 1,
-    },
-    {
-      ...base,
-      code: "UK",
-      name: "United Kingdom",
-      status: "soon",
-      transit_days_min: null,
-      transit_days_max: null,
-      sort_order: 2,
-    },
-    {
-      ...base,
-      code: "CHINA",
-      name: "China",
-      status: "soon",
-      transit_days_min: null,
-      transit_days_max: null,
-      sort_order: 3,
-    },
-  ];
 }
 
 function signedIn(profile: { first_name?: string } = { first_name: "Kwame" }) {
@@ -178,7 +170,16 @@ beforeEach(() => {
   vi.mocked(getExtractionById).mockResolvedValue(null);
   vi.mocked(getCachedExtractionByHash).mockResolvedValue(null);
   vi.mocked(priceUnderExistingLock).mockResolvedValue({ pricing: null, reason: null });
-  vi.mocked(listRegions).mockResolvedValue(seededRegions());
+  vi.mocked(listCatalogDeals).mockResolvedValue({
+    query: "",
+    count: 1,
+    total: 24,
+    results: [catalogProduct("a", 400)],
+  });
+  vi.mocked(listBrowsableCategories).mockResolvedValue([
+    { category: "Electronics", count: 40 },
+    { category: "Home", count: 9 },
+  ]);
   vi.mocked(getSiteSettingsMap).mockResolvedValue({
     whatsapp_number: "+233 24 555 0192",
     support_hours: "8am–10pm",
@@ -428,19 +429,59 @@ describe("getHomeView — live receipt", () => {
   });
 });
 
-// ── Lanes + ask a buyer ──────────────────────────────────────────────────────
+// ── Deals + ask a buyer ──────────────────────────────────────────────────────
 
-describe("getHomeView — lane and contact cards", () => {
-  it("derives the lane copy from the seeded regions", async () => {
+describe("getHomeView — deals shelf and contact card", () => {
+  it("builds the shelf from the catalogue, with its pills and its true totals", async () => {
     signedIn();
 
     const view = await getHomeView();
 
-    expect(view?.lanes?.heading).toBe("Shipping from the USA");
-    expect(view?.lanes?.body).toBe(
-      "Any US store, 14–18 days to Accra. UK and China lanes are coming soon. Get notified.",
+    expect(view?.deals?.products).toHaveLength(1);
+    expect(view?.deals?.products[0]?.total_ghs).toBe(400);
+    expect(view?.deals?.categories.map((c) => c.label)).toEqual(["Electronics", "Home"]);
+    expect(view?.catalogueCount).toBe(49);
+  });
+
+  it("asks for the shelf's own limit, not a whole browse page", async () => {
+    signedIn();
+    await getHomeView();
+    expect(listCatalogDeals).toHaveBeenCalledWith({ limit: HOME_DEALS_LIMIT });
+  });
+
+  it("shows no shelf when nothing in the catalogue could be priced", async () => {
+    signedIn();
+    vi.mocked(listCatalogDeals).mockResolvedValue({
+      query: "",
+      count: 0,
+      total: 0,
+      results: [],
+    });
+
+    expect((await getHomeView())?.deals).toBeNull();
+  });
+
+  it("degrades a flaky catalogue read to no shelf rather than taking the screen down", async () => {
+    signedIn();
+    vi.mocked(listCatalogDeals).mockRejectedValue(new Error("timeout"));
+    vi.mocked(listBrowsableCategories).mockRejectedValue(new Error("timeout"));
+
+    const view = await getHomeView();
+
+    expect(view?.deals).toBeNull();
+    expect(view?.catalogueCount).toBe(0);
+    expect(view?.greeting).toBeDefined();
+  });
+
+  it("rethrows a missing catalogue table so a bad deploy fails loudly", async () => {
+    signedIn();
+    vi.mocked(listCatalogDeals).mockRejectedValue(
+      new Error(
+        "Failed to load catalog deals: Could not find the table 'public.catalog_products' in the schema cache",
+      ),
     );
-    expect(view?.lanes?.waitlist?.href).toBe("/where-we-buy#stores");
+
+    await expect(getHomeView()).rejects.toThrow("Could not find the table");
   });
 
   it("resolves the WhatsApp link and hours from site_settings", async () => {
@@ -450,27 +491,6 @@ describe("getHomeView — lane and contact cards", () => {
       whatsappHref: "https://wa.me/233245550192",
       supportHours: "8am–10pm",
     });
-  });
-
-  it("degrades a flaky regions read to no lane card rather than stale copy", async () => {
-    signedIn();
-    vi.mocked(listRegions).mockRejectedValue(new Error("timeout"));
-
-    const view = await getHomeView();
-
-    expect(view?.lanes).toBeNull();
-    expect(view?.greeting).toBeDefined();
-  });
-
-  it("rethrows a missing regions table so a bad deploy fails loudly", async () => {
-    signedIn();
-    vi.mocked(listRegions).mockRejectedValue(
-      new Error(
-        "Failed to load regions: Could not find the table 'public.regions' in the schema cache",
-      ),
-    );
-
-    await expect(getHomeView()).rejects.toThrow("Could not find the table");
   });
 
   it("degrades a flaky site_settings read to no WhatsApp link", async () => {

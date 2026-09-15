@@ -1,4 +1,5 @@
 import type { ReceiptFulfilment } from "@/db/queries/receipt-state";
+import type { CatalogProduct } from "@/features/catalog/types";
 import type { PricingBreakdown } from "@/lib/pricing";
 import type { JourneyView } from "@/features/orders/services/journey-stage";
 import type { WatchListResponse } from "@/features/watches/types";
@@ -66,26 +67,29 @@ export interface HomeReceipt {
 }
 
 /**
- * "Shipping from the USA" — the lane card.
+ * "Hot right now" — the pre-priced catalogue shelf on Home.
  *
- * Every word is derived from `regions` rows in `home.service.ts`, never
- * written here: the heading names the live lanes, the body carries their real
- * transit band, and the waitlist clause names whichever lanes are `soon`. An
- * admin flipping UK to `live` rewrites this card with no code change.
+ * Every card is a real `catalog_products` row with a landed cedi total struck
+ * server-side by the pricing engine at render time. Null when the catalogue
+ * holds nothing we could price: an empty shelf on a shopping screen is worth
+ * saying out loud, but an INVENTED one is a made-up price, so there are no
+ * sample products anywhere in this feature.
  */
-export interface HomeLanes {
-  /** "Shipping from the USA". */
-  heading: string;
-  /** "Any US store, 14–18 days to Accra. UK and China lanes are coming soon — get notified." */
-  body: string;
-  /** Null when no lane is `soon` — there is then nothing to join a waitlist for. */
-  waitlist: HomeLaneWaitlist | null;
+export interface HomeDeals {
+  /** Cheapest landed total first. Never empty — the field is null instead. */
+  products: CatalogProduct[];
+  /** The catalogue's own shelves, largest first, for the pills above the grid. */
+  categories: HomeDealCategory[];
+  /** `/app/orders/new?mode=browse` — the full catalogue, search box and all. */
+  browseHref: string;
 }
 
-export interface HomeLaneWaitlist {
-  /** "Join the UK / China waitlist" — the arrow is the component's. */
+export interface HomeDealCategory {
+  /** `catalog_products.category`, exactly as the scraper stored it. */
   label: string;
-  /** The existing Phase 1 waitlist forms, one per unopened lane. */
+  /** How many products sit on that shelf. Printed as it comes, never rounded. */
+  count: number;
+  /** `/app/orders/new?mode=browse&category=…`. */
   href: string;
 }
 
@@ -133,8 +137,17 @@ export interface HomeViewModel {
   journeys: HomeJourney[];
   /** Null when the customer has pasted nothing, or the extraction has been pruned. */
   receipt: HomeReceipt | null;
-  /** Null when no lane is open — there is then no truthful "shipping from" claim. */
-  lanes: HomeLanes | null;
+  /** Null when the catalogue holds nothing we could price. Never a placeholder. */
+  deals: HomeDeals | null;
+  /**
+   * How many products the pre-scraped catalogue holds, across every category.
+   *
+   * Top level rather than on `deals`, because it answers a different question:
+   * `deals` is what we can SHOW, this is whether there is anything to SEARCH.
+   * The hero box takes a link or a name, and offering to search a catalogue of
+   * nothing is the kind of dead end the paste screen already refuses to draw.
+   */
+  catalogueCount: number;
   /** Always present: the card falls back to /contact when no number is configured. */
   askBuyer: HomeAskBuyer;
   /**
