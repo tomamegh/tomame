@@ -60,7 +60,7 @@ export function AccountRail({ active }: { active: AccountTabKey }) {
     >
       <ul
         className={cn(
-          "-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "-mx-5 flex gap-2 overflow-x-auto overscroll-x-contain px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           "lg:mx-0 lg:flex-col lg:gap-1 lg:overflow-visible lg:px-0 lg:pb-0",
         )}
       >

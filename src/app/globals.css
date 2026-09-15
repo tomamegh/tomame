@@ -1007,9 +1007,25 @@ html[data-tm-splash="force"] .tm-splash {
    * The status bar is translucent in the installed app (`black-translucent` in
    * the layout's metadata) so our sky can run under it. Everything pinned to
    * the top of the viewport therefore has to reserve the inset itself.
+   *
+   * IT REPLACES `pt-*`, IT DOES NOT ADD TO IT — and only in the installed app,
+   * which is the whole trap. This block is unlayered CSS, and unlayered rules
+   * beat everything in `@layer utilities`, so on an element written
+   * `class="tm-safe-top py-6"` this wins the padding-top outright. Measured on
+   * 2026-09-15 by flipping this very media query to `all` in the live page: a
+   * probe with `tm-safe-top py-6` computed `padding-top: 0px` (the inset, which
+   * is 0 in a browser) and `padding-bottom: 24px`. In a browser tab nothing
+   * shows, because the rule is not even reachable; on a notched phone the
+   * element's own top padding silently disappears and is replaced by 59px of
+   * nothing.
+   *
+   * `--tm-safe-top-base` is the way out. It defaults to 0px, so every existing
+   * caller is unchanged, and an element that needs padding of its own asks for
+   * it by name — `class="tm-safe-top [--tm-safe-top-base:1.5rem]"` — instead of
+   * writing a `pt-*`/`py-*` that this rule will quietly eat.
    */
   .tm-safe-top {
-    padding-top: env(safe-area-inset-top);
+    padding-top: calc(env(safe-area-inset-top) + var(--tm-safe-top-base, 0px));
   }
 }
 

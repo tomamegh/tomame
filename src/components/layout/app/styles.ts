@@ -11,9 +11,17 @@ export const FOCUS_RING =
 /**
  * The 40px circular icon button in the nav's right cluster —
  * `design/TmNavLight.dc.html`.
+ *
+ * `shrink-0` is not decoration. The right cluster is a flex row sitting in a
+ * grid track that the centred tab group regularly starves (the long note on the
+ * rate pill in `app-nav.tsx` has the arithmetic), and without it the shortfall
+ * was paid out of these buttons: at 1024px the tote measured 34.9 x 40 — a
+ * visible oval with its glyph off centre, and the bell beside it the same. A
+ * circle that is only circular at some window widths is a bug, so the buttons
+ * hold their size and the pill is the thing that stands down.
  */
 export const NAV_ICON_BUTTON =
-  "relative inline-flex h-10 w-10 items-center justify-center rounded-full text-tm-ink transition-colors duration-200 hover:bg-tm-tint";
+  "relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-tm-ink transition-colors duration-200 hover:bg-tm-tint";
 
 /**
  * Bottom padding the app shell's <main> needs below `lg` so the last card

@@ -140,9 +140,27 @@ describe("avatarInitial", () => {
   });
 
   it("returns null when there is no usable name", () => {
+    // Null is the nav's signal to draw a User glyph. It used to draw a bullet,
+    // which looked like an empty disc on every account with no first name.
     expect(avatarInitial(null)).toBeNull();
     expect(avatarInitial("")).toBeNull();
     expect(avatarInitial("   ")).toBeNull();
+  });
+
+  it("treats placeholder punctuation as no name rather than drawing it", () => {
+    // What people type into a required field they do not want to fill in. A
+    // dash in the circle reads as broken in the same way the bullet did.
+    expect(avatarInitial("-")).toBeNull();
+    expect(avatarInitial(".")).toBeNull();
+    expect(avatarInitial("•")).toBeNull();
+    expect(avatarInitial("_kwame")).toBeNull();
+  });
+
+  it("keeps names that are not Latin letters", () => {
+    expect(avatarInitial("Ama")).toBe("A");
+    expect(avatarInitial("أمينة")).toBe("أ");
+    expect(avatarInitial("美玲")).toBe("美");
+    expect(avatarInitial("3Deep")).toBe("3");
   });
 
   it("does not slice an astral character in half", () => {
@@ -163,6 +181,18 @@ describe("formatRatePill", () => {
 
   it("falls back to the currency code for anything unrecognised", () => {
     expect(formatRatePill("EUR", 15.5)).toBe("1 EUR = GH₵15.50");
+  });
+
+  it("keeps the amount attached to its symbol on one run of text", () => {
+    // The pill wrapped at "$1 = | GH₵11.88" for months. The layout fix is
+    // `whitespace-nowrap`; this is the half of the contract that lives here —
+    // no newline, and the amount never separated from the GH₵ that labels it.
+    for (const base of ["USD", "GBP", "CNY", "EUR"]) {
+      const pill = formatRatePill(base, 1150.5);
+      expect(pill).not.toBeNull();
+      expect(pill).not.toMatch(/[\n\r]/);
+      expect(pill).toMatch(/GH₵1150\.50$/);
+    }
   });
 
   it("returns null rather than showing an invented rate", () => {

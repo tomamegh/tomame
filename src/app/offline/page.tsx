@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { OfflineRetryButton } from "@/features/pwa/components/offline-retry-button";
 
 export const metadata: Metadata = {
-  title: "You are offline — Tomame",
+  title: "You are offline · Tomame",
   robots: { index: false, follow: false },
 };
 
@@ -38,7 +38,7 @@ export default function OfflinePage() {
       </h1>
       <p className="mt-2 max-w-sm text-[15px] leading-relaxed text-tm-text-2">
         Tomame needs the internet for this. Your bag, your quotes and every order
-        you have placed are safe on our side — they will be exactly where you
+        you have placed are safe on our side. They will be exactly where you
         left them.
       </p>
 

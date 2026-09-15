@@ -52,21 +52,41 @@ function writeLocalTourStatus(userId: string, status: "completed" | "dismissed")
   }
 }
 
-/** The safe-area inset, read once from a probe element rather than guessed. */
-function useSafeAreaInsetBottom(): number {
-  const [inset, setInset] = useState(0);
+/**
+ * The safe-area insets, read once from a probe element rather than guessed.
+ *
+ * BOTH ENDS, not just the bottom. This read the bottom inset only, so the card
+ * cleared the home indicator and was then free to be drawn UNDER the notch: a
+ * step whose target sits near the top of the screen clamps to `EDGE_MARGIN`,
+ * which is 12px from the physical top of the display, i.e. behind the clock on
+ * any notched iPhone in the installed app. That is the same bug commit 95109de
+ * fixed for the toast, arriving by a different route.
+ *
+ * A probe rather than a hardcoded 47/59: the inset differs per device and per
+ * orientation, and it is legitimately 0 in a browser, where `env()` resolves to
+ * nothing unless the viewport carries `viewport-fit=cover`. Reading it is the
+ * only way to be right in both places.
+ */
+function useSafeAreaInsets(): { top: number; bottom: number } {
+  const [insets, setInsets] = useState({ top: 0, bottom: 0 });
   useEffect(() => {
     const probe = document.createElement("div");
     probe.style.position = "fixed";
+    probe.style.top = "0";
     probe.style.bottom = "0";
     probe.style.height = "0";
+    probe.style.paddingTop = "env(safe-area-inset-top)";
     probe.style.paddingBottom = "env(safe-area-inset-bottom)";
     probe.style.visibility = "hidden";
     document.body.appendChild(probe);
-    setInset(parseFloat(getComputedStyle(probe).paddingBottom) || 0);
+    const style = getComputedStyle(probe);
+    setInsets({
+      top: parseFloat(style.paddingTop) || 0,
+      bottom: parseFloat(style.paddingBottom) || 0,
+    });
     document.body.removeChild(probe);
   }, []);
-  return inset;
+  return insets;
 }
 
 function useIsDesktopNav(): boolean {
@@ -125,7 +145,7 @@ export function OnboardingTour({ signals }: OnboardingTourProps) {
   const searchParams = useSearchParams();
   const shouldReduceMotion = useReducedMotion();
   const isDesktop = useIsDesktopNav();
-  const safeAreaBottom = useSafeAreaInsetBottom();
+  const { top: safeAreaTop, bottom: safeAreaBottom } = useSafeAreaInsets();
 
   const steps = useRef<OnboardingTourStep[]>(buildOnboardingTourSteps(signals.firstName)).current;
 
@@ -275,7 +295,9 @@ export function OnboardingTour({ signals }: OnboardingTourProps) {
     // dimmed rather than hidden, and a card sitting on top of it would put the
     // tour's own buttons where the customer's thumb expects navigation.
     const tabBarClearance = isDesktop ? 0 : MOBILE_TAB_BAR_HEIGHT + safeAreaBottom;
-    const usableTop = EDGE_MARGIN;
+    // Plus the notch: see `useSafeAreaInsets`. Zero in a browser, so desktop
+    // and mobile-web positioning are unchanged by this.
+    const usableTop = EDGE_MARGIN + safeAreaTop;
     const usableBottom = window.innerHeight - tabBarClearance - EDGE_MARGIN;
     const cardWidth = Math.min(MAX_CARD_WIDTH, window.innerWidth - EDGE_MARGIN * 2);
     const cardHeight = cardRef.current?.offsetHeight ?? 200;
@@ -305,7 +327,7 @@ export function OnboardingTour({ signals }: OnboardingTourProps) {
       arrowLeft,
     });
     // Re-run once the card's own height is known (first pass uses a fallback).
-  }, [rect, isDesktop, safeAreaBottom, stepIndex]);
+  }, [rect, isDesktop, safeAreaTop, safeAreaBottom, stepIndex]);
 
   // ── 5b. Tell the rest of the app to stand down while the tour is up. ────
   //

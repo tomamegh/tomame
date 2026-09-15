@@ -160,13 +160,26 @@ export function formatMovingParcels(count: number): string | null {
  * The avatar's single letter. Falls back to `null` when there is no usable
  * name, so the caller can render a generic glyph instead of a stray character.
  *
+ * **`null` means "draw a person", not "draw nothing".** The nav used to answer
+ * this null with a literal bullet, and every account without a first name — the
+ * local admin, and any customer who skipped the field — got an empty gradient
+ * disc with a speck in it. It is the only way into the account screen, so it
+ * has to look like a control. `app-nav.tsx` renders a Phosphor `User` here.
+ *
  * Uses the code-point, not `[0]`, so a name starting with an astral character
  * is not sliced into half a surrogate pair.
+ *
+ * A first character that is neither a letter nor a digit is treated as no name
+ * at all. A profile whose `first_name` is "-" or "." — placeholder text people
+ * really do type into a required field — would otherwise put a dash in the
+ * circle, which reads as broken in exactly the same way the bullet did.
  */
 export function avatarInitial(firstName: string | null): string | null {
   const name = firstName?.trim();
   if (!name) return null;
-  return [...name][0]?.toUpperCase() ?? null;
+  const first = [...name][0];
+  if (!first || !/[\p{L}\p{N}]/u.test(first)) return null;
+  return first.toUpperCase();
 }
 
 /**
@@ -174,6 +187,15 @@ export function avatarInitial(firstName: string | null): string | null {
  *
  * Two decimals, matching the mock. Returns `null` for a missing or nonsensical
  * rate so the pill is omitted rather than showing "$1 = GH₵0.00".
+ *
+ * **It is one line or it is nothing.** The two spaces in here are the only
+ * break opportunities the pill has, and the nav's grid used to take them: the
+ * chip rendered "$1 =" above "GH₵11.88" and spilled out of its own border at
+ * every desktop width. The layout carries the fix (`whitespace-nowrap`, and a
+ * band where the pill is not rendered at all — see `app-nav.tsx`); do not try
+ * to fix it here by shortening the string or dropping a decimal. The longest
+ * form this can return is the unrecognised-currency one, "1 EUR = GH₵1150.50",
+ * and that is the one the layout is measured against.
  */
 export function formatRatePill(
   base: string,

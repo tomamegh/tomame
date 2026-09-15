@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
-import { Gauge } from "@phosphor-icons/react/ssr";
+import { Gauge, User } from "@phosphor-icons/react/ssr";
 
 import { Logo } from "@/components/brand/logo";
 import { AppNavLinks } from "./app-nav-links";
@@ -114,10 +114,43 @@ export function AppNav({
             The live rate, not a literal. Omitted entirely when the rate is
             unavailable — a stale or invented FX figure on the chrome of every
             page is worse than no chip.
+
+            `whitespace-nowrap`, and standing the pill down between `lg` and
+            `xl`, are both load-bearing. The text used to break across two lines
+            at EVERY desktop width — "$1 =" on one line, "GH₵11.88" on the next,
+            spilling out of the 38px box because the height was fixed and the
+            text was not (Kelvin: "The price is not spaced properly, has to go
+            on a new line. Don't like it.").
+
+            The cause is this nav's own grid. With the tab group present the
+            side tracks are `1fr`, so each gets half of what the ~489px centre
+            track leaves: ~340px inside the 1216px content box. The right
+            cluster wants ~373px (more with the Admin link), and a `1fr` track
+            that cannot have its max-content falls back to its MIN-content —
+            which, for text that may wrap, is the WRAPPED width. It was never a
+            narrow-window bug, and no wide window ever fixed it: 1280px is the
+            container's own max width, so the arithmetic above is the same at
+            1280px and at 2560px.
+
+            `whitespace-nowrap` on its own only moves the damage. With no break
+            to take, the right track claims its full width out of the left one
+            and the wordmark — an <img> with `max-width:100%` — was measured
+            squashed to 49px at 1024px. So the pill stands down for the one band
+            where it genuinely does not fit, `lg` to `xl`, and only while the
+            tab group is there to crowd it: it is decoration, and the rate is
+            spelled out on the quote screen where it actually decides something.
+            Below `lg` the tab group is gone, the grid is two columns, the
+            cluster gets its full width and the pill keeps its place.
           */}
           {ratePill && (
             <span
-              className="hidden h-[38px] items-center gap-2 rounded-full border border-tm-border pr-3 pl-2.5 text-[13px] font-medium text-tm-text-2 md:inline-flex"
+              className={cn(
+                "hidden h-10 shrink-0 items-center gap-2 rounded-full border border-tm-border pr-3 pl-2.5 text-[13px] font-medium whitespace-nowrap text-tm-text-2 md:inline-flex",
+                // Same condition as the three-column grid above, for the same
+                // reason: the middle track only exists — and only crowds this
+                // pill — when the tab group is rendered.
+                isAuthenticated && "lg:hidden xl:inline-flex",
+              )}
               title={
                 rate?.fetchedAt
                   ? `Rate updated ${new Date(rate.fetchedAt).toLocaleString("en-GB")}`
@@ -155,7 +188,7 @@ export function AppNav({
                 <Link
                   href="/admin"
                   className={cn(
-                    "hidden h-9 items-center gap-1.5 rounded-full border border-tm-border px-3 text-[13px] font-semibold text-tm-text-2 transition-colors hover:bg-tm-tint hover:text-tm-ink md:inline-flex",
+                    "hidden h-9 shrink-0 items-center gap-1.5 rounded-full border border-tm-border px-3 text-[13px] font-semibold text-tm-text-2 transition-colors hover:bg-tm-tint hover:text-tm-ink md:inline-flex",
                     FOCUS_RING,
                   )}
                 >
@@ -166,19 +199,31 @@ export function AppNav({
 
               <NotificationBell initialUnreadCount={unreadCount} />
 
+              {/*
+                The only way into the account screen, so it must never look
+                dead. It did: for any profile with no first name — the local
+                admin, and every customer who signed up without one —
+                `avatarInitial` returns null and the placeholder was a literal
+                bullet, which draws an empty gradient disc with a speck in the
+                middle of it. Kelvin's screenshot is exactly that.
+
+                The fallback is a person, not a letter borrowed from somewhere
+                else. `AppChromeData` carries `firstName` and nothing else
+                name-shaped — no email, no surname — and widening `getAppChrome`
+                to fetch one so a disc can show "K" is a database read spent on
+                a glyph. A generic `User` is the honest answer when we have no
+                name, and it fills the circle the way a letter does.
+              */}
               <Link
                 href="/app/account"
                 aria-label="Your account"
                 className={cn(
-                  "ml-1 flex h-9 w-9 items-center justify-center rounded-full bg-[image:var(--tm-gradient-avatar)] text-[13px] font-bold text-[#b93a22]",
+                  "ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[image:var(--tm-gradient-avatar)] text-[13px] font-bold text-[#b93a22]",
                   FOCUS_RING,
                 )}
               >
-                {initial ?? (
-                  <span aria-hidden className="text-base leading-none">
-                    &bull;
-                  </span>
-                )}
+                {/* Inherits the coral through `currentColor` — same ink as the initial. */}
+                {initial ?? <User size={18} weight="fill" aria-hidden />}
               </Link>
             </>
           ) : (

@@ -89,7 +89,17 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
           )}
         </div>
 
-        <ul className="max-h-80 overflow-y-auto">
+        {/*
+          `overscroll-contain`, not the default `auto`. The list is the one
+          scrollable box that sits ON TOP of a live page: flicking it to the end
+          chains the rest of the gesture into the document, so the panel stays
+          put while Home scrolls away underneath it. The installed app's
+          `overscroll-behavior: none` on html/body (globals.css) does NOT cover
+          this — that rule only stops the viewport's own rubber-band and
+          pull-to-refresh; chaining INTO the viewport is the inner container's
+          decision, and this is where it is made.
+        */}
+        <ul className="max-h-80 overflow-y-auto overscroll-contain">
           {isPending && (
             <li className="px-4 py-6 text-sm text-tm-text-3">Loading…</li>
           )}

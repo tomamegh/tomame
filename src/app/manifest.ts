@@ -24,7 +24,7 @@ import {
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/app",
-    name: "Tomame — Shop the world, delivered to Ghana",
+    name: "Tomame: shop the world, delivered to Ghana",
     short_name: "Tomame",
     description:
       "Buy from Amazon, eBay, Walmart and more with Mobile Money. One landed price in cedis, delivered to your door in Ghana.",

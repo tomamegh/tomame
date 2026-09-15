@@ -90,7 +90,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: SPLASH_ONCE_PER_LAUNCH }} />
       </head>
       <body
-        className={`${geistMono.variable} antialiased bg-background text-foreground min-h-screen`}
+        className={`${geistMono.variable} antialiased bg-background text-foreground min-h-dvh`}
       >
         {/*
           First in the body so it paints before anything below it. Hidden

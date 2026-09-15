@@ -115,7 +115,7 @@ export default async function AuthLayout({
         status bar is translucent there. Without the inset the clock is drawn
         over the logo. No-op in a browser.
       */}
-      <div className="tm-safe-top flex flex-col items-center gap-2 border-b border-tm-hairline bg-tm-paper px-6 py-6 text-center lg:hidden">
+      <div className="tm-safe-top flex flex-col items-center gap-2 border-b border-tm-hairline bg-tm-paper px-6 py-6 [--tm-safe-top-base:1.5rem] text-center lg:hidden">
         <Link href="/" aria-label="Tomame home" className="rounded-sm">
           <Logo variant="horizontal" height={22} decorative priority />
         </Link>
