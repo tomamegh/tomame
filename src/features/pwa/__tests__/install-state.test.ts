@@ -31,7 +31,17 @@ describe("isStandalone", () => {
 
   it("detects an installed app by display-mode", () => {
     expect(isStandalone(fakeWindow({ matches: ["standalone"] }))).toBe(true);
-    expect(isStandalone(fakeWindow({ matches: ["fullscreen"] }))).toBe(true);
+    expect(isStandalone(fakeWindow({ matches: ["minimal-ui"] }))).toBe(true);
+  });
+
+  it("does NOT treat a fullscreen browser tab as an installed app", () => {
+    // Regression: `fullscreen` was in the detector, and an ordinary window put
+    // fullscreen by the macOS green button or F11 matches it. That made
+    // tomame.ca redirect a desktop visitor off the marketing site into /app,
+    // and from there to a login screen — the marketing site simply vanished
+    // for anyone browsing fullscreen.
+    expect(isStandalone(fakeWindow({ matches: ["fullscreen"] }))).toBe(false);
+    expect(isStandalone(fakeWindow({ matches: ["browser", "fullscreen"] }))).toBe(false);
   });
 
   it("detects iOS, which reports navigator.standalone and not the media query", () => {

@@ -825,7 +825,7 @@
   pointer-events: none;
 }
 
-@media (display-mode: standalone), (display-mode: minimal-ui), (display-mode: fullscreen) {
+@media (display-mode: standalone), (display-mode: minimal-ui) {
   .tm-splash {
     display: block;
     /*
@@ -979,7 +979,7 @@ html[data-tm-splash="force"] .tm-splash {
     animation: none;
     opacity: 0.22;
   }
-  @media (display-mode: standalone), (display-mode: minimal-ui), (display-mode: fullscreen) {
+  @media (display-mode: standalone), (display-mode: minimal-ui) {
     .tm-splash {
       animation: tmSplashOut 0.2s linear 0.9s forwards;
     }
@@ -994,7 +994,7 @@ html[data-tm-splash="force"] .tm-splash {
  * whole app mid-checkout on Android. Both are wanted on the website and wrong
  * in an app, hence the media query.
  */
-@media (display-mode: standalone), (display-mode: minimal-ui), (display-mode: fullscreen) {
+@media (display-mode: standalone), (display-mode: minimal-ui) {
   html,
   body {
     overscroll-behavior: none;

@@ -28,9 +28,16 @@ export const INSTALL_DISMISSED_FOREVER = "installed";
  */
 export function isStandalone(win: Window | undefined = typeof window === "undefined" ? undefined : window): boolean {
   if (!win) return false;
+  // `fullscreen` is deliberately NOT in this list, though it looks like it
+  // belongs. A perfectly ordinary browser tab matches `(display-mode:
+  // fullscreen)` the moment the window goes fullscreen — the macOS green
+  // button, F11, or the Fullscreen API — so treating it as "installed" made
+  // tomame.ca redirect a desktop visitor off the marketing site and into
+  // /app, which is where they get bounced to a login screen. The manifest
+  // declares `display: standalone`, so a real install reports exactly that.
   const byDisplayMode =
     typeof win.matchMedia === "function" &&
-    ["standalone", "fullscreen", "minimal-ui"].some(
+    ["standalone", "minimal-ui"].some(
       (mode) => win.matchMedia(`(display-mode: ${mode})`).matches,
     );
   const iosLegacy = (win.navigator as Navigator & { standalone?: boolean }).standalone === true;
