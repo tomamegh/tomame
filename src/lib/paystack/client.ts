@@ -120,6 +120,25 @@ export function generatePaymentReference(): string {
 /**
  * Verify Paystack webhook signature (HMAC-SHA512).
  * Returns true if the signature is valid.
+ *
+ * `payload` MUST be the raw request body exactly as it arrived — the string
+ * from `request.text()`, never a re-serialized `JSON.stringify(parsed)`. Paystack
+ * signs the bytes it sent, and re-serializing changes key order and whitespace,
+ * so every delivery would fail the check. `webhook/paystack/route.ts` reads the
+ * text once and parses that same string afterwards, in that order, for this
+ * reason.
+ *
+ * COMPARED IN CONSTANT TIME, not with `===`. The old spelling returned on the
+ * first differing character, so how long the answer took leaked how much of a
+ * guessed prefix was right — the classic way to forge a MAC one byte at a time.
+ * It is a narrow hole over a network against HMAC-SHA512, and it was logged as
+ * W6 in `docs/SECURITY-REVIEW-2026-09-14.md` rather than exploited, but there is
+ * no reason to keep a signature check that answers faster when it is closer.
+ *
+ * The length guard is not a formality: `timingSafeEqual` THROWS on buffers of
+ * unequal length. It also covers junk input — `Buffer.from(x, "hex")` stops at
+ * the first non-hex character rather than erroring, so a malformed header simply
+ * decodes short and is refused here.
  */
 export function verifyWebhookSignature(
   payload: string,
@@ -129,5 +148,10 @@ export function verifyWebhookSignature(
     .createHmac("sha512", env.paystack.secretKey)
     .update(payload)
     .digest("hex");
-  return hash === signature;
+
+  const expected = Buffer.from(hash, "hex");
+  const actual = Buffer.from(signature, "hex");
+  if (expected.length !== actual.length) return false;
+
+  return crypto.timingSafeEqual(expected, actual);
 }

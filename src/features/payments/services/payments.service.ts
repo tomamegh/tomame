@@ -22,6 +22,7 @@ import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { createOrderNotifications } from "@/features/notifications/services/notifications.service";
 import { env } from "@/lib/env";
 import { PAYMENT_STATUSES } from "@/config/constants";
+import type { PaystackWebhookEvent } from "@/features/payments/schema";
 import { isPayablePricing } from "@/lib/pricing/payable";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
 import type { PlatformUser } from "@/features/users/types";
@@ -754,15 +755,25 @@ async function settleGroup(admin: SupabaseClient, payment: Payment, groupId: str
  * and is reserved for transient faults (a failed verification call) where a
  * later attempt can still succeed.
  */
-export async function handleWebhookEvent(event: {
-  event: string;
-  data: { reference: string; status: string; amount: number; currency: string };
-}): Promise<{ message: string }> {
+export async function handleWebhookEvent(
+  event: PaystackWebhookEvent,
+): Promise<{ message: string }> {
   if (event.event !== "charge.success") {
     return { message: "Event ignored" };
   }
 
+  // `reference` is optional on the way in because one URL receives every event
+  // type on the account and most of them carry a different `data` shape — see
+  // `paystackWebhookSchema`. By here the event IS a charge, so a missing
+  // reference is Paystack sending us something we have never seen rather than a
+  // bystander event, and there is nothing to look up. Answered normally so the
+  // delivery is not retried: redelivering the same body cannot grow a reference.
   const { reference } = event.data;
+  if (!reference) {
+    logger.warn("charge.success webhook with no reference", { event: event.event });
+    return { message: "No reference, ignored" };
+  }
+
   const admin = createAdminClient();
 
   const payment = await getPaymentByReference(admin, reference);

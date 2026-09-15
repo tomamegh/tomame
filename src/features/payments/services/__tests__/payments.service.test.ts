@@ -723,6 +723,27 @@ describe("handleWebhookEvent — retry contract (R9)", () => {
     expect(linkOrderToPayment).toHaveBeenCalledTimes(1);
     expect(sendOrderStatusEmail).toHaveBeenCalledTimes(1);
   });
+
+  /**
+   * `reference` is optional on the way in — see `paystackWebhookSchema`, which
+   * had to stop demanding fields that only `charge.*` events carry. The guard
+   * in `handleWebhookEvent` is the only thing between that and a lookup on
+   * `undefined`, which PostgREST would serialize as the literal string
+   * "undefined" rather than refusing: a real charge notification would be
+   * answered 200 and discarded instead of retried.
+   */
+  it("ignores a charge.success that carries no reference, without looking anything up", async () => {
+    seedPayment();
+
+    const result = await handleWebhookEvent({
+      event: "charge.success",
+      data: { status: "success" },
+    });
+
+    expect(result.message).toBe("No reference, ignored");
+    expect(verifyTransaction).not.toHaveBeenCalled();
+    expect(linkOrderToPayment).not.toHaveBeenCalled();
+  });
 });
 
 // ── 059: money that arrives after we released the payment ────────────────────
