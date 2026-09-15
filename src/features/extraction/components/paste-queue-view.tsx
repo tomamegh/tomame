@@ -7,6 +7,7 @@ import {
   ArrowRight,
   ArrowsClockwise,
   CaretDown,
+  ChatCircleDots,
   ChatCircleText,
   CheckCircle,
   LinkSimple,
@@ -25,6 +26,7 @@ import { CATALOG_SEARCH } from "@/config/catalog";
 import { cn } from "@/lib/utils";
 import { useAddPasteToBag, useCreatePaste, usePastes } from "../hooks/usePastes";
 import type { PasteStatus } from "../services/paste-status";
+import { AskPanel } from "./ask-panel";
 import { buyForMeHref, looksLikeUrl, type BuyForMeMode } from "./buy-for-me-mode";
 import { ReadingIndicator } from "./reading-indicator";
 
@@ -43,7 +45,7 @@ export interface PasteQueueViewProps {
   watchId?: string | null;
   /** Whether a finished paste will reach this viewer by bell and email, signed-in only. */
   notifies?: boolean;
-  /** Which half of the screen is open. Comes from `?mode=`; paste is the default. */
+  /** Which of the three ways is open. Comes from `?mode=`; paste is the default. */
   mode?: BuyForMeMode;
   /**
    * The pre-priced catalogue, rendered on the SERVER and handed down as a node.
@@ -56,8 +58,14 @@ export interface PasteQueueViewProps {
    */
   browse?: React.ReactNode;
   /**
-   * How many products the catalogue holds. Zero hides the browse half entirely:
+   * How many products the catalogue holds. Zero hides the browse mode entirely:
    * offering a shelf we cannot fill is worse than not offering it.
+   *
+   * IT IS NEVER PRINTED. The switch used to carry this as a badge, and it is not
+   * the customer's business how many rows we have scraped — the number moves
+   * with a cron job, it says nothing about whether the thing they want is in
+   * there, and a small one reads as a small company. It decides whether a mode
+   * is worth offering and nothing else.
    */
   catalogueCount?: number;
 }
@@ -79,19 +87,22 @@ export interface PasteQueueViewProps {
  * they have not started typing the next one, because pulling a screen out from
  * under a half-typed URL is worse than one extra click.
  *
- * TWO HALVES, ONE TAB. Pasting a link is one way to say what you want; the
- * other is to look at what we have already read and priced, which until now had
- * no way in that did not start with pasting a link. The switch under the title
- * alternates between them and the choice lives in `?mode=`, so the back button
- * works and a browsed shelf is an address. See `buy-for-me-mode.ts` for why
- * paste is the default.
+ * THREE WAYS, ONE TAB, AND THEY ARE EQUALS. Pasting a link is one way to say
+ * what you want. Looking through what we have already read and priced is
+ * another, and until recently it had no way in that did not start with pasting a
+ * link. Asking a person to go and buy it is the third, and it had no way in at
+ * all: the concierge route — the thing this company actually does — could only
+ * be discovered by pasting a link that FAILED and then noticing "Describe it
+ * instead" in the wreckage. The switch under the title names all three, and the
+ * choice lives in `?mode=`, so the back button works and a browsed shelf is an
+ * address. See `buy-for-me-mode.ts` for why paste is still the default.
  *
- * Reading rows stay on screen in BOTH halves. A link being read right now is
- * the one time-sensitive thing here, and hiding it behind a mode switch would
- * mean a customer browsing while their link reads never sees it land. Recently
- * pasted is the opposite: settled, referable, and no longer the point of the
- * screen, so it is a quiet card at the bottom of the paste half showing the
- * last few, and it opens in place when there are more.
+ * Reading rows stay on screen in ALL THREE. A link being read right now is the
+ * one time-sensitive thing here, and hiding it behind a mode switch would mean a
+ * customer who wandered off to browse, or to write out what they want, never
+ * sees it land. Recently pasted is the opposite: settled, referable, and no
+ * longer the point of the screen, so it is a quiet card at the bottom of the
+ * paste mode showing the last few, and it opens in place when there are more.
  */
 export function PasteQueueView({
   initialPastes,
@@ -258,10 +269,22 @@ export function PasteQueueView({
 
   const { reading, done } = useMemo(() => splitPastes(pastes), [pastes]);
   const browsing = mode === "browse";
-  // A switch is worth drawing when there is something on the other side of it,
-  // and always when the customer is already standing on that side and needs the
-  // way back.
-  const showSwitch = catalogueCount > 0 || browsing;
+  const pasting = mode === "paste";
+  // The browse mode is worth offering only when there is a shelf behind it —
+  // and always when the customer is already standing on it and needs the way
+  // back. Paste and ask are always there, so the switch itself always is.
+  const offerBrowse = catalogueCount > 0 || browsing;
+
+  // Links a buyer is already holding, for the ask panel's own list.
+  //
+  // A still-READING one is left out on purpose: it is already on screen above in
+  // "Reading now", where `describePendingWait` gives its row "A buyer is on it".
+  // Listing the same link twice on one screen reads as two requests, and the one
+  // thing this panel must never do is imply a duplicate is in the queue.
+  const held = useMemo(
+    () => pastes.filter((p) => p.assisted != null && p.outcome !== "reading"),
+    [pastes],
+  );
 
   const rowProps = (paste: PasteStatus) => ({
     paste,
@@ -280,16 +303,20 @@ export function PasteQueueView({
         <h1 className="font-display text-[30px] leading-[1.05] font-bold tracking-[-0.02em] sm:text-[38px]">
           What should we buy for you?
         </h1>
+        {/*
+          The sub-line names the ways ONCE, and it degrades honestly. With
+          nothing priced there is no shelf to browse, so the copy says two and
+          the switch draws two — promising a catalogue we cannot fill is worse
+          than not offering it.
+        */}
         <p className="text-sm leading-[1.5] text-tm-text-2">
           {canSearch
-            ? `Paste a link from ${stores.slice(0, 3).join(", ")} or anywhere else and we read it in the background, or type what you want and we will show you what we have already priced.`
-            : `Paste a link from ${stores.slice(0, 3).join(", ")} or anywhere else. We read it in the background. Add as many as you like and come back when you are ready.`}
+            ? `Three ways, and they all end the same place: a whole cedi price, landed in Accra, before you pay anything. Paste a link from ${stores.slice(0, 3).join(", ")} or anywhere else, look through what we have already priced, or describe it and a buyer will go and find it.`
+            : `Two ways, and they both end the same place: a whole cedi price, landed in Accra, before you pay anything. Paste a link from ${stores.slice(0, 3).join(", ")} or anywhere else and we read it in the background, or describe it and a buyer will go and find it.`}
         </p>
       </header>
 
-      {showSwitch && (
-        <ModeSwitch mode={mode} catalogueCount={catalogueCount} delay={0.06} />
-      )}
+      <ModeSwitch mode={mode} offerBrowse={offerBrowse} delay={0.06} />
 
       {/*
         ONE BOX, BOTH JOBS. It used to take links only, and the way to search by
@@ -298,7 +325,7 @@ export function PasteQueueView({
         either, `looksLikeUrl` picks the branch, and the icon, placeholder and
         button label say which branch is armed before anybody presses it.
       */}
-      {!browsing && (
+      {pasting && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -368,6 +395,8 @@ export function PasteQueueView({
 
       {browsing ? (
         browse
+      ) : mode === "ask" ? (
+        <AskPanel requests={held} now={now} />
       ) : (
         <>
           {done.length > 0 && (
@@ -388,11 +417,11 @@ export function PasteQueueView({
           {pastes.length === 0 && (
             <p className="tm-up rounded-[24px] border border-tm-border bg-card px-6 py-12 text-center text-sm leading-[1.5] text-tm-text-2 [animation-delay:0.16s] [animation-duration:0.5s]">
               {canSearch
-                ? "Nothing pasted yet. Drop a product link above and we will price it in cedis, all in — or type what you are after and we will show you what we have already priced."
+                ? "Nothing pasted yet. Drop a product link above and we will price it in cedis, all in. Or type what you are after and we will show you what we have already priced."
                 : "Nothing pasted yet. Drop a product link above and we will price it in cedis, all in."}
+              {" "}
               {canSearch && (
                 <>
-                  {" "}
                   You can also{" "}
                   <Link
                     href={buyForMeHref("browse")}
@@ -400,9 +429,17 @@ export function PasteQueueView({
                   >
                     browse by category
                   </Link>
-                  .
+                  , or{" "}
                 </>
               )}
+              {!canSearch && <>Or </>}
+              <Link
+                href={buyForMeHref("ask")}
+                className="font-semibold text-tm-coral underline-offset-2 hover:underline"
+              >
+                ask a buyer to find it
+              </Link>
+              .
             </p>
           )}
         </>
@@ -434,31 +471,39 @@ function splitPastes(pastes: PasteStatus[]): { reading: PasteStatus[]; done: Pas
 }
 
 /**
- * The switch between the two halves of this tab.
+ * The switch between the three ways in.
  *
  * Links, not buttons, and the mode is in the URL. Same reasoning as the admin
  * filter pills and the catalogue search: the back button then moves between the
- * halves, the browse half is a thing somebody can send, and nothing has to be
- * held in client state to remember which one is open.
+ * three, a mode is a thing somebody can send, and nothing has to be held in
+ * client state to remember which one is open.
  *
- * The count on the browse side is the catalogue's real size. It is there
- * because "browse" alone says nothing about whether the shelf is worth a tap,
- * and the whole point of this screen is that the customer can see what we hold
- * before they commit to anything.
+ * THE COUNT IS GONE. The browse side used to carry the catalogue's real size as
+ * a badge. It is not the customer's business how many rows a cron job has
+ * scraped: the number moves on its own, it says nothing about whether the thing
+ * they came for is in there, and a modest one reads as a modest company. The
+ * count still decides whether browse is drawn at all — it is just never printed.
+ *
+ * A COLUMN ON A PHONE, A ROW ON A DESKTOP. Two labels already truncated to
+ * "Already p…" at 390px; three would be unreadable. Below `sm` each way is its
+ * own full-width row, 48px tall so it is a comfortable target, with the icon and
+ * the label left-aligned where the eye already is. From `sm` it collapses to the
+ * one `w-fit` row it has always been.
  */
 function ModeSwitch({
   mode,
-  catalogueCount,
+  offerBrowse,
   delay,
 }: {
   mode: BuyForMeMode;
-  catalogueCount: number;
+  /** Whether there is a catalogue behind the browse link. Never its size. */
+  offerBrowse: boolean;
   delay: number;
 }) {
   return (
     <nav
       aria-label="Ways to tell us what you want"
-      className="tm-up flex w-full items-center gap-1 rounded-[16px] border border-tm-border bg-card p-1 sm:w-fit [animation-duration:0.5s]"
+      className="tm-up flex w-full flex-col gap-1 rounded-[16px] border border-tm-border bg-card p-1 sm:w-fit sm:flex-row sm:items-center [animation-duration:0.5s]"
       style={{ animationDelay: `${delay}s` }}
     >
       <ModeSwitchLink
@@ -467,12 +512,19 @@ function ModeSwitch({
         icon={<LinkSimple weight="bold" className="size-4 shrink-0" aria-hidden />}
         label="Paste a link"
       />
+      {offerBrowse && (
+        <ModeSwitchLink
+          href={buyForMeHref("browse")}
+          active={mode === "browse"}
+          icon={<Storefront weight="bold" className="size-4 shrink-0" aria-hidden />}
+          label="Browse what's priced"
+        />
+      )}
       <ModeSwitchLink
-        href={buyForMeHref("browse")}
-        active={mode === "browse"}
-        icon={<Storefront weight="bold" className="size-4 shrink-0" aria-hidden />}
-        label="Already priced"
-        count={catalogueCount > 0 ? catalogueCount : null}
+        href={buyForMeHref("ask")}
+        active={mode === "ask"}
+        icon={<ChatCircleDots weight="bold" className="size-4 shrink-0" aria-hidden />}
+        label="Ask us to buy it"
       />
     </nav>
   );
@@ -483,27 +535,31 @@ function ModeSwitchLink({
   active,
   icon,
   label,
-  count = null,
 }: {
   href: string;
   active: boolean;
   icon: React.ReactNode;
   label: string;
-  count?: number | null;
 }) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[12px] px-3.5 py-2.5 text-[13.5px] leading-none font-semibold transition-colors sm:flex-none",
+        // `min-h-12` is the phone's 48px row; from `sm` the height goes back to
+        // padding and the three sit on one line.
+        "flex min-h-12 w-full min-w-0 items-center gap-2 rounded-[12px] px-3.5 text-[13.5px] leading-none font-semibold transition-colors",
+        "sm:min-h-0 sm:w-auto sm:flex-none sm:justify-center sm:gap-1.5 sm:py-2.5",
         "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
         // `bg-tm-tint`, NOT the pill background the admin filter pills reach
-        // for. `--tm-pill-bg` is defined in `:root` but never registered in the
-        // theme block, so Tailwind emits no rule for it at all: verified by
-        // grepping the built stylesheet, which has a tint rule and no pill-bg
-        // rule. An active state with no background is indistinguishable from an
-        // inactive one, which on a two-way switch is the whole control.
+        // for — a choice about weight, not about what compiles. This comment
+        // used to say `bg-tm-pill-bg` emitted no rule at all, which was true
+        // when it was written and is not any more: `globals.css` now registers
+        // `--color-tm-pill-bg` in the `@theme` block, and carries the account
+        // of that bug. The tint stays because this is the loudest switch on the
+        // screen and the pill wash is too faint to read as "you are here" —
+        // an active state indistinguishable from an inactive one is the whole
+        // control.
         active
           ? "bg-tm-tint text-tm-coral-strong"
           : "text-tm-text-2 hover:bg-tm-paper hover:text-tm-ink",
@@ -511,16 +567,6 @@ function ModeSwitchLink({
     >
       {icon}
       <span className="truncate">{label}</span>
-      {count != null && (
-        <span
-          className={cn(
-            "tm-nums shrink-0 rounded-full px-1.5 py-0.5 text-[11px] leading-none font-bold",
-            active ? "bg-card text-tm-coral-strong" : "bg-tm-paper text-tm-text-3",
-          )}
-        >
-          {count}
-        </span>
-      )}
     </Link>
   );
 }

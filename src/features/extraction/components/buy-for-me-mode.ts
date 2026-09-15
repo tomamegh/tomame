@@ -1,31 +1,38 @@
 /**
- * Which half of "Buy for me" the customer is looking at.
+ * Which of the three ways into "Buy for me" the customer is looking at.
  *
- * `/app/orders/new` has two jobs that used to be one screen: paste a link we
- * will go and read, and look at what we have already read and priced. The
- * second had no way in at all. The catalogue lived at `/app/products` and the
- * only link to it was a rail beside a quote, which you could only reach BY
- * pasting a link first. Kelvin: "To access search without a link, a user must
- * first search with a link, and then navigate there."
+ * `/app/orders/new` has three jobs that used to be one screen, and then two:
+ * paste a link we will go and read, look at what we have already read and
+ * priced, and ask a person to go and buy it. The second had no way in at all —
+ * the catalogue lived at `/app/products` and the only link to it was a rail
+ * beside a quote, which you could only reach BY pasting a link first. Kelvin:
+ * "To access search without a link, a user must first search with a link, and
+ * then navigate there."
+ *
+ * The third had no way in either, and that one is worse. The concierge route is
+ * the whole business — a person in the US buys the thing on their own card — and
+ * a signed-in customer could only discover it by pasting a link that FAILED and
+ * then noticing "Describe it instead" on the wreckage. So it is a mode of its
+ * own, named on the switch, reachable before anything has gone wrong.
  *
  * The mode is a query parameter and nothing else, the way the admin filters and
- * the catalogue search already work here: the back button moves between the two
- * halves, a browsed category has an address somebody can send, and the page
- * stays a server component because there is no client state to hold.
+ * the catalogue search already work here: the back button moves between the
+ * three, a browsed category has an address somebody can send, and the page stays
+ * a server component because there is no client state to hold.
  *
  * PASTE IS THE DEFAULT, on purpose. The tab's promise is that we will buy
  * anything from any store we support, and the catalogue is a head start, not
  * the shop. Every existing route into here carries no mode at all: the Home
  * paste bar, a shared link, and the forward that `?url=` performs when it hands
  * back a `?watch=`. Those all have to land on the links the customer has in
- * flight, not on a grid of other people's products.
+ * flight, not on a grid of other people's products and not on a form.
  *
  * Framework free: no React, no `server-only`. The route's server component and
  * the client island that draws the switch both import from here, which is only
  * legal because this module has no "use client" of its own.
  */
 
-export type BuyForMeMode = "paste" | "browse";
+export type BuyForMeMode = "paste" | "browse" | "ask";
 
 export const BUY_FOR_ME_PATH = "/app/orders/new";
 
@@ -35,7 +42,10 @@ export const BUY_FOR_ME_PATH = "/app/orders/new";
  */
 export function resolveBuyForMeMode(raw: string | string[] | undefined): BuyForMeMode {
   const first = Array.isArray(raw) ? raw[0] : raw;
-  return (first ?? "").trim().toLowerCase() === "browse" ? "browse" : "paste";
+  const asked = (first ?? "").trim().toLowerCase();
+  if (asked === "browse") return "browse";
+  if (asked === "ask") return "ask";
+  return "paste";
 }
 
 /** Everything browse mode can carry in the address. All of it optional. */
@@ -56,9 +66,15 @@ export interface BuyForMeQuery {
  * keeps this screen a server component: a search is shareable, the back button
  * walks back through searches and shelves, and "show more" is a link rather
  * than a piece of client state that a reload would forget.
+ *
+ * `BuyForMeQuery` belongs to browse and only to browse. Paste keeps the bare
+ * path — every link into it that already exists is written that way — and ask is
+ * one form with nothing to address inside it, so both drop the query rather than
+ * carrying a category nothing over there can open.
  */
 export function buyForMeHref(mode: BuyForMeMode, query?: BuyForMeQuery): string {
   if (mode === "paste") return BUY_FOR_ME_PATH;
+  if (mode === "ask") return `${BUY_FOR_ME_PATH}?mode=ask`;
   const params = new URLSearchParams({ mode: "browse" });
   const category = query?.category?.trim();
   if (category) params.set("category", category);

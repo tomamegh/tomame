@@ -121,7 +121,7 @@ export async function requestSourcing(
       priceMissing: result.product.price == null || !(result.product.price > 0),
     })
   ) {
-    throw new APIError(400, "We can price this one ourselves — add it to your bag as normal.");
+    throw new APIError(400, "We can price this one ourselves. Add it to your bag as normal.");
   }
 
   // The line first, so the request has something to point at. It prices to

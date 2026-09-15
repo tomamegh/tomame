@@ -148,7 +148,7 @@ export function HeroPasteBar({ stores, catalogueCount = 0, className }: HeroPast
                 catalogue to search, for the same reason the old one was cut.
               */}
               {canSearch && (
-                <span className="hidden truncate sm:inline">— or search by name</span>
+                <span className="hidden truncate sm:inline">or search by name</span>
               )}
             </span>
           )}

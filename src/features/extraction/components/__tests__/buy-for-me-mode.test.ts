@@ -19,8 +19,14 @@ describe("resolveBuyForMeMode", () => {
     expect(resolveBuyForMeMode(" BROWSE ")).toBe("browse");
   });
 
+  it("opens the concierge form for the ask mode", () => {
+    expect(resolveBuyForMeMode("ask")).toBe("ask");
+    expect(resolveBuyForMeMode(" ASK ")).toBe("ask");
+  });
+
   it("falls back to paste rather than failing on anything unrecognised", () => {
     expect(resolveBuyForMeMode("brows")).toBe("paste");
+    expect(resolveBuyForMeMode("asked")).toBe("paste");
     expect(resolveBuyForMeMode("../../etc")).toBe("paste");
   });
 
@@ -33,6 +39,15 @@ describe("buyForMeHref", () => {
   it("leaves the paste half at the bare route, the way every existing link into it is written", () => {
     expect(buyForMeHref("paste")).toBe(BUY_FOR_ME_PATH);
     expect(buyForMeHref("paste", { category: "Smart Home" })).toBe(BUY_FOR_ME_PATH);
+  });
+
+  it("gives the ask form one address, and never a browse shelf's query", () => {
+    expect(buyForMeHref("ask")).toBe("/app/orders/new?mode=ask");
+    // The form has nothing addressable inside it, so a category or a search term
+    // travelling with it would be a parameter nothing over there can open.
+    expect(buyForMeHref("ask", { category: "Headphones", q: "earbuds", n: 48 })).toBe(
+      "/app/orders/new?mode=ask",
+    );
   });
 
   it("gives the browse half, and each shelf in it, its own address", () => {

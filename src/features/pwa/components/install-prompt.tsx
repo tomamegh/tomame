@@ -201,7 +201,7 @@ export function InstallPrompt() {
           </p>
           <p className="mt-0.5 text-[13px] leading-snug text-tm-text-2">
             {deferred
-              ? "Add it to your home screen — opens like an app, tracks your orders, no browser in the way."
+              ? "Add it to your home screen. It opens like an app, tracks your orders, no browser in the way."
               : "Add it to your home screen and it opens like an app, straight to your orders."}
           </p>
         </div>

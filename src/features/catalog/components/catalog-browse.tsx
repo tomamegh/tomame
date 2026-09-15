@@ -11,6 +11,7 @@ import { CATALOG_SEARCH } from "@/config/catalog";
 import { cn } from "@/lib/utils";
 import type { CatalogProduct } from "../types";
 import { CatalogResultsGrid } from "./catalog-results";
+import { DepartmentRow } from "./department-row";
 
 /**
  * Browsing and searching the pre-priced catalogue, grouped by the categories it
@@ -25,14 +26,14 @@ import { CatalogResultsGrid } from "./catalog-results";
  * products lived on another screen behind a footnote (Kelvin, 2026-09-14: "there
  * is no search button... a user will not painfully go through all the items,
  * searching is better and maintain the category breakdown"). So the box is here,
- * the pills stayed, and the two compose: a pill pressed during a search narrows
- * the search rather than discarding it.
+ * the departments stayed, and the two compose: a department pressed during a
+ * search narrows the search rather than discarding it.
  *
  * ONE SHELF IS OPEN AT A TIME, and that is a cost decision rather than a taste
  * one. Every total on a card is struck live by the pricing engine when the page
  * renders, and the engine's inputs are loaded once per read. Opening every
  * category at once would multiply that by the number of shelves to show four
- * products from each. The category row shows the whole shape of the catalogue;
+ * products from each. The department row shows the whole shape of the catalogue;
  * the grid shows the shelf that is open.
  *
  * Nothing here calculates money. `total_ghs` arrives already struck server
@@ -41,7 +42,14 @@ import { CatalogResultsGrid } from "./catalog-results";
 
 export interface CatalogBrowseCategory {
   category: string;
-  /** How many products we hold on that shelf. Printed as it comes, never rounded. */
+  /**
+   * How many products we hold on that shelf.
+   *
+   * NOT PRINTED. It is what the browse screen uses to drop a shelf that holds
+   * nothing, and it is the caller's own figure — the department row shows a
+   * name and a glyph and no number at all, because the size of our scrape is
+   * not the size of the shop.
+   */
   count: number;
   /** Absolute href including the query string: the caller owns URL assembly. */
   href: string;
@@ -57,7 +65,12 @@ export type CatalogBrowseState =
       kind: "ready";
       /** The open shelf, or the search term when one is running. */
       category: string;
-      /** Everything we hold in that category, which may be more than is shown. */
+      /**
+       * Everything we hold in that category, which may be more than is shown.
+       *
+       * Compared against, never printed: it is what tells the copy whether it
+       * is looking at a whole shelf or the first page of one.
+       */
       held: number;
       results: readonly CatalogProduct[];
     }
@@ -67,7 +80,11 @@ export type CatalogBrowseState =
       query: string;
       /** The pill the search is narrowed to, or null for the whole catalogue. */
       category: string | null;
-      /** Everything that matched, uncapped. May exceed what we ranked. */
+      /**
+       * Everything that matched, uncapped. May exceed what we ranked.
+       *
+       * Compared against `considered`, never printed — see the copy below.
+       */
       total: number;
       /**
        * How many of those matches we actually ranked and priced.
@@ -75,6 +92,10 @@ export type CatalogBrowseState =
        * difference is what the copy has to own: "cheapest first" is only true
        * over the rows we priced, so when it is less than `total` the screen
        * says the rest were never in the running rather than implying they were.
+       *
+       * It owns that in words rather than in figures. Neither this nor `total`
+       * reaches the screen — the customer learns that an ordering is partial,
+       * not how many rows we hold.
        */
       considered: number;
       results: readonly CatalogProduct[];
@@ -252,62 +273,40 @@ export function CatalogBrowseSearchField({
 }
 
 /**
- * The shelves, with their real sizes on them.
+ * The shelves, as departments.
  *
- * Links, not buttons: the open shelf is in the address bar, so the back button
- * walks back through the shelves somebody looked at and a category is a thing
- * they can send to a friend. During a search the same pills carry the term with
- * them, so pressing one narrows what is on screen instead of throwing it away.
+ * A thin adapter over `DepartmentRow` rather than a second row of its own: Home
+ * offers exactly the same shelves, and the two drifted apart the last time they
+ * were drawn separately. Everything about how a department LOOKS lives in that
+ * component; this decides only which of them is open.
+ *
+ * NO COUNT RIDES ALONG ANY MORE. `CatalogBrowseCategory.count` is still read off
+ * the server — the browse screen uses it to know a shelf is worth offering at
+ * all — but it is no longer printed. It was the size of our scrape rather than
+ * the size of the shop, and a two-digit figure beside a department told a
+ * customer we hold fourteen electronics when what we can BUY is any listing
+ * they paste.
+ *
+ * During a search the same departments carry the term with them, so pressing
+ * one narrows what is on screen instead of throwing it away.
  */
 export function CatalogCategoryNav({
   categories,
 }: {
   categories: readonly CatalogBrowseCategory[];
 }) {
-  if (categories.length === 0) return null;
-
   return (
-    <nav aria-label="Browse by category" className="flex flex-wrap items-center gap-1.5">
-      {categories.map((entry) => (
-        <Link
-          key={entry.category}
-          href={entry.href}
-          aria-current={entry.active ? "page" : undefined}
-          className={cn(
-            "inline-flex min-w-0 items-center gap-1.5 rounded-full border px-3 py-2 text-[12.5px] leading-none font-semibold transition-colors",
-            "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-            // `bg-tm-tint` rather than the pill background the admin filter
-            // pills use: that token is declared on the root but never registered
-            // in the theme block, so Tailwind emits no rule for it and the open
-            // shelf would be indistinguishable from a closed one.
-            entry.active
-              ? "border-tm-coral/40 bg-tm-tint text-tm-coral-strong"
-              : "border-tm-border bg-card text-tm-text-2 hover:border-tm-coral/30 hover:text-tm-ink",
-          )}
-        >
-          <span className="truncate">{entry.category}</span>
-          {/*
-            The count is how many we HOLD on that shelf, in both modes. It is
-            deliberately not a match count during a search: the search RPC
-            returns one total over the whole match, not a breakdown per
-            category, and inventing a per-shelf figure the query never produced
-            would be a number on a price screen that nothing backs.
-          */}
-          <span
-            className={cn(
-              "tm-nums shrink-0 rounded-full px-1.5 py-0.5 text-[11px] leading-none font-bold",
-              entry.active ? "bg-card text-tm-coral-strong" : "bg-tm-paper text-tm-text-3",
-            )}
-          >
-            {entry.count}
-          </span>
-        </Link>
-      ))}
-    </nav>
+    <DepartmentRow
+      departments={categories.map((entry) => ({
+        label: entry.category,
+        href: entry.href,
+        active: entry.active,
+      }))}
+    />
   );
 }
 
-/** One open shelf: what is on it, how much of it we are showing, cheapest first. */
+/** One open shelf: what is on it, whether that is all of it, cheapest first. */
 function CatalogBrowseShelf({
   category,
   held,
@@ -327,22 +326,32 @@ function CatalogBrowseShelf({
   if (showing === 0) {
     return (
       <p className="rounded-[20px] border border-tm-border bg-card px-6 py-10 text-center text-sm leading-[1.5] font-medium text-tm-text-2">
-        We hold nothing in {category} right now. Try another category, or paste
-        the link to the product you want and we will price that one.
+        We hold nothing in {category} right now. Try another department, or
+        paste the link to the product you want and we will price that one.
       </p>
     );
   }
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
+      {/*
+        WHAT THIS SENTENCE MAY AND MAY NOT SAY. It still has to own the
+        difference between a full shelf and a first page — "cheapest first" is a
+        promise about an ordering, and somebody shown a slice of one deserves to
+        know the rest exists. What it may no longer do is put a FIGURE on it:
+        how many rows we have scraped is our number, not the customer's, and
+        printed beside a department it reads as the size of the shop rather than
+        the size of the head start. `held` therefore survives as a comparison
+        and never as a value.
+      */}
       <p className="text-[13px] leading-[1.45] font-medium text-tm-text-2">
         <span className="font-semibold text-tm-ink">{category}</span>
         {": "}
         {showing < held
-          ? `showing ${showing} of ${held} we hold, cheapest first.`
+          ? "the cheapest of what we hold on this shelf, and there is more of it below."
           : showing === 1
             ? "one product, priced all in."
-            : `all ${showing} we hold, cheapest first.`}
+            : "everything we hold on this shelf, cheapest first."}
         {unpriced > 0 &&
           (unpriced === 1
             ? " One of these we could not price; it is at the end."
@@ -382,7 +391,7 @@ function CatalogSearchShelf({
               in <span className="font-semibold text-tm-ink">{state.category}</span>
             </>
           )}
-          . That does not mean we cannot buy it — the catalogue is a head start,
+          . That does not mean we cannot buy it. The catalogue is a head start,
           not the shop.
         </p>
         <BrowseFooterLink href={pasteHref} label="Paste a product link" icon="link" />
@@ -398,12 +407,19 @@ function CatalogSearchShelf({
         WHAT "CHEAPEST FIRST" IS ALLOWED TO CLAIM. The whole ranked match set is
         priced and sorted before any of it is shown, and `?n=` only slices that
         settled list — so the first card really is the cheapest of everything
-        counted here, and pressing "show more" appends instead of reshuffling
+        ranked here, and pressing "show more" appends instead of reshuffling
         rows somebody is already reading.
 
         The one thing that can still be left out is a match set bigger than the
-        cap: those rows were never ranked, so they are reported separately
-        rather than folded into a total the ordering does not cover.
+        cap: those rows were never ranked, so the ordering does not cover them
+        and the sentence has to say so out loud.
+
+        IT SAYS SO WITHOUT THE FIGURES. It used to read "We ranked the 40
+        closest of 312 matches", which gave away the size of our scrape to make
+        a point about an ordering — and the point survives without either
+        number. `considered` and `total` are still computed server-side and are
+        still what decides WHICH sentence appears; they are simply never
+        printed.
       */}
       <p className="text-[13px] leading-[1.45] font-medium text-tm-text-2">
         <span className="font-semibold text-tm-ink">{state.query}</span>
@@ -415,12 +431,14 @@ function CatalogSearchShelf({
         )}
         {": "}
         {showing < state.considered
-          ? `showing ${showing} of ${state.considered}, cheapest first.`
+          ? "the cheapest matches first, and there are more of them below."
           : showing === 1
             ? "one match, priced all in."
-            : `all ${showing} matches, cheapest first.`}
+            : state.considered < state.total
+              ? "every match we ranked, cheapest first."
+              : "all the matches, cheapest first."}
         {state.considered < state.total &&
-          ` We ranked the ${state.considered} closest of ${state.total} matches; add a word or pick a category to narrow it.`}
+          " There were more matches than we rank in one go, so only the closest were priced. Cheapest first is true of those, not of every match. Add a word or pick a department to narrow it."}
         {unpriced > 0 &&
           (unpriced === 1
             ? " One of these we could not price; it is at the end."
@@ -461,8 +479,8 @@ function CatalogBrowseEmptyShelf({ pasteHref }: { pasteHref: string }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-[20px] border border-tm-border bg-card px-6 py-10 text-center">
       <p className="max-w-[52ch] text-sm leading-[1.5] font-medium text-tm-text-2">
-        We hold nothing on that shelf right now. Try another category, or paste
-        the link to the product you want and we will price that one.
+        We hold nothing on that shelf right now. Try another department, or
+        paste the link to the product you want and we will price that one.
       </p>
       <BrowseFooterLink href={pasteHref} label="Paste a product link" icon="link" />
     </div>

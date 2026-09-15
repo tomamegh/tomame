@@ -33,7 +33,7 @@ import { ExtractAndForward } from "./extract-and-forward";
 export const metadata: Metadata = {
   title: "Buy for me",
   description:
-    "Paste a link and we will price it, landed in Accra, or look through what we have already priced.",
+    "Paste a link and we will price it, landed in Accra, look through what we have already priced, or ask a buyer to go and find it.",
 };
 
 /**
@@ -42,8 +42,9 @@ export const metadata: Metadata = {
  * It used to be a dead click: with no `?url=` the screen did
  * `router.replace("/app")`, so pressing the tab bounced you straight back to
  * Home and the tab appeared to do nothing at all. Then it became the paste
- * queue. Now it is both halves of "tell us what you want": paste a link, or look
- * through what we have already read and priced.
+ * queue. Now it is all three ways of saying "this is what I want": paste a link,
+ * look through what we have already read and priced, or describe it and have a
+ * buyer go and find it.
  *
  * WHY THE SECOND HALF IS HERE. The pre-priced catalogue had a screen
  * (`/app/products`) and no way in. The only link to it was a rail beside a
@@ -112,6 +113,8 @@ export default async function NewOrderPage({
     listOpenAssistedRequestsByUrl(viewer, pastes.map((p) => p.product_url)),
   ]);
 
+  // Whether the browse mode is worth offering, and nothing else. The switch
+  // never prints this — see `PasteQueueView`'s prop doc for why.
   const catalogueCount = catalogue.categories.reduce((sum, entry) => sum + entry.count, 0);
 
   return (

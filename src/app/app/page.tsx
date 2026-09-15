@@ -9,6 +9,7 @@ import { getHomeView } from "@/features/app-home/services/home.service";
 import {
   AskBuyerCard,
   DealsShelf,
+  EntryDoors,
   FreightBoxCard,
   GreetingChip,
   HeroPasteBar,
@@ -95,6 +96,16 @@ export default async function AppHomePage() {
             ))}
           </ul>
         </div>
+
+        {/*
+          The other two ways in. The paste bar above is one of three — browse
+          what we have already priced, or describe a thing we then go and find —
+          and until now only the paste bar was visible from here. It sits inside
+          Row A rather than below it because all three answer the same question
+          the `<h1>` just asked, and it stays deliberately quiet so the paste bar
+          is still the obvious thing to reach for.
+        */}
+        <EntryDoors />
       </div>
 
       {/*

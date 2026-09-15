@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, FireSimple } from "@phosphor-icons/react/ssr";
 
 import { CatalogResultsGrid } from "@/features/catalog/components/catalog-results";
+import { DepartmentRow } from "@/features/catalog/components/department-row";
 import { cn } from "@/lib/utils";
 import type { HomeDeals } from "../types";
 
@@ -13,11 +14,19 @@ export interface DealsShelfProps {
    */
   deals: HomeDeals | null;
   /**
-   * Everything the pre-scraped catalogue holds. It is what the "browse" link
-   * counts, and it is deliberately NOT the size of the pool this shelf chose
-   * from: the link goes to a screen that really does show them all, so any
-   * smaller figure beside it would be a number that does not match the page it
-   * opens.
+   * Everything the pre-scraped catalogue holds.
+   *
+   * IT IS NO LONGER A NUMBER THIS SHELF PRINTS. The browse link used to read
+   * "Browse all 1,284", and that figure was the size of our SCRAPE dressed up
+   * as the size of the shop: Tomame will buy any listing a customer pastes from
+   * any store we support, so a four-figure catalogue made the offer look
+   * bounded and a two-figure one made it look empty. Whichever way it moved, it
+   * moved the wrong way.
+   *
+   * The prop stays on the interface because `/app` still has the figure and
+   * because it remains the honest signal of whether there is anything behind
+   * the link at all — but it is now a signal, not a value, and nothing on this
+   * screen renders it.
    */
   catalogueCount: number;
   /** One clock for the whole render, so every card agrees on how old a price is. */
@@ -49,7 +58,7 @@ export interface DealsShelfProps {
  * NOT say "deals", "discount", "sale" or "was/now": the catalogue holds one
  * price per listing and no history, so there is no saving here to claim.
  */
-export function DealsShelf({ deals, catalogueCount, now, className }: DealsShelfProps) {
+export function DealsShelf({ deals, now, className }: DealsShelfProps) {
   if (!deals) return null;
 
   return (
@@ -72,8 +81,8 @@ export function DealsShelf({ deals, catalogueCount, now, className }: DealsShelf
           </div>
           <p className="max-w-[62ch] text-[13px] leading-[1.45] font-medium text-tm-text-2">
             The most-reviewed products from each shelf we hold, cheapest landed
-            total first. Every figure is the whole cedi price — item, US
-            sales tax, our fee and freight — worked out when we last read the
+            total first. Every figure is the whole cedi price (item, US sales
+            tax, our fee and freight), worked out when we last read the
             listing. Open one and we price it again live before you pay.
           </p>
         </div>
@@ -82,34 +91,24 @@ export function DealsShelf({ deals, catalogueCount, now, className }: DealsShelf
           href={deals.browseHref}
           className="inline-flex shrink-0 items-center gap-1.5 text-[13px] leading-none font-semibold text-tm-coral transition-colors hover:text-tm-coral-strong focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none"
         >
-          {catalogueCount > deals.products.length
-            ? `Browse all ${catalogueCount.toLocaleString("en-GB")}`
-            : "Browse everything we have priced"}
+          Browse everything we&rsquo;ve priced
           <ArrowRight weight="bold" className="size-3.5" aria-hidden />
         </Link>
       </header>
 
-      {deals.categories.length > 0 && (
-        <nav aria-label="Browse by category" className="flex flex-wrap items-center gap-1.5">
-          {deals.categories.map((category) => (
-            <Link
-              key={category.label}
-              href={category.href}
-              className={cn(
-                "inline-flex min-w-0 items-center gap-1.5 rounded-full border border-tm-border bg-card px-3 py-2",
-                "text-[12.5px] leading-none font-semibold text-tm-text-2 transition-colors",
-                "hover:border-tm-coral/30 hover:text-tm-ink",
-                "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-              )}
-            >
-              <span className="truncate">{category.label}</span>
-              <span className="tm-nums shrink-0 rounded-full bg-tm-paper px-1.5 py-0.5 text-[11px] leading-none font-bold text-tm-text-3">
-                {category.count}
-              </span>
-            </Link>
-          ))}
-        </nav>
-      )}
+      {/*
+        The same row the browse screen draws, from the same component. Home has
+        no open shelf to mark, so no department is active here: pressing one is
+        a navigation into browse, where it then shows as open. `count` is read
+        off `deals.categories` and deliberately not passed — the row prints no
+        figures, which is the whole reason it replaced the badge pills.
+      */}
+      <DepartmentRow
+        departments={deals.categories.map((category) => ({
+          label: category.label,
+          href: category.href,
+        }))}
+      />
 
       <CatalogResultsGrid results={deals.products} now={now} />
     </section>

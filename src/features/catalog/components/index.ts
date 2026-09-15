@@ -11,6 +11,9 @@ export type {
 } from "./catalog-browse";
 export { CatalogProductCard } from "./catalog-product-card";
 export type { CatalogProductCardProps } from "./catalog-product-card";
+export { DEPARTMENT_FALLBACK_ICON, departmentIcon } from "./department-icons";
+export { DepartmentRow } from "./department-row";
+export type { DepartmentRowItem, DepartmentRowProps } from "./department-row";
 export {
   CatalogIdleState,
   CatalogNoMatches,

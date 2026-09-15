@@ -101,7 +101,7 @@ export function SimilarProductsRail({
         widen the quote screen on a phone, and a fixed item width inside an
         `overflow-x-auto` box is the guarantee of that.
       */}
-      <ul className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ul className="-mx-1 flex snap-x gap-3 overflow-x-auto overscroll-x-contain px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {similar.map((product) => (
           <CatalogProductCard
             key={product.id}

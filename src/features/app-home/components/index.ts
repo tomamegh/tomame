@@ -10,5 +10,6 @@ export {
 } from "./journeys-in-motion";
 export { JourneyTrack, type JourneyTrackProps } from "./journey-track";
 export { DealsShelf, type DealsShelfProps } from "./deals-shelf";
+export { EntryDoors, type EntryDoorsProps } from "./entry-doors";
 export { AskBuyerCard, type AskBuyerCardProps } from "./ask-buyer-card";
 export { FreightBoxCard, type FreightBoxCardProps } from "./freight-box-card";

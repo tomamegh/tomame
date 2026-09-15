@@ -37,7 +37,7 @@ export default function NotFound() {
         <NotFoundButtons />
 
         <p className="text-xs text-stone-300">
-          Tomame &mdash; Global product sourcing
+          Tomame · Global product sourcing
         </p>
       </div>
     </main>
