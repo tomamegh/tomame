@@ -48,10 +48,32 @@ export interface DepartmentRowItem {
 
 export interface DepartmentRowProps {
   departments: readonly DepartmentRowItem[];
+  /**
+   * True when pressing a department stays on THIS screen and only swaps the
+   * shelf below — the browse panel, where the href is the same route with a
+   * different `?category=`.
+   *
+   * WHY IT MATTERS. Next's `<Link>` scrolls to the top of the document on every
+   * navigation, which is right when the destination is a different page and
+   * plainly wrong when it is the same one: the customer reaches down to the
+   * department row, taps Phones, and is thrown back above the heading, the mode
+   * switch and the search box, having to scroll down again to see the shelf
+   * they just asked for. Kelvin: "anytime I hit a category the page scrolls to
+   * the top and I have to scroll back down."
+   *
+   * Home leaves it false ON PURPOSE. There the row's hrefs point at
+   * `/app/orders/new`, a different screen, and arriving at a new page already
+   * scrolled halfway down it is its own kind of broken.
+   */
+  preserveScroll?: boolean;
   className?: string;
 }
 
-export function DepartmentRow({ departments, className }: DepartmentRowProps) {
+export function DepartmentRow({
+  departments,
+  preserveScroll = false,
+  className,
+}: DepartmentRowProps) {
   if (departments.length === 0) return null;
 
   return (
@@ -78,7 +100,11 @@ export function DepartmentRow({ departments, className }: DepartmentRowProps) {
       */}
       <div className="-mx-1 flex min-w-0 snap-x gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {departments.map((department) => (
-          <DepartmentCell key={department.label} department={department} />
+          <DepartmentCell
+            key={department.label}
+            department={department}
+            preserveScroll={preserveScroll}
+          />
         ))}
       </div>
     </nav>
@@ -95,13 +121,22 @@ export function DepartmentRow({ departments, className }: DepartmentRowProps) {
  * open shelf goes the whole way to a solid coral tile so it is unmistakable
  * without needing the row to shuffle.
  */
-function DepartmentCell({ department }: { department: DepartmentRowItem }) {
+function DepartmentCell({
+  department,
+  preserveScroll,
+}: {
+  department: DepartmentRowItem;
+  preserveScroll: boolean;
+}) {
   const Icon = departmentIcon(department.label);
   const active = department.active === true;
 
   return (
     <Link
       href={department.href}
+      // See `preserveScroll` on the props: false here would throw the customer
+      // back to the top of the browse screen every time they pick a shelf.
+      scroll={!preserveScroll}
       aria-current={active ? "page" : undefined}
       className={cn(
         "group flex h-[98px] w-[96px] shrink-0 snap-start flex-col items-center justify-center gap-[9px] rounded-[18px] border-[1.5px] px-2",

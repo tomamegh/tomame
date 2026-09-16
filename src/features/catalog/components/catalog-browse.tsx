@@ -297,6 +297,7 @@ export function CatalogCategoryNav({
 }) {
   return (
     <DepartmentRow
+      preserveScroll
       departments={categories.map((entry) => ({
         label: entry.category,
         href: entry.href,
@@ -466,6 +467,14 @@ function ShowMore({ href }: { href: string | null }) {
   return (
     <Link
       href={href}
+      /*
+        `scroll={false}` for the same reason the department row keeps its place,
+        only more so: this button sits at the BOTTOM of the grid. Scrolling to
+        the top after pressing it means scrolling back down past every product
+        already seen to reach the ones just added — the customer ends up further
+        from what they asked for than before they pressed it.
+      */
+      scroll={false}
       className="mx-auto inline-flex h-[46px] items-center justify-center gap-1.5 rounded-[14px] border-[1.5px] border-tm-border bg-card px-6 text-[14px] leading-none font-semibold text-tm-ink transition-colors hover:border-tm-coral hover:text-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none"
     >
       Show more
