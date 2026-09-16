@@ -32,6 +32,10 @@ vi.mock("@/db/queries/extraction-cache", () => ({
 }));
 // The freight-box card reads the open bag; the bag service reaches Supabase at
 // module scope, so it is stubbed like every other data dependency here.
+vi.mock("@/features/cars/services/cars.service", () => ({
+  listPublishedCars: vi.fn(async () => []),
+  attachCovers: vi.fn(async () => []),
+}));
 vi.mock("@/features/bag/services/bag.service", () => ({ getBag: vi.fn(async () => null) }));
 vi.mock("@/db/queries/site-settings", () => ({ getSiteSettingsMap: vi.fn() }));
 vi.mock("@/features/watches/services/watches.service", () => ({

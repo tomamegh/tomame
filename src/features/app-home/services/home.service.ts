@@ -3,6 +3,8 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { listWatches } from "@/features/watches/services/watches.service";
+import { attachCovers, listPublishedCars } from "@/features/cars/services/cars.service";
+
 import type { WatchListResponse } from "@/features/watches/types";
 import {
   countMovingOrders,
@@ -40,6 +42,7 @@ import { isSchemaMissingError } from "@/lib/supabase/errors";
 import type { ExtractionResult } from "@/features/extraction/types";
 import type {
   HomeAskBuyer,
+  HomeCars,
   HomeDealCategory,
   HomeDeals,
   HomeFreightBox,
@@ -66,6 +69,16 @@ export const HOME_DEALS_LIMIT = 8;
 export const HOME_DEAL_CATEGORY_LIMIT = 6;
 
 /**
+ * How many cars the Home rail carries.
+ *
+ * Six, which is two full turns of a phone's ~1.15-card window and one turn plus
+ * a peek of the desktop's three. The rail is an advert for the forecourt, not
+ * the forecourt: everything past six lives at `/app/cars`, which is built for
+ * the whole list and is one press away from the shelf's own heading.
+ */
+export const HOME_CARS_LIMIT = 6;
+
+/**
  * Everything the Home screen renders, in one server-side read.
  *
  * Returns null when there is no session — the page redirects; this service does
@@ -85,8 +98,18 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
   const viewer: Viewer = { userId: user.id, sessionId: quoteSessionId };
   const client = await createClient();
 
-  const [movingCount, orders, latestPaste, settings, watchList, quoteConstants, bag, deals, categories] =
-    await Promise.all([
+  const [
+    movingCount,
+    orders,
+    latestPaste,
+    settings,
+    watchList,
+    quoteConstants,
+    bag,
+    deals,
+    categories,
+    cars,
+  ] = await Promise.all([
       degrade(countMovingOrders(client, user.id), 0, "moving order count"),
       degrade(
         getRecentOrdersForUser(client, user.id, HOME_JOURNEY_LIMIT + 2),
@@ -130,6 +153,12 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
         "catalogue deals",
       ),
       degrade(listBrowsableCategories(), [] as CatalogCategoryCount[], "catalogue categories"),
+      // THE CAR SHELF. `car_listings` is admin-owned public content, published
+      // or not — nothing here is scoped to this customer. It degrades to null,
+      // which the rail reads as "draw nothing at all": a shelf that cannot be
+      // read must look exactly like a shelf with nothing on it, because the one
+      // thing that must never appear on Home is a car we cannot vouch for.
+      degrade(loadHomeCars(), null as HomeCars | null, "cars en route"),
     ]);
 
   return {
@@ -141,12 +170,40 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
     journeys: toJourneys(orders),
     receipt: await buildReceipt(latestPaste, viewer),
     deals: buildDeals(deals.results, categories),
+    cars,
     askBuyer: buildAskBuyer(settings),
     watches: watchList,
     rateLockHours: quoteConstants?.rate_lock_hours ?? null,
     freightBox: buildFreightBox(bag),
     catalogueCount: countCatalogue(categories),
   };
+}
+
+// ── Cars ─────────────────────────────────────────────────────────────────────
+
+/**
+ * The published cars, with the one photograph a card shows.
+ *
+ * NULL WHEN NOTHING IS PUBLISHED, which is the same answer a failed read gives,
+ * and deliberately so: the rail renders nothing at all in either case. There is
+ * no placeholder car and no "cars coming soon" tile, for the reason `buildDeals`
+ * gives about products and more so — a made-up product on a price screen is a
+ * made-up price, and a made-up CAR is a made-up six-figure price beside a
+ * photograph of a vehicle that does not exist.
+ *
+ * `total` is every published listing, not the six on the rail, so the shelf's
+ * link can say "See all 14 cars". That is a real count of things an admin
+ * published, not the "how much did we scrape" figure `DealsShelf` deliberately
+ * stopped printing.
+ *
+ * `attachCovers` never throws and never drops a listing: a car whose photo read
+ * failed comes back with `cover: null` and its card draws the placeholder
+ * glyph, rather than the whole rail disappearing over one storage hiccup.
+ */
+export async function loadHomeCars(): Promise<HomeCars | null> {
+  const { cars, total } = await listPublishedCars({ limit: HOME_CARS_LIMIT });
+  if (cars.length === 0) return null;
+  return { cars: await attachCovers(cars), total };
 }
 
 // ── Freight box ──────────────────────────────────────────────────────────────

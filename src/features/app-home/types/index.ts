@@ -1,4 +1,5 @@
 import type { ReceiptFulfilment } from "@/db/queries/receipt-state";
+import type { CarWithCover } from "@/features/cars/services/cars.service";
 import type { CatalogProduct } from "@/features/catalog/types";
 import type { PricingBreakdown } from "@/lib/pricing";
 import type { JourneyView } from "@/features/orders/services/journey-stage";
@@ -131,6 +132,27 @@ export interface HomeFreightBox {
   href: string;
 }
 
+/**
+ * "Cars en route to Ghana" — the Home shelf.
+ *
+ * NULL WHEN THERE IS NOTHING PUBLISHED, and the shelf then renders nothing at
+ * all: no placeholder, no "cars coming soon" card, and above all no sample
+ * vehicle. `HomeDeals` is null for the same reason and it is worth restating
+ * for cars, because a car is the most expensive thing on this site — a made-up
+ * product on a price screen is a made-up price, and a made-up CAR is a made-up
+ * six-figure price beside a photograph of something that does not exist.
+ *
+ * `CarWithCover` is a type-only import from a `server-only` module. That is
+ * safe precisely because it is type-only: TypeScript erases it, so nothing
+ * client-side ever reaches the read behind it.
+ */
+export interface HomeCars {
+  /** Newest-arranged published listings with their cover photographs. Never empty. */
+  cars: CarWithCover[];
+  /** Every published listing, not just the ones on the rail — the "see all N" figure. */
+  total: number;
+}
+
 export interface HomeViewModel {
   greeting: HomeGreeting;
   /** Newest first, cancelled orders excluded. Empty array when there are none. */
@@ -139,6 +161,8 @@ export interface HomeViewModel {
   receipt: HomeReceipt | null;
   /** Null when the catalogue holds nothing we could price. Never a placeholder. */
   deals: HomeDeals | null;
+  /** Null when no car listing is published. The rail then draws nothing. */
+  cars: HomeCars | null;
   /**
    * How many products the pre-scraped catalogue holds, across every category.
    *

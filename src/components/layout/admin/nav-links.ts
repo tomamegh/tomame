@@ -5,6 +5,7 @@ import {
   BellIcon,
   BookmarkIcon,
   CameraIcon,
+  CarIcon,
   CreditCardIcon,
   FileTextIcon,
   LayoutGridIcon,
@@ -96,20 +97,19 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
     label: "Catalogue",
     links: [
       { title: "Price watches", url: "/admin/watches", icon: BookmarkIcon },
-      // Cars en route to Ghana (067) BELONGS HERE, and is deliberately not here
-      // yet: migration 067 and the `/api/admin/cars` routes have shipped, but
-      // `/admin/cars` has no page, so this entry was a sidebar item that opened
-      // the not-found screen — with a badge nagging an admin toward it the
-      // moment a customer filed an enquiry. It goes back the day the screen
-      // lands, exactly as written:
-      //
-      //   { title: "Cars", url: "/admin/cars", icon: CarIcon, badge: "carEnquiriesOpen" }
+      // Cars en route to Ghana (067). This entry was pulled before a deploy
+      // because `/admin/cars` had no page and the link opened the not-found
+      // screen — with a badge nagging an admin toward it the moment a customer
+      // filed an enquiry. The screens have now landed (`/admin/cars`,
+      // `/admin/cars/new`, `/admin/cars/[id]` and `/admin/cars/enquiries`), so
+      // it goes back exactly as it was written.
       //
       // Badged on OPEN ENQUIRIES, never on the number of listings: a listing
       // count is always non-zero once the feature is in use, which is the
       // definition of furniture (see `AdminNavLink.badge`). An open enquiry is
       // a named customer waiting to be told a price, or an offer nobody has
       // answered: a person owes somebody an action.
+      { title: "Cars", url: "/admin/cars", icon: CarIcon, badge: "carEnquiriesOpen" },
       { title: "Content", url: "/admin/content", icon: FileTextIcon },
       { title: "Policies", url: "/admin/policies", icon: FileTextIcon },
     ],

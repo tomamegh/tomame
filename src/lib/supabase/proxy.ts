@@ -111,7 +111,24 @@ export async function updateSession(request: NextRequest) {
   // catalogue on `/app/orders/new` is already public, so leaving search behind a
   // login made one half of one feature a wall and the other half open, and the
   // wall was the half a visitor reaches by following our own link.
-  const publicRoutes = ["/app/orders/new", "/app/orders/review", "/app/bag", "/app/products"];
+  // `/app/cars` is public for a stronger version of the same reason. The cars
+  // shelf is the flagship advert: an admin sends a link to one vehicle to a
+  // buyer who has never heard of Tomame, and a login wall in front of the
+  // photographs is the whole feature failing at its one job. The photo route
+  // (`/api/cars/photos/:id`) is already public and re-checks `is_published` per
+  // request, so the picture and the page it sits on agree.
+  //
+  // BUYING AND NEGOTIATING ARE STILL GATED, and deliberately not here.
+  // `/api/cars/checkout` and `/api/cars/enquiries` do their own
+  // `requireAuth()`, so a signed-out visitor can read every listing and is
+  // asked to sign in at the moment they act — not at the moment they look.
+  const publicRoutes = [
+    "/app/orders/new",
+    "/app/orders/review",
+    "/app/bag",
+    "/app/products",
+    "/app/cars",
+  ];
 
   const isPublic = publicRoutes.some((p) => pathname.startsWith(p));
   const isAdminRoute = adminRoutes.some((p) => pathname.startsWith(p));

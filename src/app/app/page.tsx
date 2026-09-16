@@ -16,6 +16,7 @@ import {
   JourneysInMotion,
   LiveReceiptCard,
 } from "@/features/app-home/components";
+import { CarsRail, accraDay } from "@/features/cars/components";
 import { PriceWatchCard } from "@/features/watches/components";
 
 /**
@@ -107,6 +108,26 @@ export default async function AppHomePage() {
         */}
         <EntryDoors />
       </div>
+
+      {/*
+        ── Row A½ · On the water ────────────────────────────────────────
+        Cars sit between the doors and the catalogue because a car comes
+        through none of those doors: it is already bought and already on a
+        ship, and the only thing a customer does with it is look and decide.
+        That makes it the first thing on this screen that is not a way of
+        asking us for something.
+
+        Nothing is drawn when no listing is published — no placeholder, no
+        sample vehicle. A made-up car is a made-up six-figure price beside a
+        photograph of a vehicle that does not exist.
+      */}
+      {view.cars && (
+        <CarsRail
+          cars={view.cars.cars}
+          total={view.cars.total}
+          today={accraDay(now)}
+        />
+      )}
 
       {/*
         ── Row B · Shop ─────────────────────────────────────────────────
