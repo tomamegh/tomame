@@ -1,11 +1,13 @@
 import { cn } from "@/lib/utils";
 import { carTitle } from "../format";
 import type { CarListingView } from "../types";
-import { CarActions } from "./car-actions";
+import { CarActions, type StandingCarEnquiry } from "./car-actions";
 import { CarPriceBlock } from "./car-price-block";
 
 export interface CarActionBarProps {
   car: CarListingView;
+  /** The viewer's live enquiry on this car, so the phone bar says the same thing the desktop rail does. */
+  standingEnquiry?: StandingCarEnquiry | null;
   className?: string;
 }
 
@@ -43,7 +45,11 @@ export interface CarActionBarProps {
  * price takes its own line, the same shape `BagPayBar` uses for its lock
  * countdown.
  */
-export function CarActionBar({ car, className }: CarActionBarProps) {
+export function CarActionBar({
+  car,
+  standingEnquiry = null,
+  className,
+}: CarActionBarProps) {
   return (
     <div
       className={cn(
@@ -53,6 +59,7 @@ export function CarActionBar({ car, className }: CarActionBarProps) {
     >
       <CarPriceBlock listing={car} className="pb-2.5" />
       <CarActions
+        standingEnquiry={standingEnquiry}
         carListingId={car.id}
         slug={car.slug}
         title={carTitle(car)}

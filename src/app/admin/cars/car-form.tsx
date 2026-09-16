@@ -179,7 +179,7 @@ export function CarForm({ mode }: { mode: CarFormMode }) {
       <AdminCard
         index={0}
         title="The vehicle"
-        blurb="What a buyer is looking at. The odometer reading is printed in the unit it was taken in and is never converted — a Japanese import reads in kilometres and an American one in miles, and they are not the same car."
+        blurb="What a buyer is looking at. The odometer reading is printed in the unit it was taken in and is never converted: a Japanese import reads in kilometres and an American one in miles, and they are not the same car."
       >
         <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <TextField
@@ -320,7 +320,7 @@ export function CarForm({ mode }: { mode: CarFormMode }) {
               onChange={(event) => set("sailed_on", event.target.value)}
               className={cn(FIELD_CLASS, "tm-nums")}
             />
-            <FieldHint>No time of day — nobody knows the hour a ship sails.</FieldHint>
+            <FieldHint>No time of day. Nobody knows the hour a ship sails.</FieldHint>
           </div>
           <div className="flex min-w-0 flex-col gap-1.5">
             <FieldLabel htmlFor="car-eta">Arrives at Tema</FieldLabel>

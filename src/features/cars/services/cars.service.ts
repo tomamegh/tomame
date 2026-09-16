@@ -32,9 +32,10 @@ import {
   CAR_PRICE_STATES,
 } from "@/config/constants";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { createNotification } from "@/features/notifications/services/notifications.service";
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
-import { carTitle } from "../format";
+import { carTitle, formatPesewas } from "../format";
 import {
   toCarListingView,
   toCarPhotoView,
@@ -521,6 +522,25 @@ export async function answerEnquiry(
   }
   if (!row) throw new APIError(404, "Enquiry not found");
 
+  /*
+    TELL THE CUSTOMER. This is the whole point of answering, and it was missing:
+    `answerEnquiry` wrote an audit row and returned, so an admin quoted a price,
+    saw the queue update, and the customer was never told anything by any
+    channel. Kelvin: "I replied to a customers enquiry on a car and the customer
+    never saw my response. Also the notification center did not show anything."
+
+    The bell reads every row for a user regardless of `status`, so inserting
+    here IS the delivery — nothing sweeps `pending` notifications into email
+    yet, and pretending otherwise by only writing an email row would have left
+    this exactly as broken as it was.
+
+    It never throws. An enquiry that was answered but whose notification failed
+    to insert is a customer we must chase; an answer that 500s because the bell
+    could not be written is an admin who thinks they have not replied and
+    replies again.
+  */
+  await notifyCarEnquiryAnswered(row, current.status);
+
   await logAuditEvent({
     actorId: actor.id,
     actorRole: AUDIT_ACTOR_ROLES.ADMIN,
@@ -657,4 +677,150 @@ export async function attachCovers(
     const row = photos.find((photo) => photo.is_cover) ?? photos[0];
     return { car, cover: row ? toCarPhotoView(row, carTitle(car)) : null };
   });
+}
+
+/**
+ * The bell entry a customer gets when their enquiry is answered.
+ *
+ * WHAT THE TITLE CAN CLAIM. A price request answered with a figure is a quote;
+ * an accepted offer is an agreement and NOT a purchase, because accepting takes
+ * no money — the car still has to be bought, and saying otherwise in a bell that
+ * links to a payable page would be the worst possible place to be loose about
+ * it. A declined offer says so plainly rather than being softened into nothing.
+ *
+ * The href is the listing, which is where the answer is shown and where the
+ * customer can act on it. It is built from the slug rather than the id because
+ * that is the route that exists.
+ */
+async function notifyCarEnquiryAnswered(
+  row: CarEnquiryRow,
+  previousStatus: string,
+): Promise<void> {
+  try {
+    const listing = await getCarListingById(row.car_listing_id);
+    const payload: Record<string, unknown> = {
+      carEnquiryId: row.id,
+      carListingId: row.car_listing_id,
+      carLabel: listing ? carTitle(listing) : null,
+      kind: row.kind,
+      status: row.status,
+      previousStatus,
+      quotedPesewas: row.quoted_pesewas,
+      offerPesewas: row.offer_pesewas,
+      adminResponse: row.admin_response,
+    };
+    // Only a published listing gets a link: sending somebody to a page that
+    // `notFound()`s is worse than a bell entry that simply does not lead
+    // anywhere, and an admin may well unpublish a car as they answer on it.
+    if (listing?.is_published) payload.href = `/app/cars/${listing.slug}`;
+
+    await createNotification({
+      userId: row.user_id,
+      event: `car_enquiry_${row.status}`,
+      payload,
+    });
+  } catch (error) {
+    logger.error("car enquiry answered but the customer was not notified", {
+      carEnquiryId: row.id,
+      customerId: row.user_id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * The viewer's own live enquiry on one car, or null.
+ *
+ * WHY A SCREEN NEEDS THIS. `uq_car_enquiries_live` already refuses a second
+ * open or answered enquiry from the same customer on the same car, so the
+ * database was never the problem — the SCREEN was. Nothing on the car page knew
+ * an enquiry existed, so "Ask for the price" sat there looking untouched and a
+ * customer pressed it again, and again, and got a 409 that reads like a fault
+ * rather than "you already asked us". Kelvin: "they can consistently send it
+ * again, and again which is not the ideal solution."
+ *
+ * Live means `open` or `answered` — exactly the states the index covers, so the
+ * button the page draws and the row the database will accept can never
+ * disagree. Declined, accepted and withdrawn are settled and DO free the
+ * customer to ask again, which is the behaviour 067 designed on purpose.
+ *
+ * Signed out there is nothing to look up and nothing to show.
+ */
+export async function getLiveCarEnquiryForViewer(
+  carListingId: string,
+  userId: string | null,
+): Promise<CarEnquiryRow | null> {
+  if (!userId) return null;
+
+  try {
+    const { rows } = await listCarEnquiries({ carListingId, userId, limit: 10 });
+    return (
+      rows.find(
+        (row) =>
+          row.status === CAR_ENQUIRY_STATUSES.OPEN ||
+          row.status === CAR_ENQUIRY_STATUSES.ANSWERED,
+      ) ?? null
+    );
+  } catch (error) {
+    // The page is about a car, not about this row. A failed read costs the
+    // customer the "you already asked" state, not the listing.
+    logger.warn("could not read the viewer's car enquiry", {
+      carListingId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+/**
+ * The viewer's live enquiries across a whole page of cars, keyed by listing.
+ *
+ * ONE READ FOR THE GRID. The detail page asks about a single car; the
+ * forecourt draws a dozen, and asking per card would be a dozen queries to
+ * decide whether to grey out a button. A customer has a handful of live
+ * enquiries at most, so this reads theirs and indexes what it finds.
+ *
+ * Same "live" definition as `getLiveCarEnquiryForViewer`, for the same reason:
+ * it must match the states `uq_car_enquiries_live` covers, or the grid offers a
+ * button the database will refuse.
+ */
+export async function listLiveCarEnquiriesByListing(
+  userId: string | null,
+): Promise<Map<string, CarEnquiryRow>> {
+  const byListing = new Map<string, CarEnquiryRow>();
+  if (!userId) return byListing;
+
+  try {
+    const { rows } = await listCarEnquiries({ userId, limit: 100 });
+    for (const row of rows) {
+      const live =
+        row.status === CAR_ENQUIRY_STATUSES.OPEN ||
+        row.status === CAR_ENQUIRY_STATUSES.ANSWERED;
+      // `listCarEnquiries` is newest first and the index guarantees one live row
+      // per car, so the first live hit per listing is the only one.
+      if (live && !byListing.has(row.car_listing_id)) {
+        byListing.set(row.car_listing_id, row);
+      }
+    }
+  } catch (error) {
+    logger.warn("could not read the viewer's car enquiries for the grid", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return byListing;
+}
+
+/** A live enquiry row, reduced to what a button row needs. Formats money once, here. */
+export function toStandingEnquiry(row: CarEnquiryRow): {
+  status: "open" | "answered";
+  kind: "price_request" | "offer";
+  adminResponse: string | null;
+  quotedLabel: string | null;
+} {
+  return {
+    status: row.status as "open" | "answered",
+    kind: row.kind as "price_request" | "offer",
+    adminResponse: row.admin_response,
+    quotedLabel: row.quoted_pesewas != null ? formatPesewas(row.quoted_pesewas) : null,
+  };
 }

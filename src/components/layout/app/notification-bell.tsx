@@ -168,6 +168,16 @@ function notificationTitle(event: string, payload: Record<string, unknown>): str
     paste_unreadable: host ? `We couldn't read your ${host} link` : "We couldn't read your link",
     payment_expired: "Your payment did not go through",
     order_expired_unpaid: "We closed an unpaid order",
+    /*
+      The car enquiry answers. `accepted` deliberately does NOT say "sold" or
+      "bought": accepting an offer records that we agreed a figure and takes no
+      money, and this entry links straight to a page with a Buy button on it.
+      Overstating it there is how somebody ends up believing they own a car they
+      have not paid for.
+    */
+    car_enquiry_answered: "We have answered you about a car",
+    car_enquiry_accepted: "Your offer on a car was accepted",
+    car_enquiry_declined: "Your offer on a car was declined",
   };
   if (known[event]) return known[event];
   const words = event.replace(/_/g, " ").trim();

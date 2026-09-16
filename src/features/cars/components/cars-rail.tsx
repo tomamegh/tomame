@@ -74,7 +74,7 @@ export function CarsRail({ cars, total, today, className }: CarsRailProps) {
           </div>
           <p className="max-w-[62ch] text-[13px] leading-[1.45] font-medium text-tm-text-2">
             Vehicles we have already bought and put on a ship. Every cedi figure
-            is the car landed in Tema with duty and clearing paid — registration
+            is the car landed in Tema with duty and clearing paid, and registration
             and plates are yours to do.
           </p>
         </div>

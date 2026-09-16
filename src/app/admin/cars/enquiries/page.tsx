@@ -86,7 +86,7 @@ export default async function AdminCarEnquiriesPage({
   return (
     <AdminPage
       title="Car enquiries"
-      blurb="Someone asking what a car costs, or offering a figure for one. Answering is a reply and a price — it does not take any money and does not create an order."
+      blurb="Someone asking what a car costs, or offering a figure for one. Answering is a reply and a price: it does not take any money and does not create an order."
       action={
         <>
           <Link
@@ -126,7 +126,7 @@ export default async function AdminCarEnquiriesPage({
       <AdminCard
         index={0}
         title={status === "all" ? "Every enquiry" : `${labelFor(status)} enquiries`}
-        blurb="Newest first. Accepting an offer records that a human said yes so the buyer can pick the conversation up — it is not a sale and takes no payment."
+        blurb="Newest first. Accepting an offer records that a human said yes so the buyer can pick the conversation up. It is not a sale and takes no payment."
       >
         {rows.length === 0 ? (
           <AdminEmpty title={emptyTitle(status)} body={emptyBody(status)} />

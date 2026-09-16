@@ -146,7 +146,7 @@ export function CarPublishPanel({
                 /app/cars/{car.slug}
               </Link>
             ) : (
-              <>/app/cars/{car.slug} — which is a 404 until you publish it</>
+              <>/app/cars/{car.slug}, which is a 404 until you publish it</>
             )}
           </p>
 

@@ -83,7 +83,7 @@ export default async function AdminCarsPage({
   return (
     <AdminPage
       title="Cars"
-      blurb="Vehicles we have bought, or are about to. Each one is written by hand — there is no page to extract and no formula to run — and nothing reaches the site until it has a photograph and you publish it."
+      blurb="Vehicles we have bought, or are about to. Each one is written by hand: there is no page to extract and no formula to run. Nothing reaches the site until it has a photograph and you publish it."
       action={
         <>
           <Link
@@ -149,7 +149,7 @@ export default async function AdminCarsPage({
               ? "One listing has no photograph"
               : `${unpublishable} listings have no photograph`
           }
-          blurb="Publishing is refused until a listing has at least one picture. A car page with a grey box on it is not a listing — the whole proposition is looking at the car."
+          blurb="Publishing is refused until a listing has at least one picture. A car page with a grey box on it is not a listing. The whole proposition is looking at the car."
         >
           <ul className="flex flex-wrap gap-2">
             {rows
@@ -193,7 +193,7 @@ export default async function AdminCarsPage({
       <AdminCard
         index={2}
         title="All cars"
-        blurb="Lowest sort order first, newest next — the same order the storefront uses."
+        blurb="Lowest sort order first, newest next. The same order the storefront uses."
         flush={rows.length > 0}
       >
         {rows.length === 0 ? (

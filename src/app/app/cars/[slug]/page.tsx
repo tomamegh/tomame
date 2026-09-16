@@ -19,10 +19,15 @@ import {
 import {
   carTitle,
   formatMileage,
+  formatPesewas,
   originLabel,
   priceLabel,
 } from "@/features/cars/format";
-import { getPublishedCarBySlug } from "@/features/cars/services/cars.service";
+import {
+  getLiveCarEnquiryForViewer,
+  getPublishedCarBySlug,
+} from "@/features/cars/services/cars.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { cn } from "@/lib/utils";
 
 interface CarPageProps {
@@ -54,7 +59,7 @@ export async function generateMetadata({ params }: CarPageProps): Promise<Metada
 
   return {
     title: `${title} · Tomame`,
-    description: `${title} — ${price.text}${
+    description: `${title}: ${price.text}${
       price.isAmount ? ", landed in Tema with duty and clearing paid" : ""
     }.`,
   };
@@ -93,6 +98,31 @@ export default async function CarDetailPage({ params }: CarPageProps) {
 
   const { car, photos } = found;
   const title = carTitle(car);
+  /*
+    HAS THIS VIEWER ALREADY ASKED ABOUT THIS CAR? The page used to draw "Ask for
+    the price" unconditionally, so a customer who had asked yesterday pressed it
+    again today and got a 409 from the unique index — an error where the honest
+    answer was "we have your question". Read here rather than in the client so
+    the first paint is already right; signed out it costs nothing (the helper
+    returns null without a query).
+  */
+  const viewer = await getAuthenticatedUser();
+  const liveEnquiry = await getLiveCarEnquiryForViewer(car.id, viewer?.id ?? null);
+  const standingEnquiry =
+    liveEnquiry && (liveEnquiry.status === "open" || liveEnquiry.status === "answered")
+      ? {
+          status: liveEnquiry.status,
+          kind: liveEnquiry.kind,
+          adminResponse: liveEnquiry.admin_response,
+          // Formatted here, in the server component: `CarActions` does no
+          // arithmetic on money and must not start now.
+          quotedLabel:
+            liveEnquiry.quoted_pesewas != null
+              ? formatPesewas(liveEnquiry.quoted_pesewas)
+              : null,
+        }
+      : null;
+
   const today = accraDay(new Date());
   const ribbon = voyageRibbon(car, today);
 
@@ -202,6 +232,7 @@ export default async function CarDetailPage({ params }: CarPageProps) {
           <div className="hidden min-w-0 flex-col gap-3.5 rounded-[20px] border border-tm-border bg-card p-5 lg:flex">
             <CarPriceBlock listing={car} />
             <CarActions
+              standingEnquiry={standingEnquiry}
               carListingId={car.id}
               slug={car.slug}
               title={title}
@@ -214,7 +245,7 @@ export default async function CarDetailPage({ params }: CarPageProps) {
         </aside>
       </div>
 
-      <CarActionBar car={car} />
+      <CarActionBar car={car} standingEnquiry={standingEnquiry} />
     </div>
   );
 }

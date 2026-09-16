@@ -4,6 +4,14 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
+// `cars.service` notifies the customer when an enquiry is answered, and the
+// notifications service reaches `@/lib/supabase/admin`, which builds its client
+// at MODULE SCOPE. Unmocked, importing it throws "supabaseUrl is required" and
+// this whole FILE fails to load — which vitest reports as its tests passing,
+// because none of them ran.
+vi.mock("@/features/notifications/services/notifications.service", () => ({
+  createNotification: vi.fn(async () => undefined),
+}));
 vi.mock("@/features/audit/services/audit.service", () => ({
   logAuditEvent: vi.fn(async () => undefined),
 }));
@@ -68,6 +76,7 @@ import * as q from "@/db/queries/cars";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { deleteCarPhotoObject } from "../services/car-photo-storage";
 import { APIError } from "@/lib/auth/api-helpers";
+import { createNotification } from "@/features/notifications/services/notifications.service";
 import {
   answerEnquiry,
   createCar,
@@ -487,6 +496,46 @@ describe("answerEnquiry", () => {
         metadata: expect.objectContaining({ previousStatus: "open", newStatus: "answered" }),
       }),
     );
+  });
+
+  /*
+    THE BUG THIS FEATURE SHIPPED WITH. `answerEnquiry` wrote the row and an
+    audit entry and stopped, so an admin replied, the queue updated, and the
+    customer was told nothing at all by any channel. Kelvin: "I replied to a
+    customers enquiry on a car and the customer never saw my response. Also the
+    notification center did not show anything."
+  */
+  it("tells the customer, with the reply and a link to the car", async () => {
+    await answerEnquiry(ACTOR, enquiry().id, {
+      status: "answered",
+      admin_response: "We could do GH₵178,000.",
+      quoted_pesewas: 17_800_000,
+    });
+
+    expect(createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: enquiry().user_id,
+        event: "car_enquiry_answered",
+        payload: expect.objectContaining({
+          quotedPesewas: 17_800_000,
+          adminResponse: "We could do GH₵178,000.",
+        }),
+      }),
+    );
+  });
+
+  it("still answers when the bell cannot be written", async () => {
+    vi.mocked(createNotification).mockRejectedValueOnce(new Error("notifications down"));
+
+    // The answer is the real work and it is already done. Failing here would
+    // leave an admin believing they had not replied — so they reply again.
+    await expect(
+      answerEnquiry(ACTOR, enquiry().id, {
+        status: "answered",
+        admin_response: "We could do GH₵178,000.",
+        quoted_pesewas: 17_800_000,
+      }),
+    ).resolves.toEqual(expect.objectContaining({ status: "answered" }));
   });
 
   it("allows a second round — a negotiation goes back and forth", async () => {

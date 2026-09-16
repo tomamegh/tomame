@@ -27,7 +27,7 @@ export default function NewCarPage() {
   return (
     <AdminPage
       title="New car"
-      blurb="Saved as a draft. Add the photographs on the next screen, then publish it — a listing with no picture cannot go on the site."
+      blurb="Saved as a draft. Add the photographs on the next screen, then publish it. A listing with no picture cannot go on the site."
       action={
         <Link
           href="/admin/cars"

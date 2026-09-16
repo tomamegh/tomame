@@ -5,7 +5,8 @@ import { CarProfile } from "@phosphor-icons/react/ssr";
 import { cn } from "@/lib/utils";
 import { carTitle, formatMileage, originLabel } from "../format";
 import { CarActions } from "./car-actions";
-import type { CarWithCover } from "../services/cars.service";
+import { toStandingEnquiry, type CarWithCover } from "../services/cars.service";
+import type { CarEnquiryRow } from "../types";
 import { CarPriceBlock } from "./car-price-block";
 import {
   RIBBON_TONE_CLASS,
@@ -15,6 +16,8 @@ import {
 } from "./labels";
 
 export interface CarCardProps {
+  /** The viewer's live enquiry on this car, if any. Replaces the ask button. */
+  standingEnquiry?: CarEnquiryRow | null;
   entry: CarWithCover;
   /** The render's ISO day, so every ribbon in a grid agrees about what has landed. */
   today: string;
@@ -52,7 +55,9 @@ export interface CarCardProps {
  *
  * A Server Component. The only client island is the action row.
  */
-export function CarCard({ entry, today, variant = "grid", className }: CarCardProps) {
+export function CarCard({ entry, today, variant = "grid", className,
+  standingEnquiry = null,
+}: CarCardProps) {
   const { car, cover } = entry;
   const title = carTitle(car);
   const ribbon = voyageRibbon(car, today);
@@ -160,6 +165,7 @@ export function CarCard({ entry, today, variant = "grid", className }: CarCardPr
 
         <div className="mt-auto px-4 pt-3 pb-4">
           <CarActions
+            standingEnquiry={standingEnquiry ? toStandingEnquiry(standingEnquiry) : null}
             carListingId={car.id}
             slug={car.slug}
             title={title}

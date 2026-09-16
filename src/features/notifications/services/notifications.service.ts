@@ -223,6 +223,49 @@ export async function markAllNotificationsRead(
   return { updated: updated.length };
 }
 
+/**
+ * One notification for one person.
+ *
+ * `createOrderNotifications` fans an order out to the customer and every admin;
+ * this is the single-recipient case, which is most of them — a quote answered,
+ * an offer declined, a thing that happened to exactly one person.
+ *
+ * `channel: "email"` and `status: "pending"` match every other writer here, and
+ * both are currently aspirational: nothing sweeps pending rows into actual
+ * email. What DOES read them is the bell, which selects every row for a user
+ * regardless of status, so this insert is what the customer actually sees.
+ * Writing the row is therefore the delivery, not a queue entry waiting on a job
+ * that does not exist — worth knowing before anyone "fixes" the status.
+ *
+ * It resolves either way. A caller that has already done the real work (answered
+ * an enquiry, settled a payment) must not fail because the bell could not be
+ * written; the failure is logged loudly instead, because a silent one leaves a
+ * customer waiting for news that is never coming.
+ */
+export async function createNotification(input: {
+  userId: string;
+  event: string;
+  payload: Record<string, unknown>;
+}): Promise<void> {
+  const { error } = await createAdminClient()
+    .from("notifications")
+    .insert({
+      user_id: input.userId,
+      channel: "email" as const,
+      event: input.event,
+      payload: input.payload,
+      status: "pending" as const,
+    });
+
+  if (error) {
+    logger.error("createNotification: insert failed", {
+      event: input.event,
+      userId: input.userId,
+      error: error.message,
+    });
+  }
+}
+
 export async function createOrderNotifications(
   userId: string,
   orderId: string,

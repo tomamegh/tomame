@@ -1,8 +1,11 @@
 import { cn } from "@/lib/utils";
 import { CarCard } from "./car-card";
 import type { CarWithCover } from "../services/cars.service";
+import type { CarEnquiryRow } from "../types";
 
 export interface CarGridProps {
+  /** The viewer's live enquiries, keyed by listing id. Empty when signed out. */
+  enquiries?: ReadonlyMap<string, CarEnquiryRow>;
   cars: readonly CarWithCover[];
   /** The render's ISO day, so every ribbon in the grid agrees about what has landed. */
   today: string;
@@ -23,7 +26,7 @@ export interface CarGridProps {
  * width for "Buy now" and "Make an offer" to sit side by side without each of
  * them truncating.
  */
-export function CarGrid({ cars, today, className }: CarGridProps) {
+export function CarGrid({ cars, today, enquiries, className }: CarGridProps) {
   if (cars.length === 0) return null;
 
   return (
@@ -35,7 +38,12 @@ export function CarGrid({ cars, today, className }: CarGridProps) {
       )}
     >
       {cars.map((entry) => (
-        <CarCard key={entry.car.id} entry={entry} today={today} />
+        <CarCard
+          key={entry.car.id}
+          entry={entry}
+          today={today}
+          standingEnquiry={enquiries?.get(entry.car.id) ?? null}
+        />
       ))}
     </ul>
   );

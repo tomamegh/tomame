@@ -2,7 +2,13 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ChatCircleDots, SpinnerGap, Tag } from "@phosphor-icons/react/ssr";
+import {
+  ArrowRight,
+  ChatCircleDots,
+  Clock,
+  SpinnerGap,
+  Tag,
+} from "@phosphor-icons/react/ssr";
 
 import { CAR_PRICE_STATES, type CarPriceState } from "@/config/constants";
 import { ApiFetchError, apiFetch } from "@/lib/auth/api-helpers";
@@ -44,6 +50,16 @@ const SECONDARY = cn(
 /** The card's row is shorter and quieter: it sits under a photograph, not under a hero. */
 const COMPACT = "h-[42px] rounded-[12px] text-[13.5px]";
 
+/** Just enough of a live enquiry for the button row to say what is going on. */
+export interface StandingCarEnquiry {
+  status: "open" | "answered";
+  kind: "price_request" | "offer";
+  /** The admin's reply, shown verbatim once answered. */
+  adminResponse: string | null;
+  /** Already formatted — this component does no arithmetic on money. */
+  quotedLabel: string | null;
+}
+
 export interface CarActionsProps {
   carListingId: string;
   /** Used to build the sign-in return address, so a signed-out visitor lands back on THIS car. */
@@ -53,6 +69,15 @@ export interface CarActionsProps {
   priceState: CarPriceState;
   /** PESEWAS. Shown by the dialog as context; never used to compute anything. */
   pricePesewas: number | null;
+  /**
+   * The viewer's own enquiry on this car, when one is live (open or answered).
+   *
+   * Null for a signed-out visitor and for anyone who has not asked. When it is
+   * set, the ask button is replaced rather than accompanied: the database
+   * refuses a second live enquiry on the same car from the same customer, so
+   * the only thing a second press could produce is an error.
+   */
+  standingEnquiry?: StandingCarEnquiry | null;
   /** `compact` is the index card's action row; `full` is the detail page and the phone bar. */
   size?: "compact" | "full";
   className?: string;
@@ -92,6 +117,7 @@ export function CarActions({
   title,
   priceState,
   pricePesewas,
+  standingEnquiry = null,
   size = "full",
   className,
 }: CarActionsProps) {
@@ -99,7 +125,16 @@ export function CarActions({
   const [busy, setBusy] = useState(false);
   const [enquiryOpen, setEnquiryOpen] = useState(false);
   const returnTo = `/app/cars/${slug}`;
-  const enquiryKind = enquiryKindFor(priceState);
+  /*
+    A LIVE ENQUIRY REPLACES THE BUTTON; IT DOES NOT SIT BESIDE IT. The database
+    already refuses a second open or answered enquiry on the same car from the
+    same customer, so leaving the button live meant the only thing a second tap
+    could produce was a 409 dressed as an error. Kelvin: "they can consistently
+    send it again, and again which is not the ideal solution." Once it is
+    declined, accepted or withdrawn the row stops being live, the button comes
+    back, and the customer may ask again — which is what 067 intended.
+  */
+  const enquiryKind = standingEnquiry ? null : enquiryKindFor(priceState);
   const compact = size === "compact";
 
   const toLogin = useCallback(() => {
@@ -166,6 +201,10 @@ export function CarActions({
           </button>
         )}
 
+        {standingEnquiry && (
+          <StandingEnquiry enquiry={standingEnquiry} compact={compact} />
+        )}
+
         {enquiryKind && (
           <button
             type="button"
@@ -216,5 +255,71 @@ export function CarActions({
         />
       )}
     </>
+  );
+}
+
+/**
+ * What a customer sees once they have already asked about this car.
+ *
+ * It says which of the two things is true and nothing more: we have your
+ * question and have not answered it, or we have answered and here is the
+ * answer. It is deliberately not a button — there is nothing useful to press,
+ * because the one action it could offer is the one the database refuses.
+ *
+ * An ANSWERED enquiry prints the admin's own words. That is the reply the
+ * customer was never shown: it lives on the row, the bell now links here, and
+ * this is where it is read.
+ */
+function StandingEnquiry({
+  enquiry,
+  compact,
+}: {
+  enquiry: StandingCarEnquiry;
+  compact: boolean;
+}) {
+  const answered = enquiry.status === "answered";
+
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 flex-1 flex-col gap-1 rounded-[14px] border px-3.5 py-2.5",
+        answered
+          ? "border-tm-green/25 bg-tm-green-bg"
+          : "border-tm-border bg-tm-pill-bg",
+      )}
+    >
+      <span
+        className={cn(
+          "flex items-center gap-1.5 leading-none font-bold",
+          compact ? "text-[12px]" : "text-[13px]",
+          answered ? "text-tm-green-ink" : "text-tm-text-2",
+        )}
+      >
+        {answered ? (
+          <ChatCircleDots weight="fill" className="size-3.5 shrink-0" aria-hidden />
+        ) : (
+          <Clock weight="duotone" className="size-3.5 shrink-0" aria-hidden />
+        )}
+        {answered
+          ? enquiry.quotedLabel
+            ? `We quoted ${enquiry.quotedLabel}`
+            : "We have replied"
+          : enquiry.kind === "offer"
+            ? "Your offer is with us"
+            : "You asked us for the price"}
+      </span>
+
+      {answered && enquiry.adminResponse ? (
+        <span className="text-[11.5px] leading-[1.4] font-medium text-tm-text-2">
+          {enquiry.adminResponse}
+        </span>
+      ) : (
+        !answered && (
+          <span className="text-[11.5px] leading-[1.4] font-medium text-tm-text-3">
+            We will come back to you. You do not need to ask again.
+          </span>
+        )
+      )}
+    </div>
   );
 }

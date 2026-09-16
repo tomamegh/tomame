@@ -4,7 +4,12 @@ import { Boat, CarProfile } from "@phosphor-icons/react/ssr";
 
 import { CarGrid, accraDay } from "@/features/cars/components";
 
-import { attachCovers, listPublishedCars } from "@/features/cars/services/cars.service";
+import {
+  attachCovers,
+  listLiveCarEnquiriesByListing,
+  listPublishedCars,
+} from "@/features/cars/services/cars.service";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { logger } from "@/lib/logger";
 
 export const metadata: Metadata = {
@@ -64,6 +69,14 @@ export default async function CarsPage() {
     });
   }
 
+  /*
+    Which of these has this viewer already asked about? One read for the whole
+    grid, so a card whose enquiry is live says so instead of offering a button
+    the unique index will refuse. Signed out it costs no query at all.
+  */
+  const viewer = await getAuthenticatedUser();
+  const enquiries = await listLiveCarEnquiriesByListing(viewer?.id ?? null);
+
   // One day for the whole render, so every ribbon in the grid agrees about
   // which cars have landed. Accra is GMT year-round.
   const today = accraDay(new Date());
@@ -83,7 +96,7 @@ export default async function CarsPage() {
         <p className="max-w-[62ch] text-[15px] leading-[1.5] font-medium text-tm-text-2">
           Vehicles we have already bought and put on a ship. Where a price is
           shown it is the car landed in Tema with ocean freight, insurance,
-          Ghana duty and clearing all paid — registration and plates are yours
+          Ghana duty and clearing all paid. Registration and plates are yours
           to do. Some are open to offers and some we will price for you on
           request.
         </p>
@@ -116,7 +129,7 @@ export default async function CarsPage() {
             {total === 1 ? "1 car listed" : `${total} cars listed`}
           </h2>
 
-          <CarGrid cars={cars} today={today} />
+          <CarGrid cars={cars} today={today} enquiries={enquiries} />
 
           {total > cars.length && (
             <p className="max-w-[64ch] text-[13px] leading-[1.45] font-medium text-tm-text-3">
