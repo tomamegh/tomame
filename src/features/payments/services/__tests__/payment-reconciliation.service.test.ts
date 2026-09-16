@@ -45,6 +45,10 @@ import {
 // "is this car still on the market?" read both run for real against the
 // in-memory rows.
 import { findLiveCarOrderForListing } from "@/db/queries/car-orders";
+// The real service, against the real rows: what refuses a cancel out of
+// `deposit_paid` is the shared transitions table, not a mock.
+import { cancelCarOrder } from "@/features/cars/services/car-orders.service";
+import { APIError } from "@/lib/auth/api-helpers";
 import { findActivePayment, handlePaymentCallback } from "@/features/payments/services/payments.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyTransaction } from "@/lib/paystack/client";
@@ -305,10 +309,19 @@ function seedCarOrder(overrides: Partial<Row> = {}): Row {
     user_id: USER_ID,
     price_pesewas: 18_500_000,
     price_state: "fixed",
+    price_source: "listing",
+    car_enquiry_id: null,
     car_label: "2019 Toyota Highlander XLE",
+    deposit_pesewas: 5_550_000,
+    deposit_percent: 30,
+    balance_pesewas: 12_950_000,
     status: "pending_payment",
     payment_id: null,
+    deposit_paid_at: null,
     paid_at: null,
+    balance_amount_pesewas: null,
+    balance_note: null,
+    balance_recorded_by: null,
     cancelled_at: null,
     cancel_reason: null,
     created_at: minutesAgo(50 * 60),
@@ -448,6 +461,76 @@ describe("reconcilePendingPayments — abandoned car checkouts", () => {
 
     expect(summary.carOrdersCancelled).toBe(0);
     expect(carOrder().status).toBe("paid");
+    expect(auditActions()).not.toContain("car_order_cancelled");
+  });
+
+  /*
+    THE WORST FAILURE THIS FEATURE COULD HAVE (069).
+
+    A `deposit_paid` car order is a customer who has PAID — GH₵55,500 of a
+    GH₵185,000 vehicle — and is waiting to arrange the balance. Cancelling it
+    would take their car back off them, put it up for sale to somebody else, and
+    leave their deposit sitting in our Paystack account. It is strictly worse
+    than cancelling a fully paid order, because the customer is mid-transaction
+    and has every reason to think the car is theirs.
+
+    Three separate things stop it, and the three tests below take them one at a
+    time rather than relying on any one of them holding forever.
+  */
+  it("NEVER cancels a car order whose deposit has been paid", async () => {
+    // GUARD 1: `listStalePendingCarOrders` asks for `status = 'pending_payment'`
+    // and nothing else, so a deposit-paid car is not in the batch at all —
+    // however old it is, and with no payment row protecting it either.
+    seedCarOrder({
+      status: "deposit_paid",
+      payment_id: "77777777-7777-4777-8777-777777777777",
+      deposit_paid_at: minutesAgo(49 * 60),
+      created_at: minutesAgo(80 * 60),
+    });
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(summary.carOrdersCancelled).toBe(0);
+    expect(carOrder().status).toBe("deposit_paid");
+    expect(carOrder().cancelled_at).toBeNull();
+    expect(auditActions()).not.toContain("car_order_cancelled");
+    // And the car is still held for the customer who paid the deposit: the same
+    // predicate `uq_car_orders_live` carries says it is not on the market.
+    expect(await findLiveCarOrderForListing(CAR_LISTING_ID)).not.toBeNull();
+  });
+
+  it("refuses a deposit-paid car even if the sweep somehow reached it", async () => {
+    // GUARD 3, on its own: `cancelCarOrder` re-reads the row and validates the
+    // move against the shared transitions table, where `cancelled` is reachable
+    // only from `pending_payment`. Called directly — as the batch would call it
+    // after listing a row that then moved — it refuses rather than unwinding.
+    seedCarOrder({ status: "deposit_paid", payment_id: "p", deposit_paid_at: minutesAgo(60) });
+
+    await expect(
+      cancelCarOrder({ id: USER_ID, role: "system" }, CAR_ORDER_ID, "swept"),
+    ).rejects.toBeInstanceOf(APIError);
+
+    expect(carOrder().status).toBe("deposit_paid");
+    expect(auditActions()).not.toContain("car_order_cancelled");
+  });
+
+  it("loses to a DEPOSIT that lands while the batch is being worked", async () => {
+    // GUARD 3 in the race it exists for, now at the state 069 added: the row was
+    // `pending_payment` when it was listed and the deposit settled before the
+    // cancel. The CAS re-read refuses the move and the run carries on.
+    const row = seedCarOrder();
+    vi.mocked(findActivePayment).mockImplementation(async () => {
+      row.status = "deposit_paid";
+      row.payment_id = "77777777-7777-4777-8777-777777777777";
+      row.deposit_paid_at = NOW.toISOString();
+      return null;
+    });
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(summary.carOrdersCancelled).toBe(0);
+    expect(carOrder().status).toBe("deposit_paid");
+    expect(carOrder().cancelled_at).toBeNull();
     expect(auditActions()).not.toContain("car_order_cancelled");
   });
 

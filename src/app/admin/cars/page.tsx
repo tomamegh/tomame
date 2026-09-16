@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MessagesSquareIcon, PlusIcon } from "lucide-react";
+import { BanknoteIcon, MessagesSquareIcon, PlusIcon } from "lucide-react";
 
 import {
   AdminCard,
@@ -99,6 +99,18 @@ export default async function AdminCarsPage({
             ) : null}
           </Link>
           <Link
+            href="/admin/cars/orders"
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-tm-border bg-card px-4 text-[13px] font-semibold text-tm-text-2 transition-colors hover:bg-tm-paper"
+          >
+            <BanknoteIcon className="size-4" aria-hidden />
+            Sales
+            {counts.carBalancesDue > 0 ? (
+              <span className="tm-nums rounded-full bg-tm-pill-bg px-1.5 py-0.5 text-[11px] leading-none font-bold text-tm-coral-strong">
+                {counts.carBalancesDue}
+              </span>
+            ) : null}
+          </Link>
+          <Link
             href="/admin/cars/new"
             className="tm-cta-gradient inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
           >
@@ -108,7 +120,7 @@ export default async function AdminCarsPage({
         </>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <AdminStat
           index={0}
           label="On the site"
@@ -138,6 +150,24 @@ export default async function AdminCarsPage({
           }
           tone={counts.carEnquiriesOpen > 0 ? "coral" : "green"}
           href="/admin/cars/enquiries"
+        />
+        {/*
+          A COUNT OF SALES WOULD NOT BELONG HERE. What is on this tile is the
+          number of vehicles somebody has paid a deposit on and still owes the
+          rest of, which is the only part of the sales screen that is work.
+          Everything else there is a record.
+        */}
+        <AdminStat
+          index={3}
+          label="Balances to collect"
+          value={`${counts.carBalancesDue}`}
+          detail={
+            counts.carBalancesDue === 0
+              ? "Nobody owes a balance"
+              : "Deposits taken, with the rest still to arrive"
+          }
+          tone={counts.carBalancesDue > 0 ? "coral" : "green"}
+          href="/admin/cars/orders?status=due"
         />
       </div>
 

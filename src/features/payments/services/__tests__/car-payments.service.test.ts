@@ -66,6 +66,7 @@ import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { sendOrderStatusEmail } from "@/features/orders/services/orders.service";
 import { createOrderNotifications } from "@/features/notifications/services/notifications.service";
 import { APIError } from "@/lib/auth/api-helpers";
+import { findLiveCarOrderForListing } from "@/db/queries/car-orders";
 import { createFakeClient, type FakeDb, type Row } from "./fake-supabase";
 import type { PlatformUser } from "@/features/users/types";
 
@@ -80,6 +81,10 @@ const REFERENCE = "TOM_1700000000000_abc123";
 
 /** GH₵185,000 — a plausible landed Highlander, and the figure that was agreed. */
 const AGREED_PESEWAS = 18_500_000;
+/** 30% of it: GH₵55,500, the DEPOSIT, and what Paystack is actually asked for. */
+const DEPOSIT_PESEWAS = 5_550_000;
+/** GH₵129,500 left, settled offline and recorded by an admin (069). */
+const BALANCE_PESEWAS = AGREED_PESEWAS - DEPOSIT_PESEWAS;
 /** What an admin repriced the LISTING to afterwards. Must never be charged. */
 const REPRICED_PESEWAS = 25_000_000;
 
@@ -101,10 +106,19 @@ function seedCarOrder(overrides: Partial<Row> = {}): Row {
     user_id: USER_ID,
     price_pesewas: AGREED_PESEWAS,
     price_state: "fixed",
+    price_source: "listing",
+    car_enquiry_id: null,
     car_label: "2019 Toyota Highlander XLE",
+    deposit_pesewas: DEPOSIT_PESEWAS,
+    deposit_percent: 30,
+    balance_pesewas: BALANCE_PESEWAS,
     status: "pending_payment",
     payment_id: null,
+    deposit_paid_at: null,
     paid_at: null,
+    balance_amount_pesewas: null,
+    balance_note: null,
+    balance_recorded_by: null,
     cancelled_at: null,
     cancel_reason: null,
     created_at: new Date().toISOString(),
@@ -138,7 +152,7 @@ function seedCarPayment(overrides: Partial<Row> = {}): Row {
     id: PAYMENT_ID,
     user_id: USER_ID,
     reference: REFERENCE,
-    amount: AGREED_PESEWAS,
+    amount: DEPOSIT_PESEWAS,
     currency: "GHS",
     status: "pending",
     channel: null,
@@ -160,7 +174,7 @@ function verification(overrides: Record<string, unknown> = {}) {
       id: 99,
       status: "success",
       reference: REFERENCE,
-      amount: AGREED_PESEWAS,
+      amount: DEPOSIT_PESEWAS,
       currency: "GHS",
       channel: "mobile_money",
       paid_at: "2026-09-15T10:00:00Z",
@@ -210,18 +224,64 @@ function auditCalls(action: string) {
 
 // ── The charge ───────────────────────────────────────────────────────────────
 
-describe("initializePayment — a car (068)", () => {
-  it("charges the SNAPSHOT on the car order, not the listing's current price", async () => {
+describe("initializePayment — a car (068, deposit from 069)", () => {
+  it("charges the DEPOSIT snapshotted on the car order, not the price and not the listing", async () => {
     seedCarOrder();
     // The admin has since raised the listing by GH₵65,000.
     seedRepricedListing();
 
     await initializePayment(makeUser(), { carOrderId: CAR_ORDER_ID });
 
-    // The customer agreed to GH₵185,000, so GH₵185,000 is what Paystack is
-    // asked for. A re-read of `car_listings` would show GH₵250,000 here.
-    expect(vi.mocked(initializeTransaction).mock.calls[0]![0].amount).toBe(AGREED_PESEWAS);
-    expect(db.payments[0]!.amount).toBe(AGREED_PESEWAS);
+    // GH₵55,500 — the deposit the customer was quoted. Charging the PRICE would
+    // ask a MoMo wallet for GH₵185,000, which is the transaction 069 exists
+    // because customers cannot complete; re-reading `car_listings` would ask for
+    // GH₵250,000, a figure nobody ever saw.
+    expect(vi.mocked(initializeTransaction).mock.calls[0]![0].amount).toBe(DEPOSIT_PESEWAS);
+    expect(db.payments[0]!.amount).toBe(DEPOSIT_PESEWAS);
+  });
+
+  it("records the full price and the balance on the payment, so the deposit reads as one", async () => {
+    seedCarOrder();
+
+    await initializePayment(makeUser(), { carOrderId: CAR_ORDER_ID });
+
+    expect(db.payments[0]!.metadata).toMatchObject({
+      car_order_id: CAR_ORDER_ID,
+      car_price_pesewas: AGREED_PESEWAS,
+      car_balance_pesewas: BALANCE_PESEWAS,
+    });
+  });
+
+  it("never recomputes the deposit — the row's figure is charged whatever the setting says", async () => {
+    // An order written when the dial was at 20%. Nothing in the payment path
+    // reads `car_deposit_percent` at all; this proves it by charging a deposit
+    // that no current setting would produce.
+    seedCarOrder({ deposit_pesewas: 3_700_000, deposit_percent: 20 });
+
+    await initializePayment(makeUser(), { carOrderId: CAR_ORDER_ID });
+
+    expect(vi.mocked(initializeTransaction).mock.calls[0]![0].amount).toBe(3_700_000);
+  });
+
+  it("refuses to charge a car whose deposit has already landed", async () => {
+    // `deposit_paid`: the balance is settled offline and recorded by an admin,
+    // so there is no second Paystack transaction to open — which is exactly why
+    // `assertNoActivePayment` did not have to be relaxed for 069.
+    seedCarOrder({
+      status: "deposit_paid",
+      payment_id: PAYMENT_ID,
+      deposit_paid_at: new Date().toISOString(),
+    });
+
+    await expectApiError(initializePayment(makeUser(), { carOrderId: CAR_ORDER_ID }), 400);
+    expect(initializeTransaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses a car order whose deposit is somehow larger than its price", async () => {
+    seedCarOrder({ deposit_pesewas: AGREED_PESEWAS + 1 });
+
+    await expectApiError(initializePayment(makeUser(), { carOrderId: CAR_ORDER_ID }), 400);
+    expect(initializeTransaction).not.toHaveBeenCalled();
   });
 
   it("stamps car_order_id on the payment row, which is what the guards scope on", async () => {
@@ -246,7 +306,12 @@ describe("initializePayment — a car (068)", () => {
   });
 
   it("refuses a second checkout on a car that has already been paid for", async () => {
-    seedCarOrder({ status: "paid", payment_id: PAYMENT_ID, paid_at: new Date().toISOString() });
+    seedCarOrder({
+      status: "paid",
+      payment_id: PAYMENT_ID,
+      deposit_paid_at: new Date().toISOString(),
+      paid_at: new Date().toISOString(),
+    });
 
     await expectApiError(initializePayment(makeUser(), { carOrderId: CAR_ORDER_ID }), 400);
     expect(db.payments).toHaveLength(0);
@@ -271,32 +336,75 @@ describe("initializePayment — a car (068)", () => {
 
 // ── Settlement ───────────────────────────────────────────────────────────────
 
-describe("handlePaymentCallback — a car settles once (068)", () => {
-  it("flips the car order to paid, attributes the payment, and audits it", async () => {
+describe("handlePaymentCallback — a car settles once (068, deposit from 069)", () => {
+  it("lands on deposit_paid — NOT paid — attributes the payment, and audits it", async () => {
     seedCarOrder();
     const payment = seedCarPayment();
 
     const { redirectUrl } = await handlePaymentCallback(REFERENCE);
 
     expect(payment.status).toBe("success");
-    expect(carOrder().status).toBe("paid");
+    // THE CAR IS NOT PAID FOR. GH₵55,500 arrived against a GH₵185,000 vehicle;
+    // writing `paid` here would tell the customer, the admin queue and every
+    // later reader that the balance had been settled.
+    expect(carOrder().status).toBe("deposit_paid");
+    expect(carOrder().paid_at).toBeNull();
     // `car_orders_paid_is_attributed` requires both of these in the database.
     expect(carOrder().payment_id).toBe(PAYMENT_ID);
-    expect(carOrder().paid_at).toEqual(expect.any(String));
+    expect(carOrder().deposit_paid_at).toEqual(expect.any(String));
 
-    expect(auditCalls("car_order_paid")).toHaveLength(1);
+    // The action does not say "paid" either — an audit trail is read by people.
+    expect(auditCalls("car_order_paid")).toHaveLength(0);
+    expect(auditCalls("car_order_deposit_paid")).toHaveLength(1);
     expect(logAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: "car_order_paid",
+        action: "car_order_deposit_paid",
         entityType: "car_order",
         entityId: CAR_ORDER_ID,
-        metadata: expect.objectContaining({ amountPesewas: AGREED_PESEWAS }),
+        metadata: expect.objectContaining({
+          to: "deposit_paid",
+          amountPesewas: DEPOSIT_PESEWAS,
+          pricePesewas: AGREED_PESEWAS,
+          balancePesewas: BALANCE_PESEWAS,
+        }),
       }),
     );
 
     expect(redirectUrl).toBe(
       `https://tomame.test/app/cars?payment=success&car=${CAR_ORDER_ID}`,
     );
+  });
+
+  it("goes straight to paid when the deposit WAS the whole price", async () => {
+    // A 100% setting, or any order written before 069. Routing these through
+    // `deposit_paid` would strand the car waiting for somebody to record a
+    // balance of GH₵0 that nobody will ever record.
+    seedCarOrder({ deposit_pesewas: AGREED_PESEWAS, deposit_percent: 100, balance_pesewas: 0 });
+    seedCarPayment({ amount: AGREED_PESEWAS });
+    vi.mocked(verifyTransaction).mockResolvedValue(
+      verification({ amount: AGREED_PESEWAS }) as never,
+    );
+
+    await handlePaymentCallback(REFERENCE);
+
+    expect(carOrder().status).toBe("paid");
+    expect(carOrder().paid_at).toEqual(expect.any(String));
+    expect(carOrder().deposit_paid_at).toEqual(expect.any(String));
+    expect(auditCalls("car_order_paid")).toHaveLength(1);
+    expect(auditCalls("car_order_deposit_paid")).toHaveLength(0);
+  });
+
+  it("keeps holding the car once the deposit is in", async () => {
+    // `uq_car_orders_live` excludes only `cancelled`, so `deposit_paid` is still
+    // in the live set and nobody else can buy this vehicle. This is the read
+    // `claimCar` makes, carrying the same predicate as the index.
+    seedCarOrder();
+    seedCarPayment();
+
+    await handlePaymentCallback(REFERENCE);
+
+    const live = await findLiveCarOrderForListing(CAR_LISTING_ID);
+    expect(live?.status).toBe("deposit_paid");
   });
 
   it("sends no parcel email and writes no parcel notification for a car", async () => {
@@ -320,7 +428,7 @@ describe("handlePaymentCallback — a car settles once (068)", () => {
     await handlePaymentCallback(REFERENCE);
     await handlePaymentCallback(REFERENCE);
 
-    expect(auditCalls("car_order_paid")).toHaveLength(1);
+    expect(auditCalls("car_order_deposit_paid")).toHaveLength(1);
     expect(auditCalls("payment_successful")).toHaveLength(1);
   });
 
@@ -358,8 +466,8 @@ describe("handlePaymentCallback — a car settles once (068)", () => {
     })]);
 
     expect(verifyTransaction).toHaveBeenCalledTimes(2);
-    expect(carOrder().status).toBe("paid");
-    expect(auditCalls("car_order_paid")).toHaveLength(1);
+    expect(carOrder().status).toBe("deposit_paid");
+    expect(auditCalls("car_order_deposit_paid")).toHaveLength(1);
     expect(auditCalls("payment_successful")).toHaveLength(1);
   });
 
@@ -373,16 +481,16 @@ describe("handlePaymentCallback — a car settles once (068)", () => {
     const payment = seedCarPayment();
 
     await handlePaymentCallback(REFERENCE);
-    const firstPaidAt = carOrder().paid_at;
+    const firstDepositPaidAt = carOrder().deposit_paid_at;
 
     payment.status = "pending";
     await handlePaymentCallback(REFERENCE);
 
-    expect(carOrder().status).toBe("paid");
+    expect(carOrder().status).toBe("deposit_paid");
     // Untouched: the second update matched nothing at all, rather than
     // re-stamping the moment the customer paid.
-    expect(carOrder().paid_at).toBe(firstPaidAt);
-    expect(auditCalls("car_order_paid")).toHaveLength(1);
+    expect(carOrder().deposit_paid_at).toBe(firstDepositPaidAt);
+    expect(auditCalls("car_order_deposit_paid")).toHaveLength(1);
   });
 
   it("raises a refund review when money lands on a car order that was cancelled", async () => {
@@ -398,6 +506,7 @@ describe("handlePaymentCallback — a car settles once (068)", () => {
     expect(payment.status).toBe("success");
     expect(carOrder().status).toBe("cancelled");
     expect(auditCalls("car_order_paid")).toHaveLength(0);
+    expect(auditCalls("car_order_deposit_paid")).toHaveLength(0);
     expect(logAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "payment_successful",
@@ -418,6 +527,7 @@ describe("handlePaymentCallback — a car settles once (068)", () => {
 
     expect(carOrder().status).toBe("pending_payment");
     expect(auditCalls("car_order_paid")).toHaveLength(0);
+    expect(auditCalls("car_order_deposit_paid")).toHaveLength(0);
   });
 
   // `/app/cars` — `src/app/app/cars/page.tsx`, a real route — and NOT the
@@ -438,15 +548,17 @@ describe("handlePaymentCallback — a car settles once (068)", () => {
   it("refuses to settle a car when Paystack reports a different amount", async () => {
     seedCarOrder();
     const payment = seedCarPayment();
-    // Underpaid by GH₵1,000. The verification is the evidence, not the webhook.
+    // The deposit underpaid by GH₵1,000. The verification is the evidence, not
+    // the webhook — and what it is compared against is the DEPOSIT this payment
+    // was opened for, which is the only amount Paystack was ever asked for.
     vi.mocked(verifyTransaction).mockResolvedValue(
-      verification({ amount: AGREED_PESEWAS - 100_000 }) as never,
+      verification({ amount: DEPOSIT_PESEWAS - 100_000 }) as never,
     );
 
     await handlePaymentCallback(REFERENCE);
 
     expect(payment.status).toBe("failed");
     expect(carOrder().status).toBe("pending_payment");
-    expect(auditCalls("car_order_paid")).toHaveLength(0);
+    expect(auditCalls("car_order_deposit_paid")).toHaveLength(0);
   });
 });

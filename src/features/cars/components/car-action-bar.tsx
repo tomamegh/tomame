@@ -2,12 +2,19 @@ import { cn } from "@/lib/utils";
 import { carTitle } from "../format";
 import type { CarListingView } from "../types";
 import { CarActions, type StandingCarEnquiry } from "./car-actions";
+import { CarDepositTerms } from "./car-deposit-terms";
 import { CarPriceBlock } from "./car-price-block";
+import type { CarPurchaseTermsView } from "./purchase";
 
 export interface CarActionBarProps {
   car: CarListingView;
   /** The viewer's live enquiry on this car, so the phone bar says the same thing the desktop rail does. */
   standingEnquiry?: StandingCarEnquiry | null;
+  /**
+   * This viewer's struck figures, when the server could price the car for them.
+   * Replaces the listing price in the bar rather than sitting beside it: see below.
+   */
+  terms?: CarPurchaseTermsView | null;
   className?: string;
 }
 
@@ -44,10 +51,21 @@ export interface CarActionBarProps {
  * five-figure price on one 390px line leaves each of them about 110px. The
  * price takes its own line, the same shape `BagPayBar` uses for its lock
  * countdown.
+ *
+ * THE TERMS REPLACE THE PRICE BLOCK HERE, THEY DO NOT JOIN IT. Where the server
+ * could price the car for this viewer there are three figures that matter (the
+ * full price, the deposit about to be charged, the balance still owed) and the
+ * bar must carry all three, because this is the copy of the button a thumb
+ * actually reaches. Printing the listing price above them would put a fourth
+ * number on a 390px bar, and on a quoted `on_request` car that fourth number is
+ * the words "Price on request" sitting directly over a figure, which reads as a
+ * contradiction rather than as context. With no terms the bar is exactly what
+ * it was.
  */
 export function CarActionBar({
   car,
   standingEnquiry = null,
+  terms = null,
   className,
 }: CarActionBarProps) {
   return (
@@ -57,9 +75,15 @@ export function CarActionBar({
         className,
       )}
     >
-      <CarPriceBlock listing={car} className="pb-2.5" />
+      {terms ? (
+        <CarDepositTerms terms={terms} size="compact" className="pb-2.5" />
+      ) : (
+        <CarPriceBlock listing={car} className="pb-2.5" />
+      )}
       <CarActions
+        barOnly
         standingEnquiry={standingEnquiry}
+        terms={terms}
         carListingId={car.id}
         slug={car.slug}
         title={carTitle(car)}

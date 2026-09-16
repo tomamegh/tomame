@@ -7,6 +7,17 @@ export interface CarPriceBlockProps {
   listing: Pick<CarListingView, "price_state" | "price_pesewas">;
   /** `card` is the grid tile; `hero` is the detail page's headline. */
   size?: "card" | "hero";
+  /**
+   * Whether to print the sentence under the price.
+   *
+   * SET FALSE ONLY WHEN THE CALLER IS ABOUT TO SAY SOMETHING TRUER. The note on
+   * an `on_request` listing is "Ask us and we will come back with a landed
+   * figure", which is exactly wrong for a customer who asked, was answered, and
+   * is now looking at their own quote a few pixels below. Nothing else should
+   * turn it off: "Landed in Tema. Duty and clearing included." is the answer to
+   * the question every customer asks second.
+   */
+  showNote?: boolean;
   className?: string;
 }
 
@@ -35,6 +46,7 @@ export interface CarPriceBlockProps {
 export function CarPriceBlock({
   listing,
   size = "card",
+  showNote = true,
   className,
 }: CarPriceBlockProps) {
   const label = priceLabel(listing);
@@ -66,7 +78,7 @@ export function CarPriceBlock({
         )}
       </p>
 
-      {label.note && (
+      {showNote && label.note && (
         <p
           className={cn(
             "max-w-[46ch] leading-[1.4] font-medium text-tm-text-3",

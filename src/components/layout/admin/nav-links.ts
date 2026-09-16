@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   HandCoinsIcon,
   ActivityIcon,
+  BanknoteIcon,
   BellIcon,
   BookmarkIcon,
   CameraIcon,
@@ -110,6 +111,21 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
       // a named customer waiting to be told a price, or an offer nobody has
       // answered: a person owes somebody an action.
       { title: "Cars", url: "/admin/cars", icon: CarIcon, badge: "carEnquiriesOpen" },
+      // The sales (068, 069), which had no admin surface at all: a customer
+      // could buy a vehicle and the only way to see it was a SQL client.
+      //
+      // ITS OWN ENTRY RATHER THAN A SECOND BADGE ON CARS, because a link can
+      // only badge one queue and these two are different work with different
+      // people waiting. An enquiry is somebody asking what a car costs; a
+      // balance due is somebody who has already paid a deposit on one and owes
+      // the rest. Summing them into a single pip would tell an admin that five
+      // things need doing without telling them which screen does any of them.
+      //
+      // Badged on `carBalancesDue` and never on the number of sales: a sales
+      // count is non-zero the moment the feature is in use, which is furniture
+      // (see `AdminNavLink.badge`). A balance is a named customer, a figure, and
+      // a vehicle held off the market until somebody records that it arrived.
+      { title: "Car sales", url: "/admin/cars/orders", icon: BanknoteIcon, badge: "carBalancesDue" },
       { title: "Content", url: "/admin/content", icon: FileTextIcon },
       { title: "Policies", url: "/admin/policies", icon: FileTextIcon },
     ],

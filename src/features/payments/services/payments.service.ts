@@ -148,10 +148,16 @@ export async function findActivePayment(client: SupabaseClient, target: ChargeTa
  * the callers share the guard without sharing the wording — a customer paying
  * for a bag should not be told about an "order" they never made.
  *
- * THIS IS ALSO WHY THERE IS NO DEPOSIT ON A CAR. A deposit model needs several
- * successful payments against one target, which is precisely what this refuses.
- * Relaxing it to let cars through would remove the double-charge guard from
- * every other path at the same time. 068's header is the long version.
+ * 069 ADDED A CAR DEPOSIT AND THIS GUARD WAS NOT TOUCHED — read that as the
+ * design, not as an oversight. 068 argued that a deposit model needs several
+ * successful payments against one target, which is precisely what this refuses,
+ * and concluded that deposits were therefore impossible. The conclusion did not
+ * follow. 069 takes ONE Paystack charge (the deposit) and settles the balance
+ * OFFLINE, recorded by an admin in `recordCarBalancePayment` — so there is still
+ * exactly one transaction per car order, and this guard still means what it has
+ * always meant. Nothing here is special-cased for cars, and nothing may be: a
+ * condition relaxed to let a second car charge through would remove the
+ * double-charge protection from every other path at the same time.
  */
 async function assertNoActivePayment(client: SupabaseClient, target: ChargeTarget, noun: string): Promise<void> {
   const existing = await findActivePayment(client, target);
@@ -581,17 +587,29 @@ async function groupCharge(admin: SupabaseClient, user: PlatformUser, groupId: s
 }
 
 /**
- * One car, one charge, paid in full (068).
+ * One car, one charge — for the DEPOSIT (068, amended by 069).
  *
- * THE AMOUNT IS THE SNAPSHOT ON THE CAR ORDER, AND IS NEVER RECOMPUTED. It is
- * not read from `car_listings` here, not re-derived from the breakdown, and not
- * taken from the request — `car_orders.price_pesewas` was copied from the
- * listing at checkout and that figure is the one the customer agreed to. A
- * listing's price is a live, admin-edited number on a public page: 067 gives
- * repricing its own audit action because buyers really do correct it when a
- * freight quote lands, and a reprice between "Buy" and this line would charge
- * somebody a total they never saw. Same rule as `groupCharge` above, whose
- * comment reads "never re-read from the bag".
+ * THE AMOUNT IS `deposit_pesewas`, NOT `price_pesewas`, AND THAT IS THE WHOLE
+ * CHANGE 069 MAKES HERE. Ghanaian Mobile Money wallets carry per-transaction and
+ * daily ceilings far below a six-figure vehicle, so asking Paystack for the full
+ * price is asking for a transaction the customer very likely cannot complete.
+ * The deposit reserves the car; the balance is settled offline and recorded by
+ * an admin, never through Paystack — which is why this function still opens
+ * exactly one transaction per car order and `assertNoActivePayment` below is
+ * unchanged.
+ *
+ * BOTH FIGURES ARE SNAPSHOTS ON THE CAR ORDER, AND NEITHER IS EVER RECOMPUTED.
+ * Not read from `car_listings` here, not re-derived from a breakdown, not taken
+ * from the request, and — for the deposit — not recomputed from
+ * `car_deposit_percent` either. `car_orders.price_pesewas` is what this customer
+ * agreed to (their quote, their accepted offer, or the asking price) and
+ * `car_orders.deposit_pesewas` is what they were told to pay now. A listing's
+ * price is a live, admin-edited number on a public page — 067 gives repricing
+ * its own audit action because buyers really do correct it when a freight quote
+ * lands — and the deposit percentage is a dial an admin can move; either moving
+ * between "Buy" and this line would charge somebody a figure they never saw.
+ * Same rule as `groupCharge` above, whose comment reads "never re-read from the
+ * bag".
  *
  * NO `chargeBlockedReason` HERE, DELIBERATELY. That predicate demands a
  * `PricingBreakdown` struck by `src/lib/pricing/calculator.ts`, and a car price
@@ -619,7 +637,13 @@ async function carCharge(
 
   const blocked = carChargeBlockedReason(carOrder);
   if (blocked === "paid") throw new APIError(400, "This car has already been paid for");
-  if (blocked === "not_awaiting_payment") throw new APIError(400, "This car order is not awaiting payment");
+  if (blocked === "not_awaiting_payment") {
+    // From 069 this also catches `deposit_paid`: the deposit has landed and the
+    // balance is arranged offline, so there is no second Paystack transaction to
+    // open. The sentence stays general — the customer-facing wording for that
+    // case is `claimCar`'s, which knows it is talking about a deposit.
+    throw new APIError(400, "This car order is not awaiting payment");
+  }
   if (blocked === "unpriced") throw new APIError(400, "This car order has no price to charge");
 
   await assertNoActivePayment(admin, { carOrderId }, "car");
@@ -633,9 +657,19 @@ async function carCharge(
   const ids = { car_order_id: carOrderId, car_listing_id: carOrder.car_listing_id };
   return {
     target: { orderId: null, groupId: null, carOrderId },
-    amountPesewas: carOrder.price_pesewas,
+    amountPesewas: carOrder.deposit_pesewas,
     channels: channel ? [channel.paystack_channel] : DEFAULT_CHANNELS,
-    metadata: { ...ids, requested_channel: channel?.id ?? null, provider: channel?.provider ?? null },
+    metadata: {
+      ...ids,
+      // The whole arithmetic on the payment row itself. `amount` above is the
+      // DEPOSIT; without these two, a payment of GH₵55,500 against a GH₵185,000
+      // car reads as an underpayment to anybody looking at the transaction
+      // rather than at the order it belongs to.
+      car_price_pesewas: carOrder.price_pesewas,
+      car_balance_pesewas: carOrder.price_pesewas - carOrder.deposit_pesewas,
+      requested_channel: channel?.id ?? null,
+      provider: channel?.provider ?? null,
+    },
     paystackMetadata: ids,
   };
 }
@@ -878,7 +912,27 @@ async function settleGroup(admin: SupabaseClient, payment: Payment, groupId: str
 }
 
 /**
- * pending_payment → paid for one car (068). True when THIS caller made the move.
+ * pending_payment → deposit_paid for one car (068, amended by 069). True when
+ * THIS caller made the move.
+ *
+ * IT DOES NOT SAY THE CAR IS PAID FOR, AND THAT IS THE POINT OF 069. What
+ * arrived is the DEPOSIT — 30% by default — and the balance is settled offline
+ * and recorded by an admin in `recordCarBalancePayment`. The status it writes is
+ * `deposit_paid`, the audit action is `car_order_deposit_paid`, and neither
+ * claims otherwise. A settlement that wrote `paid` here would tell the customer,
+ * the admin queue and every later reader that a GH₵185,000 vehicle was settled
+ * by a GH₵55,500 charge.
+ *
+ * THE ONE CASE THAT STILL GOES STRAIGHT TO `paid`: a snapshotted balance of
+ * zero, which happens when the deposit was the whole price — the setting turned
+ * up to 100%, or any order written before 069. Routing those through
+ * `deposit_paid` would strand the car waiting for somebody to record a payment
+ * of GH₵0 that nobody will ever make. The choice is made from the SNAPSHOT on
+ * the row, never from the setting as it stands now.
+ *
+ * THE CAR IS NOT RELEASED BY EITHER OUTCOME. `uq_car_orders_live` covers every
+ * status except `cancelled`, so a `deposit_paid` order holds its vehicle exactly
+ * as a `paid` one does — which is what makes a deposit a real reservation.
  *
  * THE COMPARE-AND-SET IS THE WHOLE MECHANISM. `updateCarOrderStatus` carries
  * `.eq("status", "pending_payment")`, so of the two deliveries Paystack makes
@@ -907,28 +961,51 @@ async function settleGroup(admin: SupabaseClient, payment: Payment, groupId: str
  * and the admin queue carry the sale until a car template exists.
  */
 async function settleCarOrder(payment: Payment, carOrderId: string): Promise<boolean> {
+  // Read for the arithmetic only. The TRANSITION is still a compare-and-set
+  // against `pending_payment`, so a row that moved between this read and the
+  // update loses the race exactly as before and nothing is written twice.
+  const carOrder = await getCarOrderById(carOrderId);
+  const balancePesewas = carOrder ? carOrder.price_pesewas - carOrder.deposit_pesewas : 0;
+  // A car order that vanished between the payment and here cannot be settled;
+  // the guarded update below will match nothing and the caller raises its
+  // refund review. `fullySettled` is only consulted when there IS a row.
+  const fullySettled = balancePesewas <= 0;
+  const now = new Date().toISOString();
+
   const flipped = await updateCarOrderStatus(
     carOrderId,
     CAR_ORDER_STATUSES.PENDING_PAYMENT,
-    CAR_ORDER_STATUSES.PAID,
-    { payment_id: payment.id, paid_at: new Date().toISOString() },
+    fullySettled ? CAR_ORDER_STATUSES.PAID : CAR_ORDER_STATUSES.DEPOSIT_PAID,
+    {
+      payment_id: payment.id,
+      // `deposit_paid_at` is stamped in BOTH cases: 069's
+      // `car_orders_paid_is_attributed` requires it of every row past
+      // `pending_payment`, because it is the moment the money we actually took
+      // arrived. `paid_at` is added only when there is nothing left to collect.
+      deposit_paid_at: now,
+      ...(fullySettled && { paid_at: now }),
+    },
   );
   if (!flipped) return false;
 
   await logAuditEvent({
     actorId: payment.user_id,
     actorRole: AUDIT_ACTOR_ROLES.SYSTEM,
-    action: "car_order_paid",
+    action: fullySettled ? "car_order_paid" : "car_order_deposit_paid",
     entityType: AUDIT_ENTITY_TYPES.CAR_ORDER,
     entityId: carOrderId,
     metadata: {
       from: CAR_ORDER_STATUSES.PENDING_PAYMENT,
-      to: CAR_ORDER_STATUSES.PAID,
+      to: fullySettled ? CAR_ORDER_STATUSES.PAID : CAR_ORDER_STATUSES.DEPOSIT_PAID,
       paymentId: payment.id,
       reference: payment.reference,
       // What was actually taken, from the payment row rather than from the car
       // order: if these two ever disagree, the audit log is where that is found.
       amountPesewas: payment.amount,
+      // And what it was a deposit ON, so the audit row alone answers "how much
+      // of this car has been paid for?" without a join.
+      pricePesewas: carOrder?.price_pesewas ?? null,
+      balancePesewas,
       channel: payment.channel ?? null,
     },
   });

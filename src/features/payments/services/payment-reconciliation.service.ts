@@ -425,17 +425,24 @@ export const CAR_ORDER_UNPAID_CANCEL_REASON =
  * taken, their vehicle back on the forecourt and possibly sold to somebody else:
  *
  *   1. the list asks for `status = 'pending_payment'` and nothing else. A
- *      settled car order is `paid`, which `settleCarOrder` writes in the same
- *      guarded UPDATE that attributes the payment.
+ *      settled car order is `deposit_paid` (069) or `paid`, whichever
+ *      `settleCarOrder` wrote in the same guarded UPDATE that attributed the
+ *      payment — and NEITHER is in this batch. `deposit_paid` is the one that
+ *      matters most here: it is a customer who has paid a real deposit on a
+ *      five-figure vehicle and is arranging the balance offline, so releasing it
+ *      would put their car up for sale with their money already ours. The state
+ *      was deliberately added OUTSIDE this query's filter and INSIDE
+ *      `uq_car_orders_live`.
  *   2. `findActivePayment` — the SAME predicate the order and bag passes use —
  *      skips any car order carrying a pending OR successful payment. This is the
  *      guard that covers money in flight: a charge Paystack has accepted but
  *      whose settlement has not landed yet is a `success` row here, and the car
  *      order is left exactly where it is for the settle to find.
  *   3. `cancelCarOrder` re-reads the row, refuses any move out of
- *      `pending_payment` against the shared transitions table, and then its
- *      UPDATE carries `.eq("status", "pending_payment")` — so a settlement
- *      landing mid-batch wins the write and this one matches nothing.
+ *      `pending_payment` against the shared transitions table — `cancelled` is
+ *      reachable from there and from nowhere else, `deposit_paid` included — and
+ *      then its UPDATE carries `.eq("status", "pending_payment")`, so a
+ *      settlement landing mid-batch wins the write and this one matches nothing.
  *
  * NO EMAIL AND NO `notifications` ROW, on `settleCarOrder`'s reasoning exactly:
  * `unpaidOrderCancelledTemplate` is a parcel's mail, down to "paste the link

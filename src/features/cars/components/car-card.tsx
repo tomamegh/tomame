@@ -37,7 +37,9 @@ export interface CarCardProps {
  * `<button>` inside an `<a>` is invalid markup that browsers resolve by
  * swallowing one of them. So the picture, the name and the price are one link
  * into the detail page, the action row sits outside it, and the card is two tab
- * stops rather than one.
+ * stops rather than one. The rule holds harder now that the row's primary
+ * action is ITSELF a link into the same car: a nested `<a>` is the one nesting
+ * browsers will not parse at all.
  *
  * THE PHOTOGRAPH IS RENDERED FROM A RELATIVE PATH, DELIBERATELY. `cover.url` is
  * `/api/cars/photos/<id>` and must go to `next/image` exactly as it is. It must
@@ -164,8 +166,20 @@ export function CarCard({ entry, today, variant = "grid", className,
         </Link>
 
         <div className="mt-auto px-4 pt-3 pb-4">
+          {/*
+            NO PAYMENT BUTTON ON A TILE, AND THAT IS THE HONEST SHAPE. A card
+            cannot state what this customer would pay: the full price, the
+            deposit Paystack takes now and the balance settled offline are three
+            figures the server strikes per viewer, and a quoted or agreed one is
+            private to the person it was agreed with. Rendering "Buy now" here
+            would either charge a deposit nobody was shown or print a public
+            asking price as though it were somebody's private figure. So the
+            card links into the car, where `CarDepositTerms` prints all three,
+            and nobody reaches Paystack from the forecourt without reading them.
+          */}
           <CarActions
             standingEnquiry={standingEnquiry ? toStandingEnquiry(standingEnquiry) : null}
+            buyHref={`/app/cars/${car.slug}`}
             carListingId={car.id}
             slug={car.slug}
             title={title}

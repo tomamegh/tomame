@@ -2,21 +2,35 @@ import { NextRequest } from "next/server";
 import * as z from "zod";
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
-import { releaseCarOrder } from "@/features/cars/services/car-orders.service";
+import { carOrderAdminActionSchema } from "@/features/cars/car-orders.schema";
+import {
+  recordCarBalancePayment,
+  releaseCarOrder,
+} from "@/features/cars/services/car-orders.service";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
 import { requireAdmin, requireAuth } from "@/lib/auth/guards";
 
-const releaseSchema = z.object({
-  action: z.literal("release"),
-  reason: z
-    .string()
-    .trim()
-    .min(1, "Say why this sale is being unwound.")
-    .max(500, "Keep the reason under 500 characters."),
-});
-
 /**
- * PATCH /api/admin/cars/orders/:carOrderId — unwind a sale and free the car.
+ * PATCH /api/admin/cars/orders/:carOrderId — the two admin moves on a car sale.
+ *
+ * `{ action: "record_balance", amountPesewas, note? }` — THE OTHER HALF OF THE
+ * DEPOSIT MODEL (069). Paystack took a deposit and reserved the car; the rest
+ * arrived by bank transfer or in person, and this is where a person says so.
+ * `deposit_paid → paid`, on a guarded compare-and-set, with an audit row.
+ *
+ * THE AMOUNT IS REQUIRED AND IS NOT TRUSTED. `recordCarBalancePayment` checks it
+ * against `price_pesewas - deposit_pesewas` on the row and refuses anything
+ * else, so the request CONFIRMS the balance rather than choosing it — the figure
+ * on the receipt is one a person deliberately typed, and a misclick cannot
+ * declare a five-figure debt settled. CLAUDE.md: never trust the client, and an
+ * admin is a client too.
+ *
+ * NEITHER ACTION MOVES MONEY. Recording a balance records a fact about money
+ * that arrived somewhere else; releasing records that a sale is over. A route
+ * that captured or refunded as a side effect of a status change would be a far
+ * worse thing to own.
+ *
+ * `{ action: "release", reason }` — unwind a sale and free the car.
  *
  * WHAT IT IS FOR. `uq_car_orders_live` deliberately keeps a car off the market
  * for as long as an order on it is alive, which is right until a sale falls
@@ -30,9 +44,9 @@ const releaseSchema = z.object({
  * The two are separate on purpose — a route that silently refunded a five-figure
  * payment as a side effect of a status change would be a far worse thing to own.
  *
- * `action` is a literal rather than a bare reason so this endpoint can grow
- * other admin moves on a car order without a second route, and so an empty body
- * can never be read as "release it".
+ * `action` DISCRIMINATES, which is what lets one route carry both without them
+ * being confusable: an empty body can never be read as "release it", and a
+ * release can never be read as a receipt for a balance nobody paid.
  */
 export async function PATCH(
   request: NextRequest,
@@ -52,9 +66,20 @@ export async function PATCH(
       throw new APIError(400, "Invalid JSON");
     });
 
-    const parsed = releaseSchema.safeParse(body);
+    const parsed = carOrderAdminActionSchema.safeParse(body);
     if (!parsed.success) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
+    }
+
+    if (parsed.data.action === "record_balance") {
+      const recorded = await recordCarBalancePayment({ id: admin.id, role: "admin" }, carOrderId, {
+        amountPesewas: parsed.data.amountPesewas,
+        note: parsed.data.note ?? null,
+      });
+      // `false` here means the balance was already recorded — by another admin,
+      // or by this one twice. Idempotent by design, and reported honestly rather
+      // than as a second success.
+      return successResponse({ recorded });
     }
 
     const released = await releaseCarOrder(

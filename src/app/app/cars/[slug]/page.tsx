@@ -6,10 +6,13 @@ import { ArrowLeft } from "@phosphor-icons/react/ssr";
 import {
   CarActionBar,
   CarActions,
+  StandingEnquiry,
+  CarDepositTerms,
   CarGallery,
   CarLandedCostCard,
   CarPriceBlock,
   CarSpecTable,
+  CarTalkCard,
   RIBBON_TONE_CLASS,
   accraDay,
   fuelLabel,
@@ -27,7 +30,13 @@ import {
   getLiveCarEnquiryForViewer,
   getPublishedCarBySlug,
 } from "@/features/cars/services/cars.service";
+import { getCarPurchaseTerms } from "@/features/cars/services/car-orders.service";
+import { getMarketingSettings } from "@/features/marketing/services/marketing-content.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { whatsappHref } from "@/components/layout/marketing/links";
+import { CAR_PRICE_STATES } from "@/config/constants";
+import { env } from "@/lib/env";
+import { logger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
 
 interface CarPageProps {
@@ -123,6 +132,46 @@ export default async function CarDetailPage({ params }: CarPageProps) {
         }
       : null;
 
+  /*
+    WHAT THIS VIEWER WOULD PAY, AND WHETHER THEY MAY PAY IT AT ALL.
+
+    THE PRICE STATE IS NOT THE ANSWER. It used to be: the buttons ran off
+    `isBuyable(price_state)`, which is false for every `on_request` car, so a
+    customer we had already quoted came back to a page that still said "Price on
+    request" and offered them nothing but the button they had already pressed.
+    An agreed figure is that customer's price. `getCarPurchaseTerms` is what
+    reads the quote and the accepted offer, and it takes the viewer's id because
+    the answer is different for every viewer and PRIVATE to the one it belongs
+    to.
+
+    NULL IS A REAL ANSWER AND IT MEANS "DRAW NOTHING PAYABLE". Not "fall back to
+    the listing price": the listing price is what a quote replaces, and charging
+    a deposit against it would be charging the wrong number. Signed out it is
+    null too, and the ask and offer buttons still send the visitor to sign in.
+  */
+  const terms = await getCarPurchaseTerms(car.id, viewer?.id ?? null);
+
+  /*
+    THE WHATSAPP NUMBER, RESOLVED ONCE, SERVER-SIDE, THROUGH THE EXISTING PATH.
+    `getMarketingSettings()` reads `site_settings` and `whatsappHref()` turns
+    `0XXXXXXXXX` into `233XXXXXXXXX` — the same two calls `AskBuyerCard` is
+    built on, deliberately reused. A client component fetching settings for
+    itself would be a second implementation of the same rule and a network
+    round trip on a page that is already server-rendered.
+
+    A FAILED SETTINGS READ COSTS THE HANDOFF, NOT THE CAR. `getMarketingSettings`
+    rethrows when the relation is missing, and this segment defines no
+    `error.tsx`, so an uncaught throw would replace the whole application shell
+    over a phone number. Caught here, the card falls back to `/contact`.
+  */
+  const settings = await getMarketingSettings().catch((error: unknown) => {
+    logger.warn("car detail: site settings unavailable", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { whatsappNumber: null, supportHours: null };
+  });
+  const carUrl = `${env.app.url}/app/cars/${car.slug}`;
+
   const today = accraDay(new Date());
   const ribbon = voyageRibbon(car, today);
 
@@ -189,7 +238,46 @@ export default async function CarDetailPage({ params }: CarPageProps) {
               is not where the one number this page exists to state should first
               appear in the document.
             */}
-            <CarPriceBlock listing={car} size="hero" className="pt-1" />
+            {/*
+              The note is dropped for a customer we have already quoted. The
+              headline still reads "Price on request", because that is the
+              listing's public state and it has not changed, but the sentence
+              under it says "Ask us and we will come back with a landed figure"
+              and they did, and we came back, and the figure is on this screen.
+            */}
+            <CarPriceBlock
+              listing={car}
+              size="hero"
+              showNote={!(terms?.buyable && car.price_state === CAR_PRICE_STATES.ON_REQUEST)}
+              className="pt-1"
+            />
+
+            {/*
+              THE THREE NUMBERS, IN THE DOCUMENT, BEFORE ANY BUTTON. A car is
+              GH₵120,000 to GH₵260,000 and no MoMo wallet moves that in one
+              transaction, so Paystack takes a deposit and the balance is
+              settled by bank transfer or in person. The customer reads what the
+              car costs, what is about to leave their wallet and what is still
+              owed, here, next to the price. `lg:hidden` because the desktop
+              aside carries its own copy beside the buttons: one panel at any
+              given width, like the action row itself.
+            */}
+            {terms && (
+              <CarDepositTerms terms={terms} className="mt-1 lg:hidden" />
+            )}
+
+            {/*
+              OUR REPLY, ON A PHONE. `lg:hidden` for the same reason the panel
+              above is: the desktop aside carries its own copy beside the
+              buttons. It has to be here rather than in the sticky bar, because
+              the bar suppresses it (`barOnly`) — a bar that overlays the page
+              is for the one thing there is to press, not for reading. Without
+              this the answer an admin wrote would be invisible below `lg`,
+              which is most of the people who will read it.
+            */}
+            {standingEnquiry && (
+              <StandingEnquiry enquiry={standingEnquiry} className="mt-1 lg:hidden" />
+            )}
           </header>
 
           {car.description.trim().length > 0 && (
@@ -230,9 +318,21 @@ export default async function CarDetailPage({ params }: CarPageProps) {
             keyboard meets "Buy now" once and a screen reader announces it once.
           */}
           <div className="hidden min-w-0 flex-col gap-3.5 rounded-[20px] border border-tm-border bg-card p-5 lg:flex">
-            <CarPriceBlock listing={car} />
+            {/*
+              The terms REPLACE the price block rather than joining it. The
+              headline price is already in the content column at this width, and
+              on a quoted `on_request` car the words "Price on request" printed
+              directly above the figure we quoted reads as a contradiction
+              rather than as context.
+            */}
+            {terms ? (
+              <CarDepositTerms terms={terms} />
+            ) : (
+              <CarPriceBlock listing={car} />
+            )}
             <CarActions
               standingEnquiry={standingEnquiry}
+              terms={terms}
               carListingId={car.id}
               slug={car.slug}
               title={title}
@@ -242,10 +342,24 @@ export default async function CarDetailPage({ params }: CarPageProps) {
           </div>
 
           <CarLandedCostCard car={car} />
+
+          {/*
+            The way out to a person, under the money and not beside it. A buyer
+            moving GH₵200,000 wants to talk to somebody, and they want it while
+            they are looking at the vehicle. It is an outline card rather than a
+            second coral button for the same reason the offer button stands down
+            next to a deposit: two primary calls to action mean neither is one.
+          */}
+          <CarTalkCard
+            whatsappHref={whatsappHref(settings.whatsappNumber)}
+            supportHours={settings.supportHours}
+            title={title}
+            carUrl={carUrl}
+          />
         </aside>
       </div>
 
-      <CarActionBar car={car} standingEnquiry={standingEnquiry} />
+      <CarActionBar car={car} standingEnquiry={standingEnquiry} terms={terms} />
     </div>
   );
 }

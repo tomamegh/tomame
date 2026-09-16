@@ -68,6 +68,23 @@ export interface AdminQueueCounts {
    * that is only on the water for so long.
    */
   carEnquiriesOpen: number;
+  /**
+   * Car sales sitting at `deposit_paid` (069) — the deposit is in, the vehicle
+   * is held, and the rest of a six-figure price is settled away from the site by
+   * bank transfer or in person. There is no webhook for a bank transfer, so the
+   * money arriving is an event nobody is told about: a person has to notice it
+   * and record it on `/admin/cars/orders`, and until they do the sale sits
+   * half-paid with a car held off the market behind it.
+   *
+   * Badged on THIS and not on the number of car sales, for the reason
+   * `AdminNavLink.badge` gives: a sales count is non-zero the moment the feature
+   * is in use, which is furniture rather than signal. A balance due is one named
+   * customer who owes a specific figure that somebody has to chase.
+   *
+   * No age cut-off. An uncollected balance does not become history; it just
+   * stays uncollected, with the vehicle unsellable to anybody else meanwhile.
+   */
+  carBalancesDue: number;
 }
 
 export const EMPTY_QUEUE_COUNTS: AdminQueueCounts = {
@@ -78,6 +95,7 @@ export const EMPTY_QUEUE_COUNTS: AdminQueueCounts = {
   feedbackOpen: 0,
   sourcingOpen: 0,
   carEnquiriesOpen: 0,
+  carBalancesDue: 0,
 };
 
 export async function getAdminQueueCounts(): Promise<AdminQueueCounts> {
@@ -91,6 +109,7 @@ export async function getAdminQueueCounts(): Promise<AdminQueueCounts> {
     feedbackOpen,
     sourcingOpen,
     carEnquiriesOpen,
+    carBalancesDue,
   ] = await Promise.all([
     countWhere(db, "assisted_requests", (q) => q.eq("status", "open")),
     countWhere(db, "contact_messages", (q) => q.eq("status", "open")),
@@ -115,6 +134,10 @@ export async function getAdminQueueCounts(): Promise<AdminQueueCounts> {
     // No age cut-off. An unanswered offer on a car does not become history —
     // the customer is still waiting, and the vessel is still arriving.
     countWhere(db, "car_enquiries", (q) => q.eq("status", "open")),
+    // `deposit_paid` arrives with 069. Until it does this matches nothing and
+    // counts 0, which is the honest answer while no sale can be in that state —
+    // and the badge stays dark rather than pointing at an empty queue.
+    countWhere(db, "car_orders", (q) => q.eq("status", "deposit_paid")),
   ]);
 
   return {
@@ -125,6 +148,7 @@ export async function getAdminQueueCounts(): Promise<AdminQueueCounts> {
     feedbackOpen,
     sourcingOpen,
     carEnquiriesOpen,
+    carBalancesDue,
   };
 }
 
