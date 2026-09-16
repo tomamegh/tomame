@@ -12,6 +12,15 @@ import {
 import { recordOrderEvent } from "@/features/orders/services/order-events.service";
 import { listOrdersByGroup } from "@/db/queries/orders";
 import { getOrderGroupById, updateOrderGroupStatus } from "@/db/queries/order-groups";
+import { getCarOrderById, updateCarOrderStatus } from "@/db/queries/car-orders";
+// Pure module by design (no `server-only`, no Supabase), so importing it here
+// costs this service nothing and gives the car path one source for its state
+// machine and its payability rule — shared with the checkout service and with
+// any console, rather than restated.
+import {
+  CAR_ORDER_STATUSES,
+  carChargeBlockedReason,
+} from "@/features/cars/car-orders.types";
 import { getPaymentChannel } from "@/features/payments/services/payment-channels.service";
 import {
   initializeTransaction,
@@ -21,7 +30,7 @@ import {
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { createOrderNotifications } from "@/features/notifications/services/notifications.service";
 import { env } from "@/lib/env";
-import { PAYMENT_STATUSES } from "@/config/constants";
+import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES, PAYMENT_STATUSES } from "@/config/constants";
 import type { PaystackWebhookEvent } from "@/features/payments/schema";
 import { isPayablePricing } from "@/lib/pricing/payable";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
@@ -88,26 +97,40 @@ async function getPaymentsByUserId(
   return (data ?? []) as Payment[];
 }
 
-/** What a charge is for: one legacy order, or one bag's order group. */
-export type ChargeTarget = { orderId: string; groupId?: never } | { groupId: string; orderId?: never };
+/**
+ * What a charge is for: one legacy order, one bag's order group, or one car
+ * (068).
+ *
+ * A CLOSED UNION WITH `never` ON THE ABSENT KEYS, which is what makes it
+ * impossible to hand this function two targets at once. The third case carries
+ * the same shape for the same reason, and `initializePaymentSchema` mirrors it
+ * at the edge — the two must be changed together.
+ */
+export type ChargeTarget =
+  | { orderId: string; groupId?: never; carOrderId?: never }
+  | { groupId: string; orderId?: never; carOrderId?: never }
+  | { carOrderId: string; orderId?: never; groupId?: never };
 
 /**
  * The newest payment that already has a claim on this target — pending or
  * successful.
  *
- * One query for both shapes. They differ only in how the payment names its
+ * One query for all three shapes. They differ only in how the payment names its
  * target: a legacy order is reachable only through `metadata->>order_id`
  * (there was never a column), while a group has the real `order_group_id`
- * column 048 added. Everything else — the status filter, the ordering, the
- * limit — is the same guard, and the two copies of it drifted apart once
- * already.
+ * column 048 added and a car order has `car_order_id` from 068. Everything
+ * else — the status filter, the ordering, the limit — is the same guard, and
+ * the two copies of it drifted apart once already, which is why the third case
+ * was added here rather than beside it.
  */
 export async function findActivePayment(client: SupabaseClient, target: ChargeTarget): Promise<Payment | null> {
   const base = client.from("payments").select("*");
   const scoped =
-    target.groupId != null
-      ? base.eq("order_group_id", target.groupId)
-      : base.filter("metadata->>order_id", "eq", target.orderId);
+    target.carOrderId != null
+      ? base.eq("car_order_id", target.carOrderId)
+      : target.groupId != null
+        ? base.eq("order_group_id", target.groupId)
+        : base.filter("metadata->>order_id", "eq", target.orderId);
 
   const { data } = await scoped
     .in("status", [PAYMENT_STATUSES.PENDING, PAYMENT_STATUSES.SUCCESS])
@@ -121,9 +144,14 @@ export async function findActivePayment(client: SupabaseClient, target: ChargeTa
 /**
  * Refuse to open a second transaction for something already being paid for.
  *
- * `noun` is the customer-facing word for the target ("order" / "bag") so the
- * two callers share the guard without sharing the wording — a customer paying
+ * `noun` is the customer-facing word for the target ("order" / "bag" / "car") so
+ * the callers share the guard without sharing the wording — a customer paying
  * for a bag should not be told about an "order" they never made.
+ *
+ * THIS IS ALSO WHY THERE IS NO DEPOSIT ON A CAR. A deposit model needs several
+ * successful payments against one target, which is precisely what this refuses.
+ * Relaxing it to let cars through would remove the double-charge guard from
+ * every other path at the same time. 068's header is the long version.
  */
 async function assertNoActivePayment(client: SupabaseClient, target: ChargeTarget, noun: string): Promise<void> {
   const existing = await findActivePayment(client, target);
@@ -222,17 +250,22 @@ function orderIdOf(payment: Payment): string | null {
   return typeof orderId === "string" ? orderId : null;
 }
 
-/** What a payment buys: one legacy order, or a bag's order group. */
+/** What a payment buys: one legacy order, a bag's order group, or one car. */
 interface PayTarget {
   orderId: string | null;
   groupId: string | null;
+  carOrderId: string | null;
 }
 
 function targetOf(payment: Payment): PayTarget {
-  return { orderId: orderIdOf(payment), groupId: payment.order_group_id ?? null };
+  return {
+    orderId: orderIdOf(payment),
+    groupId: payment.order_group_id ?? null,
+    carOrderId: payment.car_order_id ?? null,
+  };
 }
 
-const NO_TARGET: PayTarget = { orderId: null, groupId: null };
+const NO_TARGET: PayTarget = { orderId: null, groupId: null, carOrderId: null };
 
 /**
  * Did the reconciliation job (059) release this payment for inactivity? Only
@@ -253,8 +286,29 @@ export function wasExpiredByUs(payment: Pick<Payment, "metadata">): boolean {
  * A group's failure lands on the bag, where the customer retries: the cart is
  * already `checked_out`, so the bag reads empty and shows the pending-group
  * card. A legacy order's failure lands on that order's detail page.
+ *
+ * A CAR LANDS ON /app/cars — the forecourt — AND NOT ON THE VEHICLE'S OWN PAGE,
+ * for two reasons that both come back to the rule above.
+ *
+ * The first is that this function does not hold what that page is keyed by.
+ * `/app/cars/[slug]` is addressed by SLUG, which lives on `car_listings`, while
+ * a payment names a `car_orders` id; producing the slug means a join on the one
+ * path that runs for EVERY callback and EVERY webhook delivery, and it would
+ * have to make these two lines async at seven call sites to do it.
+ *
+ * The second is the one that settles it: that page is `getPublishedCarBySlug`,
+ * which `notFound()`s on an unpublished listing. Taking a sold car off the site
+ * is the first thing an admin does after a sale, so a success redirect to the
+ * detail page would hand the customer a 404 seconds after a five-figure payment
+ * — precisely the failure this comment exists to forbid, arrived at by trying
+ * to be helpful. `/app/cars` is public, always renders, and never 404s.
+ *
+ * `car=` carries the car order id so that screen can name the purchase when it
+ * grows a notice for it. These two lines remain the only place to change.
+ * Verified against the routes on disk: `src/app/app/cars/page.tsx`.
  */
 function successUrl(target: PayTarget): string {
+  if (target.carOrderId) return `${env.app.url}/app/cars?payment=success&car=${target.carOrderId}`;
   if (target.groupId) return `${env.app.url}/app/orders?payment=success&group=${target.groupId}`;
   return target.orderId
     ? `${env.app.url}/app/orders/${target.orderId}?payment=success`
@@ -265,6 +319,11 @@ function failureUrl(
   target: PayTarget,
   reason: "failed" | "error" = "failed"
 ): string {
+  // The forecourt for a failure too. The customer's retry is the Buy button on
+  // the car, which `/app/cars` is one tap from — and their `pending_payment`
+  // order is still theirs, so `claimCar` hands the same row back and charges it
+  // again rather than refusing them the car they were halfway through buying.
+  if (target.carOrderId) return `${env.app.url}/app/cars?payment=${reason}&car=${target.carOrderId}`;
   if (target.groupId) return `${env.app.url}/app/bag?payment=${reason}`;
   // The per-order checkout SCREEN is gone (F5) — the order detail page absorbed
   // its one job. A legacy order's failure therefore lands on the order itself,
@@ -285,7 +344,7 @@ export function unresolvedPaymentUrl(): string {
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
-/** One transaction for one order (legacy) or one order group (the bag). */
+/** One transaction for one order (legacy), one order group (the bag), or one car. */
 export async function initializePayment(
   user: PlatformUser,
   input: InitializePaymentInput,
@@ -299,9 +358,13 @@ export async function initializePayment(
     throw new APIError(400, "Your account has no email address. Please contact support.");
   }
 
-  const charge = input.orderGroupId
-    ? await groupCharge(admin, user, input.orderGroupId, input.channel)
-    : await orderCharge(admin, user, input.orderId!);
+  // `initializePaymentSchema` has already established that exactly one of the
+  // three is present, so this chain is a dispatch and not a guess.
+  const charge = input.carOrderId
+    ? await carCharge(admin, user, input.carOrderId, input.channel)
+    : input.orderGroupId
+      ? await groupCharge(admin, user, input.orderGroupId, input.channel)
+      : await orderCharge(admin, user, input.orderId!);
 
   const reference = generatePaymentReference();
   const payment = await insertPayment(admin, {
@@ -312,6 +375,7 @@ export async function initializePayment(
     status: PAYMENT_STATUSES.PENDING,
     metadata: charge.metadata,
     ...(charge.target.groupId && { order_group_id: charge.target.groupId }),
+    ...(charge.target.carOrderId && { car_order_id: charge.target.carOrderId }),
   });
 
   if (!payment) {
@@ -364,7 +428,11 @@ export async function initializePayment(
     entityType: "payment",
     entityId: payment.id,
     metadata: {
-      ...(charge.target.groupId ? { orderGroupId: charge.target.groupId } : { orderId: charge.target.orderId }),
+      ...(charge.target.carOrderId
+        ? { carOrderId: charge.target.carOrderId }
+        : charge.target.groupId
+          ? { orderGroupId: charge.target.groupId }
+          : { orderId: charge.target.orderId }),
       reference,
       amount: charge.amountPesewas,
       channel: charge.channels,
@@ -457,7 +525,7 @@ async function orderCharge(admin: SupabaseClient, user: PlatformUser, orderId: s
     throw new APIError(400, "Order pricing has not been determined yet. Please wait for admin review.");
   }
   return {
-    target: { orderId, groupId: null },
+    target: { orderId, groupId: null, carOrderId: null },
     amountPesewas: Math.round(totalGhs * 100),
     channels: DEFAULT_CHANNELS,
     metadata: { order_id: orderId },
@@ -504,8 +572,68 @@ async function groupCharge(admin: SupabaseClient, user: PlatformUser, groupId: s
   const orderIds = orders.map((o) => o.id);
   const ids = { order_group_id: groupId, order_ids: orderIds };
   return {
-    target: { orderId: null, groupId },
+    target: { orderId: null, groupId, carOrderId: null },
     amountPesewas: group.total_pesewas,
+    channels: channel ? [channel.paystack_channel] : DEFAULT_CHANNELS,
+    metadata: { ...ids, requested_channel: channel?.id ?? null, provider: channel?.provider ?? null },
+    paystackMetadata: ids,
+  };
+}
+
+/**
+ * One car, one charge, paid in full (068).
+ *
+ * THE AMOUNT IS THE SNAPSHOT ON THE CAR ORDER, AND IS NEVER RECOMPUTED. It is
+ * not read from `car_listings` here, not re-derived from the breakdown, and not
+ * taken from the request — `car_orders.price_pesewas` was copied from the
+ * listing at checkout and that figure is the one the customer agreed to. A
+ * listing's price is a live, admin-edited number on a public page: 067 gives
+ * repricing its own audit action because buyers really do correct it when a
+ * freight quote lands, and a reprice between "Buy" and this line would charge
+ * somebody a total they never saw. Same rule as `groupCharge` above, whose
+ * comment reads "never re-read from the bag".
+ *
+ * NO `chargeBlockedReason` HERE, DELIBERATELY. That predicate demands a
+ * `PricingBreakdown` struck by `src/lib/pricing/calculator.ts`, and a car price
+ * is four quotes an admin typed — 067 is emphatic that the calculator has never
+ * seen a bill of lading. Synthesising a fake breakdown to satisfy it is the
+ * mistake `src/lib/pricing/payable.ts` catalogues three production bugs from.
+ * `carChargeBlockedReason` asks what is actually true of a car order instead.
+ *
+ * `channel` is honoured the way the bag honours it: a car is the largest MoMo
+ * transaction this platform will ever attempt and the customer should be able
+ * to pick the network that will actually clear it.
+ */
+async function carCharge(
+  admin: SupabaseClient,
+  user: PlatformUser,
+  carOrderId: string,
+  channelId?: string,
+): Promise<Charge> {
+  const carOrder = await getCarOrderById(carOrderId);
+  // Someone else's car order is indistinguishable from a missing one, as
+  // `orderCharge` treats someone else's order: a 403 would confirm the id names
+  // a real purchase, and who is buying which vehicle is exactly what a rival
+  // bidder wants.
+  if (!carOrder || carOrder.user_id !== user.id) throw new APIError(404, "Car order not found");
+
+  const blocked = carChargeBlockedReason(carOrder);
+  if (blocked === "paid") throw new APIError(400, "This car has already been paid for");
+  if (blocked === "not_awaiting_payment") throw new APIError(400, "This car order is not awaiting payment");
+  if (blocked === "unpriced") throw new APIError(400, "This car order has no price to charge");
+
+  await assertNoActivePayment(admin, { carOrderId }, "car");
+
+  let channel: PaymentChannel | null = null;
+  if (channelId) {
+    channel = await getPaymentChannel(channelId);
+    if (!channel) throw new APIError(400, "Choose a payment method");
+  }
+
+  const ids = { car_order_id: carOrderId, car_listing_id: carOrder.car_listing_id };
+  return {
+    target: { orderId: null, groupId: null, carOrderId },
+    amountPesewas: carOrder.price_pesewas,
     channels: channel ? [channel.paystack_channel] : DEFAULT_CHANNELS,
     metadata: { ...ids, requested_channel: channel?.id ?? null, provider: channel?.provider ?? null },
     paystackMetadata: ids,
@@ -598,8 +726,13 @@ export async function handlePaymentCallback(
       return { redirectUrl: successUrl(target) };
     }
 
+    // ONE FAN-OUT FOR BOTH DELIVERY CHANNELS. The webhook funnels through this
+    // same function, so a target routed here is routed for the callback and the
+    // webhook at once and the two cannot disagree about what settling means.
     let ordersSettled = 0;
-    if (target.groupId) {
+    if (target.carOrderId) {
+      ordersSettled = (await settleCarOrder(payment, target.carOrderId)) ? 1 : 0;
+    } else if (target.groupId) {
       ordersSettled = await settleGroup(admin, payment, target.groupId);
     } else if (orderId) {
       const order = await settleOrder(admin, payment, orderId);
@@ -742,6 +875,65 @@ async function settleGroup(admin: SupabaseClient, payment: Payment, groupId: str
   // order's "paid" mail stands in for the whole bag.
   if (first) sendOrderStatusEmail(payment.user_id, first, "paid");
   return settledCount;
+}
+
+/**
+ * pending_payment → paid for one car (068). True when THIS caller made the move.
+ *
+ * THE COMPARE-AND-SET IS THE WHOLE MECHANISM. `updateCarOrderStatus` carries
+ * `.eq("status", "pending_payment")`, so of the two deliveries Paystack makes
+ * for one charge — the browser redirect and the webhook, which arrive
+ * concurrently — only one UPDATE matches a still-pending row. The other gets
+ * `false` and returns before writing anything, which is what keeps the audit
+ * trail to exactly one `car_order_paid` row for one car.
+ *
+ * FALSE IS NOT AN ERROR AND AN ERROR IS NOT FALSE. `updateCarOrderStatus`
+ * throws when the write genuinely failed, and that throw propagates: the
+ * customer sees a failure and the reconciliation sweep can retry, rather than
+ * being shown a paid car over a row that never moved. This is the same
+ * distinction `transitionPaymentStatus` documents at length, one layer down.
+ *
+ * FALSE ALSO COVERS THE CASE WORTH AN ALARM: money arrived for a car order that
+ * had already been cancelled — released for an abandoned checkout, say, and
+ * possibly sold to somebody else since. The caller counts this as "nothing
+ * settled" and raises the refund-review log, which is exactly right; there is no
+ * quiet reinstatement, because a car that has been resold cannot be reinstated
+ * by a status write.
+ *
+ * NO EMAIL. `sendOrderStatusEmail` takes an `Order` and renders a parcel's
+ * template — product name, origin country, freight — none of which describes a
+ * vehicle. Writing a car receipt into that template would send a customer who
+ * has just paid five figures a mail about a shipment from the USA. The audit row
+ * and the admin queue carry the sale until a car template exists.
+ */
+async function settleCarOrder(payment: Payment, carOrderId: string): Promise<boolean> {
+  const flipped = await updateCarOrderStatus(
+    carOrderId,
+    CAR_ORDER_STATUSES.PENDING_PAYMENT,
+    CAR_ORDER_STATUSES.PAID,
+    { payment_id: payment.id, paid_at: new Date().toISOString() },
+  );
+  if (!flipped) return false;
+
+  await logAuditEvent({
+    actorId: payment.user_id,
+    actorRole: AUDIT_ACTOR_ROLES.SYSTEM,
+    action: "car_order_paid",
+    entityType: AUDIT_ENTITY_TYPES.CAR_ORDER,
+    entityId: carOrderId,
+    metadata: {
+      from: CAR_ORDER_STATUSES.PENDING_PAYMENT,
+      to: CAR_ORDER_STATUSES.PAID,
+      paymentId: payment.id,
+      reference: payment.reference,
+      // What was actually taken, from the payment row rather than from the car
+      // order: if these two ever disagree, the audit log is where that is found.
+      amountPesewas: payment.amount,
+      channel: payment.channel ?? null,
+    },
+  });
+
+  return true;
 }
 
 /**

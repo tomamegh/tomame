@@ -11,6 +11,8 @@ export interface Payment {
   metadata: Record<string, unknown> | null;
   /** The order group this payment buys (048). Null for legacy single-order payments. */
   order_group_id: string | null;
+  /** The car order this payment buys (068). Null for order and order-group payments. */
+  car_order_id: string | null;
   created_at: string;
 }
 
@@ -34,6 +36,8 @@ export interface InitializePaymentRequest {
   orderId?: string;
   /** The bag's order group — one Paystack transaction for N orders. */
   orderGroupId?: string;
+  /** One car, paid in full (068). */
+  carOrderId?: string;
   /** `PaymentChannel.id` from `site_settings.payment_channels`. */
   channel?: string;
 }
@@ -63,4 +67,5 @@ export interface PaymentInsert {
   status: string;
   metadata?: Record<string, unknown> | null;
   order_group_id?: string | null;
+  car_order_id?: string | null;
 }

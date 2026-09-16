@@ -8,7 +8,11 @@ import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { getRecipientEmail, insertNotification, markNotificationDelivered } from "@/db/queries/notifications";
 import { listOrdersByGroup } from "@/db/queries/orders";
 import { updateOrderGroupStatus, type OrderGroupRow } from "@/db/queries/order-groups";
+import { listStalePendingCarOrders } from "@/db/queries/car-orders";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { cancelCarOrder } from "@/features/cars/services/car-orders.service";
+import type { CarOrderRow } from "@/features/cars/car-orders.types";
+import { APIError } from "@/lib/auth/api-helpers";
 import type { Order } from "@/features/orders/types";
 import { recordOrderEvent } from "@/features/orders/services/order-events.service";
 import {
@@ -56,6 +60,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * verified as not-successful (or never existed), so this too never cancels
  * something Paystack has money for.
  *
+ * AND, ON THE SAME TERMS, ABANDONED CAR CHECKOUTS (068). A car is a single
+ * physical object, so `uq_car_orders_live` allows one non-cancelled `car_orders`
+ * row per listing — which means a `pending_payment` row holds that vehicle out
+ * of sale, and Paystack sends nothing at all when a customer shuts the tab. Left
+ * alone, one abandoned checkout takes a car off the market FOREVER. `cancelled`
+ * is the only state that index excludes, so cancelling is not housekeeping here:
+ * it is putting the car back on the market, and this job is the only thing that
+ * ever does it without a human. See `releaseStaleCarOrders` for the three
+ * guards that stand between it and a paid car.
+ *
  * LATE MONEY. A customer can reopen an expired Paystack link and pay. That case
  * is handled in `handlePaymentCallback`, which allows a payment WE expired to
  * move `failed → success` and settles it; if its order was already cancelled by
@@ -80,6 +94,8 @@ export interface ReconcileSummary {
   ordersCancelled: number;
   /** Bags closed for non-payment (their orders are counted in `ordersCancelled`). */
   groupsCancelled: number;
+  /** Abandoned car checkouts released, each putting one vehicle back on sale. */
+  carOrdersCancelled: number;
 }
 
 export interface PaymentTimeouts {
@@ -121,7 +137,7 @@ export async function reconcilePendingPayments(now: Date = new Date()): Promise<
   const timeouts = await resolvePaymentTimeouts();
   const summary: ReconcileSummary = {
     checked: 0, settled: 0, failed: 0, expired: 0, unreachable: 0, leftPending: 0,
-    ordersCancelled: 0, groupsCancelled: 0,
+    ordersCancelled: 0, groupsCancelled: 0, carOrdersCancelled: 0,
   };
 
   const graceCutoff = minutesBefore(now, PAYMENT_RECONCILIATION.graceMinutes);
@@ -143,6 +159,7 @@ export async function reconcilePendingPayments(now: Date = new Date()): Promise<
   const cancelled = await cancelStaleUnpaid(admin, timeouts, now);
   summary.ordersCancelled = cancelled.orders;
   summary.groupsCancelled = cancelled.groups;
+  summary.carOrdersCancelled = await releaseStaleCarOrders(admin, timeouts, now);
   return summary;
 }
 
@@ -202,7 +219,11 @@ async function expirePayment(
   );
   if (!released) return false;
 
-  const target = { orderId: orderIdOf(payment), groupId: payment.order_group_id ?? null };
+  const target = {
+    orderId: orderIdOf(payment),
+    groupId: payment.order_group_id ?? null,
+    carOrderId: payment.car_order_id ?? null,
+  };
   await logAuditEvent({
     actorId: payment.user_id,
     actorRole: "system",
@@ -212,17 +233,23 @@ async function expirePayment(
     metadata: { reference: payment.reference, ...target, paystackStatus, expiryMinutes: timeouts.expiryMinutes },
   });
 
-  const retryUrl = target.groupId
-    ? `${env.app.url}/app/bag`
-    : target.orderId
-      ? `${env.app.url}/app/orders/${target.orderId}`
-      : `${env.app.url}/app/orders`;
+  // The same three destinations `successUrl`/`failureUrl` resolve, and for the
+  // same reason: a car customer sent to /app/orders lands on the parcel screen,
+  // which says nothing about a vehicle. /app/cars is the route that exists.
+  const retryUrl = target.carOrderId
+    ? `${env.app.url}/app/cars`
+    : target.groupId
+      ? `${env.app.url}/app/bag`
+      : target.orderId
+        ? `${env.app.url}/app/orders/${target.orderId}`
+        : `${env.app.url}/app/orders`;
   await notify(payment.user_id, "payment_expired", {
     payment_id: payment.id,
     reference: payment.reference,
     amount_ghs: payment.amount / 100,
     order_id: target.orderId,
     order_group_id: target.groupId,
+    car_order_id: target.carOrderId,
     href: retryUrl.slice(env.app.url.length),
   }, paymentExpiredTemplate({
     amountGhs: payment.amount / 100,
@@ -358,6 +385,145 @@ async function cancelOrderUnpaid(
     occurred_at: now.toISOString(),
   });
   return true;
+}
+
+// ── Abandoned car checkouts (068) ───────────────────────────────────────────
+
+/**
+ * The `cancel_reason` this job writes on every car order it releases.
+ *
+ * `car_orders.cancel_reason` is nullable free text on purpose — 068 says an
+ * admin releasing a car by hand must not be blocked on prose — which makes it
+ * the one column that tells the two kinds of cancellation apart. "A person
+ * decided" and "nobody ever paid" are different conversations when a customer
+ * rings about a car that is back on the site, so the sentence is a constant
+ * rather than a literal at the call site: anything that later wants to count
+ * automatic releases has something exact to match on.
+ */
+export const CAR_ORDER_UNPAID_CANCEL_REASON =
+  "No payment arrived within the unpaid order lifetime; released automatically so the car could be sold again";
+
+/**
+ * Put back on the market every car held by a checkout nobody ever paid for.
+ *
+ * WHICH CLOCK, AND WHY NOT THE OTHER ONE. `unpaid_order_ttl_hours` (48 on
+ * production) — the window a bag gets — and NOT `payment_expiry_minutes`. Both
+ * windows apply to a car, doing different jobs: at `payment_expiry_minutes` the
+ * first half of this run releases the abandoned PAYMENT, which is what lets the
+ * customer start a fresh transaction at all; at `unpaid_order_ttl_hours` the CAR
+ * ORDER goes, which is what releases the vehicle. Releasing the order on the
+ * payment's clock instead would take the car away from somebody an hour into
+ * retrying a declined card and put it up for sale again — `claimCar` hands a
+ * customer their own `pending_payment` row back precisely so that retry can
+ * happen, and a 60-minute cancel would quietly delete it underneath them. A
+ * vehicle sitting unsold for an extra day is a far smaller harm than selling one
+ * out from under the person who was buying it, and the number is admin-tunable
+ * in `site_settings` either way.
+ *
+ * THREE GUARDS BETWEEN THIS AND CANCELLING A CAR SOMEBODY HAS PAID FOR — the one
+ * outcome here that could not be undone, since it would mean a customer's money
+ * taken, their vehicle back on the forecourt and possibly sold to somebody else:
+ *
+ *   1. the list asks for `status = 'pending_payment'` and nothing else. A
+ *      settled car order is `paid`, which `settleCarOrder` writes in the same
+ *      guarded UPDATE that attributes the payment.
+ *   2. `findActivePayment` — the SAME predicate the order and bag passes use —
+ *      skips any car order carrying a pending OR successful payment. This is the
+ *      guard that covers money in flight: a charge Paystack has accepted but
+ *      whose settlement has not landed yet is a `success` row here, and the car
+ *      order is left exactly where it is for the settle to find.
+ *   3. `cancelCarOrder` re-reads the row, refuses any move out of
+ *      `pending_payment` against the shared transitions table, and then its
+ *      UPDATE carries `.eq("status", "pending_payment")` — so a settlement
+ *      landing mid-batch wins the write and this one matches nothing.
+ *
+ * NO EMAIL AND NO `notifications` ROW, on `settleCarOrder`'s reasoning exactly:
+ * `unpaidOrderCancelledTemplate` is a parcel's mail, down to "paste the link
+ * again and you will see today's landed price", and sending that to somebody
+ * whose CAR has gone back on the market would read as nonsense at the worst
+ * possible moment. The audit row and `cancel_reason` carry it until a car
+ * template exists.
+ */
+async function releaseStaleCarOrders(
+  admin: SupabaseClient,
+  timeouts: PaymentTimeouts,
+  now: Date,
+): Promise<number> {
+  /*
+    ONE HOUR, NOT THE 48 THIS INHERITED. `unpaidOrderTtlHours` is the parcel
+    setting, and a held parcel order blocks nothing — a held CAR is a single
+    physical vehicle taken off sale, and every other buyer in the window is
+    turned away. Two days of that from one idle click is a real cost, so Kelvin
+    set the car hold to an hour (2026-09-16).
+
+    IT IS NOT A RACE WITH A PAYMENT IN FLIGHT. The loop below skips any car
+    order that still has a live payment, so this cutoff only decides how long
+    after a payment has been positively released the car keeps being held. The
+    expiry pass above runs first, in the same sweep, which is what releases it.
+  */
+  const cutoff = minutesBefore(now, timeouts.expiryMinutes);
+
+  let stale: CarOrderRow[];
+  try {
+    stale = await listStalePendingCarOrders(cutoff, PAYMENT_RECONCILIATION.orderBatchSize);
+  } catch (error) {
+    // 068 IS NOT APPLIED TO EVERY DATABASE YET, and this job has been running in
+    // production every five minutes since 059. A missing `car_orders` therefore
+    // costs the car pass and nothing else: raising here would turn a working
+    // payment sweep red on every run, and what that sweep settles is real money
+    // belonging to customers who have nothing to do with cars. Loud in the log,
+    // survivable for the run. Every OTHER failure propagates — a car pass that
+    // silently did nothing would be indistinguishable from one with nothing to
+    // do, which is the state this whole function exists to prevent.
+    if (!isSchemaMissingError(error)) throw error;
+    logger.error("reconcile-payments: car_orders is missing; no abandoned car was released", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 0;
+  }
+
+  let released = 0;
+  for (const carOrder of stale) {
+    // Guard 2. Somebody is paying, or has paid and the settle is mid-flight.
+    // Either way this car is not ours to take back.
+    if (await findActivePayment(admin, { carOrderId: carOrder.id })) continue;
+
+    let cancelled: boolean;
+    try {
+      cancelled = await cancelCarOrder(
+        // The customer is the actor on their own abandoned checkout, as
+        // `cancelOrderUnpaid` records it; the ROLE is what says no human did
+        // this. Both land in the `car_order_cancelled` audit row.
+        { id: carOrder.user_id, role: "system" },
+        carOrder.id,
+        CAR_ORDER_UNPAID_CANCEL_REASON,
+      );
+    } catch (error) {
+      // `cancelCarOrder` answers a row that has moved with an APIError: 404 if
+      // it is gone, 400 if it is no longer cancellable because it was paid for
+      // between the list and here. Both mean "not this job's any more", both are
+      // guard 3 working, and the batch carries on. A database failure is not an
+      // APIError and still stops the run.
+      if (!(error instanceof APIError)) throw error;
+      logger.warn("reconcile-payments: car order moved before it could be released", {
+        carOrderId: carOrder.id,
+        listedStatus: carOrder.status,
+        refusal: error.message,
+      });
+      continue;
+    }
+    if (!cancelled) continue;
+
+    released += 1;
+    logger.info("reconcile-payments: released a car nobody paid for", {
+      carOrderId: carOrder.id,
+      carListingId: carOrder.car_listing_id,
+      ttlHours: timeouts.unpaidOrderTtlHours,
+      cancelledAt: now.toISOString(),
+    });
+  }
+
+  return released;
 }
 
 // ── Notification (row first, then the mail) ─────────────────────────────────

@@ -18,7 +18,9 @@ export const maxDuration = 120;
  * happened. This job asks Paystack directly about every pending payment older
  * than a few minutes, settles what succeeded, records what failed, and releases
  * what was abandoned so the customer can pay again. Then it closes orders and
- * bags nobody has paid for in `unpaid_order_ttl_hours`.
+ * bags nobody has paid for in `unpaid_order_ttl_hours` — and, on the same
+ * clock, the car checkouts nobody paid for, each of which is holding a vehicle
+ * out of sale for as long as it lives (`uq_car_orders_live`, 068).
  *
  * A run with unreachable verifies in it is still a 200: those rows stay pending
  * and the next run tries again. What reaches the catch is a broken run.
@@ -26,7 +28,12 @@ export const maxDuration = 120;
 export async function GET(request: NextRequest): Promise<NextResponse> {
   return runCronJob(request, "reconcile-payments", async () => {
     const summary = await reconcilePendingPayments();
-    if (summary.checked || summary.ordersCancelled || summary.groupsCancelled) {
+    if (
+      summary.checked ||
+      summary.ordersCancelled ||
+      summary.groupsCancelled ||
+      summary.carOrdersCancelled
+    ) {
       logger.info("reconcile-payments run", { ...summary });
     }
     return { ...summary };

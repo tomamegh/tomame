@@ -1,13 +1,32 @@
 import { z } from "zod";
 
-/** One order (legacy) or one order group (the bag). `channel` is a `PaymentChannel.id`. */
+/**
+ * One order (legacy), one order group (the bag), or one car order (068).
+ * `channel` is a `PaymentChannel.id`.
+ *
+ * EXACTLY ONE TARGET, and the refine says so by counting rather than by
+ * comparing. The two-case version was `(orderId != null) !== (orderGroupId != null)`
+ * — an inequality that reads as "exactly one" only while there are precisely two
+ * of them. Adding a third case to that shape is how a schema starts accepting
+ * `{ orderId, carOrderId }`: the payment would then be initialized for whichever
+ * the service happened to check first, and the other target would be left
+ * unpaid behind a completed charge. Counting extends to a fourth case for free
+ * and cannot drift from what the sentence claims.
+ *
+ * This mirrors `ChargeTarget` in `payments.service.ts`, which is a closed union
+ * of the same three cases. The two must be changed together.
+ */
 export const initializePaymentSchema = z
   .object({
     orderId: z.uuid("Invalid order ID").optional(),
     orderGroupId: z.uuid("Invalid order group").optional(),
+    carOrderId: z.uuid("Invalid car order").optional(),
     channel: z.string().trim().min(1).max(40).optional(),
   })
-  .refine((v) => (v.orderId != null) !== (v.orderGroupId != null), { message: "Provide orderId or orderGroupId" });
+  .refine(
+    (v) => [v.orderId, v.orderGroupId, v.carOrderId].filter((id) => id != null).length === 1,
+    { message: "Provide exactly one of orderId, orderGroupId or carOrderId" },
+  );
 export type InitializePaymentInput = z.infer<typeof initializePaymentSchema>;
 
 export const paymentCallbackSchema = z.object({

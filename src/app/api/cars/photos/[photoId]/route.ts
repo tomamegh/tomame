@@ -14,10 +14,8 @@ import { logger } from "@/lib/logger";
  * in how much it trusts the caller:
  *
  *   * Like the marketing route, it is PUBLIC. A car listing is a page a buyer
- *     sends to somebody who has never signed in, and the picture has to load.
- *     The long immutable cache is right for the same reason it is there: the URL
- *     carries an id whose object is never rewritten (a replacement gets a fresh
- *     random storage key and a fresh row), so a given URL's bytes never change.
+ *     sends to somebody who has never signed in, and the picture has to load
+ *     for them. Reading the session is therefore not a gate — see the body.
  *
  *   * Like the parcel route, IT RE-CHECKS ON EVERY REQUEST. The check here is
  *     the listing's publish state, not ownership. An admin uploads photographs
@@ -27,13 +25,13 @@ import { logger } from "@/lib/logger";
  *     by the page that embedded the image — it is done here, per request, by
  *     `readCarPhotoForViewer`.
  *
- * THE CACHE HEADER AND THE PUBLISH CHECK ARE IN TENSION, and the resolution is
- * deliberate: a browser or CDN that already holds a copy will keep showing it
- * after an unpublish, for as long as its cache entry lives. That is acceptable
- * for a photograph of a vehicle in a shipping yard — it is not customer data,
- * and the listing page itself is gone — and it is the same trade
- * `/api/media/[key]` makes. If a car's photographs ever needed to be
- * *retractable*, this header is the line to change, not the check.
+ * THE CACHE HEADER IS SHORT FOR THAT REASON. `/api/media/[key]` may cache for a
+ * year because its objects are unconditionally public; this route's answer
+ * changes the moment an admin unpublishes, and a cached copy is never asked
+ * again. A year with `immutable` would have meant unpublishing retracted
+ * nothing for twelve months from any cache that already held the bytes. Five
+ * minutes with `must-revalidate` keeps it cheap and keeps unpublish meaningful;
+ * a draft's bytes are `private, no-store` and never enter a shared cache.
  *
  * Every refusal is a 404. Which of the checks failed is not the caller's
  * business, and a 403 would confirm that an unpublished listing exists.
@@ -45,8 +43,30 @@ export async function GET(
   const { photoId } = await params;
 
   try {
-    const { session } = await getUserSession();
-    const file = await readCarPhotoForViewer(photoId, { isAdmin: canAccessAdmin(session) });
+    /*
+      SIGNED OUT IS THE NORMAL CASE HERE, NOT AN ERROR. `getUserSession()`
+      THROWS a 401 when there is no session, and this handler answers every
+      throw with a 404 — so reading the session eagerly turned the public route
+      its own doc comment describes into one that refused every anonymous
+      caller, and every car photograph on the site went blank.
+
+      It broke signed-in viewers too, which is what makes it worth this many
+      lines: `/_next/image` re-fetches the source server-side WITHOUT the
+      browser's cookies, so the optimizer's own request was anonymous even when
+      the person looking at the page was not. Only the admin photo manager
+      escaped it, because that one renders a plain `<img>`.
+
+      The session is a privilege check and nothing more: whether the bytes may
+      be served at all is decided from the row, by `readCarPhotoForViewer`.
+      Absence of a session means "not an admin", never "no".
+    */
+    const session = await getUserSession()
+      .then((resolved) => resolved.session)
+      .catch(() => null);
+
+    const file = await readCarPhotoForViewer(photoId, {
+      isAdmin: session != null && canAccessAdmin(session),
+    });
 
     return new Response(file.body, {
       status: 200,

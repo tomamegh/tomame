@@ -52,6 +52,8 @@ const ENQUIRY_COLUMNS =
 const UNIQUE_VIOLATION = "23505";
 /** Postgres CHECK violation — one of 067's invariants refused the row. */
 const CHECK_VIOLATION = "23514";
+/** Postgres foreign-key violation — another table's row still points at this one. */
+const FOREIGN_KEY_VIOLATION = "23503";
 
 /**
  * Thrown instead of a bare `Error` when the slug (or the VIN) is already taken,
@@ -90,6 +92,30 @@ export class CarInvariantError extends Error {
   constructor(public readonly detail: string) {
     super(`That listing is not a valid combination: ${detail}`);
     this.name = "CarInvariantError";
+  }
+}
+
+/**
+ * The listing cannot go, because somebody bought the car.
+ *
+ * `car_orders.car_listing_id` is `ON DELETE RESTRICT` (068), deliberately: the
+ * cascade would take the record of a five-figure sale with it and leave a
+ * `payments` row pointing at nothing. So the delete fails with 23503, and
+ * without this class the admin who pressed Delete got a 500 carrying a raw
+ * Postgres sentence about a foreign key constraint — true, and useless.
+ *
+ * THE MESSAGE HAS TO CARRY THE WAY OUT, because the admin's actual intent is
+ * almost always "take this car off the site" and that IS available:
+ * `setCarListingPublished` hides the listing, the public page and the photo
+ * route both re-check `is_published`, and the sale keeps its record. Deleting a
+ * car somebody owns is not a thing that should be made possible.
+ */
+export class CarListingSoldError extends Error {
+  constructor() {
+    super(
+      "This car has been bought, so its listing cannot be deleted — the sale record points at it. Unpublish it instead to take it off the site.",
+    );
+    this.name = "CarListingSoldError";
   }
 }
 
@@ -293,6 +319,12 @@ export async function setCarListingPublished(
  * reads the photo rows FIRST so it can remove their storage objects — a cascade
  * deletes rows, not bytes, and without that step the bucket keeps every
  * photograph of a car nobody can reach any more.
+ *
+ * `car_orders` DOES NOT CASCADE (068). It RESTRICTS, so deleting a car somebody
+ * has bought raises 23503 and the delete does not happen — which is the correct
+ * answer and used to reach the admin as an unexplained 500 carrying a raw
+ * constraint name. `CarListingSoldError` is that refusal as a sentence, and the
+ * only reason this delete translates its error at all.
  */
 export async function deleteCarListing(id: string): Promise<CarListingRow | null> {
   const { data, error } = await createAdminClient()
@@ -302,7 +334,11 @@ export async function deleteCarListing(id: string): Promise<CarListingRow | null
     .select(LISTING_COLUMNS)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to delete the car listing: ${error.message}`);
+  if (error) {
+    const sold = soldListingError(error);
+    if (sold) throw sold;
+    throw new Error(`Failed to delete the car listing: ${error.message}`);
+  }
   return data ? normalizeListing(data as Record<string, unknown>) : null;
 }
 
@@ -337,6 +373,36 @@ export async function listCarPhotos(carListingId: string): Promise<CarPhotoRow[]
     .from("car_photos")
     .select(PHOTO_COLUMNS)
     .eq("car_listing_id", carListingId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(`Failed to load the car photos: ${error.message}`);
+  return ((data ?? []) as Record<string, unknown>[]).map(normalizePhoto);
+}
+
+/**
+ * Every photo belonging to any of these listings, in one round trip.
+ *
+ * ONE QUERY, NOT ONE PER CAR. The Home rail and `/app/cars` both draw a cover
+ * for every listing they show, and doing that with `listCarPhotos` per row is a
+ * fan-out that grows with the forecourt: six cars on Home is six queries before
+ * the page can paint, and the index is worse. The listings are already in hand,
+ * so their ids are too, and one `in (...)` answers for all of them.
+ *
+ * Ordering matches `listCarPhotos` exactly — `sort_order` then `created_at` —
+ * so a caller grouping these by listing sees each gallery in the same order it
+ * would have seen reading them one at a time. An empty id list short-circuits:
+ * `in ()` is a query that can only return nothing.
+ */
+export async function listCarPhotosForListings(
+  carListingIds: readonly string[],
+): Promise<CarPhotoRow[]> {
+  if (carListingIds.length === 0) return [];
+
+  const { data, error } = await createAdminClient()
+    .from("car_photos")
+    .select(PHOTO_COLUMNS)
+    .in("car_listing_id", carListingIds as string[])
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
@@ -570,23 +636,55 @@ export async function countOpenCarEnquiries(): Promise<number> {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Which of 067's guards refused a listing write.
+ * Which of 067's (or 068's) guards refused a listing write.
  *
  * Both unique indexes report code 23505 and only the message says which, so the
  * index name is what separates "that link is taken" from "that car is already
  * listed" — two different sentences for the admin.
  */
 function translateWriteError(
-  error: { code?: string; message: string },
+  error: { code?: string; message: string; details?: string | null },
   slug: string,
   vin: string | null,
 ): Error {
+  const sold = soldListingError(error);
+  if (sold) return sold;
   if (error.code === UNIQUE_VIOLATION) {
     if (vin && /uq_car_listings_vin/.test(error.message)) return new CarVinTakenError(vin);
     return new CarSlugTakenError(slug);
   }
   if (error.code === CHECK_VIOLATION) return new CarInvariantError(error.message);
   return new Error(`Failed to save the car listing: ${error.message}`);
+}
+
+/**
+ * A 23503 raised by `car_orders.car_listing_id`'s RESTRICT (068), or null for
+ * anything else.
+ *
+ * NARROWED TO THAT ONE CONSTRAINT ON PURPOSE. 23503 is the code for every
+ * foreign key on these tables, and the others mean something completely
+ * different — a `created_by`/`updated_by` naming a profile that no longer
+ * exists is a bug in the caller, not a car somebody bought, and telling an
+ * admin to unpublish a listing over it would send them chasing the wrong thing.
+ * So the referenced table has to be named before the sentence is claimed, which
+ * is the same discipline the 23505 branch above uses to tell a taken link from
+ * a duplicate VIN.
+ *
+ * Postgres puts the constraint and the referencing table in the message
+ * ("... violates foreign key constraint \"car_orders_car_listing_id_fkey\" on
+ * table \"car_orders\"") and the key in `details`; both are read, because which
+ * of the two PostgREST forwards has changed between versions and a message this
+ * one is worth being right about.
+ */
+function soldListingError(error: {
+  code?: string;
+  message: string;
+  details?: string | null;
+}): CarListingSoldError | null {
+  if (error.code !== FOREIGN_KEY_VIOLATION) return null;
+  return /car_orders/.test(`${error.message} ${error.details ?? ""}`)
+    ? new CarListingSoldError()
+    : null;
 }
 
 /**

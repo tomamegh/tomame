@@ -65,6 +65,18 @@ export const AUDIT_ENTITY_TYPES = {
   CAR_LISTING: "car_listing",
   CAR_PHOTO: "car_photo",
   CAR_ENQUIRY: "car_enquiry",
+  /**
+   * 068. A car PURCHASE, which is a different fact from the listing it was made
+   * against and from the enquiry that may have preceded it.
+   *
+   * It needs its own type for the reason the block above gives, only harder: an
+   * audit row here is the record of the largest single charge this platform
+   * takes, and "who created this order, at what price, and who marked it paid"
+   * must be answerable without reading the metadata of every `car_listing`
+   * event. Auditing a sale as `car_listing` would also put it in the same
+   * stream as an admin correcting a trim level.
+   */
+  CAR_ORDER: "car_order",
 } as const;
 
 export type AuditEntityType =

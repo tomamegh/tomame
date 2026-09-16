@@ -23,6 +23,14 @@ vi.mock("@/db/queries/cars", async () => {
       this.name = "CarVinTakenError";
     }
   }
+  // Deleting a listing somebody has bought raises 23503 (`car_orders` is
+  // ON DELETE RESTRICT); the service maps this to a 409, not a 500.
+  class CarListingSoldError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "CarListingSoldError";
+    }
+  }
   class CarInvariantError extends Error {
     constructor(public readonly detail: string) {
       super(`That listing is not a valid combination: ${detail}`);
@@ -39,6 +47,7 @@ vi.mock("@/db/queries/cars", async () => {
     CarSlugTakenError,
     CarVinTakenError,
     CarInvariantError,
+    CarListingSoldError,
     CarEnquiryExistsError,
     listCarListings: vi.fn(),
     getCarListingById: vi.fn(),

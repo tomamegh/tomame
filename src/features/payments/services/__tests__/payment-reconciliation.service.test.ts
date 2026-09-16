@@ -21,7 +21,11 @@ vi.mock("@/lib/email/transport", () => ({ sendEmail: vi.fn(async () => undefined
 vi.mock("@/lib/email/notify-preference", () => ({ mayEmailUser: vi.fn(async () => true) }));
 vi.mock("@/features/payments/services/payments.service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/payments/services/payments.service")>();
-  return { ...actual, handlePaymentCallback: vi.fn() };
+  // `findActivePayment` keeps its REAL implementation and is only wrapped, so
+  // every test below runs the real "is somebody paying for this?" predicate.
+  // One test overrides it, to stage a settlement landing between the list and
+  // the write — a race no amount of seeding can produce from the outside.
+  return { ...actual, handlePaymentCallback: vi.fn(), findActivePayment: vi.fn(actual.findActivePayment) };
 });
 vi.mock("@/features/orders/services/orders.service", () => ({
   getOrderById: vi.fn(), linkOrderToPayment: vi.fn(), sendOrderStatusEmail: vi.fn(),
@@ -30,10 +34,18 @@ vi.mock("@/features/payments/services/payment-channels.service", () => ({ getPay
 vi.mock("@/features/notifications/services/notifications.service", () => ({ createOrderNotifications: vi.fn() }));
 
 import {
+  CAR_ORDER_UNPAID_CANCEL_REASON,
   reconcilePendingPayments,
   resolvePaymentTimeouts,
 } from "@/features/payments/services/payment-reconciliation.service";
-import { handlePaymentCallback } from "@/features/payments/services/payments.service";
+// NOT MOCKED, and that is the point of the car tests below: this is the module
+// carrying `.eq("status", "pending_payment")` and the `neq("status",
+// "cancelled")` that mirrors `uq_car_orders_live`. It builds its client from
+// `createAdminClient`, which is the fake, so the guarded UPDATE and the
+// "is this car still on the market?" read both run for real against the
+// in-memory rows.
+import { findLiveCarOrderForListing } from "@/db/queries/car-orders";
+import { findActivePayment, handlePaymentCallback } from "@/features/payments/services/payments.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyTransaction } from "@/lib/paystack/client";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
@@ -50,6 +62,8 @@ const NOW = new Date("2026-09-14T12:00:00Z");
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const ORDER_ID = "22222222-2222-4222-8222-222222222222";
 const GROUP_ID = "44444444-4444-4444-8444-444444444444";
+const CAR_ORDER_ID = "55555555-5555-4555-8555-555555555555";
+const CAR_LISTING_ID = "66666666-6666-4666-8666-666666666666";
 
 let db: FakeDb;
 
@@ -103,7 +117,7 @@ beforeEach(() => {
   // clearAllMocks keeps implementations; a rejected transport from one test
   // must not leak into the next.
   vi.mocked(sendEmail).mockImplementation(async () => undefined);
-  db = { payments: [], orders: [], order_groups: [] };
+  db = { payments: [], orders: [], order_groups: [], car_orders: [] };
   vi.mocked(createAdminClient).mockReturnValue(createFakeClient(db) as never);
   vi.mocked(getSiteSettingsMap).mockResolvedValue({ payment_expiry_minutes: 60, unpaid_order_ttl_hours: 48 });
   vi.mocked(listOrdersByGroup).mockResolvedValue([]);
@@ -275,5 +289,226 @@ describe("reconcilePendingPayments — unpaid orders and bags", () => {
     const summary = await reconcilePendingPayments(NOW);
     expect(updateOrderGroupStatus).not.toHaveBeenCalled();
     expect(summary.groupsCancelled).toBe(0);
+  });
+});
+
+// ── Abandoned car checkouts (068) ────────────────────────────────────────────
+
+/**
+ * A car order in the fake database, old enough to be past the unpaid lifetime
+ * unless a test says otherwise.
+ */
+function seedCarOrder(overrides: Partial<Row> = {}): Row {
+  const row: Row = {
+    id: CAR_ORDER_ID,
+    car_listing_id: CAR_LISTING_ID,
+    user_id: USER_ID,
+    price_pesewas: 18_500_000,
+    price_state: "fixed",
+    car_label: "2019 Toyota Highlander XLE",
+    status: "pending_payment",
+    payment_id: null,
+    paid_at: null,
+    cancelled_at: null,
+    cancel_reason: null,
+    created_at: minutesAgo(50 * 60),
+    updated_at: minutesAgo(50 * 60),
+    ...overrides,
+  };
+  db.car_orders!.push(row);
+  return row;
+}
+
+function carOrder(): Row {
+  return db.car_orders![0]!;
+}
+
+function auditActions(): string[] {
+  return vi.mocked(logAuditEvent).mock.calls.map(([entry]) => entry.action);
+}
+
+describe("reconcilePendingPayments — abandoned car checkouts", () => {
+  it("releases a car nobody paid for and puts it back on the market", async () => {
+    seedCarOrder();
+    // The whole arc in one run: a payment opened 90 minutes ago that Paystack
+    // never saw completed is released by the first half, and the car order it
+    // was for — 50 hours old, past the 48-hour lifetime — by the second.
+    const payment = seedPayment({
+      created_at: minutesAgo(90),
+      metadata: { car_order_id: CAR_ORDER_ID, car_listing_id: CAR_LISTING_ID },
+      car_order_id: CAR_ORDER_ID,
+    });
+    paystack("abandoned");
+
+    // Before: the index's live set holds this car, so nobody else can buy it.
+    expect(await findLiveCarOrderForListing(CAR_LISTING_ID)).not.toBeNull();
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(payment.status).toBe("failed");
+    expect(summary).toMatchObject({ expired: 1, carOrdersCancelled: 1 });
+    expect(carOrder().status).toBe("cancelled");
+    // `car_orders_cancelled_is_stamped` requires the timestamp in the database.
+    expect(carOrder().cancelled_at).toEqual(expect.any(String));
+    // The column that tells "nobody ever paid" from "an admin cancelled it".
+    expect(carOrder().cancel_reason).toBe(CAR_ORDER_UNPAID_CANCEL_REASON);
+
+    // After: the car is buyable again. This is the read `claimCar` makes and it
+    // carries the same predicate as `uq_car_orders_live`, so a null here is the
+    // index releasing the vehicle, not a hope about one.
+    expect(await findLiveCarOrderForListing(CAR_LISTING_ID)).toBeNull();
+
+    expect(logAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "car_order_cancelled",
+        entityType: "car_order",
+        entityId: CAR_ORDER_ID,
+        actorRole: "system",
+        metadata: expect.objectContaining({
+          carListingId: CAR_LISTING_ID,
+          reason: CAR_ORDER_UNPAID_CANCEL_REASON,
+        }),
+      }),
+    );
+    // A car customer is sent back to the forecourt, not to the parcel screen.
+    expect(vi.mocked(sendEmail).mock.calls[0]![0].html).toContain("/app/cars");
+  });
+
+  /*
+    A CAR IS HELD FOR THE PAYMENT-EXPIRY WINDOW, NOT THE PARCEL LIFETIME. This
+    used to inherit `unpaidOrderTtlHours` (48 on production), which meant one
+    idle click took a single vehicle off sale for two days while every other
+    buyer was turned away. Kelvin set it to the hour on 2026-09-16; these two
+    tests are the boundary in both directions, so nobody quietly restores the
+    old dial.
+  */
+  it("leaves a car checkout alone while it is inside the hold window", async () => {
+    seedCarOrder({ created_at: minutesAgo(30), updated_at: minutesAgo(30) });
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(summary.carOrdersCancelled).toBe(0);
+    expect(carOrder().status).toBe("pending_payment");
+    expect(await findLiveCarOrderForListing(CAR_LISTING_ID)).not.toBeNull();
+  });
+
+  it("releases a car once past the hold window, long before the parcel lifetime", async () => {
+    seedCarOrder({ created_at: minutesAgo(5 * 60), updated_at: minutesAgo(5 * 60) });
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    // Five hours: well past the 60-minute hold, nowhere near 48 hours.
+    expect(summary.carOrdersCancelled).toBe(1);
+    expect(carOrder().status).toBe("cancelled");
+    expect(await findLiveCarOrderForListing(CAR_LISTING_ID)).toBeNull();
+  });
+
+  // ── The one that must never happen ─────────────────────────────────────────
+  //
+  // Cancelling a car somebody has PAID for would take a five-figure purchase
+  // back off a customer and put the vehicle up for sale again, with their money
+  // already ours. Each of the three guards is proved separately, because each
+  // one covers a case the others do not.
+
+  it("never touches a car order whose payment succeeded but has not settled yet", async () => {
+    // GUARD 2, and the dangerous case: Paystack has the money, the row is still
+    // `pending_payment` because the settle is in flight — a webhook mid-fan-out,
+    // or a callback that has claimed the payment and not yet flipped the car.
+    // It is old enough to be swept and has nothing else protecting it.
+    seedCarOrder();
+    seedPayment({
+      status: "success",
+      created_at: minutesAgo(90),
+      metadata: { car_order_id: CAR_ORDER_ID },
+      car_order_id: CAR_ORDER_ID,
+    });
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(summary.carOrdersCancelled).toBe(0);
+    expect(carOrder().status).toBe("pending_payment");
+    expect(carOrder().cancelled_at).toBeNull();
+    expect(auditActions()).not.toContain("car_order_cancelled");
+    // Still reserved for the customer who paid: nobody else can buy this car.
+    expect(await findLiveCarOrderForListing(CAR_LISTING_ID)).not.toBeNull();
+  });
+
+  it("never touches a car order that is already paid", async () => {
+    // GUARD 1: a settled car order is `paid`, and the sweep's read asks for
+    // `pending_payment` only — so a paid car is not in the batch at all, however
+    // old it is and whatever happened to its payment row.
+    seedCarOrder({
+      status: "paid",
+      payment_id: "77777777-7777-4777-8777-777777777777",
+      paid_at: minutesAgo(49 * 60),
+      created_at: minutesAgo(80 * 60),
+    });
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(summary.carOrdersCancelled).toBe(0);
+    expect(carOrder().status).toBe("paid");
+    expect(auditActions()).not.toContain("car_order_cancelled");
+  });
+
+  it("loses to a settlement that lands while the batch is being worked", async () => {
+    // GUARD 3: the row was `pending_payment` and unguarded when it was listed,
+    // and became `paid` before the cancel — the race no read can win. The CAS
+    // inside `cancelCarOrder` is what settles it: the row is re-read, the move
+    // out of `paid` is refused, and the run carries on rather than failing.
+    const row = seedCarOrder();
+    vi.mocked(findActivePayment).mockImplementation(async () => {
+      row.status = "paid";
+      row.payment_id = "77777777-7777-4777-8777-777777777777";
+      row.paid_at = NOW.toISOString();
+      return null;
+    });
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(summary.carOrdersCancelled).toBe(0);
+    expect(carOrder().status).toBe("paid");
+    expect(carOrder().cancelled_at).toBeNull();
+    expect(auditActions()).not.toContain("car_order_cancelled");
+    expect(logger.warn).toHaveBeenCalledWith(
+      "reconcile-payments: car order moved before it could be released",
+      expect.objectContaining({ carOrderId: CAR_ORDER_ID }),
+    );
+  });
+
+  it("is idempotent: a second run releases nothing and writes no second audit row", async () => {
+    seedCarOrder();
+
+    const first = await reconcilePendingPayments(NOW);
+    const cancelledAt = carOrder().cancelled_at;
+    const second = await reconcilePendingPayments(NOW);
+
+    expect(first.carOrdersCancelled).toBe(1);
+    expect(second.carOrdersCancelled).toBe(0);
+    // The second run does not even see the row: `cancelled` is outside the
+    // `pending_payment` filter, which is the same set the unique index excludes.
+    expect(carOrder().status).toBe("cancelled");
+    expect(carOrder().cancelled_at).toBe(cancelledAt);
+    expect(auditActions().filter((a) => a === "car_order_cancelled")).toHaveLength(1);
+  });
+
+  it("does not fail the whole sweep when car_orders is not migrated yet", async () => {
+    // 068 is not applied everywhere, and this job settles real money for orders
+    // and bags every five minutes. A missing table costs the car pass only.
+    const order = seedOrder();
+    db.missingTables = ["car_orders"];
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(summary.carOrdersCancelled).toBe(0);
+    expect(summary.ordersCancelled).toBe(1);
+    expect(order.status).toBe("cancelled");
+    // Loud, so an un-migrated deployment is not silently failing to release
+    // cars. `toBe(0)` above would also pass against an empty table; this is what
+    // says the table was ABSENT and the pass degraded on purpose.
+    expect(logger.error).toHaveBeenCalledWith(
+      "reconcile-payments: car_orders is missing; no abandoned car was released",
+      expect.objectContaining({ error: expect.stringContaining("does not exist") }),
+    );
   });
 });

@@ -11,11 +11,22 @@ import crypto from "crypto";
 
 export type Row = Record<string, unknown>;
 
-export type TableName = "payments" | "orders" | "order_groups";
+export type TableName = "payments" | "orders" | "order_groups" | "car_orders" | "car_listings";
 
 export type FakeDb = Partial<Record<TableName, Row[]>> & { payments: Row[] } & {
   /** Set to make subsequent writes fail, as a dropped connection would. */
   failWrites?: boolean;
+  /**
+   * Tables to answer as if the migration that creates them has not been applied.
+   *
+   * Listing one here is not the same as leaving it empty: an empty table is a
+   * successful read of nothing, and a MISSING table is SQLSTATE 42P01, which
+   * `isSchemaMissingError` recognises and callers are entitled to treat
+   * differently. The car pass of the reconciliation job does exactly that — 068
+   * is not applied everywhere and the sweep settles real money for orders and
+   * bags every five minutes — so the difference has to be expressible here.
+   */
+  missingTables?: TableName[];
 };
 
 interface Result {
@@ -65,6 +76,11 @@ class FakeQuery implements PromiseLike<Result> {
     return this;
   }
 
+  neq(column: string, value: unknown): this {
+    this.predicates.push((row) => readColumn(row, column) !== value);
+    return this;
+  }
+
   in(column: string, values: unknown[]): this {
     this.predicates.push((row) => values.includes(readColumn(row, column)));
     return this;
@@ -97,6 +113,16 @@ class FakeQuery implements PromiseLike<Result> {
   limit(count: number): this {
     this.take = count;
     return this;
+  }
+
+  /** 42P01, or null when the table exists. Checked before any operation. */
+  private missing(): Result | null {
+    return this.db.missingTables?.includes(this.table)
+      ? {
+          data: null,
+          error: { code: "42P01", message: `relation "public.${this.table}" does not exist` },
+        }
+      : null;
   }
 
   private matches(): Row[] {
@@ -134,6 +160,8 @@ class FakeQuery implements PromiseLike<Result> {
 
   /** Errors unless exactly one row matched, as PostgREST does. */
   async single(): Promise<Result> {
+    const missing = this.missing();
+    if (missing) return missing;
     const matched = this.matches();
     const [row] = matched;
     if (matched.length !== 1 || !row) {
@@ -146,6 +174,8 @@ class FakeQuery implements PromiseLike<Result> {
   }
 
   async maybeSingle(): Promise<Result> {
+    const missing = this.missing();
+    if (missing) return missing;
     if (this.db.failWrites && this.op !== "select") {
       return { data: null, error: { code: "57P01", message: "connection lost" } };
     }
@@ -157,10 +187,18 @@ class FakeQuery implements PromiseLike<Result> {
     onfulfilled?: ((value: Result) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
-    return Promise.resolve({ data: this.matches(), error: null } as Result).then(
-      onfulfilled,
-      onrejected,
-    );
+    // The same dropped-connection switch `maybeSingle` honours. It belongs here
+    // too: a guarded UPDATE that ends in `.select("id")` is awaited directly
+    // rather than through `maybeSingle` (`updateCarOrderStatus`), and without
+    // this a failed write would come back as "no rows matched" — which the money
+    // path reads as "somebody else already settled it" and skips the effects.
+    // Distinguishing those two is the point of the whole mechanism.
+    const result: Result =
+      this.missing() ??
+      (this.db.failWrites && this.op !== "select"
+        ? { data: null, error: { code: "57P01", message: "connection lost" } }
+        : { data: this.matches(), error: null });
+    return Promise.resolve(result).then(onfulfilled, onrejected);
   }
 }
 

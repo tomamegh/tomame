@@ -3,6 +3,7 @@ import "server-only";
 import {
   CarEnquiryExistsError,
   CarInvariantError,
+  CarListingSoldError,
   CarSlugTakenError,
   CarVinTakenError,
   answerCarEnquiry as answerCarEnquiryRow,
@@ -15,6 +16,7 @@ import {
   listCarEnquiries,
   listCarListings,
   listCarPhotos,
+  listCarPhotosForListings,
   setCarListingPublished,
   updateCarListing,
   type CarListingWrite,
@@ -39,6 +41,7 @@ import {
   type CarEnquiryRow,
   type CarListingRow,
   type CarListingView,
+  type CarPhotoRow,
   type CarPhotoView,
 } from "../types";
 import type {
@@ -325,7 +328,12 @@ export async function deleteCar(actor: CarActor, id: string): Promise<CarListing
     });
   }
 
-  const row = await deleteCarListing(id);
+  let row: CarListingRow | null;
+  try {
+    row = await deleteCarListing(id);
+  } catch (error) {
+    throw mapWriteError(error);
+  }
   if (!row) return null;
 
   for (const path of storagePaths) {
@@ -587,9 +595,66 @@ function toWrite(input: CreateCarListingInput | UpdateCarListingInput): CarListi
 function mapWriteError(error: unknown): unknown {
   if (error instanceof CarSlugTakenError) return new APIError(409, error.message);
   if (error instanceof CarVinTakenError) return new APIError(409, error.message);
+  // A 409, not the 500 this used to be. `car_orders.car_listing_id` is
+  // ON DELETE RESTRICT, so deleting a car somebody has bought raises 23503 —
+  // a refusal with a reason, not a fault. The admin is told the sale record
+  // points at it and that unpublishing is what takes it off the site.
+  if (error instanceof CarListingSoldError) return new APIError(409, error.message);
   if (error instanceof CarInvariantError) {
     logger.error("car listing invariant violated past validation", { detail: error.detail });
     return new APIError(422, error.message);
   }
   return error;
+}
+
+/** One listing with the single photograph a card shows, or null when it has none. */
+export interface CarWithCover {
+  car: CarListingView;
+  cover: CarPhotoView | null;
+}
+
+/**
+ * Attach each listing's cover photograph, in ONE database round trip.
+ *
+ * WHY IT LIVES HERE NOW. This was `features/cars/components/car-covers.ts` — a
+ * `server-only` module doing a database read from a components folder, which
+ * CLAUDE.md calls an architecture bug outright, and which also meant the Home
+ * rail issued one `car_photos` query per car before it could paint. It is one
+ * `in (...)` now, and it sits in the layer that is allowed to ask.
+ *
+ * WHICH PHOTOGRAPH WINS. `is_cover` is the one an admin chose, so it wins. The
+ * first row by `sort_order` is the fallback, because a card with a picture is
+ * better than a card with a grey box, and a listing whose cover flag was never
+ * set still has a gallery.
+ *
+ * IT NEVER THROWS AND NEVER DROPS A LISTING. A failed photo read costs the
+ * pictures, not the cars: every listing comes back, some with a null cover, and
+ * the card renders its placeholder. A forecourt that vanishes because one
+ * `car_photos` read timed out would be a far worse screen than a grey box.
+ */
+export async function attachCovers(
+  cars: readonly CarListingView[],
+): Promise<CarWithCover[]> {
+  if (cars.length === 0) return [];
+
+  let byListing = new Map<string, CarPhotoRow[]>();
+  try {
+    for (const photo of await listCarPhotosForListings(cars.map((car) => car.id))) {
+      const bucket = byListing.get(photo.car_listing_id);
+      if (bucket) bucket.push(photo);
+      else byListing.set(photo.car_listing_id, [photo]);
+    }
+  } catch (error) {
+    logger.warn("car covers unavailable", {
+      count: cars.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    byListing = new Map();
+  }
+
+  return cars.map((car) => {
+    const photos = byListing.get(car.id) ?? [];
+    const row = photos.find((photo) => photo.is_cover) ?? photos[0];
+    return { car, cover: row ? toCarPhotoView(row, carTitle(car)) : null };
+  });
 }
