@@ -49,9 +49,14 @@ import { toOrderPhotoView, type OrderPhotoView } from "../types";
 export interface PhotoActor {
   id: string;
   email: string | null;
+  /** 081: an operator at the hub is audited as one, not as an admin. */
+  role?: "admin" | "warehouse";
 }
 
-/** Who is looking. `isAdmin` is the route's `canAccessAdmin` answer. */
+/**
+ * Who is looking. `isAdmin` is the route's `canAccessWarehouse` answer (081):
+ * hub staff see the internal photos they took, as admins do.
+ */
 export interface PhotoViewer {
   id: string;
   isAdmin: boolean;
@@ -140,7 +145,7 @@ export async function uploadOrderPhotos(
 
     await logAuditEvent({
       actorId: actor.id,
-      actorRole: AUDIT_ACTOR_ROLES.ADMIN,
+      actorRole: actor.role ?? AUDIT_ACTOR_ROLES.ADMIN,
       action: "order_photo_uploaded",
       entityType: AUDIT_ENTITY_TYPES.ORDER_PHOTO,
       entityId: row.id,
@@ -220,7 +225,7 @@ export async function removeOrderPhoto(
 
   await logAuditEvent({
     actorId: actor.id,
-    actorRole: AUDIT_ACTOR_ROLES.ADMIN,
+    actorRole: actor.role ?? AUDIT_ACTOR_ROLES.ADMIN,
     action: "order_photo_deleted",
     entityType: AUDIT_ENTITY_TYPES.ORDER_PHOTO,
     entityId: row.id,

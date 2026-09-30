@@ -19,7 +19,7 @@ import { Suspense } from "react";
 import ResetSuccess from "./reset-success";
 import SocialAuthButtons from "./social-auth-button";
 import { postAuthDestination } from "@/lib/auth/post-auth-destination";
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessAdmin, isWarehouseOnly } from "@/lib/auth/admin-access";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginForm() {
@@ -60,6 +60,7 @@ export default function LoginForm() {
     const destination = postAuthDestination({
       next: rawNext,
       isAdmin: canAccessAdmin(claimsData?.claims ?? null),
+      isWarehouse: isWarehouseOnly(claimsData?.claims ?? null),
     });
 
     // `replace`, not `push`: the back button should not return to a login form

@@ -313,7 +313,7 @@ function UploadForm({ orderId }: { orderId: string }) {
           Show this to the customer.{" "}
           {visible
             ? "They are emailed once for the batch and can answer on their journey screen."
-            : "Kept internal. Nobody outside the admin will ever see it."}
+            : "Kept internal. Only Tomame staff will ever see it."}
         </span>
       </label>
 
@@ -555,7 +555,7 @@ function FeedbackCard({
       action={
         waiting.length > 0 ? (
           <Link
-            href="/admin/feedback"
+            href="/warehouse/issues"
             className="inline-flex h-9 items-center gap-1.5 rounded-full border border-tm-border px-3.5 text-[12.5px] font-semibold text-tm-coral-strong transition-colors hover:border-tm-coral/30"
           >
             <MessageSquareTextIcon className="size-3.5" aria-hidden />

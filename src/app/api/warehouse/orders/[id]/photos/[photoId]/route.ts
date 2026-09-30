@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { getUserSession } from "@/features/auth/services/auth.service";
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessWarehouse, isWarehouseOnly } from "@/lib/auth/admin-access";
 import { removeOrderPhoto } from "@/features/order-photos/services/order-photos.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -21,16 +21,16 @@ export async function DELETE(
 ) {
   try {
     const ip = getClientIp(request);
-    if (!(await checkRateLimit(`admin-order-photos:${ip}`, RATE_LIMIT.admin)).allowed) {
+    if (!(await checkRateLimit(`warehouse-order-photos:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
     const { session, user } = await getUserSession();
-    if (!canAccessAdmin(session)) throw new APIError(403, "Admin access required");
+    if (!canAccessWarehouse(session)) throw new APIError(403, "Warehouse access required");
 
     const { id, photoId } = await params;
     const photo = await removeOrderPhoto(
-      { id: user.id, email: user.email ?? null },
+      { id: user.id, email: user.email ?? null, role: isWarehouseOnly(session) ? "warehouse" : "admin" },
       id,
       photoId,
     );

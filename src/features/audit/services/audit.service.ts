@@ -7,7 +7,7 @@ async function insertAuditLog(
   client: SupabaseClient,
   entry: {
     actor_id: string | null;
-    actor_role: "user" | "admin" | "system";
+    actor_role: AuditLogEntry["actorRole"];
     action: string;
     entity_type: string;
     entity_id: string | null;

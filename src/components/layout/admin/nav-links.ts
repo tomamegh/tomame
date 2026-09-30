@@ -5,7 +5,6 @@ import {
   BanknoteIcon,
   BellIcon,
   BookmarkIcon,
-  CameraIcon,
   CarIcon,
   CreditCardIcon,
   FileTextIcon,
@@ -19,6 +18,7 @@ import {
   SlidersHorizontalIcon,
   TruckIcon,
   UsersRoundIcon,
+  WarehouseIcon,
 } from "lucide-react";
 
 import type { AdminQueueCounts } from "@/db/queries/admin-queues";
@@ -68,6 +68,9 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
       { title: "Orders", url: "/admin/orders", icon: ShoppingCartIcon, badge: "ordersNeedingReview" },
       { title: "Bags", url: "/admin/bags", icon: ShoppingBagIcon },
       { title: "Boxes", url: "/admin/boxes", icon: PackageIcon },
+      // 081: the packaging platform — its own shell, shared with warehouse
+      // operators. Parcel photos and customer feedback live there now.
+      { title: "Warehouse", url: "/warehouse", icon: WarehouseIcon, badge: "feedbackOpen" },
       { title: "Deliveries", url: "/admin/deliveries", icon: TruckIcon },
     ],
   },
@@ -83,7 +86,6 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
       // shelf in America. The badge counts only `open` rows, so it disappears
       // the moment the queue is worked — which is the point: a badge that never
       // goes out is furniture.
-      { title: "Parcel feedback", url: "/admin/feedback", icon: CameraIcon, badge: "feedbackOpen" },
       { title: "Paste queue", url: "/admin/pastes", icon: LinkIcon, badge: "pastesFailed" },
     ],
   },

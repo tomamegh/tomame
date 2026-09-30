@@ -1,7 +1,7 @@
 import { CookieOptions, createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessAdmin, canAccessWarehouse, isWarehouseOnly } from "@/lib/auth/admin-access";
 import { buildCsp } from "@/lib/security/csp";
 import { imageOptimizerDecision } from "@/lib/security/image-hosts";
 
@@ -88,7 +88,7 @@ export async function updateSession(request: NextRequest) {
 
   // ── Route config ────────────────────────────────────────────────────────────
   // Add any new protected prefixes here. No other code needs to change.
-  const authRoutes = ["/app", "/admin"]; // requires login
+  const authRoutes = ["/app", "/admin", "/warehouse"]; // requires login
   // Requires the admin role.
   //
   // `/api/admin` IS LOAD-BEARING, not belt and braces. `adminRoutes` was
@@ -103,6 +103,10 @@ export async function updateSession(request: NextRequest) {
   // admin route added by someone who assumes "the admin is already gated" is
   // right by default instead of silently public.
   const adminRoutes = ["/admin", "/api/admin"];
+  // 081: the packaging platform. Admins and warehouse operators. Gated as a
+  // prefix for the reason `/api/admin` is above — a new warehouse endpoint is
+  // closed by default. Each route still checks `canAccessWarehouse` itself.
+  const warehouseRoutes = ["/warehouse", "/api/warehouse"];
   // The quote flow (paste link → preview → review) is open to visitors; the
   // order submit API and everything after it still require a session.
   // `/app/products` is the catalogue search, and it belongs here for the same
@@ -132,8 +136,10 @@ export async function updateSession(request: NextRequest) {
 
   const isPublic = publicRoutes.some((p) => pathname.startsWith(p));
   const isAdminRoute = adminRoutes.some((p) => pathname.startsWith(p));
+  const isWarehouseRoute = warehouseRoutes.some((p) => pathname.startsWith(p));
   const isProtected =
-    !isPublic && (isAdminRoute || authRoutes.some((p) => pathname.startsWith(p)));
+    !isPublic &&
+    (isAdminRoute || isWarehouseRoute || authRoutes.some((p) => pathname.startsWith(p)));
 
   // An API route must answer with a STATUS, never a redirect. A 302 to
   // /auth/login reaches `fetch` as a 200 of HTML, which the client parses as
@@ -157,7 +163,30 @@ export async function updateSession(request: NextRequest) {
   if (isAdminRoute && !canAccessAdmin(user)) {
     if (isApi) return jsonError(403, "Admin access required", csp);
     const url = request.nextUrl.clone();
+    // A warehouse operator who types /admin is sent to their own home, not to
+    // a storefront they are also kept out of (below).
+    url.pathname = isWarehouseOnly(user) ? "/warehouse" : "/app";
+    url.search = "";
+    return withCsp(NextResponse.redirect(url), csp);
+  }
+
+  if (isWarehouseRoute && !canAccessWarehouse(user)) {
+    if (isApi) return jsonError(403, "Warehouse access required", csp);
+    const url = request.nextUrl.clone();
     url.pathname = "/app";
+    url.search = "";
+    return withCsp(NextResponse.redirect(url), csp);
+  }
+
+  // 081: a warehouse operator's only surface is the warehouse. `/app` includes
+  // the public quote pages on purpose — the hub's shared tablet should not be a
+  // storefront session. Pages only: an API call under `/api/*` from their own
+  // session sees their own (empty) customer data and nothing else, because every
+  // RLS policy tests `role = 'admin'`.
+  if (isWarehouseOnly(user) && pathname.startsWith("/app")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/warehouse";
+    url.search = "";
     return withCsp(NextResponse.redirect(url), csp);
   }
 

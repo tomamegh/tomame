@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessAdmin, isWarehouseOnly } from "@/lib/auth/admin-access";
 import { postAuthDestination } from "@/lib/auth/post-auth-destination";
 
 /**
@@ -45,6 +45,7 @@ export async function GET(request: Request) {
       const destination = postAuthDestination({
         next,
         isAdmin: canAccessAdmin(claimsData?.claims ?? null),
+      isWarehouse: isWarehouseOnly(claimsData?.claims ?? null),
       });
 
       // The original host before the load balancer. Without this the redirect

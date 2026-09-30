@@ -28,7 +28,7 @@ export function useAdminOrderPhotos(orderId: string) {
     queryKey: orderPhotosQueryKey(orderId),
     queryFn: () =>
       apiFetch<ApiSuccessResponse<{ photos: OrderPhotoView[] }>>(
-        `/api/admin/orders/${orderId}/photos`,
+        `/api/warehouse/orders/${orderId}/photos`,
       ),
     select: (res) => res.data.photos,
     enabled: !!orderId,
@@ -69,7 +69,7 @@ export function useUploadOrderPhotos(orderId: string) {
       form.append("is_customer_visible", isCustomerVisible ? "true" : "false");
 
       const res = await apiFetch<ApiSuccessResponse<{ photos: OrderPhotoView[] }>>(
-        `/api/admin/orders/${orderId}/photos`,
+        `/api/warehouse/orders/${orderId}/photos`,
         { method: "POST", body: form },
       );
       return res.data.photos;
@@ -88,7 +88,7 @@ export function useDeleteOrderPhoto(orderId: string) {
   return useMutation<OrderPhotoView, Error, string>({
     mutationFn: async (photoId) => {
       const res = await apiFetch<ApiSuccessResponse<{ deleted: OrderPhotoView }>>(
-        `/api/admin/orders/${orderId}/photos/${photoId}`,
+        `/api/warehouse/orders/${orderId}/photos/${photoId}`,
         { method: "DELETE" },
       );
       return res.data.deleted;

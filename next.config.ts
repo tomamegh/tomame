@@ -140,6 +140,18 @@ const nextConfig: NextConfig = {
                     },
                 ],
             },
+            {
+                // 081: the one exception. The warehouse scans labels with the
+                // phone's camera, same-origin only. Listed AFTER the catch-all on
+                // purpose — Next lets the last matching header of a key win.
+                source: "/warehouse/:path*",
+                headers: [
+                    {
+                        key: "Permissions-Policy",
+                        value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+                    },
+                ],
+            },
         ];
     },
 };

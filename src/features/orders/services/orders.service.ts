@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { buildOrderIntake } from "./order-intake.service";
 import { allowedTransitionsFrom } from "./order-transitions";
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessAdmin, canAccessWarehouse } from "@/lib/auth/admin-access";
 import { sendEmail } from "@/lib/email/transport";
 import {
   orderPlacedTemplate,
@@ -543,7 +543,48 @@ export async function updateOrderStatusAdmin(
   if (!canAccessAdmin(user)) {
     throw new APIError(403, "Admin access required");
   }
+  return applyOrderStatusChange(client, user, "admin", orderId, newStatus, trackingData);
+}
 
+/**
+ * The two moves the hub makes (081): a parcel that has physically arrived was
+ * evidently bought (`paid → processing`), and a package that has left carries
+ * its orders into `in_transit`. Nothing else — a warehouse operator cannot
+ * cancel, deliver or complete an order. Same transition table, same hold check,
+ * same emails and journey events as the admin path, because it IS that path.
+ */
+export const WAREHOUSE_ORDER_MOVES = ["processing", "in_transit"] as const;
+
+export async function advanceOrderFromWarehouse(
+  user: PlatformUser,
+  orderId: string,
+  newStatus: (typeof WAREHOUSE_ORDER_MOVES)[number],
+  trackingData?: OrderTrackingInput,
+): Promise<Order> {
+  if (!canAccessWarehouse(user)) {
+    throw new APIError(403, "Warehouse access required");
+  }
+  if (!(WAREHOUSE_ORDER_MOVES as readonly string[]).includes(newStatus)) {
+    throw new APIError(403, "The warehouse cannot make that change");
+  }
+  return applyOrderStatusChange(
+    createAdminClient(),
+    user,
+    canAccessAdmin(user) ? "admin" : "warehouse",
+    orderId,
+    newStatus,
+    trackingData,
+  );
+}
+
+async function applyOrderStatusChange(
+  client: SupabaseClient,
+  user: PlatformUser,
+  actorRole: "admin" | "warehouse",
+  orderId: string,
+  newStatus: string,
+  trackingData?: OrderTrackingInput,
+): Promise<Order> {
   const order = await getOrderById(client, orderId);
   if (!order) {
     throw new APIError(404, "Order not found");
@@ -624,7 +665,7 @@ export async function updateOrderStatusAdmin(
 
   await logAuditEvent({
     actorId: user.id,
-    actorRole: "admin",
+    actorRole,
     action: "order_status_changed",
     entityType: "order",
     entityId: orderId,

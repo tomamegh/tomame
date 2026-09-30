@@ -43,6 +43,7 @@ const ROLE_FILTERS = [
   { value: "all", label: "Everyone" },
   { value: "admin", label: "Admins" },
   { value: "user", label: "Customers" },
+  { value: "warehouse", label: "Warehouse" },
 ] as const;
 
 export default async function AdminUsersPage({
@@ -55,7 +56,8 @@ export default async function AdminUsersPage({
 
   const params = await searchParams;
   const rawRole = Array.isArray(params.role) ? params.role[0] : params.role;
-  const role = rawRole === "admin" || rawRole === "user" ? rawRole : undefined;
+  const role =
+    rawRole === "admin" || rawRole === "user" || rawRole === "warehouse" ? rawRole : undefined;
 
   const { users, count, stats } = await listUsers(createAdminClient(), viewer, { role });
 
@@ -100,7 +102,15 @@ export default async function AdminUsersPage({
 
       <AdminCard
         index={1}
-        title={role === "admin" ? "Administrators" : role === "user" ? "Customers" : "All accounts"}
+        title={
+          role === "admin"
+            ? "Administrators"
+            : role === "user"
+              ? "Customers"
+              : role === "warehouse"
+                ? "Warehouse operators"
+                : "All accounts"
+        }
         blurb={`${formatCount(count)} ${count === 1 ? "account" : "accounts"}, newest first.`}
         action={
           <div className="flex flex-wrap items-center gap-1.5">
@@ -136,7 +146,9 @@ export default async function AdminUsersPage({
                 ? "Nobody currently holds the admin role. If that is unexpected, somebody has been demoted, and the change is in the audit log."
                 : role === "user"
                   ? "Every account on the platform is an admin account. No customer has signed up yet."
-                  : "Nobody has signed up and no account has been created by hand."
+                  : role === "warehouse"
+                    ? "No warehouse operators yet. Add a user with the Warehouse role to give someone at the hub the packaging platform, and nothing else."
+                    : "Nobody has signed up and no account has been created by hand."
             }
           >
             {role ? (

@@ -3,7 +3,7 @@ import * as z from "zod";
 
 import { holdOrder, releaseOrderHold } from "@/features/orders/services/order-hold.service";
 import { getUserSession } from "@/features/auth/services/auth.service";
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessWarehouse } from "@/lib/auth/admin-access";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
@@ -51,12 +51,12 @@ export async function POST(
 ) {
   try {
     const ip = getClientIp(request);
-    if (!(await checkRateLimit(`admin-order-hold:${ip}`, RATE_LIMIT.admin)).allowed) {
+    if (!(await checkRateLimit(`warehouse-order-hold:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
     const { session, user } = await getUserSession();
-    if (!canAccessAdmin(session)) throw new APIError(403, "Admin access required");
+    if (!canAccessWarehouse(session)) throw new APIError(403, "Warehouse access required");
 
     const body: unknown = await request.json().catch(() => {
       throw new APIError(400, "Invalid JSON");
@@ -79,12 +79,12 @@ export async function DELETE(
 ) {
   try {
     const ip = getClientIp(request);
-    if (!(await checkRateLimit(`admin-order-hold:${ip}`, RATE_LIMIT.admin)).allowed) {
+    if (!(await checkRateLimit(`warehouse-order-hold:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
     const { session, user } = await getUserSession();
-    if (!canAccessAdmin(session)) throw new APIError(403, "Admin access required");
+    if (!canAccessWarehouse(session)) throw new APIError(403, "Warehouse access required");
 
     // A DELETE routinely arrives with no body at all, so an unparseable one is
     // the empty object rather than a 400 — there is nothing required in it.

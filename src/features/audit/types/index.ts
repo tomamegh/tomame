@@ -3,7 +3,7 @@
 export interface AuditLog {
   id: string;
   actor_id: string | null;
-  actor_role: "user" | "admin" | "system";
+  actor_role: "user" | "admin" | "system" | "warehouse";
   action: string;
   entity_type: "user" | "payment" | "order" | "job";
   entity_id: string | null;

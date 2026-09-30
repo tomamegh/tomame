@@ -38,3 +38,28 @@ export interface AdminAccessSubject {
 export function canAccessAdmin(subject: AdminAccessSubject | null | undefined): boolean {
   return subject?.app_metadata?.role === "admin";
 }
+
+/**
+ * Who may reach `/warehouse` (081): warehouse operators, and admins.
+ *
+ * Same claim, same shape as `canAccessAdmin` above, and for the same reason —
+ * the proxy, the route handlers and the navbars must all ask one question.
+ * An admin passes because the packaging platform is also where an admin prints
+ * a label; a warehouse operator does NOT pass `canAccessAdmin`, and every
+ * RLS policy in the schema tests `role = 'admin'`, so to PostgREST an operator
+ * is a customer.
+ */
+export function canAccessWarehouse(subject: AdminAccessSubject | null | undefined): boolean {
+  const role = subject?.app_metadata?.role;
+  return role === "admin" || role === "warehouse";
+}
+
+/**
+ * An operator whose ONLY surface is the warehouse. The proxy uses this to keep
+ * them out of `/app` as well as `/admin`: the brief is that they "only have
+ * access to the packaging site", and a storefront session on a shared warehouse
+ * tablet is how someone ends up placing an order from the hub's account.
+ */
+export function isWarehouseOnly(subject: AdminAccessSubject | null | undefined): boolean {
+  return subject?.app_metadata?.role === "warehouse";
+}

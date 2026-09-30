@@ -8,7 +8,7 @@ import {
 } from "@/db/queries/order-holds";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessAdmin, canAccessWarehouse } from "@/lib/auth/admin-access";
 import { APIError } from "@/lib/auth/api-helpers";
 import type { PlatformUser } from "@/features/users/types";
 import { recordOrderEvent } from "./order-events.service";
@@ -72,7 +72,7 @@ export async function holdOrder(
 
   await logAuditEvent({
     actorId: admin.id,
-    actorRole: AUDIT_ACTOR_ROLES.ADMIN,
+    actorRole: canAccessAdmin(admin) ? AUDIT_ACTOR_ROLES.ADMIN : AUDIT_ACTOR_ROLES.WAREHOUSE,
     action: "order_held",
     entityType: AUDIT_ENTITY_TYPES.ORDER_HOLD,
     entityId: orderId,
@@ -116,7 +116,7 @@ export async function releaseOrderHold(
 
   await logAuditEvent({
     actorId: admin.id,
-    actorRole: AUDIT_ACTOR_ROLES.ADMIN,
+    actorRole: canAccessAdmin(admin) ? AUDIT_ACTOR_ROLES.ADMIN : AUDIT_ACTOR_ROLES.WAREHOUSE,
     action: "order_hold_released",
     entityType: AUDIT_ENTITY_TYPES.ORDER_HOLD,
     entityId: orderId,
@@ -153,9 +153,12 @@ export async function releaseOrderHold(
  *
  * A local stack with `custom_access_token_hook` commented out therefore cannot
  * hold an order. That is correct: it cannot reach `/admin` either.
+ *
+ * 081: the rule is now `canAccessWarehouse`. Stopping a parcel on the bench is
+ * the hub operator's call as much as an admin's — they are the one holding it.
  */
 function requireAdmin(admin: PlatformUser): void {
-  if (!canAccessAdmin(admin)) {
-    throw new APIError(403, "Admin access required");
+  if (!canAccessWarehouse(admin)) {
+    throw new APIError(403, "Warehouse access required");
   }
 }

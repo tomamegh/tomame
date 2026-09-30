@@ -25,15 +25,30 @@ export interface PostAuthDestinationInput {
   next?: string | null;
   /** Whether this person may reach `/admin` — decide it with `canAccessAdmin`. */
   isAdmin: boolean;
+  /**
+   * Whether the warehouse is this person's ONLY surface — `isWarehouseOnly`.
+   * An operator is sent to `/warehouse`, and a `next` outside it is ignored:
+   * the proxy would only bounce them back, which reads as a login that refuses.
+   */
+  isWarehouse?: boolean;
 }
 
 /** Where a customer goes with no other instruction. */
 export const CUSTOMER_HOME = "/app";
 /** Where an administrator goes with no other instruction. */
 export const ADMIN_HOME = "/admin";
+/** Where a warehouse operator goes, always (081). */
+export const WAREHOUSE_HOME = "/warehouse";
 
-export function postAuthDestination({ next, isAdmin }: PostAuthDestinationInput): string {
+export function postAuthDestination({
+  next,
+  isAdmin,
+  isWarehouse = false,
+}: PostAuthDestinationInput): string {
   const explicit = safeInternalPath(next);
+  if (isWarehouse && !isAdmin) {
+    return explicit && isUnder(explicit, WAREHOUSE_HOME) ? explicit : WAREHOUSE_HOME;
+  }
   if (explicit) return explicit;
   return isAdmin ? ADMIN_HOME : CUSTOMER_HOME;
 }
@@ -53,4 +68,8 @@ export function safeInternalPath(value: string | null | undefined): string | nul
   if (!value.startsWith("/")) return null;
   if (value.startsWith("//") || value.startsWith("/\\")) return null;
   return value;
+}
+
+function isUnder(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`) || path.startsWith(`${prefix}?`);
 }

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { getUserSession } from "@/features/auth/services/auth.service";
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessWarehouse } from "@/lib/auth/admin-access";
 import { readOrderPhotoForViewer } from "@/features/order-photos/services/order-photos.service";
 import { APIError, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -38,7 +38,7 @@ export async function GET(
     const { photoId } = await params;
 
     const file = await readOrderPhotoForViewer(
-      { id: user.id, isAdmin: canAccessAdmin(session) },
+      { id: user.id, isAdmin: canAccessWarehouse(session) },
       photoId,
     );
 

@@ -1,6 +1,7 @@
 export const ROLES = {
   USER: "user",
   ADMIN: "admin",
+  WAREHOUSE: "warehouse",
 } as const;
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
@@ -77,6 +78,8 @@ export const AUDIT_ENTITY_TYPES = {
    * stream as an admin correcting a trim level.
    */
   CAR_ORDER: "car_order",
+  /** 081. A package on the warehouse bench: created, packed, sealed, shipped. */
+  WAREHOUSE_PACKAGE: "warehouse_package",
 } as const;
 
 export type AuditEntityType =
@@ -86,6 +89,7 @@ export const AUDIT_ACTOR_ROLES = {
   USER: "user",
   ADMIN: "admin",
   SYSTEM: "system",
+  WAREHOUSE: "warehouse",
 } as const;
 
 export type AuditActorRole =

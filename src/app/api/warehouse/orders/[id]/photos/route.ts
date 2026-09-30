@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getUserSession } from "@/features/auth/services/auth.service";
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessWarehouse, isWarehouseOnly } from "@/lib/auth/admin-access";
 import { MAX_UPLOAD_BYTES } from "@/features/media/services/image-upload";
 import {
   listOrderPhotosForAdmin,
@@ -26,7 +26,7 @@ import { RATE_LIMIT } from "@/config/security";
  * feature — an admin photographing a parcel is the normal Tuesday, not a
  * development affordance.
  *
- * `canAccessAdmin` is the only role rule; there is no inline `role === "admin"`
+ * `canAccessWarehouse` is the only role rule; there is no inline `role === "admin"`
  * anywhere in this file, and there must not be.
  */
 
@@ -50,12 +50,12 @@ function readBoolean(raw: FormDataEntryValue | null): boolean | undefined {
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ip = getClientIp(request);
-    if (!(await checkRateLimit(`admin-order-photos:${ip}`, RATE_LIMIT.admin)).allowed) {
+    if (!(await checkRateLimit(`warehouse-order-photos:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
     const { session, user } = await getUserSession();
-    if (!canAccessAdmin(session)) throw new APIError(403, "Admin access required");
+    if (!canAccessWarehouse(session)) throw new APIError(403, "Warehouse access required");
 
     const { id } = await params;
 
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
 
     const photos = await uploadOrderPhotos(
-      { id: user.id, email: user.email ?? null },
+      { id: user.id, email: user.email ?? null, role: isWarehouseOnly(session) ? "warehouse" : "admin" },
       {
         orderId: id,
         files: bytes,
@@ -126,12 +126,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ip = getClientIp(request);
-    if (!(await checkRateLimit(`admin-order-photos-read:${ip}`, RATE_LIMIT.admin)).allowed) {
+    if (!(await checkRateLimit(`warehouse-order-photos-read:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
     const { session } = await getUserSession();
-    if (!canAccessAdmin(session)) throw new APIError(403, "Admin access required");
+    if (!canAccessWarehouse(session)) throw new APIError(403, "Warehouse access required");
 
     const { id } = await params;
     return successResponse({ photos: await listOrderPhotosForAdmin(id) });

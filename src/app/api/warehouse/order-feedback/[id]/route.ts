@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { transitionOrderFeedbackSchema } from "@/features/feedback/schema";
 import { moveOrderFeedback } from "@/features/feedback/services/feedback.service";
 import { getUserSession } from "@/features/auth/services/auth.service";
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessWarehouse, isWarehouseOnly } from "@/lib/auth/admin-access";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
@@ -27,7 +27,7 @@ export async function PATCH(
 ) {
   try {
     const ip = getClientIp(request);
-    if (!(await checkRateLimit(`admin-order-feedback-write:${ip}`, RATE_LIMIT.admin)).allowed) {
+    if (!(await checkRateLimit(`warehouse-order-feedback-write:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
@@ -35,7 +35,7 @@ export async function PATCH(
     // where the user id is `sub`. Reading `session.id` yields undefined, and
     // `handled_by` would then stay null on every row an admin picks up.
     const { session, user } = await getUserSession();
-    if (!canAccessAdmin(session)) throw new APIError(403, "Admin access required");
+    if (!canAccessWarehouse(session)) throw new APIError(403, "Warehouse access required");
 
     const { id } = await params;
     const body: unknown = await request.json().catch(() => {
@@ -47,7 +47,9 @@ export async function PATCH(
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    return successResponse(await moveOrderFeedback(user.id, id, parsed.data));
+    return successResponse(
+      await moveOrderFeedback(user.id, id, parsed.data, isWarehouseOnly(session) ? "warehouse" : "admin"),
+    );
   } catch (error) {
     return errorResponse(error);
   }

@@ -1,5 +1,5 @@
 import type { PlatformUser } from "@/features/users/types";
-import { canAccessAdmin } from "./admin-access";
+import { canAccessAdmin, canAccessWarehouse } from "./admin-access";
 import { APIError } from "./api-helpers";
 
 /**
@@ -29,4 +29,20 @@ export function requireAdmin(
     throw new APIError(403, "Admin access required");
   }
   return user;
+}
+
+/**
+ * Type-narrowing guard for the packaging platform (081): a warehouse operator
+ * or an admin. Must only be called after requireAuth succeeds.
+ */
+export function requireWarehouse(user: PlatformUser) {
+  if (!canAccessWarehouse(user)) {
+    throw new APIError(403, "Warehouse access required");
+  }
+  return user;
+}
+
+/** The `audit_logs.actor_role` for someone who passed `requireWarehouse`. */
+export function warehouseActorRole(user: PlatformUser): "admin" | "warehouse" {
+  return canAccessAdmin(user) ? "admin" : "warehouse";
 }

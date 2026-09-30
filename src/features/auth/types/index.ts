@@ -4,7 +4,7 @@ import { PlatformUser } from "@/features/users/types";;
 //   user: AuthenticatedUser;
 //   profile: UserProfile;
 // }
-export const ROLES = ["admin" , "user" , "system"] as const
+export const ROLES = ["admin", "user", "system", "warehouse"] as const
 
 export type PlatformRoles = typeof ROLES[number];
 

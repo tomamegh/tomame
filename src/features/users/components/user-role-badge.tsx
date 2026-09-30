@@ -1,4 +1,4 @@
-import { ShieldIcon, UserIcon } from "lucide-react";
+import { PackageIcon, ShieldIcon, UserIcon } from "lucide-react";
 
 import { AdminBadge } from "@/components/layout/admin";
 import type { PlatformRoles } from "@/features/auth/types";
@@ -19,7 +19,7 @@ import { roleBadge } from "./admin-user-format";
  */
 export function UserRoleBadge({ role }: { role: PlatformRoles }) {
   const { label, tone } = roleBadge(role);
-  const Icon = role === "admin" ? ShieldIcon : UserIcon;
+  const Icon = role === "admin" ? ShieldIcon : role === "warehouse" ? PackageIcon : UserIcon;
 
   return (
     <AdminBadge tone={tone}>

@@ -14,7 +14,7 @@ import { getOrderOwner } from "@/db/queries/orders";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
 import { APIError } from "@/lib/auth/api-helpers";
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessWarehouse } from "@/lib/auth/admin-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { PlatformUser } from "@/features/users/types";
 import type { SubmitOrderFeedbackInput, TransitionOrderFeedbackInput } from "../schema";
@@ -148,7 +148,7 @@ export async function listCustomerOrderFeedback(
   // `profiles.role` is the column behind the privilege escalation closed earlier
   // in this release. Two spellings of this rule drifted into the `@tomame.ca`
   // backdoor once already; there is one spelling.
-  if (!canAccessAdmin(user) && order.user_id !== user.id) {
+  if (!canAccessWarehouse(user) && order.user_id !== user.id) {
     throw new APIError(404, "Order not found");
   }
 
@@ -177,6 +177,7 @@ export async function moveOrderFeedback(
   adminId: string,
   id: string,
   input: TransitionOrderFeedbackInput,
+  actorRole: "admin" | "warehouse" = "admin",
 ): Promise<OrderFeedbackRow> {
   const row = await transitionOrderFeedback({
     id,
@@ -192,7 +193,7 @@ export async function moveOrderFeedback(
   // "which parcel was this about?" is otherwise a second query.
   await logAuditEvent({
     actorId: adminId,
-    actorRole: AUDIT_ACTOR_ROLES.ADMIN,
+    actorRole,
     action: "order_feedback_updated",
     entityType: AUDIT_ENTITY_TYPES.ORDER_FEEDBACK,
     entityId: id,

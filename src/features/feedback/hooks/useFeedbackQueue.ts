@@ -26,7 +26,7 @@ export function useFeedbackQueue(status: OrderFeedbackStatus | "all") {
     queryFn: async () => {
       const qs = status === "all" ? "" : `?status=${status}`;
       const res = await apiFetch<ApiSuccessResponse<OrderFeedbackRow[]>>(
-        `/api/admin/order-feedback${qs}`,
+        `/api/warehouse/order-feedback${qs}`,
       );
       return res.data;
     },
@@ -52,7 +52,7 @@ export function useMoveOrderFeedback() {
   return useMutation<OrderFeedbackRow, Error, MoveOrderFeedbackInput>({
     mutationFn: async ({ id, ...body }) => {
       const res = await apiFetch<ApiSuccessResponse<OrderFeedbackRow>>(
-        `/api/admin/order-feedback/${id}`,
+        `/api/warehouse/order-feedback/${id}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -88,7 +88,7 @@ export function useHoldOrder() {
   return useMutation<OrderHoldRow, Error, HoldOrderParams>({
     mutationFn: async ({ orderId, reason, feedbackId }) => {
       const res = await apiFetch<ApiSuccessResponse<OrderHoldRow>>(
-        `/api/admin/orders/${orderId}/hold`,
+        `/api/warehouse/orders/${orderId}/hold`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -111,7 +111,7 @@ export function useReleaseOrderHold() {
   return useMutation<OrderHoldRow, Error, ReleaseHoldParams>({
     mutationFn: async ({ orderId, note }) => {
       const res = await apiFetch<ApiSuccessResponse<OrderHoldRow>>(
-        `/api/admin/orders/${orderId}/hold`,
+        `/api/warehouse/orders/${orderId}/hold`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },

@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { listOrderFeedbackQueue } from "@/features/feedback/services/feedback.service";
 import { getUserSession } from "@/features/auth/services/auth.service";
-import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { canAccessWarehouse } from "@/lib/auth/admin-access";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
@@ -24,12 +24,12 @@ const STATUSES = ["open", "in_review", "resolved", "dismissed"] as const;
 export async function GET(request: NextRequest) {
   try {
     const ip = getClientIp(request);
-    if (!(await checkRateLimit(`admin-order-feedback:${ip}`, RATE_LIMIT.admin)).allowed) {
+    if (!(await checkRateLimit(`warehouse-order-feedback:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
     const { session } = await getUserSession();
-    if (!canAccessAdmin(session)) throw new APIError(403, "Admin access required");
+    if (!canAccessWarehouse(session)) throw new APIError(403, "Warehouse access required");
 
     const raw = request.nextUrl.searchParams.get("status");
     const status = STATUSES.find((s) => s === raw) as OrderFeedbackStatus | undefined;

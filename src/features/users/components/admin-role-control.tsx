@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2Icon, ShieldIcon, UserIcon } from "lucide-react";
+import { Loader2Icon, PackageIcon, ShieldIcon, UserIcon } from "lucide-react";
 
 import {
   AlertDialog,
@@ -44,8 +44,9 @@ import { roleBadge, roleChangeWarning, roleGrantSummary } from "./admin-user-for
  * somebody every admin endpoint should not be the click that dismisses a menu.
  */
 
-const ROLE_OPTIONS: { value: Extract<PlatformRoles, "user" | "admin">; label: string; Icon: typeof UserIcon }[] = [
+const ROLE_OPTIONS: { value: Extract<PlatformRoles, "user" | "admin" | "warehouse">; label: string; Icon: typeof UserIcon }[] = [
   { value: "user", label: "Customer", Icon: UserIcon },
+  { value: "warehouse", label: "Warehouse", Icon: PackageIcon },
   { value: "admin", label: "Admin", Icon: ShieldIcon },
 ];
 
@@ -78,11 +79,18 @@ export function AdminRoleControl({
       });
 
       toast.success({
-        title: role === "admin" ? "Admin access granted" : "Admin access removed",
+        title:
+          role === "admin"
+            ? "Admin access granted"
+            : role === "warehouse"
+              ? "Warehouse access granted"
+              : "Role changed to customer",
         description:
           role === "admin"
             ? `${userLabel} can now reach every admin screen and endpoint.`
-            : `${userLabel} no longer has any admin access.`,
+            : role === "warehouse"
+              ? `${userLabel} can now use the packaging platform, and nothing else.`
+              : `${userLabel} can use the storefront only.`,
       });
       setPendingRole(null);
       router.refresh();

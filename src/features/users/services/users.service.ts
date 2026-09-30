@@ -5,6 +5,9 @@ import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { APIError } from "@/lib/auth/api-helpers";
 import { revokeUserSessions } from "@/db/queries/auth-sessions";
 import type { MessageResponse } from "@/types/api";
+
+/** The roles a person can be given by hand. `system` is a machine account. */
+export type AssignableRole = "user" | "admin" | "warehouse";
 import type { Order } from "@/features/orders/types";
 import type {
   PlatformUser,
@@ -66,7 +69,7 @@ function isEmailTaken(error: { code?: string }): boolean {
 async function updateUserRole(
   client: SupabaseClient,
   userId: string,
-  role: "user" | "admin",
+  role: AssignableRole,
 ): Promise<UserProfile | null> {
   const { data, error } = await client
     .from("profiles")
@@ -286,7 +289,7 @@ export async function createUser(
   admin: PlatformUser,
   email: string,
   password: string,
-  role: "user" | "admin",
+  role: AssignableRole,
   first_name: string,
   last_name: string,
 ): Promise<PlatformUser> {
@@ -307,6 +310,18 @@ export async function createUser(
   }
 
   const newUserId = authData.user.id;
+
+  // The signup trigger (061) always inserts 'user' — deliberately, since signup
+  // metadata is client-writable. So the role chosen here must be written after
+  // it, through the service role. This was missing: "create an admin" made a
+  // customer and the response and audit row both claimed otherwise.
+  if (role !== "user") {
+    const granted = await updateUserRole(client, newUserId, role);
+    if (!granted) {
+      logger.error("createUser (admin) could not set role", { userId: newUserId, role });
+      throw new APIError(500, "The account was created but its role could not be set. Set it from the user's page.");
+    }
+  }
 
   await logAuditEvent({
     actorId: admin.id,
@@ -334,7 +349,7 @@ export async function updateUser(
   client: SupabaseClient,
   admin: PlatformUser,
   userId: string,
-  role: "user" | "admin",
+  role: AssignableRole,
 ): Promise<PlatformUser> {
   const target = await getProfileById(client, userId);
   if (!target) throw new APIError(404, "User not found");

@@ -751,6 +751,13 @@
  * 0px and the last card sat under the bar. From `lg` the bar is gone and the
  * ordinary bottom rhythm returns.
  */
+/* 081: the warehouse's bottom bar goes at `md`, not `lg` — its top tabs fit sooner. */
+@utility tm-clear-warehouse-bar {
+  padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  @media (min-width: 768px) {
+    padding-bottom: 3rem;
+  }
+}
 @utility tm-clear-tab-bar {
   padding-bottom: calc(96px + env(safe-area-inset-bottom));
   @media (min-width: 1024px) {
@@ -1082,4 +1089,73 @@ html[data-tm-splash="force"] .tm-splash {
 [data-tm-tour="active"] [aria-labelledby="tm-install-title"],
 [data-tm-tour="active"] [data-tm-stands-down] {
   display: none !important;
+}
+
+/* ── 081: warehouse package labels ──────────────────────────────────────────
+ * Physical sizes in inches, so the preview is the print. Pure black on white:
+ * a 203-dpi thermal head has no grey. `.tm-printing` is put on <body> by the
+ * label toolbar; while it is there, printing shows the label root and nothing
+ * else in the document (toasts, install prompts, the app's own chrome). */
+.tm-label {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #fff;
+  color: #000;
+  border: 3px solid #000;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.tm-label-4x6 {
+  width: 4in;
+  height: 6in;
+}
+.tm-label-2x1 {
+  width: 2in;
+  height: 1in;
+  border-width: 2px;
+  flex-direction: row;
+}
+.tm-label-manifest {
+  width: 4in;
+  min-height: 6in;
+}
+.tm-label svg {
+  display: block;
+}
+.tm-label-sheet + .tm-label-sheet {
+  margin-top: 24px;
+}
+
+@media print {
+  body.tm-printing {
+    background: #fff !important;
+  }
+  body.tm-printing * {
+    visibility: hidden;
+  }
+  body.tm-printing .tm-print-root,
+  body.tm-printing .tm-print-root * {
+    visibility: visible;
+  }
+  body.tm-printing .tm-print-root {
+    position: absolute;
+    inset: 0 auto auto 0;
+    transform: none !important;
+    zoom: 1 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  body.tm-printing .tm-label-sheet {
+    break-after: page;
+    margin: 0 !important;
+  }
+  body.tm-printing .tm-label-sheet:last-child {
+    break-after: auto;
+  }
+  body.tm-printing .tm-label {
+    box-shadow: none !important;
+  }
 }
