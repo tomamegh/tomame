@@ -62,14 +62,26 @@ function appHost(env: DeployEnv): string | null {
 export function alertsEnabled(env: DeployEnv): boolean {
   if (env.OPS_ALERTS_ENABLED === "true") return true;
   if (env.OPS_ALERTS_ENABLED === "false") return false;
+  return isProductionHost(env);
+}
+
+/**
+ * Production is the tomame.ca address, and nothing else. NOT `VERCEL_ENV`:
+ * this project does not expose Vercel's system variables to the app, so on
+ * prod it is undefined and the check that required it labelled prod "local"
+ * and never sent an alert (seen on the first prod run, 2026-09-30). Dev lives
+ * at dev.tomame.ca and local at localhost, so the address alone tells them
+ * apart; `next dev` pointed at the prod URL is still not production.
+ */
+function isProductionHost(env: DeployEnv): boolean {
   const host = appHost(env);
-  return env.VERCEL_ENV === "production" && host !== null && PRODUCTION_HOSTS.has(host);
+  return host !== null && PRODUCTION_HOSTS.has(host) && env.NODE_ENV !== "development";
 }
 
 /** "dev", "preview" or "local" in subjects, so a non-production email never reads as production. */
 export function environmentLabel(env: DeployEnv): string | null {
   const host = appHost(env);
-  if (host && PRODUCTION_HOSTS.has(host) && env.VERCEL_ENV === "production") return null;
+  if (isProductionHost(env)) return null;
   if (host?.startsWith("dev.") || host?.includes("-dev")) return "dev";
   if (env.VERCEL_ENV === "preview") return "preview";
   if (env.VERCEL_ENV) return host ?? env.VERCEL_ENV;

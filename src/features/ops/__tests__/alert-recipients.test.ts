@@ -35,3 +35,16 @@ describe("which deployment sends", () => {
     expect(environmentLabel({})).toBe("local");
   });
 });
+
+describe("production is the tomame.ca address, with or without VERCEL_ENV (prod bug 2026-09-30)", () => {
+  it("sends on tomame.ca even though Vercel's system variables are not exposed", () => {
+    const env = { NEXT_PUBLIC_APP_URL: "https://tomame.ca", NODE_ENV: "production" };
+    expect(alertsEnabled(env)).toBe(true);
+    expect(environmentLabel(env)).toBeNull();
+  });
+  it("does not send from dev or from a laptop", () => {
+    expect(alertsEnabled({ NEXT_PUBLIC_APP_URL: "https://dev.tomame.ca", NODE_ENV: "production" })).toBe(false);
+    expect(environmentLabel({ NEXT_PUBLIC_APP_URL: "https://dev.tomame.ca", NODE_ENV: "production" })).toBe("dev");
+    expect(alertsEnabled({ NEXT_PUBLIC_APP_URL: "https://tomame.ca", NODE_ENV: "development" })).toBe(false);
+  });
+});
