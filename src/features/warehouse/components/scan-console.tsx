@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 import type { LookupResult } from "../types";
+import { cameraHelp, cameraSupported, createFrameDecoder } from "./frame-decoder";
 import { errorText, warehouseRequest } from "./warehouse-actions";
 
 /**
@@ -19,16 +20,13 @@ import { errorText, warehouseRequest } from "./warehouse-actions";
  *  - A handheld scanner. It is a keyboard: it types the code into the focused
  *    field and presses Enter. The field is focused on arrival and after every
  *    scan, so the operator just keeps pulling the trigger.
- *  - This phone's camera, through the browser's `BarcodeDetector` (Chrome on
- *    Android, and desktop Chrome). Nothing is uploaded; frames never leave the
- *    device.
- *  - The phone's own camera app. iOS Safari has no `BarcodeDetector`, but the
- *    label's QR is a URL, so pointing the iPhone camera at it opens the package
- *    directly. The page says so rather than showing a camera that cannot work.
+ *  - This phone's camera, in every browser that can open one — iPhone Safari
+ *    included (see `frame-decoder.ts`). The browser asks the operator's
+ *    permission the first time; if they refused, the page says exactly where to
+ *    allow it and offers to try again. Frames never leave the device.
+ *  - The phone's own camera app: the label's QR is a URL, so pointing any
+ *    phone camera at it opens the package directly.
  */
-
-type Detector = { detect: (source: CanvasImageSource) => Promise<Array<{ rawValue: string }>> };
-type DetectorCtor = new (options: { formats: string[] }) => Detector;
 
 interface RecentScan {
   code: string;
@@ -66,12 +64,17 @@ export function ScanConsole() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [camera, setCamera] = useState<"off" | "starting" | "on" | "unsupported" | "denied">("off");
+  const [help, setHelp] = useState<string[]>([]);
   const [recent, setRecent] = useState<RecentScan[]>([]);
   const [hit, setHit] = useState<string | null>(null);
 
   useEffect(() => {
     setRecent(readRecent());
-    if (typeof window !== "undefined" && !("BarcodeDetector" in window)) setCamera("unsupported");
+    // Only a browser with no camera API at all (an in-app webview, plain http)
+    // is "unsupported". Everything else gets the button, and the browser's own
+    // permission prompt when it is pressed.
+    if (!cameraSupported()) setCamera("unsupported");
+    setHelp(cameraHelp(navigator.userAgent));
     inputRef.current?.focus();
   }, []);
 
@@ -113,41 +116,55 @@ export function ScanConsole() {
   );
 
   const startCamera = async () => {
-    const Ctor = (window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector;
-    if (!Ctor) {
+    if (!cameraSupported()) {
       setCamera("unsupported");
       return;
     }
     setCamera("starting");
+    let stream: MediaStream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+      // Asking is what raises the browser's "Allow camera?" prompt. It must run
+      // straight from the tap — iOS refuses a prompt that is not a user gesture.
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
+    } catch (e) {
+      const name = e instanceof DOMException ? e.name : "";
+      setCamera(name === "NotAllowedError" || name === "SecurityError" ? "denied" : "unsupported");
+      return;
+    }
+    try {
       streamRef.current = stream;
       const video = videoRef.current;
       if (!video) return;
       video.srcObject = stream;
       await video.play();
       setCamera("on");
-      const detector = new Ctor({ formats: ["qr_code", "code_128"] });
-      const tick = async () => {
+      const decode = await createFrameDecoder();
+      let last = 0;
+      const tick = async (now: number) => {
         if (!streamRef.current || busyRef.current) return;
-        try {
-          const codes = await detector.detect(video);
-          const first = codes[0]?.rawValue;
-          if (first) {
-            await resolve(first);
-            return;
+        // ~8 decodes a second: fast enough to feel instant, light on a phone.
+        if (now - last >= 120) {
+          last = now;
+          try {
+            const value = await decode(video);
+            if (value) {
+              await resolve(value);
+              return;
+            }
+          } catch {
+            /* a frame that fails to decode is normal */
           }
-        } catch {
-          /* a frame that fails to decode is normal */
         }
-        requestAnimationFrame(() => void tick());
+        requestAnimationFrame((t) => void tick(t));
       };
-      void tick();
+      requestAnimationFrame((t) => void tick(t));
     } catch {
-      setCamera("denied");
+      stream.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      setCamera("unsupported");
     }
   };
 
@@ -160,6 +177,7 @@ export function ScanConsole() {
             ref={videoRef}
             playsInline
             muted
+            autoPlay
             className={cn("absolute inset-0 size-full object-cover transition-opacity", camera === "on" ? "opacity-100" : "opacity-0")}
           />
           {/* Frame */}
@@ -184,17 +202,29 @@ export function ScanConsole() {
                 <>
                   <SmartphoneIcon className="size-6 text-white/80" aria-hidden />
                   <p className="max-w-[40ch] text-[13px] font-medium text-white/85">
-                    This browser cannot read codes itself. On an iPhone, open the <b>Camera</b> app and point it at the label&apos;s QR — it opens the package here. Or use a handheld scanner below.
+                    This browser cannot open the camera. Open this page in Safari or Chrome, or point your phone&apos;s <b>Camera</b> app at the label&apos;s QR — it opens the package here. A handheld scanner works below too.
                   </p>
                 </>
               ) : camera === "denied" ? (
                 <>
                   <CameraOffIcon className="size-6 text-white/80" aria-hidden />
-                  <p className="max-w-[40ch] text-[13px] font-medium text-white/85">
-                    Camera access was blocked. Allow it in the browser&apos;s site settings, or type the code below.
-                  </p>
+                  <p className="max-w-[40ch] text-[13px] font-semibold text-white">Camera access is turned off for this site.</p>
+                  <ol className="max-w-[42ch] list-decimal space-y-0.5 pl-5 text-left text-[12.5px] font-medium text-white/85">
+                    {help.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    className="mt-1 inline-flex h-10 items-center gap-2 rounded-full bg-white px-5 text-[13px] font-semibold text-tm-ink"
+                  >
+                    <CameraIcon className="size-4" aria-hidden />
+                    Try again
+                  </button>
                 </>
               ) : (
+                <>
                 <button
                   type="button"
                   onClick={startCamera}
@@ -204,6 +234,8 @@ export function ScanConsole() {
                   {camera === "starting" ? <Spinner className="size-4" /> : <CameraIcon className="size-4" aria-hidden />}
                   Scan with camera
                 </button>
+                <p className="text-[12px] font-medium text-white/70">Your browser will ask to use the camera — tap Allow.</p>
+                </>
               )}
             </div>
           ) : (
