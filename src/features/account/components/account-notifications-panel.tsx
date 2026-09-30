@@ -23,6 +23,8 @@ export interface AccountNotificationsPanelProps {
   preferences: { notify_email: boolean; whatsapp_opt_in: boolean };
   /** Whether `profiles.phone` holds anything — WhatsApp has nowhere to go without it. */
   hasPhone: boolean;
+  /** Whether the WhatsApp channel is switched on server-side. Off: the choice saves, nothing sends yet. */
+  whatsappLive: boolean;
   blurb: string;
 }
 
@@ -43,6 +45,7 @@ export function AccountNotificationsPanel({
   unreadCount,
   preferences,
   hasPhone,
+  whatsappLive,
   blurb,
 }: AccountNotificationsPanelProps) {
   const router = useRouter();
@@ -110,7 +113,11 @@ export function AccountNotificationsPanel({
         <AccountToggle
           id="notify-whatsapp"
           label="WhatsApp"
-          description="The same updates on WhatsApp, to the phone number on your profile."
+          description={
+            whatsappLive
+              ? "Order updates on WhatsApp, to the phone number on your profile: payment confirmed, bought, shipped, your rider on the way, and price drops."
+              : "Order updates on WhatsApp, to the phone number on your profile. We're switching WhatsApp on soon: turn this on now and messages start as soon as it's live. Until then, updates come by email."
+          }
           checked={prefs.whatsapp_opt_in}
           disabled={!hasPhone}
           disabledReason={

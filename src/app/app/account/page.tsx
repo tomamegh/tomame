@@ -16,6 +16,7 @@ import {
 import { accountTab, resolveAccountTab } from "@/features/account/tabs";
 import { listAddresses } from "@/features/addresses/services/addresses.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { isWhatsAppConfigured } from "@/lib/whatsapp/config";
 import { listUserNotifications } from "@/features/notifications/services/notifications.service";
 import { getBagPaymentSettings } from "@/features/payments/services/payment-channels.service";
 import { listUserTransactions } from "@/features/payments/services/payments.service";
@@ -159,6 +160,7 @@ async function AccountTabPanel({
             whatsapp_opt_in: channels.whatsapp,
           }}
           hasPhone={(profile.phone ?? "").trim() !== ""}
+          whatsappLive={isWhatsAppConfigured()}
           blurb={blurb}
         />
       );

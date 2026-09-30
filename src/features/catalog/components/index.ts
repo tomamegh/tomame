@@ -1,13 +1,7 @@
 export {
   CatalogBrowseEmpty,
-  CatalogBrowsePanel,
+  CatalogBrowseSearchField,
   CatalogBrowseUnavailable,
-  CatalogCategoryNav,
-} from "./catalog-browse";
-export type {
-  CatalogBrowseCategory,
-  CatalogBrowsePanelProps,
-  CatalogBrowseState,
 } from "./catalog-browse";
 export { CatalogProductCard } from "./catalog-product-card";
 export type { CatalogProductCardProps } from "./catalog-product-card";

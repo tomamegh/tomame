@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// WhatsApp (079) is queued beside the email; its own tests live in notifications.
+vi.mock("@/features/notifications/services/whatsapp.service", () => ({ queueWhatsApp: vi.fn(async () => "not_configured") }));
 // The email-preference gate reaches the admin client at module scope.
 vi.mock("@/lib/email/notify-preference", () => ({ mayEmailUser: vi.fn(async () => true) }));
 

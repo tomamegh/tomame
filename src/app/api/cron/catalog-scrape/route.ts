@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { refreshCatalogLandedPrices } from "@/features/catalog/services/catalog-landed-price.service";
 import { runCatalogScrapeJob } from "@/features/catalog/services/catalog-scrape.service";
 import { runCronJob } from "@/lib/auth/cron";
 
@@ -18,7 +19,15 @@ export const maxDuration = 60;
 export async function GET(request: NextRequest): Promise<NextResponse> {
   return runCronJob(request, "catalog-scrape", async () => {
     const summary = await runCatalogScrapeJob();
+    // Price what the run just wrote (the upsert clears each row's stamp) and
+    // anything older than the refresh window, so the shop's filters and sort
+    // (migration 080) run on current figures. Arithmetic, no vendor call.
+    // Its failure is reported, not thrown: the scrape itself already happened.
+    const landed = await refreshCatalogLandedPrices().catch((error: unknown) => ({
+      error: error instanceof Error ? error.message : String(error),
+    }));
     return {
+      landed,
       message: summary.skipped ? `Catalog scrape skipped: ${summary.skipped}` : "Catalog scrape run",
       ...summary,
     };

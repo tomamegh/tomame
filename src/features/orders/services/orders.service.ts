@@ -26,6 +26,8 @@ import { eventForStatus, recordOrderEvent } from "./order-events.service";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import type { Viewer } from "@/features/quotes/types";
 import { mayEmailUser } from "@/lib/email/notify-preference";
+import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
+import { whatsappMessages } from "@/lib/whatsapp/templates";
 
 /**
  * null ONLY when there is no such order (or RLS hides it). A database error
@@ -231,6 +233,22 @@ export async function sendOrderStatusEmail(
   },
 ): Promise<void> {
   try {
+    // WhatsApp is its own channel with its own opt-in, so it is queued before the
+    // email preference is consulted. Deduped per order and status: the Paystack
+    // webhook and the browser verify can both reach "paid".
+    await queueWhatsApp({
+      userId,
+      event: `order_${newStatus}`,
+      dedupeKey: `order_status:${order.id}:${newStatus}`,
+      message: whatsappMessages.orderStatus({
+        orderId: order.id,
+        productName: order.product_name,
+        status: newStatus,
+        carrier: trackingData?.carrier,
+        trackingNumber: trackingData?.trackingNumber,
+      }),
+    });
+
     // `profiles.notify_email` — the account screen's "Email" toggle, whose own
     // description names these messages. Checked here rather than at each call
     // site so no future sender can forget it.
@@ -413,6 +431,21 @@ export async function createOrder(
   // Fire-and-forget: notify the customer their order was received
   if (links.suppress_placed_email) return order as Order;
   (async () => {
+    try {
+      await queueWhatsApp({
+        userId: user.id,
+        event: "order_placed",
+        dedupeKey: `order_placed:${order.id}`,
+        message: whatsappMessages.orderPlaced({
+          orderId: order.id,
+          productName: order.product_name,
+          totalGhs: pricing.total_ghs,
+          needsReview,
+        }),
+      });
+    } catch (err) {
+      logger.error("order placed whatsapp failed", { orderId: order.id, error: err instanceof Error ? err.message : String(err) });
+    }
     try {
       const supabase = createAdminClient();
       const { data: userData, error } = await supabase.auth.admin.getUserById(user.id);

@@ -6,6 +6,8 @@ import {
   markNotificationDelivered,
 } from "@/db/queries/notifications";
 import { env } from "@/lib/env";
+import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
+import { whatsappMessages } from "@/lib/whatsapp/templates";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 import { parcelPhotoTemplate } from "@/lib/email/templates/parcel-photo";
 import { sendEmail } from "@/lib/email/transport";
@@ -79,6 +81,16 @@ export async function notifyParcelPhotoAdded(
         weight_lbs: input.weightLbs ?? null,
         href: journeyUrl.slice(env.app.url.length),
       },
+    });
+
+    await queueWhatsApp({
+      userId: input.userId,
+      event: "parcel_photo_added",
+      message: whatsappMessages.parcelPhoto({
+        orderId: input.orderId,
+        orderNo: input.orderNo,
+        productName: input.productName,
+      }),
     });
 
     let delivered = false;

@@ -46,6 +46,17 @@ const EVENT_LABELS: Record<string, string> = {
   paste_unreadable: "Paste unreadable",
   parcel_photo_added: "Parcel photo added",
   courier_dispatched: "Rider sent",
+  order_paid: "Payment confirmed",
+  order_processing: "Buying the item",
+  order_in_transit: "Shipped",
+  order_delivered: "Delivered",
+  order_cancelled: "Order cancelled",
+  order_approved: "Review approved",
+  order_rejected: "Review rejected",
+  payment_expired: "Payment expired",
+  order_expired_unpaid: "Unpaid order closed",
+  sourcing_available: "Buyer found it",
+  sourcing_unavailable: "Buyer could not source it",
 };
 
 export function notificationEventLabel(event: string): string {
@@ -187,4 +198,48 @@ export function summariseEvents(
   return [...byEvent.values()].sort(
     (a, b) => b.failed - a.failed || b.total - a.total || a.label.localeCompare(b.label),
   );
+}
+
+/** `notifications.delivery_status` — migration 079's CHECK constraint. */
+export type WhatsAppDeliveryStatus = "accepted" | "sent" | "delivered" | "read" | "failed";
+
+/**
+ * The WhatsApp channel's own status line, beside the row's state-machine chip.
+ *
+ * `status` says whether Meta ACCEPTED the message (pending → sent | failed);
+ * `delivery_status` is what Meta reported afterwards through the webhook. A row
+ * can be "Sent" and still have failed at the handset, and that is the case this
+ * label exists for: it names the carrier outcome and the reason.
+ *
+ * Null for an email row — email has no carrier receipts.
+ */
+export function whatsappDeliveryLabel(row: {
+  channel: AdminNotificationChannel;
+  status: AdminNotificationStatus;
+  attempts?: number | null;
+  delivery_status?: WhatsAppDeliveryStatus | null;
+  error_reason?: string | null;
+}): { label: string; tone: AdminTone; reason: string | null } | null {
+  if (row.channel !== "whatsapp") return null;
+  const reason = row.error_reason ?? null;
+
+  if (row.status === "pending") {
+    const attempts = row.attempts ?? 0;
+    return attempts > 0
+      ? { label: `Retrying (${attempts} of 3 tried)`, tone: "amber", reason }
+      : { label: "Queued", tone: "muted", reason: null };
+  }
+  if (row.status === "failed" || row.delivery_status === "failed") {
+    return { label: "Not delivered", tone: "coral", reason: reason ?? "No reason given" };
+  }
+  switch (row.delivery_status) {
+    case "read":
+      return { label: "Read", tone: "green", reason: null };
+    case "delivered":
+      return { label: "Delivered", tone: "green", reason: null };
+    case "sent":
+      return { label: "Sent to phone", tone: "neutral", reason: null };
+    default:
+      return { label: "Accepted by WhatsApp", tone: "neutral", reason: null };
+  }
 }

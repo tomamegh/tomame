@@ -16,6 +16,7 @@ import {
   recipientLabel,
   relativeTime,
   stuckPendingLabel,
+  whatsappDeliveryLabel,
 } from "./admin-notification-format";
 
 /**
@@ -70,6 +71,7 @@ export function AdminNotificationsTable({
           {rows.map((row) => {
             const badge = notificationStatusBadge(row.status);
             const stuck = row.status === "pending" ? stuckPendingLabel(row.created_at, now) : null;
+            const whatsapp = whatsappDeliveryLabel(row);
             const created = relativeTime(row.created_at, now);
             const sent = row.sent_at ? relativeTime(row.sent_at, now) : null;
 
@@ -97,6 +99,18 @@ export function AdminNotificationsTable({
                     {stuck ? (
                       <span className="text-[11px] leading-none font-semibold text-tm-amber">
                         {stuck}
+                      </span>
+                    ) : null}
+                    {whatsapp ? (
+                      <span className="flex flex-col gap-1">
+                        <span className="text-[11px] leading-none font-semibold text-tm-text-2">
+                          WhatsApp: {whatsapp.label}
+                        </span>
+                        {whatsapp.reason ? (
+                          <span className="max-w-[260px] text-[11px] leading-[1.35] font-medium text-tm-coral-strong">
+                            {whatsapp.reason}
+                          </span>
+                        ) : null}
                       </span>
                     ) : null}
                   </div>

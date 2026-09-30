@@ -5,6 +5,8 @@ import { getQuoteFacts } from "@/db/queries/extraction-cache";
 import { getRecipientEmail, insertNotification, markNotificationDelivered } from "@/db/queries/notifications";
 import { PENDING_SLOW_MS } from "@/features/bag/components/format";
 import { env } from "@/lib/env";
+import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
+import { whatsappMessages } from "@/lib/whatsapp/templates";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 import { pastePricedTemplate, pasteUnreadableTemplate } from "@/lib/email/templates/paste-finished";
 import { sendEmail } from "@/lib/email/transport";
@@ -72,6 +74,20 @@ export async function notifyPasteFinished(
         href: destinationUrl.slice(env.app.url.length),
       },
     });
+
+    // An unreadable link gets no WhatsApp: "we couldn't read it" is not worth
+    // a business-initiated message, and the bell and email already say so.
+    if (finished.kind === "priced") {
+      await queueWhatsApp({
+        userId: job.user_id,
+        event: "paste_priced",
+        dedupeKey: `paste_priced:${job.id}`,
+        message: whatsappMessages.quoteReady({
+          productName: finished.productName ?? host,
+          reviewPath: destinationUrl.slice(env.app.url.length),
+        }),
+      });
+    }
 
     // The bell entry stands on its own; the email is a second channel the
     // customer can switch off. A row left `pending` would read as a stuck

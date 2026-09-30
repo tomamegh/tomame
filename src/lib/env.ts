@@ -50,4 +50,22 @@ export const env = {
     /** Zyte API — AI product extraction on any store URL + browser HTML. */
     zyteApiKey: optional("ZYTE_API_KEY"),
   },
+  /**
+   * WhatsApp (Meta Cloud API). Every key optional: the channel is OFF until the
+   * access token AND phone number id are both set, and then skipped cleanly
+   * (no rows, no errors). Getters, so a test or a redeployed env var is read
+   * at call time — see `whatsappConfig()` in lib/whatsapp/config.ts.
+   */
+  whatsapp: {
+    get accessToken() { return optional("WHATSAPP_ACCESS_TOKEN"); },
+    get phoneNumberId() { return optional("WHATSAPP_PHONE_NUMBER_ID"); },
+    /** Graph API version, e.g. `v24.0`. */
+    get apiVersion() { return optional("WHATSAPP_API_VERSION"); },
+    /** App secret: signs webhook deliveries (X-Hub-Signature-256). */
+    get appSecret() { return optional("WHATSAPP_APP_SECRET"); },
+    /** The token typed into Meta's webhook setup; answers the GET handshake. */
+    get verifyToken() { return optional("WHATSAPP_VERIFY_TOKEN"); },
+    /** Override for a local mock of graph.facebook.com. Never set in production. */
+    get apiBaseUrl() { return optional("WHATSAPP_API_BASE_URL"); },
+  },
 } as const;

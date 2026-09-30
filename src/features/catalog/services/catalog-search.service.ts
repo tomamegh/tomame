@@ -12,7 +12,7 @@ import {
 import { CATALOG_DEALS } from "@/config/catalog";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { isPayablePricing } from "@/lib/pricing/payable";
-import type { PricingCalculator } from "@/lib/pricing/calculator";
+import type { PricingBreakdown, PricingCalculator } from "@/lib/pricing/calculator";
 
 export interface CatalogSearchResult {
   id: string;
@@ -96,7 +96,7 @@ export async function searchCatalog(
   return { query, count: ordered.length, total, results: ordered };
 }
 
-async function priceHit(calculator: PricingCalculator, hit: CatalogSearchHit): Promise<CatalogSearchResult> {
+export async function priceHit(calculator: PricingCalculator, hit: CatalogSearchHit): Promise<CatalogSearchResult> {
   const base: CatalogSearchResult = {
     id: hit.id,
     store: hit.store,
@@ -118,17 +118,40 @@ async function priceHit(calculator: PricingCalculator, hit: CatalogSearchHit): P
     cheapest_in_store: false,
   };
 
-  const price = hit.price_usd != null ? Number(hit.price_usd) : null;
-  if (price == null || !(price > 0)) return base;
+  const breakdown = await strikeLandedTotal(calculator, hit);
+  if (!breakdown) return base;
+  return {
+    ...base,
+    total_ghs: breakdown.total_ghs,
+    pricing_group: breakdown.pricing_group,
+    pricing_method: breakdown.pricing_method,
+    exchange_rate: breakdown.exchange_rate,
+    unpriceable: false,
+  };
+}
+
+/**
+ * One catalogue row through the calculator, for quantity one, or null when it
+ * cannot be priced. Shared by the cards (`priceHit`) and by the stored landed
+ * price the shop filters and sorts on (`catalog-landed-price.service.ts`), so
+ * the figure a row is ordered by and the figure it prints are struck the same
+ * way.
+ */
+export async function strikeLandedTotal(
+  calculator: PricingCalculator,
+  row: { id: string; title: string; price_usd: number | null; currency: string | null; category: string | null },
+): Promise<PricingBreakdown | null> {
+  const price = row.price_usd != null ? Number(row.price_usd) : null;
+  if (price == null || !(price > 0)) return null;
 
   try {
-    const currency = (hit.currency ?? "USD").toUpperCase();
+    const currency = (row.currency ?? "USD").toUpperCase();
     const breakdown = await calculator.calculate(
       {
         ...(currency === "USD" ? { itemPriceUsd: price } : { itemPrice: price, itemCurrency: currency }),
         quantity: 1,
-        category: hit.category,
-        productTitle: hit.title,
+        category: row.category,
+        productTitle: row.title,
         region: "usa",
       },
       null,
@@ -144,18 +167,10 @@ async function priceHit(calculator: PricingCalculator, hit: CatalogSearchHit): P
     // So the guard is on the METHOD as well as the number, and the number has to
     // be positive rather than merely finite. A row we cannot price is flagged
     // and parked at the end, which the screen already knows how to say.
-    if (!isPayablePricing(breakdown)) return base;
-    return {
-      ...base,
-      total_ghs: breakdown.total_ghs,
-      pricing_group: breakdown.pricing_group,
-      pricing_method: breakdown.pricing_method,
-      exchange_rate: breakdown.exchange_rate,
-      unpriceable: false,
-    };
+    return isPayablePricing(breakdown) ? breakdown : null;
   } catch (error) {
-    logger.warn("catalog-search: could not price hit", { id: hit.id, error: error instanceof Error ? error.message : String(error) });
-    return base;
+    logger.warn("catalog-search: could not price hit", { id: row.id, error: error instanceof Error ? error.message : String(error) });
+    return null;
   }
 }
 

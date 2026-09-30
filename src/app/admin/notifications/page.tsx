@@ -17,6 +17,7 @@ import { AdminNotificationsTable } from "@/features/notifications/components/adm
 import { summariseEvents } from "@/features/notifications/components/admin-notification-format";
 import { formatCount } from "@/features/admin/components/dashboard-format";
 import { cn } from "@/lib/utils";
+import { isWhatsAppConfigured } from "@/lib/whatsapp/config";
 
 import type { Metadata } from "next";
 
@@ -84,6 +85,7 @@ export default async function AdminNotificationsPage({
   ]);
 
   const breakdown = summariseEvents(eventSample);
+  const whatsappLive = isWhatsAppConfigured();
   const filtered = status != null || channel != null || event != null;
 
   return (
@@ -117,6 +119,17 @@ export default async function AdminNotificationsPage({
         </div>
       }
     >
+      {!whatsappLive ? (
+        <p
+          role="status"
+          className="rounded-[14px] bg-tm-paper px-4 py-3 text-[13px] leading-[1.5] font-medium text-tm-text-2"
+        >
+          <span className="font-semibold text-tm-ink">WhatsApp not configured.</span> Customers can opt in,
+          but nothing is queued or sent until WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID are set and
+          the templates in docs/whatsapp-templates.md are approved in Meta Business Manager. Email is unaffected.
+        </p>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <AdminStat
           index={0}

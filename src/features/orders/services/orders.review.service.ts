@@ -8,6 +8,8 @@ import { freightCorrectionPatch } from "@/features/pricing/freight-inspection";
 import { getQuoteLockById } from "@/db/queries/quote-locks";
 import { isLockUnexpired, priceLowerOf } from "@/features/quotes/services/quote-lock.service";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
+import { whatsappMessages } from "@/lib/whatsapp/templates";
 import { sendEmail } from "@/lib/email/transport";
 import {
   orderApprovedTemplate,
@@ -67,6 +69,19 @@ async function sendReviewEmail(
   opts: { priceChanged: boolean; reason?: string },
 ): Promise<void> {
   try {
+    await queueWhatsApp({
+      userId,
+      event: action === "approve" ? "order_approved" : "order_rejected",
+      dedupeKey: `order_review:${order.id}:${action}`,
+      message: whatsappMessages.orderReviewed({
+        orderId: order.id,
+        productName: order.product_name,
+        approved: action === "approve",
+        totalGhs: Number(order.admin_total_ghs ?? order.pricing.total_ghs ?? 0),
+        reason: opts.reason,
+      }),
+    });
+
     const admin = createAdminClient();
     const { data: userData, error } =
       await admin.auth.admin.getUserById(userId);

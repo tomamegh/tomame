@@ -8,13 +8,19 @@ import {
 } from "@/features/app-home/components/format";
 import { formatGhs, formatUsdCompact } from "@/features/marketing/format";
 import { cn } from "@/lib/utils";
-import type { CatalogProduct } from "../types";
+import type { CatalogCondition, CatalogProduct } from "../types";
 import {
   catalogQuoteHref,
   catalogStoreLabel,
   formatCatalogRating,
   formatPriceAge,
 } from "./format";
+
+const CONDITION_BADGE: Record<Exclude<CatalogCondition, "new">, string> = {
+  open_box: "Open box",
+  refurbished: "Refurbished",
+  used: "Pre-owned",
+};
 
 export interface CatalogProductCardProps {
   product: CatalogProduct;
@@ -54,6 +60,12 @@ export function CatalogProductCard({
   const rating = formatCatalogRating(product.rating, product.review_count);
   const store = catalogStoreLabel(product.store);
   const priced = !product.unpriceable && product.total_ghs != null;
+  const showCheapest = product.cheapest_in_store && priced;
+  // "New" is the default a shopper assumes, so only the exceptions get a badge.
+  const condition =
+    product.condition_group && product.condition_group !== "new"
+      ? CONDITION_BADGE[product.condition_group]
+      : null;
 
   return (
     /* `min-w-0` is load-bearing: the title clamps, and without a zero floor the
@@ -67,10 +79,15 @@ export function CatalogProductCard({
           "hover:border-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
         )}
       >
+        {/*
+          A square frame, not a fixed height: every card in a row then has the
+          same image box whatever its column width, so a grid of Amazon
+          portrait shots and eBay landscape ones still reads as one grid.
+        */}
         <div
           className={cn(
             "relative w-full overflow-hidden rounded-[14px] bg-white",
-            compact ? "h-[110px]" : "h-[150px] sm:h-[170px]",
+            compact ? "h-[110px]" : "aspect-square",
             !src && PLACEHOLDER_THUMB_CLASS,
           )}
         >
@@ -80,13 +97,22 @@ export function CatalogProductCard({
               alt=""
               fill
               sizes={compact ? "200px" : "(min-width: 1024px) 260px, 50vw"}
-              className="max-w-full object-contain p-2"
+              className="max-w-full object-contain p-2 transition-transform duration-500 ease-[var(--tm-ease)] motion-safe:group-hover:scale-[1.04]"
             />
           )}
 
-          {product.cheapest_in_store && priced && !compact && (
-            <span className="absolute top-2 left-2 rounded-full bg-tm-tint px-2 py-1 text-[11px] leading-none font-bold text-tm-coral-strong">
-              Cheapest on {store}
+          {!compact && (showCheapest || condition) && (
+            <span className="absolute inset-x-2 top-2 flex flex-wrap items-start gap-1.5">
+              {showCheapest && (
+                <span className="rounded-full bg-tm-tint px-2 py-1 text-[11px] leading-none font-bold text-tm-coral-strong">
+                  Cheapest on {store}
+                </span>
+              )}
+              {condition && (
+                <span className="rounded-full bg-tm-ink/80 px-2 py-1 text-[11px] leading-none font-bold text-white">
+                  {condition}
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -123,8 +149,8 @@ export function CatalogProductCard({
               <>
                 <p
                   className={cn(
-                    "tm-nums leading-none font-bold text-tm-ink",
-                    compact ? "text-[15px]" : "text-[18px]",
+                    "tm-nums leading-none font-bold",
+                    compact ? "text-[15px] text-tm-ink" : "text-[19px] text-tm-coral-strong",
                   )}
                 >
                   {formatGhs(product.total_ghs as number)}

@@ -11,6 +11,8 @@ import {
 } from "@/db/queries/notifications";
 import { markWatchNotified, type PriceWatchRow } from "@/db/queries/price-watches";
 import { sendEmail } from "@/lib/email/transport";
+import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
+import { whatsappMessages } from "@/lib/whatsapp/templates";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 import { priceDropTemplate } from "@/lib/email/templates/price-drop";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
@@ -149,6 +151,21 @@ export async function notifyPriceDrop(
   if (!decision.notify || decision.reference_price_usd === null || decision.drop_pct === null) {
     return { notified: false, reason: decision.reason };
   }
+
+  // WhatsApp first: it has its own opt-in, so "email off" must not silence it.
+  // Deduped on the price, because with email off the reference below never
+  // moves and the next run would otherwise message the same drop again.
+  await queueWhatsApp({
+    userId: watch.user_id,
+    event: "price_drop",
+    dedupeKey: `price_drop:${watch.id}:${reading.priceUsd}`,
+    message: whatsappMessages.priceDrop({
+      productName: watch.product_name ?? "The product you're watching",
+      dropPct: decision.drop_pct,
+      totalGhs: reading.totalGhs,
+      productUrl: watch.product_url,
+    }),
+  });
 
   // The account-wide "Email" toggle. `notify_on_drop` is this watch's own switch;
   // this is the customer saying "no email at all", and it outranks it.

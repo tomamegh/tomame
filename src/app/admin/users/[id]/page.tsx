@@ -24,6 +24,7 @@ import {
   notificationEventLabel,
   notificationStatusBadge,
   relativeTime,
+  whatsappDeliveryLabel,
 } from "@/features/notifications/components/admin-notification-format";
 import {
   getOpenBagForUser,
@@ -31,6 +32,7 @@ import {
   listWatchesForUser,
 } from "@/db/queries/admin-people";
 import { listNotificationsForAdmin } from "@/db/queries/admin-notifications";
+import { isWhatsAppConfigured } from "@/lib/whatsapp/config";
 import { listDeliveryAddresses } from "@/db/queries/delivery-addresses";
 import { formatAddressLabel } from "@/features/addresses/format";
 import {
@@ -82,6 +84,7 @@ export default async function AdminUserDetailPage({
   ]);
 
   const now = new Date();
+  const whatsappLive = isWhatsAppConfigured();
   const name = userDisplayName(user.profile, user.email);
   const badge = roleBadge(user.profile.role);
   const channels = prefs ? contactChannelsLabel(prefs) : null;
@@ -186,6 +189,11 @@ export default async function AdminUserDetailPage({
                 </Fact>
                 <Fact label="WhatsApp updates">
                   {prefs.whatsapp_opt_in ? "Opted in" : "Not opted in"}
+                  {prefs.whatsapp_opt_in && !whatsappLive ? (
+                    <span className="mt-1.5 block text-[12px] leading-[1.4] font-medium text-tm-text-3">
+                      WhatsApp not configured: nothing is sent on this channel yet.
+                    </span>
+                  ) : null}
                 </Fact>
               </dl>
               {channels?.tone === "coral" ? (
@@ -427,6 +435,7 @@ export default async function AdminUserDetailPage({
             <ul className="flex flex-col divide-y divide-tm-hairline">
               {notifications.map((row) => {
                 const statusBadge = notificationStatusBadge(row.status);
+                const whatsapp = whatsappDeliveryLabel(row);
                 return (
                   <li
                     key={row.id}
@@ -439,7 +448,13 @@ export default async function AdminUserDetailPage({
                       <p className="tm-nums mt-1.5 text-[12px] leading-none font-medium text-tm-text-3">
                         {row.channel === "email" ? "Email" : "WhatsApp"} ·{" "}
                         {relativeTime(row.created_at, now) ?? "—"}
+                        {whatsapp ? ` · ${whatsapp.label}` : null}
                       </p>
+                      {whatsapp?.reason ? (
+                        <p className="mt-1.5 text-[12px] leading-[1.4] font-medium text-tm-coral-strong">
+                          {whatsapp.reason}
+                        </p>
+                      ) : null}
                     </div>
                     <AdminBadge tone={statusBadge.tone}>{statusBadge.label}</AdminBadge>
                   </li>

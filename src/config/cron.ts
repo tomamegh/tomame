@@ -19,6 +19,7 @@ export interface CronJobSpec {
 
 export const CRON_JOBS: readonly CronJobSpec[] = [
   { job: "sweep-extractions", label: "Paste queue sweep", route: "/api/cron/sweep-extractions", everyMinutes: 1, staleAfterMinutes: 10, migration: "049" },
+  { job: "whatsapp-dispatch", label: "WhatsApp dispatch", route: "/api/cron/whatsapp-dispatch", everyMinutes: 1, staleAfterMinutes: 10, migration: "079" },
   { job: "reconcile-payments", label: "Payment reconciliation", route: "/api/cron/reconcile-payments", everyMinutes: 5, staleAfterMinutes: 20, migration: "059" },
   { job: "recheck-price-watches", label: "Price watch re-check", route: "/api/cron/price-watches", everyMinutes: 10, staleAfterMinutes: 40, migration: "052" },
   { job: "catalog-scrape", label: "Catalogue scrape", route: "/api/cron/catalog-scrape", everyMinutes: 60, staleAfterMinutes: 150, migration: "045" },

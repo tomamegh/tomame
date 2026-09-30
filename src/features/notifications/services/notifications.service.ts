@@ -19,6 +19,9 @@ async function getNotificationsByUserId(
     .from("notifications")
     .select("*")
     .eq("user_id", userId)
+    // The bell is one entry per event. A WhatsApp row (079) is a second
+    // delivery of the same event, not a second thing that happened.
+    .eq("channel", "email")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -114,6 +117,7 @@ async function countUnreadByUserId(
     .from("notifications")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
+    .eq("channel", "email")
     .is("read_at", null);
 
   if (error) {
@@ -231,8 +235,8 @@ export async function markAllNotificationsRead(
  * an offer declined, a thing that happened to exactly one person.
  *
  * `channel: "email"` and `status: "pending"` match every other writer here, and
- * both are currently aspirational: nothing sweeps pending rows into actual
- * email. What DOES read them is the bell, which selects every row for a user
+ * both are currently aspirational: nothing sweeps pending EMAIL rows into actual
+ * email (WhatsApp rows are different: whatsapp.service queues and dispatches them). What DOES read them is the bell, which selects every row for a user
  * regardless of status, so this insert is what the customer actually sees.
  * Writing the row is therefore the delivery, not a queue entry waiting on a job
  * that does not exist — worth knowing before anyone "fixes" the status.

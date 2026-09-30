@@ -40,12 +40,19 @@ export interface AdminNotificationRow {
   created_at: string;
   sent_at: string | null;
   read_at: string | null;
+  /** WhatsApp only (079): provider attempts, carrier outcome and the last error. */
+  attempts: number;
+  delivery_status: "accepted" | "sent" | "delivered" | "read" | "failed" | null;
+  delivered_at: string | null;
+  seen_at: string | null;
+  error_code: string | null;
+  error_reason: string | null;
   /** Owner's name, or null when the profile row has been removed. */
   recipient: { id: string; first_name: string | null; last_name: string | null } | null;
 }
 
 const COLUMNS =
-  "id, user_id, channel, event, payload, status, created_at, sent_at, read_at";
+  "id, user_id, channel, event, payload, status, created_at, sent_at, read_at, attempts, delivery_status, delivered_at, seen_at, error_code, error_reason";
 
 type NotificationQueryRow = Omit<AdminNotificationRow, "recipient"> & {
   profiles: { id: string; first_name: string | null; last_name: string | null } | null;

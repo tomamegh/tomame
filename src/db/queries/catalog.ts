@@ -129,7 +129,9 @@ export async function upsertCatalogProducts(rows: readonly CatalogProductInput[]
   const { data, error } = await client
     .from("catalog_products")
     .upsert(
-      rows.map((r) => ({ ...r, last_seen_at: now, updated_at: now })),
+      // `landed_priced_at: null` re-queues the row for the landed-price refresh
+      // (080): the listing's price may have just changed under it.
+      rows.map((r) => ({ ...r, last_seen_at: now, updated_at: now, landed_priced_at: null })),
       { onConflict: "url_hash" },
     )
     .select("id");
@@ -275,6 +277,164 @@ export async function listHotCatalogProducts(input: {
 
   if (error) throw new Error(`Failed to load catalog deals: ${error.message}`);
   return (data ?? []) as unknown as CatalogSearchHit[];
+}
+
+// ── The shop (080) ──────────────────────────────────────────────────────────
+
+/** eBay's condition string, normalised by a generated column. Amazon rows are null. */
+export type CatalogConditionGroup = "new" | "open_box" | "refurbished" | "used";
+
+export type CatalogShopSort = "recommended" | "newest" | "price_asc" | "price_desc" | "rating";
+
+/** Every filter the shop's database read understands. Null / empty = not filtering. */
+export interface CatalogShopQuery {
+  q: string | null;
+  category: string | null;
+  stores: readonly CatalogStore[];
+  conditions: readonly CatalogConditionGroup[];
+  minGhs: number | null;
+  maxGhs: number | null;
+  minRating: number | null;
+}
+
+export interface CatalogShopHit extends CatalogSearchHit {
+  /** The calculator's stored figure (080). Decides order and filters; never printed. */
+  landed_ghs: number | null;
+  condition_group: CatalogConditionGroup | null;
+}
+
+export interface CatalogFacetRow {
+  facet: "category" | "store" | "condition" | "price" | "rating" | "range";
+  value: string;
+  n: number;
+}
+
+export interface CatalogDepartmentTopRow extends CatalogShopHit {
+  category_count: number;
+  shelf_position: number;
+}
+
+function shopArgs(query: CatalogShopQuery) {
+  return {
+    p_q: query.q,
+    p_category: query.category,
+    p_stores: query.stores.length > 0 ? [...query.stores] : null,
+    p_conditions: query.conditions.length > 0 ? [...query.conditions] : null,
+    p_min_ghs: query.minGhs,
+    p_max_ghs: query.maxGhs,
+    p_min_rating: query.minRating,
+  };
+}
+
+/** One page of the shop, filtered, sorted and paged in Postgres. `total` is the whole filtered set. */
+export async function browseCatalogProducts(
+  query: CatalogShopQuery,
+  page: { sort: CatalogShopSort; limit: number; offset: number },
+): Promise<{ rows: CatalogShopHit[]; total: number }> {
+  const client = createAdminClient();
+  const { data, error } = await client.rpc("browse_catalog_products", {
+    ...shopArgs(query),
+    p_sort: page.sort,
+    p_limit: page.limit,
+    p_offset: page.offset,
+  });
+
+  if (error) throw new Error(`Failed to browse catalog: ${error.message}`);
+  const rows = (data ?? []) as unknown as CatalogShopHit[];
+  return { rows, total: rows.length > 0 ? Number(rows[0]?.total_count ?? rows.length) : 0 };
+}
+
+/**
+ * Facet counts for the same filter set. A page past the end returns no rows and
+ * therefore no total, so the caller reads the size of the set from here too.
+ */
+export async function listCatalogShopFacets(
+  query: CatalogShopQuery,
+  priceEdges: readonly number[],
+): Promise<CatalogFacetRow[]> {
+  const client = createAdminClient();
+  const { data, error } = await client.rpc("catalog_shop_facets", {
+    ...shopArgs(query),
+    p_price_edges: [...priceEdges],
+  });
+
+  if (error) throw new Error(`Failed to count catalog facets: ${error.message}`);
+  return ((data ?? []) as { facet: CatalogFacetRow["facet"]; value: string; n: number | string }[]).map((row) => ({
+    facet: row.facet,
+    value: row.value,
+    n: Number(row.n),
+  }));
+}
+
+/** The first `perDepartment` rows of every department, in one read. */
+export async function listCatalogDepartmentTops(perDepartment: number): Promise<CatalogDepartmentTopRow[]> {
+  const client = createAdminClient();
+  const { data, error } = await client.rpc("catalog_department_tops", { p_per: perDepartment });
+
+  if (error) throw new Error(`Failed to load catalog departments: ${error.message}`);
+  return ((data ?? []) as unknown as CatalogDepartmentTopRow[]).map((row) => ({
+    ...row,
+    category_count: Number(row.category_count),
+  }));
+}
+
+// ── Stored landed prices (080) ──────────────────────────────────────────────
+
+export interface CatalogPricingRow {
+  id: string;
+  title: string;
+  price_usd: number | null;
+  currency: string | null;
+  category: string | null;
+}
+
+/**
+ * Rows whose stored landed price is missing or older than `staleBeforeIso`,
+ * never-priced first. Capped at `limit` (PostgREST's max-rows is 1000).
+ */
+export async function listCatalogRowsNeedingLandedPrice(input: {
+  staleBeforeIso: string;
+  limit: number;
+}): Promise<CatalogPricingRow[]> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("catalog_products")
+    .select("id, title, price_usd, currency, category")
+    .or(`landed_priced_at.is.null,landed_priced_at.lt.${input.staleBeforeIso}`)
+    .order("landed_priced_at", { ascending: true, nullsFirst: true })
+    .limit(input.limit);
+
+  if (error) throw new Error(`Failed to read catalog rows to price: ${error.message}`);
+  return (data ?? []) as unknown as CatalogPricingRow[];
+}
+
+/**
+ * The oldest landed-price stamp in the catalogue: `null` stamp = some row has
+ * never been priced; `undefined` = the catalogue is empty.
+ */
+export async function readOldestLandedPriceStamp(): Promise<string | null | undefined> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("catalog_products")
+    .select("landed_priced_at")
+    .order("landed_priced_at", { ascending: true, nullsFirst: true })
+    .limit(1);
+
+  if (error) throw new Error(`Failed to read catalog pricing age: ${error.message}`);
+  const row = (data ?? [])[0] as { landed_priced_at: string | null } | undefined;
+  return row ? row.landed_priced_at : undefined;
+}
+
+/** Write a batch of calculator figures back in one statement. */
+export async function writeCatalogLandedPrices(
+  rows: readonly { id: string; landed_ghs: number | null }[],
+): Promise<number> {
+  if (rows.length === 0) return 0;
+  const client = createAdminClient();
+  const { data, error } = await client.rpc("set_catalog_landed_prices", { p_rows: rows });
+
+  if (error) throw new Error(`Failed to store catalog landed prices: ${error.message}`);
+  return Number(data ?? 0);
 }
 
 // ── job_budgets ─────────────────────────────────────────────────────────────

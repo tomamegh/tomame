@@ -155,7 +155,7 @@ export async function getAdminWatchCounts(now: Date = new Date()): Promise<Admin
     count((c) => c.from("price_watches").select("id", { count: "exact", head: true }).eq("is_active", true).is("last_checked_at", null), "unchecked watches"),
     count((c) => c.from("price_watches").select("id", { count: "exact", head: true }).eq("is_active", true).gt("last_checked_at", dayAgo), "recently checked watches"),
     count((c) => c.from("price_observations").select("id", { count: "exact", head: true }).gt("observed_at", weekAgo), "price observations"),
-    count((c) => c.from("notifications").select("id", { count: "exact", head: true }).eq("event", "price_drop").gt("created_at", weekAgo), "price-drop alerts"),
+    count((c) => c.from("notifications").select("id", { count: "exact", head: true }).eq("event", "price_drop").eq("channel", "email").gt("created_at", weekAgo), "price-drop alerts"),
   ]);
 
   return {
@@ -194,6 +194,9 @@ export async function listPriceDropAlerts(limit = 20): Promise<AdminPriceDropAle
     .from("notifications")
     .select("id, user_id, status, created_at, sent_at, payload")
     .eq("event", "price_drop")
+    // One row per alert: the email row carries the drop's figures; a WhatsApp
+    // copy (079) is a second delivery of the same alert, shown in /admin/notifications.
+    .eq("channel", "email")
     .order("created_at", { ascending: false })
     .limit(limit);
 

@@ -15,6 +15,8 @@ import {
   markNotificationDelivered,
 } from "@/db/queries/notifications";
 import { sendEmail } from "@/lib/email/transport";
+import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
+import { whatsappMessages } from "@/lib/whatsapp/templates";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 import {
   sourcingAvailableTemplate,
@@ -342,6 +344,17 @@ async function notifyCustomer(watch: PriceWatchRow): Promise<void> {
         },
       })
     ).id;
+
+    await queueWhatsApp({
+      userId: watch.user_id,
+      event,
+      dedupeKey: `sourcing:${watch.id}:${watch.sourcing_status}`,
+      message: whatsappMessages.sourcingAnswered({
+        productName: watch.product_name ?? hostOf(watch.product_url),
+        available,
+        note: watch.sourced_note,
+      }),
+    });
 
     const now = new Date().toISOString();
     if (!(await mayEmailUser(watch.user_id))) {

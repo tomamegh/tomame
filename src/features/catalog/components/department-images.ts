@@ -107,7 +107,7 @@ export function departmentImage(
     width: PHOTO_SIZE,
     height: PHOTO_SIZE,
     alt: "",
-    shot: `Shop by department tile for "${label}". Square, product-led, no logos.`,
+    shot: `Shop by category tile for "${label}". Square, product-led, no logos.`,
   };
   const override = overrides[key];
   // Uploads are served by /api/media/[key], which only knows the marketing

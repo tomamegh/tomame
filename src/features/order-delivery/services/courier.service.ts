@@ -21,6 +21,8 @@ import { recordOrderEvent } from "@/features/orders/services/order-events.servic
 import type { PlatformUser } from "@/features/users/types";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { APIError } from "@/lib/auth/api-helpers";
+import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
+import { whatsappMessages } from "@/lib/whatsapp/templates";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 import { courierDispatchedTemplate } from "@/lib/email/templates/courier-dispatched";
 import { sendEmail } from "@/lib/email/transport";
@@ -158,9 +160,9 @@ function describeCourier(input: CourierHandoff): string {
  * Bell row + email, the same pipeline `notifyParcelPhotoAdded` uses.
  *
  * The bell (`notifications`, channel `email`) is the delivery; the email is the
- * channel the customer may switch off (`mayEmailUser`). WhatsApp is NOT sent:
- * `profiles.whatsapp_opt_in` exists but there is no WhatsApp transport in the
- * codebase yet, and a `whatsapp` row nobody sends would sit `pending` forever.
+ * channel the customer may switch off (`mayEmailUser`). WhatsApp, when the
+ * customer opted in, is queued as its own row and sent by the dispatcher (079)
+ * with the rider's name, number and tracking link.
  */
 async function notifyCourierDispatched(
   order: CourierOrderRow,
@@ -189,6 +191,20 @@ async function notifyCourierDispatched(
         is_update: isUpdate,
         href: orderPath,
       },
+    });
+
+    await queueWhatsApp({
+      userId: order.user_id,
+      event: "courier_dispatched",
+      message: whatsappMessages.riderAssigned({
+        orderId: order.id,
+        orderNo: order.order_no,
+        productName: order.product_name,
+        riderName: courier.name,
+        providerName,
+        riderPhone: courier.phone ? formatGhanaPhone(courier.phone) : null,
+        trackingUrl: courier.trackingUrl,
+      }),
     });
 
     let delivered = false;

@@ -42,7 +42,14 @@ export interface CatalogProduct {
   unpriceable: boolean;
   /** Lowest landed total among this store's results in this response. */
   cheapest_in_store: boolean;
+  /**
+   * eBay's listing condition, normalised (080). Absent outside the shop and
+   * null for Amazon rows, which carry no condition; never assumed "new".
+   */
+  condition_group?: CatalogCondition | null;
 }
+
+export type CatalogCondition = "new" | "open_box" | "refurbished" | "used";
 
 /** The `data` envelope of `GET /api/catalog/search`. */
 export interface CatalogSearchPayload {

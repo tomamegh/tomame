@@ -78,12 +78,19 @@ export interface DepartmentRowProps {
    * scrolled halfway down it is its own kind of broken.
    */
   preserveScroll?: boolean;
+  /**
+   * A slim one-line strip of pills instead of photo tiles. The shop uses it once
+   * a category is open: the tiles have done their job, the sidebar facet does
+   * the same thing, and the products should start high on the page.
+   */
+  compact?: boolean;
   className?: string;
 }
 
 export async function DepartmentRow({
   departments,
   preserveScroll = false,
+  compact = false,
   className,
 }: DepartmentRowProps) {
   if (departments.length === 0) return null;
@@ -95,13 +102,35 @@ export async function DepartmentRow({
   // across two rows of two.
   const twoRows = departments.length > 8;
 
+  if (compact) {
+    return (
+      <nav aria-label="Shop by category" className={cn("min-w-0", className)}>
+        <div
+          className={cn(
+            "-mx-1 flex min-w-0 gap-2 overflow-x-auto overscroll-x-contain px-1 py-1",
+            "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          )}
+        >
+          {departments.map((department) => (
+            <CompactCell
+              key={department.label}
+              department={department}
+              image={departmentImage(department.label, overrides)}
+              preserveScroll={preserveScroll}
+            />
+          ))}
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <nav
-      aria-label="Shop by department"
+      aria-label="Shop by category"
       className={cn("flex min-w-0 flex-col gap-2.5", className)}
     >
       <p className="text-[12px] leading-none font-bold tracking-[0.04em] text-tm-text-3 uppercase">
-        Shop by department
+        Shop by category
       </p>
 
       {/*
@@ -193,6 +222,41 @@ function DepartmentCell({
       >
         {department.label}
       </span>
+    </Link>
+  );
+}
+
+/** One pill in the compact strip: a small round photo (or glyph) and the name. */
+function CompactCell({
+  department,
+  image,
+  preserveScroll,
+}: {
+  department: DepartmentRowItem;
+  image: MarketingImage | null;
+  preserveScroll: boolean;
+}) {
+  const active = department.active === true;
+  return (
+    <Link
+      href={department.href}
+      scroll={!preserveScroll}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "inline-flex h-10 shrink-0 items-center gap-2 rounded-full py-1 pr-3.5 pl-1 text-[13px] leading-none font-semibold whitespace-nowrap",
+        "ring-1 transition-colors duration-200 ease-[var(--tm-ease)]",
+        "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+        active
+          ? "bg-tm-pill-bg text-tm-coral-strong ring-[2px] ring-tm-coral"
+          : "bg-card text-tm-text-2 ring-tm-border hover:bg-tm-paper hover:ring-tm-coral/40",
+      )}
+    >
+      <span aria-hidden className="relative size-8 shrink-0 overflow-hidden rounded-full bg-tm-tint">
+        {image ? (
+          <Image src={image.src} alt="" fill sizes="32px" className="object-cover" style={{ objectPosition: imagePosition(image) }} />
+        ) : null}
+      </span>
+      {department.label}
     </Link>
   );
 }

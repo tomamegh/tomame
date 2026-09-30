@@ -21,6 +21,8 @@ import {
   transitionPaymentStatus,
 } from "@/features/payments/services/payments.service";
 import type { Payment } from "@/features/payments/types";
+import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
+import { whatsappMessages, type WhatsAppMessage } from "@/lib/whatsapp/templates";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 import { paymentExpiredTemplate, unpaidOrderCancelledTemplate } from "@/lib/email/templates/payment-expiry";
 import { sendEmail } from "@/lib/email/transport";
@@ -256,7 +258,14 @@ async function expirePayment(
     reference: payment.reference,
     retryUrl,
     expiryMinutes: timeouts.expiryMinutes,
-  }), now);
+  }), now, {
+    dedupeKey: `payment_expired:${payment.id}`,
+    message: whatsappMessages.paymentExpired({
+      amountGhs: payment.amount / 100,
+      reference: payment.reference,
+      retryPath: retryUrl.slice(env.app.url.length),
+    }),
+  });
   return true;
 }
 
@@ -314,7 +323,13 @@ async function cancelStaleUnpaid(
       amountGhs: Number(group.total_pesewas) / 100,
       ttlHours: timeouts.unpaidOrderTtlHours,
       shopUrl: `${env.app.url}/app/orders/new`,
-    }), now);
+    }), now, {
+      dedupeKey: `order_expired_unpaid:group:${group.id}`,
+      message: whatsappMessages.unpaidCancelled({
+        what: `your bag of ${Number(group.item_count)} ${Number(group.item_count) === 1 ? "item" : "items"}`,
+        ttlHours: timeouts.unpaidOrderTtlHours,
+      }),
+    });
   }
 
   // Then single orders that were never part of a bag.
@@ -344,7 +359,13 @@ async function cancelStaleUnpaid(
       amountGhs,
       ttlHours: timeouts.unpaidOrderTtlHours,
       shopUrl: `${env.app.url}/app/orders/new`,
-    }), now);
+    }), now, {
+      dedupeKey: `order_expired_unpaid:order:${order.id}`,
+      message: whatsappMessages.unpaidCancelled({
+        what: `your order for ${order.product_name}`,
+        ttlHours: timeouts.unpaidOrderTtlHours,
+      }),
+    });
   }
 
   return { orders, groups };
@@ -547,9 +568,12 @@ async function notify(
   payload: Record<string, unknown>,
   template: { subject: string; html: string },
   now: Date,
+  whatsapp: { message: WhatsAppMessage; dedupeKey: string },
 ): Promise<void> {
   let notificationId: string | null = null;
   try {
+    // Its own channel and opt-in; queued whatever the email preference says.
+    await queueWhatsApp({ userId, event, message: whatsapp.message, dedupeKey: whatsapp.dedupeKey });
     notificationId = (await insertNotification({ user_id: userId, channel: "email", event, payload })).id;
     // The in-app notification (the bell) exists regardless of the email
     // preference; "sent" here means the customer has been told through the
