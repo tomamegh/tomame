@@ -8,6 +8,7 @@ import {
   type CatalogShopQuery,
   type CatalogStore,
 } from "@/db/queries/catalog";
+import { CATALOG_CORE_STORES } from "@/config/catalog";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import type { PricingCalculator } from "@/lib/pricing/calculator";
 import {
@@ -173,7 +174,10 @@ export function toShopFacets(rows: readonly CatalogFacetRow[]): ShopFacets {
     departments: of("category")
       .map((r) => ({ value: r.value, count: r.n }))
       .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
-    stores: SHOP_STORES.map((value) => ({ value, count: count("store", value) })),
+    // Amazon and eBay are always offered; a newer store appears once it holds rows.
+    stores: SHOP_STORES.map((value) => ({ value, count: count("store", value) })).filter(
+      (s) => CATALOG_CORE_STORES.includes(s.value) || s.count > 0,
+    ),
     conditions: SHOP_CONDITIONS.map((c) => ({ value: c.value, count: count("condition", c.value) })),
     prices: SHOP_PRICE_BUCKETS.map((bucket) => ({
       value: bucket.index,

@@ -45,6 +45,69 @@ export const GENERIC_STORE_SLUG = "generic";
 /** Plans shared by several stores. */
 const AMAZON_PLAN: ProviderPlanEntry[] = ["scraperapi", "oxylabs", "zyte", "rainforest", "category-map", "platform-html", "structured-data", "llm"];
 const GENERIC_PLAN: ProviderPlanEntry[] = ["zyte", "category-map", "structured-data", "llm"];
+/**
+ * Page sources for every store without its own scraper. Zyte's browser first;
+ * then ScraperAPI's rendered, residential-proxy fetch, which the paid plan
+ * (2026-09-29) makes worth trying on every store, including the ones that block
+ * datacenter traffic.
+ */
+const PAGE_ATTEMPTS: HtmlAttemptName[] = ["zyte-browser", "scraperapi-premium"];
+/**
+ * Stores that ban bots (Target, Best Buy, Home Depot, AliExpress, Temu). Zyte
+ * was banned or timed out after ~20 s on these (measured 2026-09-30), which
+ * spent the whole 25 s budget before anything else ran — and on Target its AI
+ * product reader returned $11,534 for a $45 tumbler. So: ScraperAPI's rendered
+ * residential fetch FIRST, and the price read from the page's own structured
+ * data, never from Zyte's guess.
+ */
+const BLOCKED_PAGE_ATTEMPTS: HtmlAttemptName[] = ["scraperapi-premium", "scraperapi-render"];
+const BLOCKED_PLAN: ProviderPlanEntry[] = ["category-map", "platform-html", "structured-data", "llm"];
+
+/**
+ * Popular stores customers paste from that have no scraper of their own. Named
+ * so the quote says "Fashion Nova" instead of "Online store", and given the
+ * region they ship from so they are priced instead of queued for a human.
+ * `beta`: read by the generic plan, not advertised in "stores we read".
+ */
+const NAMED_STORES: Array<[slug: string, name: string, domains: string[], region: Region, currency: string]> = [
+  ["fashionnova", "Fashion Nova", ["fashionnova.com"], "USA", "USD"],
+  ["nordstrom", "Nordstrom", ["nordstrom.com", "nordstromrack.com"], "USA", "USD"],
+  ["macys", "Macy's", ["macys.com"], "USA", "USD"],
+  ["sephora", "Sephora", ["sephora.com"], "USA", "USD"],
+  ["ulta", "Ulta Beauty", ["ulta.com"], "USA", "USD"],
+  ["gap", "Gap", ["gap.com", "oldnavy.gap.com", "bananarepublic.gap.com"], "USA", "USD"],
+  ["oldnavy", "Old Navy", ["oldnavy.com"], "USA", "USD"],
+  ["lululemon", "lululemon", ["lululemon.com"], "USA", "USD"],
+  ["adidas", "adidas", ["adidas.com"], "USA", "USD"],
+  ["footlocker", "Foot Locker", ["footlocker.com", "champssports.com"], "USA", "USD"],
+  ["victoriassecret", "Victoria's Secret", ["victoriassecret.com"], "USA", "USD"],
+  ["bathandbodyworks", "Bath & Body Works", ["bathandbodyworks.com"], "USA", "USD"],
+  ["apple", "Apple", ["apple.com"], "USA", "USD"],
+  ["kohls", "Kohl's", ["kohls.com"], "USA", "USD"],
+  ["jcpenney", "JCPenney", ["jcpenney.com"], "USA", "USD"],
+  ["dicks", "DICK'S Sporting Goods", ["dickssportinggoods.com"], "USA", "USD"],
+  ["revolve", "Revolve", ["revolve.com"], "USA", "USD"],
+  ["skims", "SKIMS", ["skims.com"], "USA", "USD"],
+  ["fentybeauty", "Fenty Beauty", ["fentybeauty.com"], "USA", "USD"],
+  ["costco", "Costco", ["costco.com"], "USA", "USD"],
+  ["newegg", "Newegg", ["newegg.com"], "USA", "USD"],
+  ["bhphoto", "B&H Photo", ["bhphotovideo.com"], "USA", "USD"],
+  ["zappos", "Zappos", ["zappos.com"], "USA", "USD"],
+  ["urbanoutfitters", "Urban Outfitters", ["urbanoutfitters.com"], "USA", "USD"],
+  ["anthropologie", "Anthropologie", ["anthropologie.com"], "USA", "USD"],
+  ["abercrombie", "Abercrombie & Fitch", ["abercrombie.com", "hollisterco.com"], "USA", "USD"],
+  ["americaneagle", "American Eagle", ["ae.com"], "USA", "USD"],
+  ["carters", "Carter's", ["carters.com"], "USA", "USD"],
+  ["gamestop", "GameStop", ["gamestop.com"], "USA", "USD"],
+  ["wayfair", "Wayfair", ["wayfair.com"], "USA", "USD"],
+  ["chewy", "Chewy", ["chewy.com"], "USA", "USD"],
+  ["asos", "ASOS", ["asos.com"], "UK", "GBP"],
+  ["boohoo", "boohoo", ["boohoo.com"], "UK", "GBP"],
+  ["prettylittlething", "PrettyLittleThing", ["prettylittlething.com"], "UK", "GBP"],
+  ["next", "Next", ["next.co.uk"], "UK", "GBP"],
+  ["currys", "Currys", ["currys.co.uk"], "UK", "GBP"],
+  ["johnlewis", "John Lewis", ["johnlewis.com"], "UK", "GBP"],
+];
 
 export const STORES: StoreDefinition[] = [
   { slug: "amazon", name: "Amazon", domains: ["amazon.com", "a.co", "amzn.to"], region: "USA", currency: "USD", providers: AMAZON_PLAN, status: "live" },
@@ -80,28 +143,32 @@ export const STORES: StoreDefinition[] = [
   },
   {
     slug: "target", name: "Target", domains: ["target.com"], region: "USA", currency: "USD",
-    providers: GENERIC_PLAN, htmlAttempts: ["zyte-browser"], status: "blocked", productPath: /\/p\/.+\/A-\d+/,
+    // Target's price lives only in its product API (target-redsky.ts), read by the scraperapi tier.
+    providers: ["scraperapi", ...BLOCKED_PLAN], htmlAttempts: BLOCKED_PAGE_ATTEMPTS, status: "live", productPath: /\/p\/.+\/A-\d+/,
   },
   {
     slug: "bestbuy", name: "Best Buy", domains: ["bestbuy.com"], region: "USA", currency: "USD",
-    providers: GENERIC_PLAN, htmlAttempts: ["zyte-browser"], status: "blocked", productPath: /\/site\/.+\.p(?:$|\?)|\/site\/\d+\.p/,
+    providers: BLOCKED_PLAN, htmlAttempts: BLOCKED_PAGE_ATTEMPTS, status: "blocked", productPath: /\/site\/.+\.p(?:$|\?)|\/site\/\d+\.p/,
   },
   {
     slug: "homedepot", name: "The Home Depot", domains: ["homedepot.com"], region: "USA", currency: "USD",
-    providers: GENERIC_PLAN, htmlAttempts: ["zyte-browser"], status: "blocked", productPath: /\/p\/.+\/\d+/,
+    providers: BLOCKED_PLAN, htmlAttempts: BLOCKED_PAGE_ATTEMPTS, status: "blocked", productPath: /\/p\/.+\/\d+/,
   },
   {
     slug: "aliexpress", name: "AliExpress", domains: ["aliexpress.com", "aliexpress.us"], region: "CHINA", currency: "USD",
-    providers: GENERIC_PLAN, htmlAttempts: ["zyte-browser"], status: "blocked", productPath: /\/item\/\d+\.html/,
+    providers: BLOCKED_PLAN, htmlAttempts: BLOCKED_PAGE_ATTEMPTS, status: "blocked", productPath: /\/item\/\d+\.html/,
   },
   {
     slug: "temu", name: "Temu", domains: ["temu.com"], region: "CHINA", currency: "USD",
-    providers: GENERIC_PLAN, htmlAttempts: ["zyte-browser"], status: "blocked", productPath: /-g-\d+\.html|goods\.html/,
+    providers: BLOCKED_PLAN, htmlAttempts: BLOCKED_PAGE_ATTEMPTS, status: "blocked", productPath: /-g-\d+\.html|goods\.html/,
   },
   {
     slug: "argos", name: "Argos", domains: ["argos.co.uk"], region: "UK", currency: "GBP",
     providers: GENERIC_PLAN, htmlAttempts: ["direct", "zyte-browser"], status: "beta", productPath: /\/product\/\d+/,
   },
+  ...NAMED_STORES.map(([slug, name, domains, region, currency]): StoreDefinition => ({
+    slug, name, domains, region, currency, providers: GENERIC_PLAN, htmlAttempts: PAGE_ATTEMPTS, status: "beta",
+  })),
 ];
 
 /**
@@ -116,7 +183,7 @@ export const GENERIC_STORE: StoreDefinition = {
   region: null,
   currency: "USD",
   providers: GENERIC_PLAN,
-  htmlAttempts: ["zyte-browser"],
+  htmlAttempts: PAGE_ATTEMPTS,
   status: "beta",
 };
 

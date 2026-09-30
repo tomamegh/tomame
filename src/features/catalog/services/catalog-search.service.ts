@@ -130,17 +130,29 @@ export async function priceHit(calculator: PricingCalculator, hit: CatalogSearch
   };
 }
 
+/** The catalogue row fields the calculator reads. `weight_lbs` is the enrichment's (084). */
+export interface LandedPriceInput {
+  id: string;
+  title: string;
+  price_usd: number | null;
+  currency: string | null;
+  category: string | null;
+  weight_lbs?: number | null;
+}
+
 /**
  * One catalogue row through the calculator, for quantity one, or null when it
  * cannot be priced. Shared by the cards (`priceHit`) and by the stored landed
  * price the shop filters and sorts on (`catalog-landed-price.service.ts`), so
  * the figure a row is ordered by and the figure it prints are struck the same
- * way.
+ * way. A weight the enrichment found (084) is passed as the listed weight.
  */
-export async function strikeLandedTotal(
-  calculator: PricingCalculator,
-  row: { id: string; title: string; price_usd: number | null; currency: string | null; category: string | null },
-): Promise<PricingBreakdown | null> {
+export async function strikeLandedTotal(calculator: PricingCalculator, row: LandedPriceInput): Promise<PricingBreakdown | null> {
+  const weight = row.weight_lbs != null ? Number(row.weight_lbs) : null;
+  return calculateLanded(calculator, row, weight != null && weight > 0 ? weight : null);
+}
+
+async function calculateLanded(calculator: PricingCalculator, row: LandedPriceInput, weightLbs: number | null): Promise<PricingBreakdown | null> {
   const price = row.price_usd != null ? Number(row.price_usd) : null;
   if (price == null || !(price > 0)) return null;
 
@@ -153,6 +165,7 @@ export async function strikeLandedTotal(
         category: row.category,
         productTitle: row.title,
         region: "usa",
+        ...(weightLbs != null ? { weightLbs } : {}),
       },
       null,
     );
@@ -172,6 +185,41 @@ export async function strikeLandedTotal(
     logger.warn("catalog-search: could not price hit", { id: row.id, error: error instanceof Error ? error.message : String(error) });
     return null;
   }
+}
+
+/**
+ * Why the calculator declined a row (084), stored beside the missing figure:
+ *
+ *   no_price      the store listed no price
+ *   needs_weight  it prices with a weight and not without one: the weight
+ *                 enrichment can fix it
+ *   unpriceable   it does not price even with a weight (no pricing group, a
+ *                 broken constant): only an admin can fix it
+ */
+export type LandedDecline = "no_price" | "needs_weight" | "unpriceable";
+
+/**
+ * The weight the decline test probes with. Its figure is NEVER stored or
+ * shown: the only question asked of it is "would a weight make this row
+ * payable", which the calculator answers without our guessing which groups
+ * are weight-priced.
+ */
+const PROBE_WEIGHT_LBS = 1;
+
+export async function strikeLandedFigure(
+  calculator: PricingCalculator,
+  row: LandedPriceInput,
+): Promise<{ breakdown: PricingBreakdown | null; decline: LandedDecline | null }> {
+  const price = row.price_usd != null ? Number(row.price_usd) : null;
+  if (price == null || !(price > 0)) return { breakdown: null, decline: "no_price" };
+
+  const breakdown = await strikeLandedTotal(calculator, row);
+  if (breakdown) return { breakdown, decline: null };
+
+  const hasWeight = row.weight_lbs != null && Number(row.weight_lbs) > 0;
+  if (hasWeight) return { breakdown: null, decline: "unpriceable" };
+  const probe = await calculateLanded(calculator, row, PROBE_WEIGHT_LBS);
+  return { breakdown: null, decline: probe ? "needs_weight" : "unpriceable" };
 }
 
 

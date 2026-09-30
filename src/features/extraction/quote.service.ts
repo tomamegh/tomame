@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger";
 import { REGION_TO_PRICING } from "@/features/extraction/url";
 import type { FxOverride, PricingBreakdown, PricingCalculator } from "@/lib/pricing";
 import { freightCorrectionPatch } from "@/features/pricing/freight-inspection";
+import { reviveRegion } from "./region-revive";
 import type { ExtractionResult, Quote } from "./types";
 
 export interface PriceOverrides {
@@ -45,7 +46,10 @@ export async function priceExtractionWith(
   overrides: PriceOverrides | null,
   fx: FxOverride | null,
 ): Promise<PricedExtraction> {
-  const { product, country } = extraction;
+  const { product } = extraction;
+  // Cached rows written before region inference have no country; the listed
+  // currency answers it now (see region-revive.ts).
+  const { country } = reviveRegion(extraction);
 
   const price = overrides?.itemPriceUsd ?? product.price;
   const currency = overrides?.itemPriceUsd != null ? "USD" : product.currency ?? "USD";
@@ -100,7 +104,7 @@ export async function priceExtraction(
  * internal (its effect is already in the price) and never leaves the server.
  */
 export function customerExtraction<T extends ExtractionResult>(extraction: T): Omit<T, "freight_inspection"> {
-  const copy: T = { ...extraction };
+  const copy: T = { ...reviveRegion(extraction) };
   delete copy.freight_inspection;
   return copy;
 }

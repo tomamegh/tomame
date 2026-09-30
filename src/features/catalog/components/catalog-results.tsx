@@ -76,9 +76,9 @@ export function CatalogIdleState() {
             A head start, not a catalogue
           </p>
           <p className="text-[13px] leading-[1.45] font-medium text-tm-text-2">
-            These are products we have already read and priced from Amazon and
-            eBay. It is a small slice of what is out there, and it grows as
-            people search.
+            These are products we have already read and priced from Amazon,
+            eBay, Walmart, Etsy and Nike. It is a small slice of what is out
+            there, and it grows as people search.
           </p>
         </li>
         <li className="flex flex-col gap-1.5">

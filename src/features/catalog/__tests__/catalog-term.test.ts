@@ -85,10 +85,16 @@ describe("catalogStoreFor", () => {
     expect(catalogStoreFor("eBay")).toBe("ebay");
   });
 
-  it("sends everything else to Amazon, the larger catalogue", () => {
-    // catalog_queries.store accepts only these two. A Walmart paste still earns
-    // the customer similar products, they just come from Amazon.
-    expect(catalogStoreFor("walmart")).toBe("amazon");
+  it("sends Walmart, Etsy and Nike pastes to their own store", () => {
+    expect(catalogStoreFor("walmart")).toBe("walmart");
+    expect(catalogStoreFor("Etsy")).toBe("etsy");
+    expect(catalogStoreFor(" nike ")).toBe("nike");
+  });
+
+  it("sends every other store to Amazon, the larger catalogue", () => {
+    expect(catalogStoreFor("shein")).toBe("amazon");
+    expect(catalogStoreFor("generic")).toBe("amazon");
+    expect(catalogStoreFor("argos")).toBe("amazon");
     expect(catalogStoreFor("amazon")).toBe("amazon");
     expect(catalogStoreFor(null)).toBe("amazon");
     expect(catalogStoreFor(undefined)).toBe("amazon");

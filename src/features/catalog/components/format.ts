@@ -15,10 +15,13 @@ import type { CatalogProduct, CatalogStore } from "../types";
 
 // ── Stores ───────────────────────────────────────────────────────────────────
 
-/** How the two catalogue stores are written in customer-facing copy. */
+/** How the catalogue stores are written in customer-facing copy. */
 export const CATALOG_STORE_LABEL: Record<CatalogStore, string> = {
   amazon: "Amazon",
   ebay: "eBay",
+  walmart: "Walmart",
+  etsy: "Etsy",
+  nike: "Nike",
 };
 
 export function catalogStoreLabel(store: CatalogStore): string {

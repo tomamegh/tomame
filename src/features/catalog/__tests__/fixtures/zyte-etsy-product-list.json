@@ -1,0 +1,99 @@
+{
+  "url": "https://www.etsy.com/search?q=leather+wallet&instant_download=false",
+  "statusCode": 200,
+  "productList": {
+    "breadcrumbs": [
+      {
+        "name": "Gifts",
+        "url": "https://www.etsy.com/featured/hub/gifts?ref=gift_global_nav"
+      },
+      {
+        "name": "Top 100 Halloween Finds",
+        "url": "https://www.etsy.com/r/curated/top-100-halloween-finds?sections=1490897733919&ref=Top100Halloween92826_cat_nav"
+      },
+      {
+        "name": "Home Favorites",
+        "url": "https://www.etsy.com/featured/hub/home-favorites?ref=contentful_promo_cat_nav-4"
+      },
+      {
+        "name": "Fashion Finds",
+        "url": "https://www.etsy.com/featured/hub/fashion-favorites?ref=contentful_promo_cat_nav-5"
+      },
+      {
+        "name": "Vintage",
+        "url": "https://www.etsy.com/r/curated/etsys-best-vintage-finds?sections=1461029776888&narrow=best-vintage-finds&ref=contentful_promo_cat_nav-6"
+      },
+      {
+        "name": "Wedding Guide",
+        "url": "https://www.etsy.com/featured/hub/weddings-hub?ref=contentful_promo_cat_nav-8"
+      },
+      {
+        "name": "Gift Cards",
+        "url": "https://www.etsy.com/giftcards?ref=contentful_promo_cat_nav-9"
+      }
+    ],
+    "products": [
+      {
+        "url": "https://www.etsy.com/listing/1384498535/handmade-trifold-wallet-wallet-for-men?click_key=EupX4HJq0_SONUV1ywlXIJMDf0fd%3ALT22b3c45222e091af1865f5901a3889d99b60d4d9&click_sum=51ce4d9f&ls=a&ga_order=most_relevant&ga_search_type=all&ga_view_type=gallery&ga_search_query=leather+wallet&ref=search_grid-57356-1-1&sr_prefetch=1&pf_from=search&pro=1&frs=1&sts=1",
+        "name": "Handmade Milwaukee Full Grain Leather Men's Trifold Wallet, Personalized Gift, Card Slots",
+        "price": "34.98",
+        "currencyRaw": "$",
+        "currency": "USD",
+        "regularPrice": "58.3",
+        "mainImage": {
+          "url": "https://i.etsystatic.com/10149778/r/il/0a5102/6488185285/il_765x956.6488185285_ev0e.jpg"
+        },
+        "metadata": {
+          "probability": 0.38801043550460435
+        }
+      },
+      {
+        "url": "https://www.etsy.com/listing/547491922/leather-walletwalletman-leather?click_key=EupX4HJq0_SONUV1ywlXIJMDf0fd%3ALTae5f9e33c43d1c138910ff776d105c9fa5c8c0d2&click_sum=56a8771a&ls=a&ga_order=most_relevant&ga_search_type=all&ga_view_type=gallery&ga_search_query=leather+wallet&ref=search_grid-57356-1-2&sr_prefetch=1&pf_from=search&pro=1&etp=1&sts=1",
+        "name": "Leather Wallet\u2022Wallet\u2022Man Leather Wallet\u2022Minimalist Wallet\u2022Personalize Wallet\u2022Leather Anniversary\u2022Slim Leather Wallet\u2022Man Wallet",
+        "price": "32.2",
+        "currencyRaw": "$",
+        "currency": "USD",
+        "regularPrice": "80.5",
+        "mainImage": {
+          "url": "https://i.etsystatic.com/15980284/r/il/2456a5/3164786673/il_765x956.3164786673_roeh.jpg"
+        },
+        "metadata": {
+          "probability": 0.32625507939814113
+        }
+      },
+      {
+        "url": "https://www.etsy.com/listing/719176142/personalized-leather-wallet-minimalist?click_key=EupX4HJq0_SONUV1ywlXIJMDf0fd%3ALT17d3564568f4b1a1581e8e8ccbc743521895849f&click_sum=b1245375&ls=a&ga_order=most_relevant&ga_search_type=all&ga_view_type=gallery&ga_search_query=leather+wallet&ref=search_grid-57356-1-3&sr_prefetch=1&pf_from=search&pro=1&etp=1&sts=1",
+        "name": "Personalized Leather Wallet, Minimalist Wallet, Leather Bifold Wallet, Distressed Leather Slim Bifold Wallet, Fathers Day Gift",
+        "price": "17.32",
+        "currencyRaw": "$",
+        "currency": "USD",
+        "regularPrice": "49.49",
+        "mainImage": {
+          "url": "https://i.etsystatic.com/20986259/r/il/77b57e/2040588415/il_765x956.2040588415_ihvh.jpg"
+        },
+        "metadata": {
+          "probability": 0.30311266478868504
+        }
+      },
+      {
+        "url": "https://www.etsy.com/listing/1241528786/personalized-leather-rfid-wallet?click_key=a4ea83c9-3532-4c9c-ac86-1701d92b42d8%3ALT216e14ad82273a6df2779a116636aa032ed54392&click_sum=3cd87db3&ls=s&ga_order=most_relevant&ga_search_type=all&ga_view_type=gallery&ga_search_query=leather+wallet&ref=search_grid-57357-1-1&sr_prefetch=1&pf_from=search&pro=1&frs=1&etp=1&sts=1&content_source=a4ea83c9-3532-4c9c-ac86-1701d92b42d8%253ALT216e14ad82273a6df2779a116636aa032ed54392",
+        "name": "Personalized Leather RFID Wallet, Engraved Genuine Leather Custom Wallet, Anniversary Gift For Him, Husband, Boyfriend, Men, Father, Dad",
+        "price": "28.0",
+        "currencyRaw": "$",
+        "currency": "USD",
+        "regularPrice": "70.0",
+        "mainImage": {
+          "url": "https://i.etsystatic.com/35016605/r/il/a5f633/4007318605/il_765x956.4007318605_mj36.jpg"
+        },
+        "metadata": {
+          "probability": 0.35268580437879393
+        }
+      }
+    ],
+    "url": "https://www.etsy.com/search?q=leather+wallet&instant_download=false",
+    "metadata": {
+      "dateDownloaded": "2026-09-30T20:31:00Z"
+    },
+    "categoryName": "Try reloading."
+  }
+}

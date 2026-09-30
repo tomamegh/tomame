@@ -17,6 +17,12 @@ vi.mock("../services/scraperapi-search", () => ({
   isScraperApiConfigured: vi.fn(() => true),
 }));
 
+vi.mock("../services/zyte-search", () => ({
+  fetchZyteCatalogSearch: vi.fn(),
+  isZyteConfigured: vi.fn(() => false),
+  isZyteSearchStore: (s: string) => s === "etsy" || s === "nike",
+}));
+
 vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn() }));
 
 import {
@@ -28,6 +34,7 @@ import {
   type CatalogQueryRow,
 } from "@/db/queries/catalog";
 import { fetchCatalogSearch, isScraperApiConfigured } from "../services/scraperapi-search";
+import { fetchZyteCatalogSearch, isZyteConfigured } from "../services/zyte-search";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { CATALOG_JOB } from "@/config/catalog";
 import { budgetPeriodOf, runCatalogScrapeJob } from "../services/catalog-scrape.service";
@@ -76,7 +83,7 @@ describe("runCatalogScrapeJob", () => {
 
     expect(summary.skipped).toBe("budget");
     expect(summary.budget_used).toBe(500);
-    expect(summary.budget_cap).toBe(500);
+    expect(summary.budget_cap).toBe(CATALOG_JOB.monthlyCaps.other);
     expect(claimNextDueQuery).not.toHaveBeenCalled();
     expect(fetchCatalogSearch).not.toHaveBeenCalled();
     expect(incrementBudget).not.toHaveBeenCalled();
@@ -85,15 +92,58 @@ describe("runCatalogScrapeJob", () => {
     );
   });
 
-  it("reads the budget for the run's period with the default cap", async () => {
+  it("reads the budget for the run's period with the deployment's cap (small off production)", async () => {
     vi.mocked(getOrCreateBudget).mockResolvedValue(budget(0));
     vi.mocked(claimNextDueQuery).mockResolvedValue(null);
 
     const summary = await runCatalogScrapeJob(NOW);
 
-    expect(getOrCreateBudget).toHaveBeenCalledWith(CATALOG_JOB.jobName, "2026-09", CATALOG_JOB.defaultMonthlyCap);
+    expect(getOrCreateBudget).toHaveBeenCalledWith(CATALOG_JOB.jobName, "2026-09", CATALOG_JOB.monthlyCaps.other);
+    // A dev row still carrying the old 500 is clamped down to the dev cap.
+    expect(summary.budget_cap).toBe(CATALOG_JOB.monthlyCaps.other);
     expect(summary.skipped).toBe("no_due_query");
     expect(incrementBudget).not.toHaveBeenCalled();
+  });
+
+  it("uses the production cap on tomame.ca, where the row's own cap is the owner's", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://tomame.ca");
+    try {
+      vi.mocked(getOrCreateBudget).mockResolvedValue(budget(0, 5000));
+      vi.mocked(claimNextDueQuery).mockResolvedValue(null);
+      const summary = await runCatalogScrapeJob(NOW);
+      expect(getOrCreateBudget).toHaveBeenCalledWith(CATALOG_JOB.jobName, "2026-09", CATALOG_JOB.monthlyCaps.production);
+      expect(summary.budget_cap).toBe(5000);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("claims only among stores whose vendor is configured and switched on", async () => {
+    vi.mocked(getOrCreateBudget).mockResolvedValue(budget(0));
+    vi.mocked(claimNextDueQuery).mockResolvedValue(null);
+    await runCatalogScrapeJob(NOW);
+    expect(claimNextDueQuery).toHaveBeenLastCalledWith(NOW.toISOString(), CATALOG_JOB.requeryAfterHours, ["amazon", "ebay", "walmart"]);
+
+    vi.mocked(isZyteConfigured).mockReturnValue(true);
+    vi.mocked(isScraperApiConfigured).mockReturnValue(false);
+    await runCatalogScrapeJob(NOW);
+    expect(claimNextDueQuery).toHaveBeenLastCalledWith(NOW.toISOString(), CATALOG_JOB.requeryAfterHours, ["etsy", "nike"]);
+    vi.mocked(isZyteConfigured).mockReturnValue(false);
+  });
+
+  it("sends an Etsy query to Zyte, not ScraperAPI", async () => {
+    vi.mocked(isZyteConfigured).mockReturnValue(true);
+    vi.mocked(getOrCreateBudget).mockResolvedValue(budget(0));
+    vi.mocked(claimNextDueQuery).mockResolvedValue(queryRow({ store: "etsy", query: "leather wallet" }));
+    vi.mocked(fetchZyteCatalogSearch).mockResolvedValue({ rawCount: 0, items: [] });
+    vi.mocked(incrementBudget).mockResolvedValue(budget(1));
+    vi.mocked(upsertCatalogProducts).mockResolvedValue(0);
+
+    await runCatalogScrapeJob(NOW);
+
+    expect(fetchZyteCatalogSearch).toHaveBeenCalledWith("etsy", "leather wallet", { queryId: "q-1", category: "Headphones" });
+    expect(fetchCatalogSearch).not.toHaveBeenCalled();
+    vi.mocked(isZyteConfigured).mockReturnValue(false);
   });
 
   it("does not spend a credit when the vendor is unconfigured", async () => {
@@ -121,12 +171,12 @@ describe("runCatalogScrapeJob", () => {
 
     const summary = await runCatalogScrapeJob(NOW);
 
-    expect(claimNextDueQuery).toHaveBeenCalledWith(NOW.toISOString(), CATALOG_JOB.requeryAfterHours);
+    expect(claimNextDueQuery).toHaveBeenCalledWith(NOW.toISOString(), CATALOG_JOB.requeryAfterHours, ["amazon", "ebay", "walmart"]);
     expect(fetchCatalogSearch).toHaveBeenCalledTimes(1);
     expect(fetchCatalogSearch).toHaveBeenCalledWith("amazon", "wireless earbuds", { queryId: "q-1", category: "Headphones" });
-    expect(incrementBudget).toHaveBeenCalledWith(CATALOG_JOB.jobName, "2026-09", 1, CATALOG_JOB.defaultMonthlyCap);
+    expect(incrementBudget).toHaveBeenCalledWith(CATALOG_JOB.jobName, "2026-09", 1, CATALOG_JOB.monthlyCaps.other);
     expect(markQueryResult).toHaveBeenCalledWith("q-1", { last_result_count: 2, consecutive_failures: 0, is_active: true });
-    expect(summary).toMatchObject({ query_id: "q-1", store: "amazon", query: "wireless earbuds", fetched: 2, upserted: 2, budget_used: 4, budget_cap: 500 });
+    expect(summary).toMatchObject({ query_id: "q-1", store: "amazon", query: "wireless earbuds", fetched: 2, upserted: 2, budget_used: 4, budget_cap: CATALOG_JOB.monthlyCaps.other });
     expect(summary.skipped).toBeUndefined();
     expect(logAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "catalog_scrape_run", entityId: "q-1", metadata: expect.objectContaining({ fetched: 2 }) }));
   });

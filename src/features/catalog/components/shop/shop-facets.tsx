@@ -111,7 +111,7 @@ export function ShopFacetSidebar({
       )}
 
       {ratingsHeld && (
-        <FacetGroup title="Rating" note="Amazon listings">
+        <FacetGroup title="Rating" note="Amazon and Walmart listings">
           {facets.ratings.map((r) => (
             <FacetLink
               key={r.value}

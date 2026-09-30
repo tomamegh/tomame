@@ -87,3 +87,47 @@ export async function fetchEbayProductStructured(productId: string, country: str
   const data = await get<ScraperApiEbayProduct>("ebay/product", { product_id: productId, country }, productId);
   return data?.title ? data : null;
 }
+
+/**
+ * A product PAGE through ScraperAPI's proxy API — any store, not just the
+ * structured Amazon/eBay endpoints above. Paid plan since 2026-09-29 (100k
+ * credits/month), which is what makes this a real tier rather than a luxury.
+ *
+ * `render` runs a headless browser (for pages built client-side); `premium`
+ * routes through residential proxies (for stores that block datacenter IPs —
+ * the ones we had marked "blocked"). Credits per call, from ScraperAPI's
+ * pricing: plain 1, render 10, premium 10, premium + render 25.
+ */
+export async function fetchScraperApiHtml(
+  url: string,
+  timeoutMs: number,
+  opts: { render?: boolean; premium?: boolean; countryCode?: string } = {},
+): Promise<string | null> {
+  const apiKey = env.extraction.scraperApiKey;
+  if (!apiKey) return null;
+  const qs = new URLSearchParams({ api_key: apiKey, url, country_code: opts.countryCode ?? "us" });
+  if (opts.render) qs.set("render", "true");
+  if (opts.premium) qs.set("premium", "true");
+  const t0 = Date.now();
+  try {
+    const res = await fetch(`https://api.scraperapi.com/?${qs.toString()}`, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) {
+      logger.warn("scraperapi: page fetch failed", { host: safeHost(url), status: res.status, render: !!opts.render, premium: !!opts.premium });
+      return null;
+    }
+    const html = await res.text();
+    logger.info("scraperapi: page fetched", { host: safeHost(url), ms: Date.now() - t0, bytes: html.length, render: !!opts.render, premium: !!opts.premium });
+    return html.length > 500 ? html : null;
+  } catch (err) {
+    logger.warn("scraperapi: page fetch exception", { host: safeHost(url), error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
+function safeHost(url: string): string | null {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}

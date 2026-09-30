@@ -262,7 +262,7 @@ export function ShopFilterSheet({
 
           {(facets.ratings.some((r) => r.count > 0) ||
             state.rating != null) && (
-            <SheetGroup title="Rating" note="Amazon listings">
+            <SheetGroup title="Rating" note="Amazon and Walmart listings">
               <Choice
                 type="radio"
                 name="rating"

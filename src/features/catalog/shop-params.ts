@@ -18,6 +18,7 @@
  */
 
 import { BUY_FOR_ME_PATH } from "@/features/extraction/components/buy-for-me-mode";
+import { CATALOG_STORES } from "@/config/catalog";
 import { CATALOG_STORE_LABEL } from "./components/format";
 import type { CatalogCondition, CatalogStore } from "./types";
 
@@ -40,7 +41,7 @@ export const SHOP_SORTS: readonly { value: ShopSort; label: string }[] = [
   { value: "rating", label: "Top rated" },
 ];
 
-export const SHOP_STORES: readonly CatalogStore[] = ["amazon", "ebay"];
+export const SHOP_STORES: readonly CatalogStore[] = CATALOG_STORES;
 
 export const SHOP_CONDITIONS: readonly { value: ShopCondition; label: string }[] = [
   { value: "new", label: "New" },

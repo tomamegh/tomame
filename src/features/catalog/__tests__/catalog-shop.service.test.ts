@@ -172,17 +172,21 @@ describe("stored landed prices", () => {
     expect(await readLandedPriceFreshness(now)).toBe("stale");
   });
 
-  it("strikes every due row through the calculator and stamps declined rows with no figure", async () => {
+  it("strikes every due row through the calculator and stamps declined rows with no figure and a reason", async () => {
     vi.mocked(listCatalogRowsNeedingLandedPrice).mockResolvedValue([
-      { id: "a", title: "A", price_usd: 10, currency: "USD", category: "Headphones" },
-      { id: "b", title: "B", price_usd: null, currency: "USD", category: "Headphones" },
-      { id: "c", title: "C", price_usd: 50, currency: "USD", category: "Mystery" },
+      { id: "a", title: "A", price_usd: 10, currency: "USD", category: "Headphones", weight_lbs: null },
+      { id: "b", title: "B", price_usd: null, currency: "USD", category: "Headphones", weight_lbs: null },
+      { id: "c", title: "C", price_usd: 50, currency: "USD", category: "Mystery", weight_lbs: null },
+      { id: "d", title: "D", price_usd: 30, currency: "USD", category: "Appliances", weight_lbs: null },
+      { id: "e", title: "E", price_usd: 30, currency: "USD", category: "Appliances", weight_lbs: 4 },
     ]);
-    vi.mocked(writeCatalogLandedPrices).mockResolvedValue(3);
-    calculate.mockImplementation(async (input: { category: string; itemPriceUsd: number }) =>
-      input.category === "Mystery"
+    vi.mocked(writeCatalogLandedPrices).mockResolvedValue(5);
+    // Mystery never prices; Appliances prices only with a weight, as a
+    // weight-expression group without a default does.
+    calculate.mockImplementation(async (input: { category: string; itemPriceUsd: number; weightLbs?: number }) =>
+      input.category === "Mystery" || (input.category === "Appliances" && input.weightLbs == null)
         ? { pricing_method: "needs_review", total_ghs: 0, total_pesewas: 0 }
-        : breakdown(input.itemPriceUsd * 20),
+        : breakdown(input.itemPriceUsd * 20 + (input.weightLbs ?? 0)),
     );
 
     const summary = await refreshCatalogLandedPrices(new Date("2026-09-30T12:00:00Z"));
@@ -192,11 +196,14 @@ describe("stored landed prices", () => {
       limit: 1000,
     });
     expect(writeCatalogLandedPrices).toHaveBeenCalledWith([
-      { id: "a", landed_ghs: 200 },
-      { id: "b", landed_ghs: null },
-      { id: "c", landed_ghs: null },
+      { id: "a", landed_ghs: 200, decline: null },
+      { id: "b", landed_ghs: null, decline: "no_price" },
+      { id: "c", landed_ghs: null, decline: "unpriceable" },
+      { id: "d", landed_ghs: null, decline: "needs_weight" },
+      // The enrichment's weight reaches the calculator as the listed weight.
+      { id: "e", landed_ghs: 604, decline: null },
     ]);
-    expect(summary).toEqual({ considered: 3, priced: 1, declined: 2, written: 3 });
+    expect(summary).toEqual({ considered: 5, priced: 2, declined: 3, needs_weight: 1, written: 5 });
   });
 
   it("does nothing when every figure is fresh", async () => {

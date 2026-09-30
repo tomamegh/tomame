@@ -3,15 +3,16 @@ import { logger } from "@/lib/logger";
 import { CATALOG_JOB } from "@/config/catalog";
 import {
   claimNextDueQuery,
-  getOrCreateBudget,
-  incrementBudget,
   markQueryResult,
   upsertCatalogProducts,
   type CatalogStore,
 } from "@/db/queries/catalog";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
-import { fetchCatalogSearch, isScraperApiConfigured } from "./scraperapi-search";
+import { budgetPeriodOf, readJobBudget, spendJobBudget } from "./catalog-budget";
+import { configuredSearchVendors, fetchCatalogStoreSearch, searchableCatalogStores } from "./catalog-vendors";
+
+export { budgetPeriodOf };
 
 export interface CatalogScrapeSummary {
   query_id: string | null;
@@ -28,15 +29,14 @@ export interface CatalogScrapeSummary {
   deactivated?: boolean;
 }
 
-/** 'YYYY-MM' in UTC — the budget period. */
-export function budgetPeriodOf(date: Date): string {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
 /**
  * One run = one search query = at most one vendor request. Built for pg_cron
- * firing it hourly: small, idempotent, and finished well inside the route's
- * 60 s ceiling. Never loops over queries.
+ * firing it every 15 minutes (084): small, idempotent, and finished well
+ * inside the route's 60 s ceiling. Never loops over queries.
+ *
+ * Stores take turns: the claim picks the searchable store whose last claim is
+ * oldest, then that store's most overdue query (084), so a store with many
+ * queries cannot starve one with few.
  *
  *   budget check → claim query → vendor call → budget += 1 → upsert → stamp → audit
  *
@@ -48,7 +48,7 @@ export function budgetPeriodOf(date: Date): string {
  */
 export async function runCatalogScrapeJob(now: Date = new Date()): Promise<CatalogScrapeSummary> {
   const period = budgetPeriodOf(now);
-  const budget = await getOrCreateBudget(CATALOG_JOB.jobName, period, CATALOG_JOB.defaultMonthlyCap);
+  const budget = await readJobBudget(CATALOG_JOB.jobName, CATALOG_JOB.monthlyCaps, period);
 
   const summary: CatalogScrapeSummary = {
     query_id: null,
@@ -64,12 +64,13 @@ export async function runCatalogScrapeJob(now: Date = new Date()): Promise<Catal
     summary.skipped = "budget";
     return finish(summary);
   }
-  if (!isScraperApiConfigured()) {
+  const stores = searchableCatalogStores(configuredSearchVendors());
+  if (stores.length === 0) {
     summary.skipped = "vendor_unconfigured";
     return finish(summary);
   }
 
-  const claimed = await claimNextDueQuery(now.toISOString(), CATALOG_JOB.requeryAfterHours);
+  const claimed = await claimNextDueQuery(now.toISOString(), CATALOG_JOB.requeryAfterHours, stores);
   if (!claimed) {
     summary.skipped = "no_due_query";
     return finish(summary);
@@ -78,14 +79,14 @@ export async function runCatalogScrapeJob(now: Date = new Date()): Promise<Catal
   summary.store = claimed.store;
   summary.query = claimed.query;
 
-  let items: Awaited<ReturnType<typeof fetchCatalogSearch>>["items"] | null = null;
+  let items: Awaited<ReturnType<typeof fetchCatalogStoreSearch>>["items"] | null = null;
   let vendorError: unknown = null;
   try {
-    items = (await fetchCatalogSearch(claimed.store, claimed.query, { queryId: claimed.id, category: claimed.category })).items;
+    items = (await fetchCatalogStoreSearch(claimed.store, claimed.query, { queryId: claimed.id, category: claimed.category })).items;
   } catch (error) {
     vendorError = error;
   } finally {
-    const spent = await incrementBudget(CATALOG_JOB.jobName, period, 1, CATALOG_JOB.defaultMonthlyCap);
+    const spent = await spendJobBudget(CATALOG_JOB.jobName, CATALOG_JOB.monthlyCaps, period);
     summary.budget_used = spent.used;
     summary.budget_cap = spent.cap;
   }

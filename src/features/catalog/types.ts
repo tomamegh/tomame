@@ -15,8 +15,10 @@
  * of the search; the components only choose how to print it.
  */
 
-/** The two stores the pre-scraper knows how to search. */
-export type CatalogStore = "amazon" | "ebay";
+import type { CatalogStore } from "@/config/catalog";
+
+/** The stores the pre-scraper knows how to search (`CATALOG_STORES`). */
+export type { CatalogStore };
 
 export interface CatalogProduct {
   id: string;

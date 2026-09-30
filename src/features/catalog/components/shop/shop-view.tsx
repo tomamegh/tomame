@@ -148,7 +148,7 @@ export async function ShopView({
             </span>
           </h2>
           <p className="max-w-[68ch] text-[13.5px] leading-[1.45] font-medium text-tm-text-2">
-            Already read from Amazon and eBay and priced all in: item, US sales
+            Already read from Amazon, eBay, Walmart, Etsy and Nike and priced all in: item, US sales
             tax, our fee and freight. Open one and we read it again and price it
             live before you pay.
           </p>

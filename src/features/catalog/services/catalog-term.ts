@@ -1,3 +1,5 @@
+import { CATALOG_STORE_SEARCH, isCatalogStore, type CatalogStore } from "@/config/catalog";
+
 /**
  * Turning one pasted product into a search term worth scraping.
  *
@@ -105,16 +107,19 @@ export function deriveCatalogTerm(
 /**
  * Which catalogue store a derived term should be scraped from.
  *
- * `catalog_queries.store` accepts only amazon and ebay, because those are the
- * two the scraper knows how to search. A customer pasting a Walmart link still
- * gets similar products, they just come from Amazon, which is the larger
- * catalogue and the better bet for "something like this".
+ * A paste from a store the catalogue can search (Amazon, eBay, Walmart, Etsy,
+ * Nike: `CATALOG_STORES`, with its switch on in `CATALOG_STORE_SEARCH`) is
+ * searched on that same store: someone who pasted an Etsy listing wants
+ * things like it from Etsy, and every one of those stores orders through the
+ * paste flow. Anything else (SHEIN, Argos, an unregistered shop) goes to
+ * Amazon, the largest catalogue and the better bet for "something like this".
  *
- * ONE STORE PER TERM, not both. Each query costs one vendor call per scrape
- * tick out of a monthly budget the live quote path already shares; enqueuing
- * every pasted product twice would halve how many distinct products the
- * catalogue learns about for no gain in variety.
+ * ONE STORE PER TERM, not all of them. Each query costs one vendor call per
+ * scrape tick out of a monthly budget the live quote path already shares;
+ * enqueuing every pasted product on every store would divide how many
+ * distinct products the catalogue learns about for no gain in variety.
  */
-export function catalogStoreFor(platform: string | null | undefined): "amazon" | "ebay" {
-  return platform?.toLowerCase() === "ebay" ? "ebay" : "amazon";
+export function catalogStoreFor(platform: string | null | undefined): CatalogStore {
+  const slug = platform?.trim().toLowerCase() ?? null;
+  return isCatalogStore(slug) && CATALOG_STORE_SEARCH[slug].enabled ? slug : "amazon";
 }

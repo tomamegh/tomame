@@ -3,6 +3,7 @@ import { EXTRACTION } from "@/config/extraction";
 import { browserlessClient, isBrowserlessConfigured } from "@/lib/browserless/client";
 import { fetchZyteBrowserHtml, isZyteConfigured } from "@/lib/zyte/client";
 import { fetchOxylabsRenderedHtml, isOxylabsConfigured } from "@/lib/oxylabs/client";
+import { fetchScraperApiHtml, isScraperApiConfigured } from "@/lib/scraperapi/client";
 import type { PlatformScraper } from "../scrapers";
 import type { HtmlAttemptName } from "../scrapers/types";
 import type { HtmlFetch } from "./types";
@@ -99,6 +100,39 @@ export async function fetchProductHtml(
       run: async (t) => {
         const html = await fetchOxylabsRenderedHtml(url, t);
         return { success: !!html, html, error: html ? null : "oxylabs returned no page" };
+      },
+    },
+    scraperapi: {
+      name: "scraperapi",
+      source: "scraperapi",
+      configured: isScraperApiConfigured,
+      minRemainingMs: 5_000,
+      retries: 0,
+      run: async (t) => {
+        const html = await fetchScraperApiHtml(url, t);
+        return { success: !!html, html, error: html ? null : "scraperapi returned no page" };
+      },
+    },
+    "scraperapi-premium": {
+      name: "scraperapi-premium",
+      source: "scraperapi",
+      configured: isScraperApiConfigured,
+      minRemainingMs: 6_000,
+      retries: 0,
+      run: async (t) => {
+        const html = await fetchScraperApiHtml(url, t, { premium: true });
+        return { success: !!html, html, error: html ? null : "scraperapi (premium) returned no page" };
+      },
+    },
+    "scraperapi-render": {
+      name: "scraperapi-render",
+      source: "scraperapi",
+      configured: isScraperApiConfigured,
+      minRemainingMs: 10_000,
+      retries: 0,
+      run: async (t) => {
+        const html = await fetchScraperApiHtml(url, t, { render: true, premium: true });
+        return { success: !!html, html, error: html ? null : "scraperapi (render) returned no page" };
       },
     },
     unblock: {

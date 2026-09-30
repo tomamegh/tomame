@@ -56,6 +56,37 @@ export function regionForUrl(url: string): Region | null {
   return findStore(url)?.region ?? null;
 }
 
+/**
+ * Where an UNREGISTERED store ships from, read off what the page and the
+ * address already say (2026-09-30). Registered stores never get here.
+ *
+ * Before this, every store outside `STORES` had no region, so a Fashion Nova
+ * dress priced in dollars on a .com site came back "Not priced yet · this store
+ * region is not supported" — the product read fine, only the country was
+ * missing. The address wins when it names a country we serve; otherwise the
+ * listed currency decides. A country-coded address we do not serve (.ca, .de)
+ * with its own currency stays unknown, which is the honest answer.
+ */
+const UK_TLDS = [".co.uk", ".uk"];
+const CHINA_TLDS = [".cn", ".com.cn"];
+/** Country-coded TLDs of places we do not ship from. A USD price there is not a US store. */
+const FOREIGN_TLD = /\.(ca|au|nz|de|fr|es|it|nl|be|ie|se|no|dk|fi|pl|pt|ch|at|jp|kr|in|ng|gh|za|ke|br|mx|ae|sa|sg|my|ph|hk|tw)$/i;
+
+export function inferRegion(url: string | null | undefined, currency: string | null | undefined): Region | null {
+  const u = url ? parseUrl(url) : null;
+  const host = u?.hostname.toLowerCase() ?? "";
+  const cur = currency?.trim().toUpperCase() || null;
+  if (host && UK_TLDS.some((t) => host.endsWith(t))) return cur === null || cur === "GBP" ? "UK" : null;
+  if (host && CHINA_TLDS.some((t) => host.endsWith(t))) return "CHINA";
+  if (host && FOREIGN_TLD.test(host)) return null;
+  if (cur === "USD") return "USA";
+  if (cur === "GBP") return "UK";
+  if (cur === "CNY" || cur === "RMB") return "CHINA";
+  // A generic .com with no currency on the page: US dollars is the default the
+  // rest of the pipeline already assumes (`defaultCurrencyForUrl`).
+  return cur === null && host ? "USA" : null;
+}
+
 export function defaultCurrencyForUrl(url: string): string {
   const u = parseUrl(url);
   if (!u) return "USD";

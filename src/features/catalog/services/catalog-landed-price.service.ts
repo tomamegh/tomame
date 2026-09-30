@@ -6,7 +6,7 @@ import {
   writeCatalogLandedPrices,
 } from "@/db/queries/catalog";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
-import { strikeLandedTotal } from "./catalog-search.service";
+import { strikeLandedFigure, type LandedDecline } from "./catalog-search.service";
 
 /**
  * The stored landed price the shop filters and sorts on (migration 080).
@@ -51,6 +51,8 @@ export interface LandedPriceRefreshSummary {
   considered: number;
   priced: number;
   declined: number;
+  /** Of the declined, how many only lack a weight. */
+  needs_weight: number;
   written: number;
 }
 
@@ -65,20 +67,23 @@ export async function refreshCatalogLandedPrices(now: Date = new Date()): Promis
     staleBeforeIso: staleBefore.toISOString(),
     limit: CATALOG_LANDED_PRICE.batchSize,
   });
-  const summary: LandedPriceRefreshSummary = { considered: rows.length, priced: 0, declined: 0, written: 0 };
+  const summary: LandedPriceRefreshSummary = { considered: rows.length, priced: 0, declined: 0, needs_weight: 0, written: 0 };
   if (rows.length === 0) return summary;
 
   const calculator = await loadPricingCalculator();
-  const figures: { id: string; landed_ghs: number | null }[] = [];
+  const figures: { id: string; landed_ghs: number | null; decline: LandedDecline | null }[] = [];
   // Sequential on purpose: the first `calculate` lazily loads the FX rate onto
   // the instance and a parallel burst would race that load.
   for (const row of rows) {
-    const breakdown = await strikeLandedTotal(calculator, row);
+    const { breakdown, decline } = await strikeLandedFigure(calculator, row);
     if (breakdown) summary.priced += 1;
     else summary.declined += 1;
-    // A declined row is stamped too, with no figure: "we tried and the engine
-    // said no" is an answer, and leaving it null would re-price it every render.
-    figures.push({ id: row.id, landed_ghs: breakdown ? breakdown.total_ghs : null });
+    if (decline === "needs_weight") summary.needs_weight += 1;
+    // A declined row is stamped too, with no figure and the reason: "we tried
+    // and the engine said no" is an answer, and leaving it null would re-price
+    // it every render. The reason is what the weight enrichment and the
+    // clean-up (084) read.
+    figures.push({ id: row.id, landed_ghs: breakdown ? breakdown.total_ghs : null, decline });
   }
 
   summary.written = await writeCatalogLandedPrices(figures);

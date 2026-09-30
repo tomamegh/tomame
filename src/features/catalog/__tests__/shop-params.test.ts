@@ -39,7 +39,7 @@ describe("parseShopParams", () => {
   });
 
   it("takes stores and conditions repeated or comma-joined, known values only, in a fixed order", () => {
-    const parsed = parseShopParams({ store: ["ebay", "AMAZON", "walmart"], condition: "used,new,broken" });
+    const parsed = parseShopParams({ store: ["ebay", "AMAZON", "target"], condition: "used,new,broken" });
     expect(parsed.stores).toEqual(["amazon", "ebay"]);
     expect(parsed.conditions).toEqual(["new", "used"]);
   });

@@ -10,6 +10,7 @@ import {
 import { TomameCategory, AMAZON_CATEGORY_MAP, EBAY_CATEGORY_MAP } from "@/config/categories";
 import { cleanSpecValue, dimensionsFromSpecs, parseWeightLbs, weightFromSpecs, weightInDimensions } from "../weight";
 import { amazonAsinOf, amazonDomainOf, defaultCurrencyForUrl, ebayItemIdOf } from "../url";
+import { fetchTargetProduct } from "./target-redsky";
 import { cleanString, normalizeImages, parseRating, parseReviewCount } from "../scrapers/parse";
 import { hasRequiredFields } from "./merge";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
@@ -197,11 +198,18 @@ export const scraperApiResolver: ExtractionResolver = {
   defaultConfidence: 0.95,
   needsHtml: false,
   startAfterMs: EXTRACTION.hedgeAfterMs,
-  available: (ctx) => isScraperApiConfigured() && (ctx.platform === "amazon" || ctx.platform === "ebay"),
+  // Target is here too (2026-09-30): its product API, direct or through
+  // ScraperAPI, is the only place its price exists (see target-redsky.ts).
+  available: (ctx) =>
+    ctx.platform === "target" || (isScraperApiConfigured() && (ctx.platform === "amazon" || ctx.platform === "ebay")),
   shouldRun: (ctx) => !hasRequiredFields(ctx.current),
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {
     if (ctx.deadline - Date.now() < 3_000) return { product: {} };
     try {
+      if (ctx.platform === "target") {
+        const product = await fetchTargetProduct(ctx.url, Math.min(15_000, ctx.deadline - Date.now() - 1_000));
+        return { product: product ?? {} };
+      }
       if (ctx.platform === "amazon") {
         const asin = amazonAsinOf(ctx.url);
         if (!asin) return { product: {} };

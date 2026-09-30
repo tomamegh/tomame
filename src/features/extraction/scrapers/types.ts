@@ -6,6 +6,12 @@ export type HtmlAttemptName =
   | "direct"
   | "zyte-browser"
   | "oxylabs-render"
+  /** ScraperAPI proxy, plain GET (1 credit). */
+  | "scraperapi"
+  /** ScraperAPI through residential proxies, no browser (10 credits). 2–9 s on Target, Best Buy, Home Depot. */
+  | "scraperapi-premium"
+  /** ScraperAPI with a headless browser and residential proxies (25 credits). >20 s on those stores. */
+  | "scraperapi-render"
   | "unblock"
   | "unblock+residential"
   | "content+residential"

@@ -20,6 +20,19 @@ import type { CatalogProductInput, CatalogStore } from "@/db/queries/catalog";
  *                       item_price: { value, currency } | { from: { value, currency }, to: {…} },
  *                       seller_name, … }], next_pages }
  *
+ *   GET https://api.scraperapi.com/structured/walmart/search
+ *       ?api_key&query&country_code=us&tld=com
+ *       → { items: [{ id, name, brand, image, url, price, availability, seller,
+ *                     sponsored, badges?, variants?,
+ *                     rating: { average_rating, number_of_reviews } }],
+ *           meta: { page, pages } }
+ *     (docs.scraperapi.com → Walmart Search API; confirmed live 2026-09-30.
+ *     NOTE the envelope is `items`, not `results`. `id` is Walmart's internal
+ *     product id; the numeric item id the ordering path reads lives in the
+ *     `/ip/<slug>/<digits>` URL.)
+ *
+ * Each is an e-commerce request: 5 ScraperAPI credits.
+ *
  * eBay search rows carry the SELLER's rating, not the product's, so rating and
  * review_count are null for eBay — the mapper never invents a value.
  */
@@ -69,8 +82,26 @@ export interface ScraperApiEbaySearchResult {
   [key: string]: unknown;
 }
 
+export interface ScraperApiWalmartSearchResult {
+  id?: string;
+  name?: string;
+  brand?: string;
+  image?: string;
+  url?: string;
+  price?: number | string;
+  availability?: string;
+  seller?: string;
+  sponsored?: boolean;
+  badges?: string[];
+  rating?: { average_rating?: number | string; number_of_reviews?: number | string };
+  variants?: unknown[];
+  [key: string]: unknown;
+}
+
 interface SearchEnvelope<T> {
   results?: T[];
+  /** Walmart's envelope. */
+  items?: T[];
   next_pages?: unknown;
 }
 
@@ -89,7 +120,7 @@ export interface CatalogSearchFetch {
 
 const SYMBOL_CURRENCY: Record<string, string> = { $: "USD", "£": "GBP", "€": "EUR", "¥": "CNY" };
 
-function toNumber(v: unknown): number | null {
+export function toNumber(v: unknown): number | null {
   if (typeof v === "number") return Number.isFinite(v) && v > 0 ? v : null;
   if (typeof v !== "string") return null;
   const m = v.match(/([\d,]+(?:\.\d{1,2})?)/);
@@ -98,7 +129,7 @@ function toNumber(v: unknown): number | null {
 }
 
 /** "USD" / "US $" / "$" → ISO code; unknown → fallback. */
-function currencyOf(raw: unknown, fallback: string): string {
+export function currencyOf(raw: unknown, fallback: string): string {
   const s = cleanString(raw);
   if (!s) return fallback;
   const code = s.toUpperCase().match(/\b(USD|GBP|EUR|CNY|CAD|AUD|JPY)\b/)?.[1];
@@ -110,7 +141,7 @@ function currencyOf(raw: unknown, fallback: string): string {
 }
 
 /** Trim the vendor row to what we did not map, capped so `raw` stays small. */
-function trimRaw(row: Record<string, unknown>, drop: readonly string[]): Record<string, unknown> | null {
+export function trimRaw(row: Record<string, unknown>, drop: readonly string[]): Record<string, unknown> | null {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(row)) {
     if (!drop.includes(k) && v != null && v !== "" && !(typeof v === "object" && Object.keys(v as object).length === 0)) out[k] = v;
@@ -120,7 +151,7 @@ function trimRaw(row: Record<string, unknown>, drop: readonly string[]): Record<
 }
 
 /** Keep the first row per url_hash — Postgres rejects an upsert batch that hits one row twice. */
-function dedupe(items: CatalogProductInput[]): CatalogProductInput[] {
+export function dedupe(items: CatalogProductInput[]): CatalogProductInput[] {
   const seen = new Set<string>();
   return items.filter((it) => {
     const key = it.external_id ? `${it.store}:${it.external_id}` : it.url_hash;
@@ -212,17 +243,81 @@ export function mapEbaySearchResults(results: readonly ScraperApiEbaySearchResul
   return dedupe(items);
 }
 
+/** The numeric Walmart item id in `/ip/<slug>/<digits>` or `/ip/<digits>`: what the ordering path reads. */
+export function walmartItemIdOf(url: string): string | null {
+  try {
+    return new URL(url).pathname.match(/\/ip\/(?:[^/]+\/)?(\d{6,})(?:\/|$)/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Search thumbnails carry `?odnHeight=180&odnWidth=180`; the bare URL is the full image. */
+function walmartImage(raw: unknown): string | null {
+  const url = normalizeImageUrl(raw);
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (!u.hostname.endsWith("walmartimages.com")) return url;
+    u.search = "";
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+export function mapWalmartSearchResults(results: readonly ScraperApiWalmartSearchResult[], ctx: MapContext): CatalogProductInput[] {
+  const items: CatalogProductInput[] = [];
+  for (const r of results) {
+    const title = cleanString(r.name);
+    const url = cleanString(r.url);
+    if (!title || !url) continue;
+    const itemId = walmartItemIdOf(url);
+    // No item id means no product page the paste flow can read: not a product.
+    if (!itemId) continue;
+    const productUrl = `https://www.walmart.com/ip/${itemId}`;
+    // An out-of-stock row cannot be bought; store no price so the shop never
+    // offers it and the clean-up removes it.
+    const outOfStock = /out of stock|unavailable/i.test(cleanString(r.availability) ?? "");
+    const price = outOfStock ? null : toNumber(r.price);
+    items.push({
+      store: "walmart",
+      external_id: itemId,
+      product_url: productUrl,
+      url_hash: hashUrl(productUrl),
+      title,
+      image_url: walmartImage(r.image),
+      price_usd: price,
+      currency: price != null ? "USD" : null,
+      rating: parseRating(r.rating?.average_rating),
+      review_count: parseReviewCount(r.rating?.number_of_reviews),
+      category: ctx.category,
+      query_id: ctx.queryId,
+      // Variants are whole sibling listings with their own URLs: too large for `raw`.
+      raw: trimRaw(r, ["id", "name", "image", "url", "price", "rating", "variants"]),
+    });
+  }
+  return dedupe(items);
+}
+
 // ── vendor call ─────────────────────────────────────────────────────────────
 
 /**
  * One search page for one store. THROWS on any vendor failure — the caller
  * counts the credit either way and records the failure against the query.
  */
+const SEARCH_PATH: Partial<Record<CatalogStore, string>> = {
+  amazon: "amazon/search",
+  ebay: "ebay/search/v2",
+  walmart: "walmart/search",
+};
+
 export async function fetchCatalogSearch(store: CatalogStore, query: string, ctx: MapContext): Promise<CatalogSearchFetch> {
   const apiKey = env.extraction.scraperApiKey;
   if (!apiKey) throw new Error("ScraperAPI is not configured (SCRAPERAPI_API_KEY)");
 
-  const path = store === "amazon" ? "amazon/search" : "ebay/search/v2";
+  const path = SEARCH_PATH[store];
+  if (!path) throw new Error(`ScraperAPI has no search endpoint for ${store}`);
   const qs = new URLSearchParams({ api_key: apiKey, query, country_code: "us", tld: "com" });
   const t0 = Date.now();
 
@@ -233,13 +328,21 @@ export async function fetchCatalogSearch(store: CatalogStore, query: string, ctx
   }
 
   const data = (await res.json()) as SearchEnvelope<unknown> | unknown[];
-  const results = Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : null;
+  const results = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.results)
+      ? data.results
+      : Array.isArray(data?.items)
+        ? data.items
+        : null;
   if (!results) throw new Error(`ScraperAPI ${store} search returned no results array`);
 
   const items =
     store === "amazon"
       ? mapAmazonSearchResults(results as ScraperApiAmazonSearchResult[], ctx)
-      : mapEbaySearchResults(results as ScraperApiEbaySearchResult[], ctx);
+      : store === "walmart"
+        ? mapWalmartSearchResults(results as ScraperApiWalmartSearchResult[], ctx)
+        : mapEbaySearchResults(results as ScraperApiEbaySearchResult[], ctx);
 
   logger.info("catalog: vendor search fetched", { store, query, rawCount: results.length, mapped: items.length, ms: Date.now() - t0 });
   return { items, rawCount: results.length };

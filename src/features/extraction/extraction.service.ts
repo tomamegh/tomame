@@ -5,12 +5,13 @@ import { getCachedExtractionByHash, getExtractionById, upsertExtractionCache } f
 import { enqueueExtractionRequest, type RequestViewer } from "@/db/queries/extraction-requests";
 import { getCategoryPricingMap } from "@/db/queries/pricing-groups";
 import { getScraperForStore, SUPPORTED_STORE_NAMES } from "./scrapers";
-import { storeForUrl, GENERIC_STORE_SLUG, type StoreDefinition } from "./stores";
+import { reviveRegion } from "./region-revive";
+import { storeForUrl, type StoreDefinition } from "./stores";
 import { resolveProduct, continueResolve, type ChainOutcome } from "./resolvers";
 import { hasRequiredFields, hasWeight } from "./resolvers/merge";
 import { inspectFreight } from "@/features/pricing/services/freight-inspector.service";
 import type { FreightInspection } from "@/features/pricing/freight-inspection";
-import { hashUrl, isShortUrl, parseUrl, regionForUrl, resolveShortUrl, type Region } from "./url";
+import { hashUrl, inferRegion, isShortUrl, parseUrl, regionForUrl, resolveShortUrl, type Region } from "./url";
 import type { ExtractionResult } from "./types";
 
 export interface ExtractionResponse extends ExtractionResult {
@@ -125,7 +126,7 @@ async function resolveExtraction(prepared: PreparedUrl, userId: string | null): 
   if (cached) {
     logger.info("extraction: cache hit", { url: prepared.canonicalUrl });
     // The cache query fills legacy rows to the current product shape.
-    return { ...cached.result, extraction_cache_id: cached.id, cached: true };
+    return { ...reviveRegion(cached.result, prepared.canonicalUrl), extraction_cache_id: cached.id, cached: true };
   }
 
   const existing = inflight.get(prepared.urlHash);
@@ -162,14 +163,17 @@ async function weightMattersFor(category: string | null): Promise<boolean> {
 function toResult(prepared: PreparedUrl, outcome: ChainOutcome, sourcesRan: ChainOutcome["ran"]): ExtractionResult {
   const complete = hasRequiredFields(outcome.product);
   const messages = [...outcome.messages];
-  if (prepared.platform === GENERIC_STORE_SLUG) messages.push("We don't know this store yet. Our team will confirm where it ships from before purchase.");
-  else if (!prepared.region) messages.push("This store region is not supported yet. Our team will confirm shipping manually.");
+  // A store outside the registry is priced from what its page says (currency)
+  // and its address, instead of being refused. Only when neither says where it
+  // ships from does the customer see a note, and it is a promise, not a refusal.
+  const region = prepared.region ?? inferRegion(prepared.canonicalUrl, outcome.product.currency);
+  if (!region) messages.push("We'll confirm which country this store ships from and price it for you before we buy.");
   if (prepared.store.status === "blocked" && !complete) messages.push(`${prepared.store.name} blocks automated reading right now. Enter the price and our team will verify it.`);
   return {
     extraction_attempted: true,
     extraction_success: complete,
     platform: prepared.platform,
-    country: prepared.region,
+    country: region,
     product: outcome.product,
     messages,
     errors: messages,

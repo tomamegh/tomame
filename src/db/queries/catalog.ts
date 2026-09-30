@@ -1,5 +1,8 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { CatalogStore } from "@/config/catalog";
+
+export type { CatalogStore };
 
 /**
  * Data access for `catalog_queries`, `catalog_products` and `job_budgets`
@@ -13,8 +16,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 
 // ── Row types ───────────────────────────────────────────────────────────────
-
-export type CatalogStore = "amazon" | "ebay";
 
 export interface CatalogQueryRow {
   id: string;
@@ -61,6 +62,8 @@ export interface CatalogSearchHit {
   review_count: number | null;
   category: string | null;
   last_seen_at: string;
+  /** The enrichment's weight (084), passed to the calculator as the listed weight. */
+  weight_lbs?: number | null;
   rank: number;
   /**
    * Everything that matched, before `limit` cut the page (062). It rides on
@@ -83,15 +86,21 @@ export interface JobBudgetRow {
 // ── catalog_queries ─────────────────────────────────────────────────────────
 
 /**
- * Claim the next due query. The Postgres function stamps `last_run_at` and
- * `next_run_at` in the same statement (`for update skip locked`) so two
- * overlapping runs never take the same row. Null when nothing is due.
+ * Claim the next due query among `stores`. The Postgres function stamps
+ * `last_run_at` and `next_run_at` in the same statement (`for update skip
+ * locked`) so two overlapping runs never take the same row, and takes the
+ * store least recently claimed first (084). Null when nothing is due.
  */
-export async function claimNextDueQuery(nowIso: string, requeryAfterHours: number): Promise<CatalogQueryRow | null> {
+export async function claimNextDueQuery(
+  nowIso: string,
+  requeryAfterHours: number,
+  stores: readonly CatalogStore[],
+): Promise<CatalogQueryRow | null> {
   const client = createAdminClient();
   const { data, error } = await client.rpc("claim_next_catalog_query", {
     p_now: nowIso,
     p_requery_hours: requeryAfterHours,
+    p_stores: [...stores],
   });
 
   if (error) throw new Error(`Failed to claim catalog query: ${error.message}`);
@@ -220,9 +229,11 @@ export async function listCatalogProductsByCategory(input: {
   const { data, error } = await client
     .from("catalog_products")
     .select(
-      "id, store, external_id, title, image_url, product_url, price_usd, currency, rating, review_count, category, last_seen_at",
+      "id, store, external_id, title, image_url, product_url, price_usd, currency, rating, review_count, category, last_seen_at, weight_lbs",
     )
     .eq("category", input.category)
+    // A row the calculator declined is never shown (084): nobody can buy it.
+    .not("landed_ghs", "is", null)
     .order("price_usd", { ascending: true, nullsFirst: false })
     // Ordered by price and then limited, so "show more" grows the page from the
     // cheap end rather than re-shuffling what is already on screen.
@@ -264,10 +275,11 @@ export async function listHotCatalogProducts(input: {
   const { data, error } = await client
     .from("catalog_products")
     .select(
-      "id, store, external_id, title, image_url, product_url, price_usd, currency, rating, review_count, category, last_seen_at",
+      "id, store, external_id, title, image_url, product_url, price_usd, currency, rating, review_count, category, last_seen_at, weight_lbs",
     )
     .gt("price_usd", 0)
     .lte("price_usd", input.maxPriceUsd)
+    .not("landed_ghs", "is", null)
     .order("review_count", { ascending: false, nullsFirst: false })
     // A tiebreaker, so a catalogue whose scraper never captured review counts
     // still comes back in a stable, defensible order rather than whatever the
@@ -386,6 +398,7 @@ export interface CatalogPricingRow {
   price_usd: number | null;
   currency: string | null;
   category: string | null;
+  weight_lbs: number | null;
 }
 
 /**
@@ -399,7 +412,7 @@ export async function listCatalogRowsNeedingLandedPrice(input: {
   const client = createAdminClient();
   const { data, error } = await client
     .from("catalog_products")
-    .select("id, title, price_usd, currency, category")
+    .select("id, title, price_usd, currency, category, weight_lbs")
     .or(`landed_priced_at.is.null,landed_priced_at.lt.${input.staleBeforeIso}`)
     .order("landed_priced_at", { ascending: true, nullsFirst: true })
     .limit(input.limit);
@@ -425,9 +438,12 @@ export async function readOldestLandedPriceStamp(): Promise<string | null | unde
   return row ? row.landed_priced_at : undefined;
 }
 
-/** Write a batch of calculator figures back in one statement. */
+/**
+ * Write a batch of calculator figures back in one statement. `decline` is why
+ * a row has no figure (084); ignored when it has one.
+ */
 export async function writeCatalogLandedPrices(
-  rows: readonly { id: string; landed_ghs: number | null }[],
+  rows: readonly { id: string; landed_ghs: number | null; decline?: "no_price" | "needs_weight" | "unpriceable" | null }[],
 ): Promise<number> {
   if (rows.length === 0) return 0;
   const client = createAdminClient();
@@ -527,4 +543,121 @@ export async function enqueueDerivedQuery(input: {
     throw new Error(`Failed to enqueue a catalogue query: ${error.message}`);
   }
   return (data?.length ?? 0) > 0;
+}
+
+// ── Weight enrichment (084) ─────────────────────────────────────────────────
+
+export interface CatalogEnrichmentRow {
+  id: string;
+  store: CatalogStore;
+  external_id: string | null;
+  product_url: string;
+  title: string;
+  price_usd: number | null;
+  currency: string | null;
+  category: string | null;
+  /** After the claim's increment: 1 on the first attempt. */
+  enrich_attempts: number;
+}
+
+/**
+ * Claim one weight-declined row among `stores` and count the attempt, in one
+ * statement (`for update skip locked`). Null when nothing is due.
+ */
+export async function claimCatalogEnrichment(input: {
+  nowIso: string;
+  retryBeforeIso: string;
+  maxAttempts: number;
+  stores: readonly CatalogStore[];
+}): Promise<CatalogEnrichmentRow | null> {
+  const client = createAdminClient();
+  const { data, error } = await client.rpc("claim_catalog_enrichment", {
+    p_now: input.nowIso,
+    p_retry_before: input.retryBeforeIso,
+    p_max_attempts: input.maxAttempts,
+    p_stores: [...input.stores],
+  });
+
+  if (error) throw new Error(`Failed to claim a catalog row to enrich: ${error.message}`);
+  const rows = (data ?? []) as unknown as CatalogEnrichmentRow[];
+  return rows[0] ?? null;
+}
+
+export async function writeCatalogProductWeight(
+  id: string,
+  weight: { weight_lbs: number; weight_source: "scraperapi" | "oxylabs" | "zyte" },
+): Promise<void> {
+  const client = createAdminClient();
+  const { error } = await client
+    .from("catalog_products")
+    .update({ ...weight, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) throw new Error(`Failed to store a catalog weight: ${error.message}`);
+}
+
+// ── Clean-up (084) ──────────────────────────────────────────────────────────
+
+export interface CatalogCleanupCandidate {
+  id: string;
+  store: CatalogStore;
+  external_id: string | null;
+  product_url: string;
+  image_url: string | null;
+  title: string;
+  price_usd: number | null;
+  landed_ghs: number | null;
+  landed_priced_at: string | null;
+  landed_decline: "no_price" | "needs_weight" | "unpriceable" | null;
+  weight_lbs: number | null;
+  enrich_attempts: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  /** 1 for the copy of a listing that is kept, 2+ for every duplicate of it. */
+  dup_rank: number;
+  /** The enrichment already found no weight for this URL (084 `catalog_weight_misses`). */
+  known_weight_miss: boolean;
+  /** In a bag, an order or a price watch (by url_hash). Never deleted. */
+  referenced: boolean;
+}
+
+export async function listCatalogCleanupCandidates(input: {
+  seenBeforeIso: string;
+  graceBeforeIso: string;
+  maxAttempts: number;
+  enrichableStores: readonly CatalogStore[];
+  maxPlausiblePriceUsd: number;
+  maxEbayTitleChars: number;
+  limit: number;
+}): Promise<CatalogCleanupCandidate[]> {
+  const client = createAdminClient();
+  const { data, error } = await client.rpc("catalog_cleanup_candidates", {
+    p_seen_before: input.seenBeforeIso,
+    p_grace_before: input.graceBeforeIso,
+    p_max_attempts: input.maxAttempts,
+    p_enrichable_stores: [...input.enrichableStores],
+    p_max_plausible_price: input.maxPlausiblePriceUsd,
+    p_max_ebay_title: input.maxEbayTitleChars,
+    p_limit: input.limit,
+  });
+
+  if (error) throw new Error(`Failed to read catalog clean-up candidates: ${error.message}`);
+  return ((data ?? []) as unknown as CatalogCleanupCandidate[]).map((r) => ({
+    ...r,
+    price_usd: r.price_usd == null ? null : Number(r.price_usd),
+    landed_ghs: r.landed_ghs == null ? null : Number(r.landed_ghs),
+    weight_lbs: r.weight_lbs == null ? null : Number(r.weight_lbs),
+  }));
+}
+
+/** Delete these ids, except any that became referenced since they were read. Returns the ids deleted. */
+export async function deleteCatalogProducts(ids: readonly string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const client = createAdminClient();
+  const { data, error } = await client.rpc("delete_catalog_products", { p_ids: [...ids] });
+
+  if (error) throw new Error(`Failed to delete catalog products: ${error.message}`);
+  return ((data ?? []) as unknown as (string | { delete_catalog_products: string })[]).map((r) =>
+    typeof r === "string" ? r : r.delete_catalog_products,
+  );
 }

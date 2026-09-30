@@ -48,10 +48,32 @@ export interface ZyteProduct {
   [key: string]: unknown;
 }
 
+/** One card of a category or search page (`productList.products[]`). Prices are strings. */
+export interface ZyteProductFromList {
+  url?: string;
+  name?: string;
+  price?: string;
+  currency?: string;
+  currencyRaw?: string;
+  regularPrice?: string;
+  productId?: string;
+  mainImage?: { url?: string };
+  metadata?: { probability?: number };
+  [key: string]: unknown;
+}
+
+export interface ZyteProductList {
+  url?: string;
+  products?: ZyteProductFromList[];
+  metadata?: { dateDownloaded?: string };
+  [key: string]: unknown;
+}
+
 interface ExtractResponse {
   url?: string;
   statusCode?: number;
   product?: ZyteProduct;
+  productList?: ZyteProductList;
   browserHtml?: string;
   httpResponseBody?: string;
   /** Error envelope (RFC 7807). */
@@ -124,4 +146,27 @@ export async function fetchZyteBrowserHtml(url: string, timeoutMs: number, signa
   const data = await post({ url, browserHtml: true }, timeoutMs, "browserHtml", signal);
   const html = data?.browserHtml;
   return typeof html === "string" && html.length > 500 ? html : null;
+}
+
+/**
+ * The product cards on a search or category page (Zyte `productList`,
+ * https://docs.zyte.com/zyte-api/usage/extract/index.html). Verified live
+ * 2026-09-30 on Etsy (12 cards, 22 s) and Nike (24 cards, 3 s) search pages.
+ * Null on any failure; the caller decides what that costs.
+ */
+export async function fetchZyteProductList(
+  url: string,
+  opts: { timeoutMs: number; geolocation?: string },
+): Promise<ZyteProductList | null> {
+  const data = await post(
+    {
+      url,
+      productList: true,
+      productListOptions: { extractFrom: "httpResponseBody" },
+      ...(opts.geolocation ? { geolocation: opts.geolocation } : {}),
+    },
+    opts.timeoutMs,
+    "productList",
+  );
+  return data?.productList && Array.isArray(data.productList.products) ? data.productList : null;
 }

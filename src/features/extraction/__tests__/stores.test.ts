@@ -39,11 +39,11 @@ describe("store registry", () => {
     expect(generic.isProductUrl("https://unknown-shop.io/products/hat")).toBe(true);
     expect(generic.isProductUrl("https://unknown-shop.io/")).toBe(false);
     expect(generic.isProductUrl("https://unknown-shop.io/search?q=hat")).toBe(false);
-    expect(generic.htmlAttempts).toEqual(["zyte-browser"]);
+    expect(generic.htmlAttempts).toEqual(["zyte-browser", "scraperapi-premium"]);
   });
 
   it("advertises live stores once each", () => {
-    expect(liveStoreNames()).toEqual(["Amazon", "eBay", "Walmart", "Etsy", "Nike"]);
+    expect(liveStoreNames()).toEqual(["Amazon", "eBay", "Walmart", "Etsy", "Nike", "Target"]);
     expect(SUPPORTED_STORE_NAMES).toEqual(liveStoreNames());
   });
 });

@@ -6,7 +6,7 @@ import type { Region } from "../url";
 export type PartialProduct = Partial<ScrapedProduct>;
 
 /** Which HTML source produced the page. */
-export type HtmlSource = "direct" | "browserless" | "zyte" | "oxylabs";
+export type HtmlSource = "direct" | "browserless" | "zyte" | "oxylabs" | "scraperapi";
 
 export interface HtmlFetch {
   html: string;

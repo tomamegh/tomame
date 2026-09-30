@@ -1,0 +1,65 @@
+{
+  "url": "https://www.nike.com/w?q=running+shoes",
+  "statusCode": 200,
+  "productList": {
+    "products": [
+      {
+        "url": "https://www.nike.com/t/pegasus-plus-2-mens-road-running-shoes-p9ePl101/IM2541-600",
+        "name": "Nike Pegasus Plus 2",
+        "price": "170.0",
+        "currencyRaw": "$",
+        "currency": "USD",
+        "mainImage": {
+          "url": "https://static.nike.com/a/images/t_web_pw_592_v2/f_auto/u_9ddf04c7-2a9a-4d76-add1-d15af8f0263d,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/42f97f9a-266f-4f93-ba35-48eb3bead8f4/NIKE+PEGASUS+PLUS+2.png"
+        },
+        "metadata": {
+          "probability": 0.9673538080607074
+        }
+      },
+      {
+        "url": "https://www.nike.com/t/pegasus-plus-2-womens-road-running-shoes-IApQlsjO/IM2543-600",
+        "name": "Nike Pegasus Plus 2",
+        "price": "170.0",
+        "currencyRaw": "$",
+        "currency": "USD",
+        "mainImage": {
+          "url": "https://static.nike.com/a/images/t_web_pw_592_v2/f_auto/u_9ddf04c7-2a9a-4d76-add1-d15af8f0263d,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/d01528ce-7baf-4e7a-aa8e-87c45085f8c8/W+NIKE+PEGASUS+PLUS+2.png"
+        },
+        "metadata": {
+          "probability": 0.9641000908507209
+        }
+      },
+      {
+        "url": "https://www.nike.com/t/vomero-plus-mens-road-running-shoes-5npsVBwT/HV8150-101",
+        "name": "Nike Vomero Plus",
+        "price": "180.0",
+        "currencyRaw": "$",
+        "currency": "USD",
+        "mainImage": {
+          "url": "https://static.nike.com/a/images/t_web_pw_592_v2/f_auto/u_9ddf04c7-2a9a-4d76-add1-d15af8f0263d,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/692cc079-128e-4d48-b071-3c07835df1a0/NIKE+VOMERO+PLUS.png"
+        },
+        "metadata": {
+          "probability": 0.962079274541054
+        }
+      },
+      {
+        "url": "https://www.nike.com/t/vomero-plus-womens-road-running-shoes-8AH6updi/HV8154-110",
+        "name": "Nike Vomero Plus",
+        "price": "180.0",
+        "currencyRaw": "$",
+        "currency": "USD",
+        "mainImage": {
+          "url": "https://static.nike.com/a/images/t_web_pw_592_v2/f_auto/u_9ddf04c7-2a9a-4d76-add1-d15af8f0263d,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/63cac2f4-1888-47c6-94ee-ce3c4ed200fd/W+NIKE+VOMERO+PLUS.png"
+        },
+        "metadata": {
+          "probability": 0.9648611007000198
+        }
+      }
+    ],
+    "url": "https://www.nike.com/w?q=running+shoes",
+    "metadata": {
+      "dateDownloaded": "2026-09-30T20:31:03Z"
+    },
+    "categoryName": "running shoes"
+  }
+}
