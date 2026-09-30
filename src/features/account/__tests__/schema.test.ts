@@ -127,3 +127,18 @@ describe("notificationPreferencesSchema", () => {
     expect(notificationPreferencesSchema.safeParse({ notify_email: "yes" }).success).toBe(false);
   });
 });
+
+describe("updateAccountProfileSchema is idempotent (prod bug 2026-09-30)", () => {
+  it("accepts its own parsed output, where blanks are already null", () => {
+    const once = updateAccountProfileSchema.parse({ first_name: "Maxwell", last_name: "Hoyte", phone: "0244115870", bio: "" });
+    expect(once.bio).toBeNull();
+    const twice = updateAccountProfileSchema.safeParse(once);
+    expect(twice.success).toBe(true);
+    expect(twice.success && twice.data).toEqual(once);
+  });
+
+  it("treats an explicit null phone as clearing it", () => {
+    const parsed = updateAccountProfileSchema.parse({ phone: null });
+    expect(parsed.phone).toBeNull();
+  });
+});

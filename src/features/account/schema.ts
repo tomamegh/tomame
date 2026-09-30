@@ -26,18 +26,29 @@ import { GHANA_PHONE_RE } from "@/features/addresses/schema";
 export const accountPhoneSchema = z
   .string()
   .trim()
-  .transform((value) => (value === "" ? null : value))
+  .nullable()
+  .transform((value) => (value === "" || value === null ? null : value))
   .refine((value) => value === null || GHANA_PHONE_RE.test(value), {
     message: "Enter a phone number we can reach you on",
   });
 
-/** Free text that may be blanked. Empty string means "remove it", same as above. */
+/**
+ * Free text that may be blanked. Empty string means "remove it", same as above.
+ *
+ * NULL IS ACCEPTED TOO, and means the same. The profile form validates with
+ * this schema in the browser and sends the PARSED result, in which a blank
+ * field has already become `null`; the route then parses it again. A schema
+ * that rejected its own output answered every customer who left "About you"
+ * empty with "Invalid input: expected string, received null" (reported on
+ * prod, 2026-09-30). Parsing twice must give the same answer as parsing once.
+ */
 function nullableText(max: number, tooLong: string) {
   return z
     .string()
     .trim()
     .max(max, tooLong)
-    .transform((value) => (value === "" ? null : value));
+    .nullable()
+    .transform((value) => (value === "" || value === null ? null : value));
 }
 
 export const updateAccountProfileSchema = z
