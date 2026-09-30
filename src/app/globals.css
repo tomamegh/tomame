@@ -1122,6 +1122,16 @@ html[data-tm-splash="force"] .tm-splash {
   width: 4in;
   min-height: 6in;
 }
+/* 72 mm is the printable width of an 80 mm receipt roll. */
+.tm-label-roll80 {
+  width: 72mm;
+  height: 140mm;
+}
+/* Label artwork is a pre-thresholded 1-bit PNG; keep the browser from
+ * smoothing it when it scales, so edges stay hard on a 1-bit head. */
+.tm-label-img {
+  image-rendering: crisp-edges;
+}
 .tm-label svg {
   display: block;
 }

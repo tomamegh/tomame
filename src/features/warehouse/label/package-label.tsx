@@ -41,27 +41,36 @@ function Svg({ markup, className }: { markup: string; className?: string }) {
   return <div className={className} dangerouslySetInnerHTML={{ __html: markup }} />;
 }
 
+/**
+ * The wordmark alone. The globe-and-plane mark is a detailed colour
+ * illustration, and at 203 dpi in 1-bit it printed as a grey smudge. The
+ * wordmark is a pre-thresholded 1-bit PNG (`logo-wordmark-label.png`, pure
+ * black on transparent): the colour WebP dithered to speckle even filtered.
+ */
 function BrandMark({ height }: { height: number }) {
-  return (
-    <span className="flex items-center gap-[0.06in]">
-      <img src="/images/brand/logo-mark.webp" alt="" style={{ height }} className="tm-label-img" />
-      <img src="/images/brand/logo-wordmark.webp" alt="Tomame" style={{ height: height * 0.62 }} className="tm-label-img" />
-    </span>
-  );
+  return <img src="/images/brand/logo-wordmark-label.png" alt="Tomame" style={{ height }} className="tm-label-img" />;
 }
 
 function returnLine(address: WarehouseReturnAddress): string {
   return [address.name, address.line1, address.line2, address.city].filter(Boolean).join(", ");
 }
 
+/**
+ * `format` picks the stock. `4x6` is a thermal LABEL printer's die-cut label
+ * (Zebra, Rollo, Munbyn…). `roll80` is the same design at 72 mm wide — the
+ * printable width of an 80 mm RECEIPT roll (Epson TM, Xprinter…), which cannot
+ * take a 4-inch label at all. Everything is sized to survive 203 dpi.
+ */
 export function Label4x6({
   pkg,
   codes,
   address,
+  format = "4x6",
 }: {
   pkg: WarehousePackage;
   codes: LabelCodes;
   address: WarehouseReturnAddress;
+  format?: "4x6" | "roll80";
 }) {
   const weight = packageWeight(pkg);
   const dims = formatDimensions(pkg);
@@ -73,20 +82,27 @@ export function Label4x6({
   ].filter((m): m is string => !!m);
   const originCode = cityCode(pkg.origin);
   const destCode = cityCode(pkg.destination);
+  // 72 mm instead of 4 in: the fixed-width columns give way to the content.
+  const narrow = format === "roll80";
 
   return (
-    <article className="tm-label tm-label-4x6" aria-label={`Label for ${pkg.reference}`}>
+    <article
+      className={`tm-label ${format === "roll80" ? "tm-label-roll80" : "tm-label-4x6"}`}
+      aria-label={`Label for ${pkg.reference}`}
+    >
       {/* Brand + service */}
       <header className="flex items-stretch border-b-[3px] border-black">
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-[0.04in] px-[0.14in] py-[0.1in]">
-          <BrandMark height={30} />
+          <BrandMark height={narrow ? 17 : 22} />
           <span className="truncate text-[8.5px] leading-tight font-semibold">
             {address.name}
             {address.phone ? ` · ${address.phone}` : ""}
             {address.email ? ` · ${address.email}` : ""}
           </span>
         </div>
-        <div className="flex w-[1.25in] shrink-0 flex-col items-center justify-center bg-black px-[0.06in] text-white">
+        <div
+          className={`flex shrink-0 flex-col items-center justify-center bg-black px-[0.06in] text-white ${narrow ? "w-[0.8in]" : "w-[1.25in]"}`}
+        >
           <span className="font-display text-[26px] leading-none font-extrabold tracking-[-0.02em]">
             {pkg.service === "air" ? "AIR" : "SEA"}
           </span>
@@ -164,23 +180,30 @@ export function Label4x6({
 
       {/* QR + route */}
       <section className="flex border-b-[3px] border-black">
-        <div className="flex w-[1.42in] shrink-0 flex-col items-center justify-center gap-[0.03in] border-r-[3px] border-black p-[0.08in]">
-          <Svg markup={codes.qr} className="size-[1.12in]" />
+        <div
+          className={`flex shrink-0 flex-col items-center justify-center gap-[0.03in] border-r-[3px] border-black p-[0.08in] ${narrow ? "w-[1.18in]" : "w-[1.42in]"}`}
+        >
+          <Svg markup={codes.qr} className={narrow ? "size-[0.98in]" : "size-[1.12in]"} />
           <span className="text-center text-[7px] leading-tight font-extrabold tracking-[0.1em]">SCAN FOR CONTENTS</span>
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-between gap-[0.05in] px-[0.12in] py-[0.08in]">
           <div className="flex items-center justify-between gap-2">
-            <RouteStop code={originCode} name={pkg.origin} />
+            <RouteStop code={originCode} name={narrow ? null : pkg.origin} />
             <span className="flex flex-1 items-center" aria-hidden>
               <span className="h-[2px] flex-1 bg-black" />
               <span className="px-[3px] text-[14px] leading-none">{pkg.service === "air" ? "✈" : "⛴"}</span>
               <span className="h-[2px] flex-1 bg-black" />
             </span>
-            <RouteStop code={destCode} name={pkg.destination} align="right" />
+            <RouteStop code={destCode} name={narrow ? null : pkg.destination} align="right" />
           </div>
           <div className="flex flex-col gap-[2px]">
             {pkg.tracking_number ? (
-              <Meta label={pkg.carrier ? pkg.carrier.toUpperCase() : "WAYBILL"} value={pkg.tracking_number} mono />
+              <Meta
+                label={pkg.carrier ? pkg.carrier.toUpperCase() : "WAYBILL"}
+                value={pkg.tracking_number}
+                mono
+                stacked={narrow}
+              />
             ) : null}
             {pkg.box?.departs_at ? <Meta label="DEPARTS" value={stamp(pkg.box.departs_at)} /> : null}
             <Meta label="SERVICE" value={pkg.service === "air" ? "Air · 5–7 days" : "Sea"} />
@@ -208,30 +231,44 @@ export function Label4x6({
         <span className="line-clamp-1 text-[7.5px] leading-tight font-semibold">
           {returnLine(address) ? `If undeliverable return to ${returnLine(address)}` : "tomame · concierge shopping to Ghana"}
         </span>
-        <span className="shrink-0 text-[7.5px] font-extrabold tracking-[0.08em]">4×6</span>
+        <span className="shrink-0 text-[7.5px] font-extrabold tracking-[0.08em]">
+          {format === "roll80" ? "80 MM" : "4×6"}
+        </span>
       </footer>
     </article>
   );
 }
 
+/**
+ * The small label. QR only: a Code 128 squeezed into one inch prints each bar
+ * about 1.5 dots wide on a 203-dpi head and did not decode in testing, while
+ * the QR at this size did. The reference is printed large for a human instead.
+ */
 export function Label2x1({ pkg, codes }: { pkg: WarehousePackage; codes: LabelCodes }) {
   const weight = packageWeight(pkg);
   return (
     <article className="tm-label tm-label-2x1 flex-row items-stretch" aria-label={`Small label for ${pkg.reference}`}>
-      <div className="flex w-[0.92in] shrink-0 items-center justify-center border-r-2 border-black p-[0.05in]">
-        <Svg markup={codes.qr} className="size-[0.82in]" />
+      <div className="flex w-[0.94in] shrink-0 items-center justify-center border-r-2 border-black p-[0.05in]">
+        <Svg markup={codes.qr} className="size-[0.84in]" />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col justify-between px-[0.07in] py-[0.05in]">
+      <div className="flex min-w-0 flex-1 flex-col justify-between px-[0.07in] py-[0.06in]">
         <div className="flex items-center justify-between gap-1">
-          <img src="/images/brand/logo-wordmark.webp" alt="Tomame" style={{ height: 9 }} className="tm-label-img" />
-          <span className="text-[6.5px] font-extrabold tracking-[0.1em]">{pkg.service === "air" ? "AIR" : "SEA"}</span>
+          <img src="/images/brand/logo-wordmark-label.png" alt="Tomame" style={{ height: 10 }} className="tm-label-img" />
+          <span className="bg-black px-[3px] py-[1px] text-[7px] leading-none font-extrabold tracking-[0.1em] text-white">
+            {pkg.service === "air" ? "AIR" : "SEA"}
+          </span>
         </div>
-        <span className="font-mono text-[15px] leading-none font-extrabold tracking-[0.03em]">{pkg.reference}</span>
-        <Svg markup={codes.barcode} className="h-[0.2in] w-full" />
-        <span className="truncate text-[7px] leading-none font-bold">
-          {pluralise(pkg.unit_count, "item")}
-          {weight.value ? ` · ${formatLbs(weight.value, 1)}` : ""}
-          {!pkg.is_consolidated && pkg.recipients[0]?.name ? ` · ${pkg.recipients[0].name}` : ""}
+        <span className="font-mono text-[14.5px] leading-none font-extrabold whitespace-nowrap">{pkg.reference}</span>
+        <span className="flex flex-col gap-[2px]">
+          <span className="truncate text-[8px] leading-none font-extrabold">
+            {pluralise(pkg.unit_count, "item")}
+            {weight.value ? ` · ${formatLbs(weight.value, 1)}` : ""}
+          </span>
+          <span className="truncate text-[8px] leading-none font-bold">
+            {pkg.is_consolidated
+              ? `${pkg.recipients.length} customers`
+              : (pkg.recipients[0]?.name ?? pkg.destination)}
+          </span>
         </span>
       </div>
     </article>
@@ -288,7 +325,7 @@ export function Manifest({
         </thead>
         <tbody>
           {pkg.lines.map((line, i) => (
-            <tr key={line.id} className="border-b border-black/60 align-top text-[9.5px]">
+            <tr key={line.id} className="border-b border-black align-top text-[9.5px]">
               <td className="px-[0.16in] py-[0.05in] font-bold">{i + 1}</td>
               <td className="py-[0.05in] pr-2">
                 <span className="line-clamp-2 font-semibold">{line.item?.title ?? line.description}</span>
@@ -335,16 +372,24 @@ function Figure({
   );
 }
 
-function RouteStop({ code, name, align = "left" }: { code: string; name: string; align?: "left" | "right" }) {
+function RouteStop({ code, name, align = "left" }: { code: string; name: string | null; align?: "left" | "right" }) {
   return (
     <span className={`flex min-w-0 flex-col ${align === "right" ? "items-end text-right" : ""}`}>
       <span className="font-display text-[22px] leading-none font-extrabold tracking-[-0.01em]">{code}</span>
-      <span className="max-w-[0.9in] truncate text-[7.5px] leading-tight font-bold">{name}</span>
+      {name ? <span className="max-w-[0.9in] truncate text-[7.5px] leading-tight font-bold">{name}</span> : null}
     </span>
   );
 }
 
-function Meta({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Meta({ label, value, mono, stacked }: { label: string; value: string; mono?: boolean; stacked?: boolean }) {
+  if (stacked) {
+    return (
+      <span className="flex flex-col gap-[1px] text-[8.5px] leading-tight">
+        <span className="font-extrabold tracking-[0.1em]">{label}</span>
+        <span className={`font-bold break-all ${mono ? "font-mono" : ""}`}>{value}</span>
+      </span>
+    );
+  }
   return (
     <span className="flex items-baseline justify-between gap-2 text-[8.5px] leading-tight">
       <span className="shrink-0 font-extrabold tracking-[0.1em]">{label}</span>

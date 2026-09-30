@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: "Label" };
 export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MODES: LabelMode[] = ["4x6", "2x1", "manifest"];
+const MODES: LabelMode[] = ["4x6", "roll80", "2x1", "manifest"];
 
 /**
  * `/warehouse/packages/:id/label` — print surface (081). The shell renders no
@@ -53,6 +53,7 @@ export default async function PackageLabelPage({
   return (
     <LabelToolbar pkg={{ id: pkg.id, reference: pkg.reference, status: pkg.status, printed: pkg.label_print_count }} mode={mode}>
       {mode === "4x6" ? <Label4x6 pkg={pkg} codes={codes} address={address} /> : null}
+      {mode === "roll80" ? <Label4x6 pkg={pkg} codes={codes} address={address} format="roll80" /> : null}
       {mode === "2x1" ? <Label2x1 pkg={pkg} codes={codes} /> : null}
       {mode === "manifest" ? <Manifest pkg={pkg} codes={codes} address={address} /> : null}
     </LabelToolbar>

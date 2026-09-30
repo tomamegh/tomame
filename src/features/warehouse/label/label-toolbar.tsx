@@ -23,21 +23,23 @@ import type { PackageStatus } from "../types";
  * copies field, which several thermal drivers ignore.
  */
 
-export type LabelMode = "4x6" | "2x1" | "manifest";
+export type LabelMode = "4x6" | "roll80" | "2x1" | "manifest";
 
 const MODES: Array<{ value: LabelMode; label: string; hint: string }> = [
-  { value: "4x6", label: "Shipping 4×6″", hint: "Goes on top of the box" },
+  { value: "4x6", label: "Shipping 4×6″", hint: "Label printer, 4×6 labels — goes on top of the box" },
+  { value: "roll80", label: "Receipt roll 80 mm", hint: "Receipt printer, 80 mm paper roll" },
   { value: "2x1", label: "Small 2×1″", hint: "For a side, or a parcel inside" },
   { value: "manifest", label: "Manifest", hint: "Contents list for the sleeve" },
 ];
 
-const PAGE: Record<LabelMode, string> = {
-  "4x6": "4in 6in",
-  "2x1": "2in 1in",
-  manifest: "4in 6in",
+const PAGE: Record<LabelMode, { size: string; margin: string; stock: string }> = {
+  "4x6": { size: "4in 6in", margin: "0", stock: "4 × 6 in label" },
+  roll80: { size: "80mm 148mm", margin: "4mm 4mm", stock: "80 mm roll" },
+  "2x1": { size: "2in 1in", margin: "0", stock: "2 × 1 in label" },
+  manifest: { size: "4in 6in", margin: "0", stock: "4 × 6 in label" },
 };
 
-const WIDTH_IN: Record<LabelMode, number> = { "4x6": 4, "2x1": 2, manifest: 4 };
+const WIDTH_IN: Record<LabelMode, number> = { "4x6": 4, roll80: 72 / 25.4, "2x1": 2, manifest: 4 };
 
 export function LabelToolbar({
   pkg,
@@ -90,7 +92,7 @@ export function LabelToolbar({
 
   return (
     <div className="min-h-dvh bg-[#ece7e3]">
-      <style>{`@page { size: ${PAGE[mode]}; margin: 0; }`}</style>
+      <style>{`@page { size: ${PAGE[mode].size}; margin: ${PAGE[mode].margin}; }`}</style>
 
       <div className="tm-safe-top sticky top-0 z-30 border-b border-tm-hairline bg-card/92 backdrop-blur-[12px] print:hidden">
         <div className="mx-auto flex max-w-[980px] flex-wrap items-center gap-3 px-4 py-3">
@@ -177,10 +179,31 @@ export function LabelToolbar({
         </div>
       </div>
 
-      <p className="pb-10 text-center text-[12px] font-medium text-tm-text-3 print:hidden">
-        Printed at actual size. On a thermal printer choose the {PAGE[mode].replace(" ", " × ")} stock; on a laser, print at 100%.
-        {pkg.printed ? ` Printed ${pkg.printed} time${pkg.printed === 1 ? "" : "s"} so far.` : ""}
-      </p>
+      <div className="mx-auto max-w-[560px] px-4 pb-12 print:hidden">
+        <details className="rounded-[16px] border border-tm-border bg-card px-4 py-3 text-[12.5px] leading-[1.55] font-medium text-tm-text-2">
+          <summary className="cursor-pointer text-[13px] font-semibold text-tm-ink">Printing tips</summary>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
+            <li>
+              Print from <b>Chrome or Edge</b> on the computer the printer is plugged into. Safari and phones ignore
+              the paper size and shrink the label.
+            </li>
+            <li>
+              In the print dialog pick the thermal printer, paper <b>{PAGE[mode].stock}</b>, margins <b>None</b>,
+              scale <b>100%</b> (or Default), and untick headers and footers.
+            </li>
+            <li>
+              Set the printer driver&apos;s darkness to about 10–15 of 30 and print a test: the barcode should be crisp
+              black bars with clean white gaps.
+            </li>
+            <li>A 58 mm pocket receipt printer is too narrow for a shipping label — use the 80 mm or 4×6 printer.</li>
+          </ul>
+          {pkg.printed ? (
+            <p className="mt-2 text-tm-text-3">
+              Printed {pkg.printed} time{pkg.printed === 1 ? "" : "s"} so far.
+            </p>
+          ) : null}
+        </details>
+      </div>
     </div>
   );
 }
