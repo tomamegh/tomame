@@ -2,7 +2,7 @@ import type { CheerioAPI } from "cheerio";
 import type { PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, MICROCENTER_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyMicrocenterProduct } from "@/lib/apify/client";
-import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { parseWeightLbs } from "../weight";
 import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition } from "./parse";
 
 type JsonLdNode = Record<string, unknown>;
@@ -232,7 +232,7 @@ export function mapApifyMicrocenterProduct(item: ApifyMicrocenterProduct): Scrap
     category,
     size: specs["Size"] ?? null,
     weight: extractWeight(specs),
-    weight_lbs: parseWeight(extractWeight(specs)),
+    weight_lbs: parseWeightLbs(extractWeight(specs)),
     dimensions: extractDimensions(specs),
     specifications: specs,
     seller: null,
@@ -352,7 +352,7 @@ export class MicrocenterScraper implements PlatformScraper {
       category: mapCategory(crumbs, linkData.category),
       size: specifications["Size"] ?? null,
       weight: extractWeight(specifications),
-      weight_lbs: parseWeight(extractWeight(specifications)),
+      weight_lbs: parseWeightLbs(extractWeight(specifications)),
       dimensions: extractDimensions(specifications),
       specifications,
       seller: null,

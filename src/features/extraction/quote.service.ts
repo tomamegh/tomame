@@ -2,6 +2,7 @@ import { loadPricingCalculator } from "@/features/pricing/services/pricing.servi
 import { logger } from "@/lib/logger";
 import { REGION_TO_PRICING } from "@/features/extraction/url";
 import type { FxOverride, PricingBreakdown, PricingCalculator } from "@/lib/pricing";
+import { freightCorrectionPatch } from "@/features/pricing/freight-inspection";
 import type { ExtractionResult, Quote } from "./types";
 
 export interface PriceOverrides {
@@ -52,6 +53,14 @@ export async function priceExtractionWith(
   if (price == null || price <= 0) return { pricing: null, reason: "Price could not be read from the product page." };
   if (!country) return { pricing: null, reason: "This store region is not supported yet." };
 
+  // The freight inspector's corrections (category / weight / fixed item — never
+  // money), applied only while the inspection matches this exact product and
+  // fixed-freight table. Every scraped-product price goes through here, so the
+  // review page, the quote lock and the order all see the same correction.
+  const correction = extraction.freight_inspection
+    ? freightCorrectionPatch(extraction.freight_inspection, product, calculator.activeFixedFreightItems.map((i) => i.id))
+    : null;
+
   try {
     const pricing = await calculator.calculate({
       itemPrice: price,
@@ -61,6 +70,7 @@ export async function priceExtractionWith(
       weightLbs: product.weight_lbs ?? undefined,
       productTitle: product.title ?? undefined,
       region: REGION_TO_PRICING[country],
+      ...correction,
     }, fx);
     return { pricing, reason: null };
   } catch (err) {
@@ -85,11 +95,21 @@ export async function priceExtraction(
   return priceExtractionWith(await loadPricingCalculator(), extraction, quantity, overrides, fx);
 }
 
+/**
+ * The extraction as a customer may see it: the freight inspector's verdict is
+ * internal (its effect is already in the price) and never leaves the server.
+ */
+export function customerExtraction<T extends ExtractionResult>(extraction: T): Omit<T, "freight_inspection"> {
+  const copy: T = { ...extraction };
+  delete copy.freight_inspection;
+  return copy;
+}
+
 /** A live-rate quote with no lock. The customer-facing routes use `quoteForViewer` instead. */
 export async function buildQuote(
   extraction: ExtractionResult & { extraction_cache_id: string | null },
   quantity = 1,
 ): Promise<Quote> {
   const { pricing, reason } = await priceExtraction(extraction, quantity, null, null);
-  return { ...extraction, pricing, pricing_unavailable_reason: reason };
+  return { ...customerExtraction(extraction), pricing, pricing_unavailable_reason: reason };
 }

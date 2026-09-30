@@ -187,3 +187,97 @@ describe("fast mode with a structured tier", () => {
     expect(out.product.title).toBe("Phone");
   });
 });
+
+describe("ScraperAPI weight and dimensions (prod shapes, 2026-09-30)", () => {
+  const LRM = "\u200E";
+  const HANES_URL = "https://www.amazon.com/dp/B00JUM30SI";
+  const hanes = {
+    name: "Hanes Men's EcoSmart Hoodie",
+    pricing: "$16.00",
+    product_information: {
+      asin: `${LRM}B096KSH2CB`,
+      department: `${LRM}mens`,
+      item_model_number: `${LRM}OP170`,
+      product_dimensions: `${LRM}13 x 8 x 1 inches; 1.49 pounds`,
+    },
+  };
+
+  it("Amazon: reads the weight from the dimensions string and strips U+200E", () => {
+    const p = mapScraperApiAmazon(hanes, HANES_URL);
+    expect(p.weight).toBe("1.49 pounds");
+    expect(p.weight_lbs).toBe(1.49);
+    expect(p.dimensions).toBe("13 x 8 x 1 inches; 1.49 pounds");
+    expect(p.specifications?.["Asin"]).toBe("B096KSH2CB");
+    expect(p.specifications?.["Department"]).toBe("mens");
+  });
+
+  it("Amazon: keeps the requested ASIN and flags the one ScraperAPI answered for", () => {
+    const p = mapScraperApiAmazon(hanes, HANES_URL);
+    expect(p.metadata?.asin).toBe("B00JUM30SI");
+    expect(p.metadata?.returnedAsin).toBe("B096KSH2CB");
+    expect(p.metadata?.asinMismatch).toBe(true);
+    const same = mapScraperApiAmazon({ ...hanes, product_information: { ...hanes.product_information, asin: `${LRM}B00JUM30SI` } }, HANES_URL);
+    expect(same.metadata?.asinMismatch).toBe(false);
+  });
+
+  it("Amazon: the resolver adds a message on an ASIN mismatch", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(hanes) });
+    try {
+      const r = await scraperApiResolver.resolve({
+        url: HANES_URL,
+        platform: SupportedPlatform.AMAZON,
+        scraper: getScraperByPlatform(SupportedPlatform.AMAZON),
+        region: "USA" as const,
+        deadline: Date.now() + 30_000,
+        store: STORES[0]!,
+        signal: new AbortController().signal,
+        getHtml: async () => null,
+        htmlState: () => "unfetched" as const,
+        current: emptyProduct(),
+      });
+      expect(r.messages?.some((m) => m.includes("B096KSH2CB"))).toBe(true);
+      expect(String((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]![0])).toContain("asin=B00JUM30SI");
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  const macbook = (extra: Array<{ label: string; value: string }> = []) => ({
+    title: "Apple MacBook Pro 16 2019",
+    price: { value: 450, currency: "USD" },
+    item_specifics: [
+      { label: "Item Width", value: "14" },
+      { label: "Item Height", value: "3" },
+      { label: "Item Length", value: "18" },
+      { label: "Item Weight", value: "4" },
+      { label: "Screen Size", value: '16"' },
+      ...extra,
+    ],
+  });
+
+  it("eBay: a unitless weight is kept as text, not assumed to be pounds", () => {
+    const p = mapScraperApiEbay(macbook(), "https://www.ebay.com/itm/298105190066");
+    expect(p.weight).toBe("4");
+    expect(p.weight_lbs).toBeNull();
+  });
+
+  it("eBay: a Weight Unit spec makes the bare number usable", () => {
+    const p = mapScraperApiEbay(macbook([{ label: "Weight Unit", value: "lbs" }]), "https://www.ebay.com/itm/298105190066");
+    expect(p.weight_lbs).toBe(4);
+  });
+
+  it("eBay: seller-written units", () => {
+    const withWeight = (value: string) =>
+      mapScraperApiEbay({ title: "x", item_specifics: [{ label: "Item Weight", value }] }, "https://www.ebay.com/itm/1").weight_lbs;
+    expect(withWeight("12 oz")).toBe(0.75);
+    expect(withWeight("500 g")).toBe(1.1);
+    expect(withWeight("1.2 kg")).toBe(2.65);
+    expect(withWeight("2 lbs 4 oz")).toBe(2.25);
+  });
+
+  it("eBay: combines Item Length / Width / Height instead of keeping one number", () => {
+    const p = mapScraperApiEbay(macbook(), "https://www.ebay.com/itm/298105190066");
+    expect(p.dimensions).toBe("18 x 14 x 3");
+  });
+});

@@ -4,6 +4,7 @@ import { REGION_TO_PRICING } from "@/features/extraction/url";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { getOrderById } from "@/features/orders/services/orders.service";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
+import { freightCorrectionPatch } from "@/features/pricing/freight-inspection";
 import { getQuoteLockById } from "@/db/queries/quote-locks";
 import { isLockUnexpired, priceLowerOf } from "@/features/quotes/services/quote-lock.service";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -172,6 +173,15 @@ export async function reviewOrder(
     // long as the lock is unexpired. The FX comes from the lock ROW (never the
     // order's stored breakdown), and the lock fields are kept only when the
     // locked pricing won. An expired or missing lock means today's rate.
+    const calculator = await loadPricingCalculator();
+    // The freight inspector's correction the customer was quoted with (category /
+    // weight / fixed item), kept while the snapshot and fixed-freight table still
+    // match it — unless the admin renamed the product, which re-decides freight.
+    const snapshot = order.extraction_metadata;
+    const correction =
+      snapshot?.freight_inspection && snapshot.product && !input.updates?.product_name
+        ? freightCorrectionPatch(snapshot.freight_inspection, snapshot.product, calculator.activeFixedFreightItems.map((i) => i.id))
+        : null;
     const pricingInput = {
       itemPriceUsd: newPrice,
       quantity: order.quantity,
@@ -179,8 +189,8 @@ export async function reviewOrder(
       weightLbs: order.extraction_metadata?.product?.weight_lbs ?? order.pricing.weight_lbs ?? undefined,
       productTitle: input.updates?.product_name ?? order.product_name,
       region: REGION_TO_PRICING[newCountry],
+      ...correction,
     };
-    const calculator = await loadPricingCalculator();
     const lock = order.pricing.rate_lock_id ? await getQuoteLockById(order.pricing.rate_lock_id) : null;
     const live = await calculator.calculate(pricingInput, null);
     const newPricing =

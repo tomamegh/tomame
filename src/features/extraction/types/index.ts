@@ -1,6 +1,7 @@
 import type { ScrapedProduct } from "../scrapers/types";
 import type { ExtractionSource } from "@/config/extraction";
 import type { PricingBreakdown } from "@/lib/pricing";
+import type { FreightInspection } from "@/features/pricing/freight-inspection";
 
 export type { ScrapedProduct };
 export { withProductDefaults, emptyProduct } from "../scrapers/types";
@@ -28,6 +29,13 @@ export interface ExtractionResult {
    */
   confidence: Partial<Record<keyof ScrapedProduct, number>>;
   fetched_at: string;
+  /**
+   * The freight inspector's verdict on this product's freight decision, made
+   * once at extraction time. Applied by `priceExtractionWith` only while its
+   * `input_key` still matches the product; absent on rows cached before it.
+   * Never shown to customers.
+   */
+  freight_inspection?: FreightInspection;
   /** ID of the extraction_cache row — present when returned from the API */
   extraction_cache_id?: string | null;
   /** True when served from cache rather than a fresh extraction. */

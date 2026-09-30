@@ -7,7 +7,7 @@ import {
   type OxylabsAmazonProduct,
   type OxylabsWalmartProduct,
 } from "@/lib/oxylabs/client";
-import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { dimensionsFromSpecs, parseWeightLbs, weightFromSpecs, weightInDimensions } from "../weight";
 import { amazonAsinOf, amazonDomainOf, defaultCurrencyForUrl } from "../url";
 import { hasRequiredFields } from "./merge";
 import { addVariant, cleanString, normalizeImages, parseRating, parseReviewCount } from "../scrapers/parse";
@@ -39,7 +39,9 @@ export function mapOxylabsAmazon(item: OxylabsAmazonProduct, sourceUrl: string):
     .filter((n): n is string => !!n);
 
   const price = typeof item.price === "number" && item.price > 0 ? item.price : typeof item.price_buybox === "number" && item.price_buybox > 0 ? item.price_buybox : null;
-  const weightText = details.item_weight ?? specs["Item Weight"] ?? null;
+  const amazonDims = item.product_dimensions ?? details.product_dimensions ?? null;
+  // Often the only weight is the tail of "4.1 x 11.4 x 10.1 inches; 1.57 pounds".
+  const weightText = details.item_weight ?? specs["Item Weight"] ?? weightInDimensions(amazonDims);
   const selected = item.variation?.find((v) => v?.selected)?.dimensions;
   const variants: Record<string, string[]> = {};
   for (const v of item.variation ?? []) for (const [k, val] of Object.entries(v?.dimensions ?? {})) addVariant(variants, k, val);
@@ -54,8 +56,8 @@ export function mapOxylabsAmazon(item: OxylabsAmazonProduct, sourceUrl: string):
     brand: item.brand ?? item.manufacturer ?? null,
     size: selected?.Size ?? selected?.["Size Name"] ?? null,
     weight: weightText,
-    weight_lbs: parseWeight(weightText),
-    dimensions: item.product_dimensions ?? details.product_dimensions ?? null,
+    weight_lbs: parseWeightLbs(weightText),
+    dimensions: amazonDims,
     specifications: specs,
     seller: cleanString(item.featured_merchant?.name),
     condition: null,
@@ -86,7 +88,7 @@ export function mapOxylabsWalmart(item: OxylabsWalmartProduct, sourceUrl: string
 
   const breadcrumbs = (item.breadcrumbs ?? []).map((b) => b?.category_name?.trim()).filter((n): n is string => !!n);
   const price = typeof item.price?.price === "number" && item.price.price > 0 ? item.price.price : null;
-  const weightText = Object.entries(specs).find(([k]) => /\bweight\b/i.test(k))?.[1] ?? null;
+  const weight = weightFromSpecs(specs);
   const selected = item.variations?.find((v) => v?.state !== "OUT_OF_STOCK")?.selected_options ?? item.variations?.[0]?.selected_options ?? [];
   const messages: string[] = [];
   if (price == null && item.fulfillment?.out_of_stock) messages.push("Walmart lists this item as out of stock.");
@@ -106,9 +108,9 @@ export function mapOxylabsWalmart(item: OxylabsWalmartProduct, sourceUrl: string
     description: general.description ?? null,
     brand: general.brand ?? null,
     size: specs["Size"] ?? selected.find((o) => /size/i.test(o?.key ?? ""))?.value ?? null,
-    weight: weightText,
-    weight_lbs: parseWeight(weightText),
-    dimensions: Object.entries(specs).find(([k]) => /dimension/i.test(k))?.[1] ?? null,
+    weight: weight.text,
+    weight_lbs: weight.lbs,
+    dimensions: dimensionsFromSpecs(specs),
     specifications: specs,
     seller: cleanString(item.seller?.name),
     condition: null,

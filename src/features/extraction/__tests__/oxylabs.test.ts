@@ -106,3 +106,22 @@ describe("oxylabsResolver", () => {
     expect(oxylabsResolver.startAfterMs).toBeGreaterThan(0);
   });
 });
+
+describe("mapOxylabsAmazon weight in the dimensions string (prod B01LSUQSB0)", () => {
+  it("reads the pounds tail when there is no item_weight", () => {
+    const p = mapOxylabsAmazon(
+      { title: "Revlon One-Step", price: 39.99, product_dimensions: "4.1 x 11.4 x 10.1 inches; 1.57 pounds" } as unknown as OxylabsAmazonProduct,
+      "https://www.amazon.com/dp/B01LSUQSB0",
+    );
+    expect(p.weight).toBe("1.57 pounds");
+    expect(p.weight_lbs).toBe(1.57);
+  });
+
+  it("reads ounces for sub-pound items", () => {
+    const p = mapOxylabsAmazon(
+      { title: "x", product_dimensions: "3.07 x 8.11 x 7.24 inches; 5.93 ounces" } as unknown as OxylabsAmazonProduct,
+      "https://www.amazon.com/dp/B00BPTK8EI",
+    );
+    expect(p.weight_lbs).toBe(0.37);
+  });
+});

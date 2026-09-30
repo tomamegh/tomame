@@ -1,7 +1,7 @@
 import { logger } from "@/lib/logger";
 import { EXTRACTION } from "@/config/extraction";
 import { fetchZyteProduct, isZyteConfigured, type ZyteProduct } from "@/lib/zyte/client";
-import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { dimensionsFromSpecs, weightFromSpecs } from "../weight";
 import { hasRequiredFields } from "./merge";
 import { addVariant, cleanTitle, normalizeImages, parseAggregateRating, parseSchemaAvailability } from "../scrapers/parse";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
@@ -32,7 +32,7 @@ export function mapZyteProduct(item: ZyteProduct, fallbackCurrency: string): Par
   // out-of-stock item often carries only regularPrice — we never quote that.
   const price = num(item.price);
   const currency = price == null ? null : item.currency?.toUpperCase() ?? (item.currencyRaw ? SYMBOL_CURRENCY[item.currencyRaw] : undefined) ?? fallbackCurrency;
-  const weightText = Object.entries(specs).find(([k]) => /\bweight\b/i.test(k))?.[1] ?? null;
+  const weight = weightFromSpecs(specs);
   const rawImages = (item.images ?? []).map((i) => i?.url).filter((u): u is string => !!u);
   const images = normalizeImages(rawImages, item.mainImage?.url ?? null);
   const variant = [item.color, item.size, item.style].filter(Boolean).join(" · ") || null;
@@ -60,9 +60,9 @@ export function mapZyteProduct(item: ZyteProduct, fallbackCurrency: string): Par
     description: item.description ?? (item.features?.length ? item.features.join("\n") : null),
     brand: cleanBrand(item.brand?.name),
     size: item.size ?? null,
-    weight: weightText,
-    weight_lbs: parseWeight(weightText),
-    dimensions: Object.entries(specs).find(([k]) => /dimension/i.test(k))?.[1] ?? null,
+    weight: weight.text,
+    weight_lbs: weight.lbs,
+    dimensions: dimensionsFromSpecs(specs),
     specifications: specs,
     seller: null,
     condition: null,

@@ -1,7 +1,7 @@
 import { logger } from "@/lib/logger";
 import { fetchAmazonProduct, isRainforestConfigured, type RainforestProduct } from "@/lib/rainforest/client";
 import { TomameCategory, AMAZON_CATEGORY_MAP } from "@/config/categories";
-import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { cleanSpecValue, dimensionsFromSpecs, parseWeightLbs, weightFromSpecs, weightInDimensions } from "../weight";
 import { EXTRACTION } from "@/config/extraction";
 import { hasRequiredFields } from "./merge";
 import { amazonAsinOf, amazonDomainOf } from "../url";
@@ -26,8 +26,11 @@ export function mapRainforestProduct(item: RainforestProduct): PartialProduct {
   }
 
   const price = item.buybox_winner?.price;
-  const weightText = item.weight ?? Object.entries(specs).find(([k]) => /weight/i.test(k))?.[1] ?? null;
-  const dimensions = item.dimensions ?? Object.entries(specs).find(([k]) => /dimension/i.test(k))?.[1] ?? null;
+  const dimensions = cleanSpecValue(item.dimensions) ?? dimensionsFromSpecs(specs);
+  const direct = cleanSpecValue(item.weight);
+  const fromSpecs = direct ? null : weightFromSpecs(specs);
+  const weightText = direct ?? fromSpecs?.text ?? weightInDimensions(dimensions);
+  const weightLbs = fromSpecs?.lbs ?? parseWeightLbs(weightText);
   const rawImages = (item.images ?? []).map((i) => i?.link).filter((l): l is string => !!l);
   const images = normalizeImages(rawImages, item.main_image?.link ?? null);
   const bb = item.buybox_winner;
@@ -43,7 +46,7 @@ export function mapRainforestProduct(item: RainforestProduct): PartialProduct {
     category,
     size: specs["Size"] ?? specs["Size Name"] ?? null,
     weight: weightText,
-    weight_lbs: parseWeight(weightText),
+    weight_lbs: weightLbs,
     dimensions,
     specifications: specs,
     seller: cleanString(bb?.fulfillment?.third_party_seller?.name) ?? (bb?.fulfillment?.is_sold_by_amazon === true ? "Amazon" : null),

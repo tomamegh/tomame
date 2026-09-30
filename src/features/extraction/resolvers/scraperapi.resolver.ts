@@ -8,7 +8,7 @@ import {
   type ScraperApiEbayProduct,
 } from "@/lib/scraperapi/client";
 import { TomameCategory, AMAZON_CATEGORY_MAP, EBAY_CATEGORY_MAP } from "@/config/categories";
-import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { cleanSpecValue, dimensionsFromSpecs, parseWeightLbs, weightFromSpecs, weightInDimensions } from "../weight";
 import { amazonAsinOf, amazonDomainOf, defaultCurrencyForUrl, ebayItemIdOf } from "../url";
 import { cleanString, normalizeImages, parseRating, parseReviewCount } from "../scrapers/parse";
 import { hasRequiredFields } from "./merge";
@@ -57,11 +57,14 @@ function humanizeKey(key: string): string {
 }
 
 export function mapScraperApiAmazon(item: ScraperApiAmazonProduct, sourceUrl: string): PartialProduct {
-  const info = item.product_information ?? {};
-  const specs: Record<string, string> = {};
-  for (const [k, v] of Object.entries(info)) {
-    if (k && v && typeof v === "string") specs[humanizeKey(k)] = v;
+  // Amazon prefixes spec values with U+200E ("‎B096KSH2CB"); clean once here.
+  const info: Record<string, string> = {};
+  for (const [k, v] of Object.entries(item.product_information ?? {})) {
+    const clean = cleanSpecValue(v);
+    if (k && clean) info[k] = clean;
   }
+  const specs: Record<string, string> = {};
+  for (const [k, v] of Object.entries(info)) specs[humanizeKey(k)] = v;
 
   const crumbs = (item.product_category ?? "").split("›").map((c) => c.trim()).filter(Boolean);
   let category: TomameCategory | null = null;
@@ -76,7 +79,12 @@ export function mapScraperApiAmazon(item: ScraperApiAmazonProduct, sourceUrl: st
   const { price, currency } = parseMoney(item.pricing, defaultCurrencyForUrl(sourceUrl));
   const rawImages = item.high_res_images?.length ? item.high_res_images : item.images ?? [];
   const images = normalizeImages(rawImages);
-  const weightText = info.item_weight ?? null;
+  const dimensions = info.item_dimensions_d_x_w_x_h ?? info.item_dimensions ?? info.product_dimensions ?? null;
+  // Often the only weight is the tail of "13 x 8 x 1 inches; 1.49 pounds".
+  const weightText =
+    info.item_weight ?? weightInDimensions(info.product_dimensions) ?? weightInDimensions(info.item_dimensions) ?? weightInDimensions(dimensions);
+  const requestedAsin = amazonAsinOf(sourceUrl);
+  const returnedAsin = info.asin ?? null;
 
   return {
     title: item.name ?? null,
@@ -88,8 +96,8 @@ export function mapScraperApiAmazon(item: ScraperApiAmazonProduct, sourceUrl: st
     category,
     size: info.size ?? null,
     weight: weightText,
-    weight_lbs: parseWeight(weightText),
-    dimensions: info.item_dimensions_d_x_w_x_h ?? info.item_dimensions ?? info.product_dimensions ?? null,
+    weight_lbs: parseWeightLbs(weightText),
+    dimensions,
     specifications: specs,
     seller: cleanString(item.sold_by),
     condition: null, // the Amazon structured record does not state condition
@@ -101,7 +109,10 @@ export function mapScraperApiAmazon(item: ScraperApiAmazonProduct, sourceUrl: st
     metadata: {
       images: rawImages,
       breadcrumbs: crumbs,
-      asin: info.asin ?? amazonAsinOf(sourceUrl),
+      // The link's ASIN is the product we quote; ScraperAPI can answer for another variant.
+      asin: requestedAsin ?? returnedAsin,
+      returnedAsin,
+      asinMismatch: !!(requestedAsin && returnedAsin && requestedAsin.toUpperCase() !== returnedAsin.toUpperCase()),
       rating: item.average_rating ?? null,
       reviewCount: item.total_reviews != null ? `${item.total_reviews} reviews` : null,
       availability: item.availability_status ?? null,
@@ -131,7 +142,7 @@ export function mapScraperApiEbay(item: ScraperApiEbayProduct, sourceUrl: string
     }
   }
 
-  const weightText = Object.entries(specs).find(([k]) => /\bweight\b/i.test(k))?.[1] ?? null;
+  const weight = weightFromSpecs(specs);
   const price = typeof item.price?.value === "number" && item.price.value > 0 ? item.price.value : null;
   const images = normalizeImages(item.images ?? []);
 
@@ -144,9 +155,9 @@ export function mapScraperApiEbay(item: ScraperApiEbayProduct, sourceUrl: string
     brand: item.brand ?? specs["Brand"] ?? null,
     category,
     size: specs["Size"] ?? null,
-    weight: weightText,
-    weight_lbs: parseWeight(weightText),
-    dimensions: Object.entries(specs).find(([k]) => /dimension|item (length|height|width)/i.test(k))?.[1] ?? null,
+    weight: weight.text,
+    weight_lbs: weight.lbs,
+    dimensions: dimensionsFromSpecs(specs),
     specifications: specs,
     seller: cleanString(item.seller?.name),
     condition: cleanString(item.condition),
@@ -199,6 +210,12 @@ export const scraperApiResolver: ExtractionResolver = {
         if (!item) return { product: {} };
         const product = mapScraperApiAmazon(item, ctx.url);
         const messages: string[] = [];
+        if (product.metadata?.asinMismatch) {
+          logger.warn("scraperapi: returned a different ASIN", { url: ctx.url, requested: asin, returned: product.metadata.returnedAsin });
+          messages.push(
+            `Amazon returned details for a related listing (${String(product.metadata.returnedAsin)}); size, colour, price and weight may belong to another variant.`,
+          );
+        }
         if (product.price == null && item.availability_status && !/in stock/i.test(item.availability_status)) {
           messages.push(`Amazon lists this item as "${item.availability_status}".`);
         }

@@ -5,6 +5,7 @@ import { REQUIRED_PRICING_CONSTANT_KEYS, collectMissingConstants } from "./requi
 import type { PricingGroupRow } from "@/db/queries/pricing-groups";
 import type { FixedFreightItemRow } from "@/db/queries/fixed-freight-items";
 import { logger } from "@/lib/logger";
+import { matchFixedFreightItem } from "./fixed-freight-match";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,8 +36,21 @@ export interface PricingInput {
   quantity: number;
   category?: string | null;
   weightLbs?: number | null;
-  /** Used to match pre-negotiated fixed-freight items (keywords). */
+  /**
+   * Used to match pre-negotiated fixed-freight items: whole-word keywords, gated
+   * by `category` (see `src/config/fixed-freight-categories.ts`), skipping
+   * accessories ("laptop stand", "case for iPhone 15").
+   */
   productTitle?: string | null;
+  /**
+   * Explicit fixed-freight choice, for an admin correcting a match.
+   * - `undefined`: match on `productTitle` as usual.
+   * - `null`: never use fixed freight; price by category.
+   * - an id: use that active `fixed_freight_items` row, bypassing the keyword,
+   *   category and accessory checks. An id that is not an active item is
+   *   logged and ignored (keyword matching runs), never thrown.
+   */
+  fixedFreightItemId?: string | null;
   /** Region for tax tier lookup. Defaults to "usa". */
   region?: PricingRegion;
 }
@@ -97,6 +111,8 @@ export interface PricingBreakdown {
   weight_lbs?: number;
   weight_source?: "listed" | "default" | "minimum";
   fixed_freight_item?: string;
+  /** Id of the `fixed_freight_items` row behind `fixed_freight_item`. */
+  fixed_freight_item_id?: string;
   review_reason?: string;
   /** Set when the FX in this breakdown is held by a quote lock. ISO timestamp. */
   rate_locked_until?: string;
@@ -165,6 +181,11 @@ export class PricingCalculator {
   /** Inject DB-loaded fixed freight items. Without them, only group pricing applies. */
   setFixedFreightItems(items: FixedFreightItemRow[]): void {
     this.fixedFreightItems = items;
+  }
+
+  /** The active fixed-freight items this calculator prices with (empty when none were loaded). */
+  get activeFixedFreightItems(): readonly FixedFreightItemRow[] {
+    return this.fixedFreightItems ?? [];
   }
 
   private get fxBufferPct(): number {
@@ -267,18 +288,20 @@ export class PricingCalculator {
     };
   }
 
-  /** Longest keyword contained in the title wins. */
-  private matchFixedFreight(title: string | null | undefined): FixedFreightItemRow | null {
-    if (!title || !this.fixedFreightItems?.length) return null;
-    const haystack = title.toLowerCase();
-    let best: { item: FixedFreightItemRow; len: number } | null = null;
-    for (const item of this.fixedFreightItems) {
-      for (const kw of item.keywords) {
-        const k = kw.toLowerCase().trim();
-        if (k && haystack.includes(k) && (!best || k.length > best.len)) best = { item, len: k.length };
-      }
+  /**
+   * The fixed-freight item for this input. An explicit override wins (null =
+   * none); otherwise the title is matched whole-word, gated by category.
+   */
+  private resolveFixedFreight(input: PricingInput): FixedFreightItemRow | null {
+    const items = this.fixedFreightItems ?? [];
+    const override = input.fixedFreightItemId;
+    if (override === null) return null;
+    if (override !== undefined) {
+      const chosen = items.find((i) => i.id === override);
+      if (chosen) return chosen;
+      logger.warn("Fixed freight override is not an active item; matching by keyword", { fixedFreightItemId: override });
     }
-    return best?.item ?? null;
+    return matchFixedFreightItem(items, input.productTitle, input.category)?.item ?? null;
   }
 
   /**
@@ -331,7 +354,7 @@ export class PricingCalculator {
     };
 
     const catPricing = this.lookupCategoryPricing(category);
-    const fixed = this.matchFixedFreight(input.productTitle);
+    const fixed = this.resolveFixedFreight(input);
 
     const tieredFee = (basePct: number, highPct: number | null, threshold: number | null) =>
       threshold != null && highPct != null && subtotalUsd > threshold ? highPct : basePct;
@@ -363,6 +386,7 @@ export class PricingCalculator {
     };
 
     // 1. Pre-negotiated freight for a recognised product (iPhone 15 Pro, PS5, …).
+    //    Only a match the category allows gets here; see resolveFixedFreight.
     if (fixed) {
       const feePct = catPricing
         ? tieredFee(catPricing.value_percentage, catPricing.value_percentage_high, catPricing.value_threshold_usd)
@@ -374,7 +398,7 @@ export class PricingCalculator {
         feePct,
         fixed.freight_rate_ghs * quantity,
         `fixed freight: ${fixed.product_name}${quantity > 1 ? ` × ${quantity}` : ""}`,
-        { fixed_freight_item: fixed.product_name },
+        { fixed_freight_item: fixed.product_name, fixed_freight_item_id: fixed.id },
       );
     }
 

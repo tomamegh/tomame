@@ -6,7 +6,7 @@ import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { EXTRACTION } from "@/config/extraction";
 import { TomameCategory } from "@/config/categories";
-import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { parseWeightLbs } from "../weight";
 import { hasRequiredFields, hasWeight, missingFields } from "./merge";
 import { cleanString, parseRating, parseReviewCount } from "../scrapers/parse";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
@@ -145,7 +145,7 @@ export const llmResolver: ExtractionResolver = {
         brand: parsed.brand,
         category: (parsed.category as TomameCategory | null) ?? null,
         weight: parsed.weight_text,
-        weight_lbs: parseWeight(parsed.weight_text),
+        weight_lbs: parseWeightLbs(parsed.weight_text),
         dimensions: parsed.dimensions_text,
         seller: cleanString(parsed.seller),
         condition: cleanString(parsed.condition),

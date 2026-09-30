@@ -8,6 +8,8 @@ import { getScraperForStore, SUPPORTED_STORE_NAMES } from "./scrapers";
 import { storeForUrl, GENERIC_STORE_SLUG, type StoreDefinition } from "./stores";
 import { resolveProduct, continueResolve, type ChainOutcome } from "./resolvers";
 import { hasRequiredFields, hasWeight } from "./resolvers/merge";
+import { inspectFreight } from "@/features/pricing/services/freight-inspector.service";
+import type { FreightInspection } from "@/features/pricing/freight-inspection";
 import { hashUrl, isShortUrl, parseUrl, regionForUrl, resolveShortUrl, type Region } from "./url";
 import type { ExtractionResult } from "./types";
 
@@ -178,6 +180,36 @@ function toResult(prepared: PreparedUrl, outcome: ChainOutcome, sourcesRan: Chai
   };
 }
 
+/**
+ * Run the freight inspector (once per product, before the first cache write)
+ * and attach its verdict. Never throws: the inspector fails open itself, and
+ * anything that escapes it just means this product prices deterministically.
+ */
+async function withFreightInspection(result: ExtractionResult, url: string): Promise<ExtractionResult> {
+  try {
+    const inspection = await inspectFreight(result, { url });
+    return inspection ? { ...result, freight_inspection: inspection } : result;
+  } catch (err) {
+    logger.warn("extraction: freight inspection threw", { url, error: err instanceof Error ? err.message : String(err) });
+    return result;
+  }
+}
+
+/** True when enrichment left every fact the inspector looked at unchanged. */
+function sameFreightFacts(a: ExtractionResult["product"], b: ExtractionResult["product"]): boolean {
+  return a.title === b.title && a.category === b.category && a.weight_lbs === b.weight_lbs && a.price === b.price && a.currency === b.currency;
+}
+
+async function reinspectAfterEnrichment(
+  previous: FreightInspection | undefined,
+  before: ExtractionResult["product"],
+  updated: ExtractionResult,
+  url: string,
+): Promise<ExtractionResult> {
+  if (previous && sameFreightFacts(before, updated.product)) return { ...updated, freight_inspection: previous };
+  return withFreightInspection(updated, url);
+}
+
 async function performExtraction(prepared: PreparedUrl, userId: string | null): Promise<FreshExtraction> {
   const { canonicalUrl, urlHash, platform, region, store } = prepared;
   const chainInput = { url: canonicalUrl, platform, region, store };
@@ -185,7 +217,9 @@ async function performExtraction(prepared: PreparedUrl, userId: string | null): 
   // Fast mode: answer as soon as title + price + currency are known. Weight
   // (and anything else the paid tiers add) is filled in by `enrich` below.
   const outcome = await resolveProduct({ ...chainInput, stopWhenRequired: true });
-  const result = toResult(prepared, outcome, outcome.ran);
+  // Inspected before the first cache write, so the review page never renders an
+  // uninspected freight decision for a fresh product.
+  const result = await withFreightInspection(toResult(prepared, outcome, outcome.ran), canonicalUrl);
   const complete = result.extraction_success;
 
   logger.info("extraction: done", {
@@ -220,7 +254,12 @@ async function performExtraction(prepared: PreparedUrl, userId: string | null): 
           const gained = (Object.keys(enriched.fieldSources) as (keyof typeof enriched.fieldSources)[])
             .filter((k) => enriched.fieldSources[k] !== outcome.fieldSources[k]);
           logger.info("extraction: enrichment done", { url: canonicalUrl, ran: enriched.ran, gained, ms: Date.now() - t0 });
-          const updated = toResult(prepared, enriched, [...outcome.ran, ...enriched.ran]);
+          const updated = await reinspectAfterEnrichment(
+            result.freight_inspection,
+            outcome.product,
+            toResult(prepared, enriched, [...outcome.ran, ...enriched.ran]),
+            canonicalUrl,
+          );
           await upsertExtractionCache({
             urlHash,
             productUrl: canonicalUrl,

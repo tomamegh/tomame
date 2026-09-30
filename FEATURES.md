@@ -31,6 +31,7 @@
 - [x] Admin-configurable exchange rates (USD/GHS, GBP/GHS, CNY/GHS)
 - [x] Admin-configurable service fee percentage
 - [x] Real-time price breakdown display
+- [x] Freight accuracy guard ("freight inspector"): once per product at extraction time, Claude Haiku checks the calculator's freight decision against the product facts and may correct only the calculator's inputs (category, weight, fixed-freight item — each validated against an allowed set); the normal calculator then prices it. Never outputs money, never shows customers a review state, fails open to deterministic pricing (2.5 s deadline). Not a recommendation system.
 
 ### 4. Payment Integration - Paystack (MVP) ✅
 - [x] Full pre-payment requirement

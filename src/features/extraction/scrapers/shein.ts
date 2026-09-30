@@ -2,7 +2,7 @@ import type { CheerioAPI } from "cheerio";
 import type { HtmlAttemptName, PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, SHEIN_CATEGORY_MAP } from "@/config/categories";
 import type { ApifySheinProduct } from "@/lib/apify/client";
-import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { parseWeightLbs } from "../weight";
 import { addVariant, normalizeImages, parseAggregateRating, parseRating, parseReviewCount } from "./parse";
 
 type JsonLdNode = Record<string, unknown>;
@@ -415,7 +415,7 @@ export class SheinScraper implements PlatformScraper {
       category: extractCategoryFromBreadcrumb($, jsonLd),
       size: extractSelectedSize($) ?? specifications["Size"] ?? null,
       weight: extractWeight(specifications),
-      weight_lbs: parseWeight(extractWeight(specifications)),
+      weight_lbs: parseWeightLbs(extractWeight(specifications)),
       dimensions: extractDimensions(specifications),
       specifications,
       seller: null,

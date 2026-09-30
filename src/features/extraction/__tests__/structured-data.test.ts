@@ -111,3 +111,21 @@ describe("pageToText (LLM input)", () => {
     expect(pageToText(big, 1_000).length).toBeLessThanOrEqual(1_000);
   });
 });
+
+describe("JSON-LD weight units", () => {
+  const product = (weight: unknown) => extractFromJsonLd([{ "@type": "Product", name: "x", weight } as never]);
+
+  it("does not assume pounds when the QuantitativeValue has no unit", () => {
+    const p = product({ "@type": "QuantitativeValue", value: "4" });
+    expect(p.weight).toBe("4");
+    expect(p.weight_lbs).toBeNull();
+  });
+
+  it("converts ounces, pounds and kilograms", () => {
+    expect(product({ "@type": "QuantitativeValue", value: "12", unitCode: "ONZ" }).weight_lbs).toBe(0.75);
+    expect(product({ "@type": "QuantitativeValue", value: "2", unitCode: "LBR" }).weight_lbs).toBe(2);
+    expect(product({ "@type": "QuantitativeValue", value: "1.2", unitText: "kg" }).weight_lbs).toBe(2.65);
+    expect(product("8 oz").weight_lbs).toBe(0.5);
+    expect(product("8").weight_lbs).toBeNull();
+  });
+});

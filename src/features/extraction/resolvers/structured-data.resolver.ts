@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import { logger } from "@/lib/logger";
-import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { parseWeightLbs, unitOf } from "../weight";
 import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition } from "../scrapers/parse";
 import type { PartialProduct, ExtractionResolver, ResolveContext, ResolverResult } from "./types";
 
@@ -131,13 +131,14 @@ export function extractFromJsonLd(nodes: Node[]): PartialProduct {
     const value = num(w.value);
     const unit = str(w.unitCode ?? w.unitText) ?? "";
     if (value) {
-      const unitWord = /KGM|kg/i.test(unit) ? "kg" : /GRM|^g$/i.test(unit) ? "g" : /ONZ|oz/i.test(unit) ? "oz" : "lb";
-      out.weight = `${value} ${unitWord}`;
-      out.weight_lbs = parseWeight(out.weight);
+      // No stated unit → keep the number as text; never assume pounds.
+      const unitWord = unitOf(unit);
+      out.weight = unitWord ? `${value} ${unitWord}` : String(value);
+      out.weight_lbs = parseWeightLbs(String(value), unitWord);
     }
   } else if (typeof weight === "string") {
     out.weight = weight;
-    out.weight_lbs = parseWeight(weight);
+    out.weight_lbs = parseWeightLbs(weight);
   }
 
   const specs: Record<string, string> = {};

@@ -2,7 +2,7 @@ import type { CheerioAPI } from "cheerio";
 import type { PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, AMAZON_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyAmazonProduct } from "@/lib/apify/client";
-import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { parseWeightLbs } from "../weight";
 import { amazonAsinOf, defaultCurrencyForUrl } from "../url";
 import { addVariant, cleanString, normalizeImages, parseRating, parseReviewCount } from "./parse";
 
@@ -262,7 +262,7 @@ export function mapApifyAmazonProduct(item: ApifyAmazonProduct, sourceUrl: strin
     category,
     size: specs["Size Name"] ?? null,
     weight: extractWeight(specs),
-    weight_lbs: parseWeight(extractWeight(specs)),
+    weight_lbs: parseWeightLbs(extractWeight(specs)),
     dimensions: extractDimensions(specs),
     specifications: specs,
     seller: cleanString(item.soldBy),
@@ -333,7 +333,7 @@ export class AmazonScraper implements PlatformScraper {
       category: extractCategory($),
       size: extractSelectedSize($),
       weight: extractWeight(specifications),
-      weight_lbs: parseWeight(extractWeight(specifications)),
+      weight_lbs: parseWeightLbs(extractWeight(specifications)),
       dimensions: extractDimensions(specifications),
       specifications,
       seller: extractSeller($),

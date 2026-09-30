@@ -2,7 +2,7 @@ import type { CheerioAPI } from "cheerio";
 import type { HtmlAttemptName, PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, EBAY_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyEbayProduct } from "@/lib/apify/client";
-import { parseWeight } from "@/features/pricing/services/weight-parser";
+import { dimensionsFromSpecs, weightFromSpecs } from "../weight";
 import { ebayItemIdOf } from "../url";
 import { addVariant, cleanString, normalizeImages } from "./parse";
 
@@ -172,19 +172,6 @@ function extractCategory($: CheerioAPI): TomameCategory | null {
   return null;
 }
 
-function extractWeight(specs: Record<string, string>): string | null {
-  for (const key of Object.keys(specs)) {
-    if (/\b(item\s+)?weight\b/i.test(key)) return specs[key] ?? null;
-  }
-  return null;
-}
-
-function extractDimensions(specs: Record<string, string>): string | null {
-  for (const key of Object.keys(specs)) {
-    if (/dimension|size/i.test(key)) return specs[key] ?? null;
-  }
-  return null;
-}
 
 export function mapApifyEbayProduct(item: ApifyEbayProduct): ScrapedProduct {
   const specs: Record<string, string> = {};
@@ -242,9 +229,9 @@ export function mapApifyEbayProduct(item: ApifyEbayProduct): ScrapedProduct {
     brand,
     category,
     size: specs["Size"] ?? null,
-    weight: extractWeight(specs),
-    weight_lbs: parseWeight(extractWeight(specs)),
-    dimensions: extractDimensions(specs),
+    weight: weightFromSpecs(specs).text,
+    weight_lbs: weightFromSpecs(specs).lbs,
+    dimensions: dimensionsFromSpecs(specs),
     specifications: specs,
     seller: cleanString(seller),
     condition: cleanString(item.condition ?? specs["Condition"]),
@@ -308,9 +295,9 @@ export class EbayScraper implements PlatformScraper {
       brand: extractBrand($, specifications),
       category: extractCategory($),
       size: specifications["Size"] ?? null,
-      weight: extractWeight(specifications),
-      weight_lbs: parseWeight(extractWeight(specifications)),
-      dimensions: extractDimensions(specifications),
+      weight: weightFromSpecs(specifications).text,
+      weight_lbs: weightFromSpecs(specifications).lbs,
+      dimensions: dimensionsFromSpecs(specifications),
       specifications,
       seller: cleanString(seller),
       condition: cleanString(condition),
