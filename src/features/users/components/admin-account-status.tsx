@@ -16,7 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { AdminBadge } from "@/components/layout/admin";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 
 /**

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { OrderFeedback } from "@/features/feedback/types";
 import type { SubmitOrderFeedbackInput } from "@/features/feedback/schema";
-import { ApiFetchError, apiFetch } from "@/lib/auth/api-helpers";
+import { ApiFetchError, apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import type { ApiSuccessResponse } from "@/types/api";
 

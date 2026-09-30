@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import type { ApiSuccessResponse, MessageResponse } from "@/types/api";
 import { CreateUserSchemaType } from "../schema";
 import { User } from "@supabase/supabase-js";

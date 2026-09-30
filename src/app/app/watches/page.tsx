@@ -21,7 +21,7 @@ import { AddWatchForm } from "./_components/add-watch-form";
 import { RemoveWatchButton } from "./_components/remove-watch-button";
 
 export const metadata: Metadata = {
-  title: "Price watch · Tomame",
+  title: "Price watch",
   description:
     "Watch a product link and we re-check its landed price in GH₵ once a day.",
 };

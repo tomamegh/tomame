@@ -7,7 +7,7 @@ import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 const schema = z.object({
@@ -25,8 +25,8 @@ const schema = z.object({
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-contact-write:${ip}`, RATE_LIMIT.admin).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`admin-contact-write:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

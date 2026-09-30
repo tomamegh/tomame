@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { useInitializePayment } from "@/features/payments/hooks/usePayment";
 import type { PaymentChannel } from "@/features/payments/types";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { useCheckout } from "./useBag";
 

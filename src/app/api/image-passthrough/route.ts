@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { RATE_LIMIT } from "@/config/security";
 import { isAllowedImageHost } from "@/lib/security/image-hosts";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
 /**
@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Use the image optimizer for this host" }, { status: 400 });
   }
 
-  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-  if (!checkRateLimit(`image-passthrough:${ip}`, RATE_LIMIT.imgProxy).allowed) {
+  const ip = getClientIp(request);
+  if (!(await checkRateLimit(`image-passthrough:${ip}`, RATE_LIMIT.imgProxy)).allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 

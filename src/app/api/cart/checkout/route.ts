@@ -19,7 +19,7 @@ import { checkoutBag } from "@/features/bag/services/checkout.service";
 export async function POST(request: NextRequest) {
   try {
     const auth = requireAuth(await getAuthenticatedUser());
-    if (!checkRateLimit(`checkout:${auth.id}`, RATE_LIMIT.orders).allowed) {
+    if (!(await checkRateLimit(`checkout:${auth.id}`, RATE_LIMIT.orders)).allowed) {
       throw new APIError(429, "Too many requests");
     }
     const { viewer, finalize } = resolveViewer(request, auth.id);

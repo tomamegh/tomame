@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { hostOf } from "@/features/bag/components/format";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import { useAssistedQueue, useMoveAssistedRequest } from "../hooks/useAssistedQueue";

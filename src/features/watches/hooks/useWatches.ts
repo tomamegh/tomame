@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import type { ApiSuccessResponse } from "@/types/api";
 import { HISTORY_DAYS } from "../schema";
 import type {

@@ -40,7 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { Order } from "../../types";
 import { orderKeys } from "../../hooks/useOrders";

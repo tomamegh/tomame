@@ -16,7 +16,7 @@ vi.mock("@/lib/supabase/server", () => ({
     async () =>
       ({
         auth: { getUser, getClaims },
-        from: () => ({ select: () => ({ eq: () => ({ single }) }) }),
+        from: () => ({ select: () => ({ eq: () => ({ single, maybeSingle: single }) }) }),
       }) as never,
   ),
 }));
@@ -142,5 +142,27 @@ describe("getUserSession builds the same user", () => {
     const { user, session } = await getUserSession();
     expect(canAccessAdmin(session)).toBe(false);
     expect(() => requireAdmin(user)).toThrow(expect.objectContaining({ statusCode: 403 }));
+  });
+});
+
+describe("a failed profile read is an outage, not a signed-out visitor", () => {
+  it("getAuthenticatedUser answers null only when there is no profile row", async () => {
+    getClaims.mockResolvedValue({ data: { claims: claimsWithRole }, error: null });
+    single.mockResolvedValue({ data: null, error: null });
+    expect(await getAuthenticatedUser()).toBeNull();
+  });
+
+  it("getAuthenticatedUser throws a 500 on a database error instead of reading it as signed out", async () => {
+    getClaims.mockResolvedValue({ data: { claims: claimsWithRole }, error: null });
+    single.mockResolvedValue({ data: null, error: { code: "57P01", message: "connection lost" } });
+    await expect(getAuthenticatedUser()).rejects.toMatchObject({ statusCode: 500 });
+  });
+
+  it("getUserSession throws a 500 on a database error and a 401 when the row is missing", async () => {
+    getClaims.mockResolvedValue({ data: { claims: claimsWithRole }, error: null });
+    single.mockResolvedValue({ data: null, error: { code: "57P01", message: "connection lost" } });
+    await expect(getUserSession()).rejects.toMatchObject({ statusCode: 500 });
+    single.mockResolvedValue({ data: null, error: null });
+    await expect(getUserSession()).rejects.toMatchObject({ statusCode: 401 });
   });
 });

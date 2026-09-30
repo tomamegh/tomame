@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CAR_PRICE_STATES, type CarPriceState } from "@/config/constants";
 import { carTitle, formatPesewas, suggestCarSlug } from "@/features/cars/format";
 import type { CarListingView } from "@/features/cars/types";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";

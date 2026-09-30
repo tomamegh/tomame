@@ -4,7 +4,7 @@ import { AdminDashboard } from "@/features/admin/components/dashboard";
 import { getAdminDashboard } from "@/features/admin/admin.service";
 
 export const metadata: Metadata = {
-  title: "Dashboard · Tomame admin",
+  title: "Dashboard · Admin",
 };
 
 /**

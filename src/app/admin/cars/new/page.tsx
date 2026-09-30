@@ -7,7 +7,7 @@ import { AdminPage } from "@/components/layout/admin";
 import { CarForm } from "../car-form";
 
 export const metadata: Metadata = {
-  title: "New car · Tomame admin",
+  title: "New car · Admin",
 };
 
 /**

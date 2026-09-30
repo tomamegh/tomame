@@ -4,7 +4,7 @@ import { canAccessAdmin, getUserSession } from "@/features/auth/services/auth.se
 import { courierHandoffSchema } from "@/features/order-delivery/schema";
 import { dispatchOrderCourier } from "@/features/order-delivery/services/courier.service";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 /**
@@ -21,8 +21,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-order-courier:${ip}`, RATE_LIMIT.admin).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`admin-order-courier:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

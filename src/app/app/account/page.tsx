@@ -23,7 +23,7 @@ import { listWatches } from "@/features/watches/services/watches.service";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Account · Tomame",
+  title: "Account",
   description:
     "Your profile, delivery addresses, payments, price watches, notifications and password.",
 };

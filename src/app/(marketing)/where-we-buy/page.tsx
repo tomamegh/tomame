@@ -23,7 +23,7 @@ import { getMediaOverrides } from "@/db/queries/media-overrides";
 import { imagePosition, resolveMarketingImage } from "@/config/marketing-images";
 
 export const metadata: Metadata = {
-  title: "Where we buy · Tomame",
+  title: "Where we buy",
   description:
     "The lanes Tomame buys on today, what freight costs, and how your box gets from the airport to your door in Ghana.",
 };

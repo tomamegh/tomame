@@ -4,7 +4,7 @@ import { AdminPage } from "@/components/layout/admin";
 import { AssistedQueue } from "@/features/assisted/components/assisted-queue";
 
 export const metadata: Metadata = {
-  title: "Assisted requests · Tomame admin",
+  title: "Assisted requests · Admin",
 };
 
 /**

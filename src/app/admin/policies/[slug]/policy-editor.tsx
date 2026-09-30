@@ -26,7 +26,7 @@ import { AdminBadge } from "@/components/layout/admin";
 import { RichTextEditor } from "@/features/policies/components/rich-text-editor";
 import { PolicyHtml } from "@/features/policies/components/policy-html";
 import { policyLinkBadge, policyLinkState } from "@/features/policies/format";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { PolicyRow } from "@/features/policies/types";

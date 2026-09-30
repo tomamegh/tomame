@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { PlatformUser } from "@/features/users/types";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 
 const updateProfileSchema = z.object({
   first_name: z.string().max(255, "First name must be 255 characters or less").optional(),

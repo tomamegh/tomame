@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { bagKeys } from "@/features/bag/hooks/useAddToBag";
 import { pasteKeys } from "@/features/extraction/hooks/usePastes";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { CreateAssistedRequestInput } from "../schema";
 import type { AssistedRequest } from "../types";

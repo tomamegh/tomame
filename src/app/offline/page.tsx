@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { OfflineRetryButton } from "@/features/pwa/components/offline-retry-button";
 
 export const metadata: Metadata = {
-  title: "You are offline · Tomame",
+  title: "You are offline",
   robots: { index: false, follow: false },
 };
 

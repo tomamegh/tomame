@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { AssistedRequestRow, AssistedRequestStatus } from "@/db/queries/assisted-requests";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { TransitionAssistedRequestInput } from "../schema";
 

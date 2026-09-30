@@ -16,6 +16,8 @@ export default async function ContactRoute() {
     <ContactPage
       whatsappHref={whatsappHref(settings.whatsappNumber)}
       whatsappNumber={settings.whatsappNumber}
+      supportEmail={settings.supportEmail}
+      supportReplyTime={settings.supportReplyTime}
     />
   );
 }

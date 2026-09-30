@@ -4,7 +4,7 @@ import { insertContactMessage } from "@/db/queries/contact-messages";
 import { contactSchema } from "@/features/contact/schema";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 /**
@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
 
     // Each message is work for a person, so this sits on the tight budget with
     // the waitlist and the assisted requests, not on `general`.
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`contact:${ip}`, RATE_LIMIT.assisted).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`contact:${ip}`, RATE_LIMIT.assisted)).allowed) {
       throw new APIError(429, "You have sent a few of these. Give us a moment to reply.");
     }
 

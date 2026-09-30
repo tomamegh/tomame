@@ -25,7 +25,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { CarsList, type AdminCarRow } from "./cars-list";
 
 export const metadata: Metadata = {
-  title: "Cars · Tomame admin",
+  title: "Cars · Admin",
   description: "The vehicles on the water, and the ones still being written up.",
 };
 

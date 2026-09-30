@@ -6,7 +6,7 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { previewWorkedExample } from "@/features/pricing/services/pricing-console.service";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
 import { requireAdmin, requireAuth } from "@/lib/auth/guards";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * POST /api/admin/pricing-constants/preview
@@ -42,8 +42,8 @@ const previewSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-pricing-preview:${ip}`, RATE_LIMIT.admin).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`admin-pricing-preview:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

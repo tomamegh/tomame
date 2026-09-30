@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { searchCatalog } from "@/features/catalog/services/catalog-search.service";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { CATALOG_SEARCH } from "@/config/catalog";
 
@@ -22,8 +22,8 @@ const searchSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`catalog-search:${ip}`, RATE_LIMIT.general).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`catalog-search:${ip}`, RATE_LIMIT.general)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

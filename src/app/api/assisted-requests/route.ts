@@ -5,7 +5,7 @@ import { createAssistedRequest } from "@/features/assisted/services/assisted.ser
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 /**
@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`assisted:${ip}`, RATE_LIMIT.assisted).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`assisted:${ip}`, RATE_LIMIT.assisted)).allowed) {
       throw new APIError(429, "You have sent a few of these. Give us a moment to get to them.");
     }
 

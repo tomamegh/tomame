@@ -19,7 +19,7 @@ import type { AdminPasteFilter } from "@/db/queries/admin-pastes";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatRelativeTime } from "@/features/app-home/components/format";
-import { ApiFetchError, apiFetch } from "@/lib/auth/api-helpers";
+import { ApiFetchError, apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getFxRateQuote } from "@/features/pricing/services/fx-rate.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 /** Seconds the nav pill may reuse a rate before asking again. */
@@ -21,8 +21,8 @@ const STALE_WHILE_REVALIDATE_SECONDS = 3600;
  */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`fx-rate:${ip}`, RATE_LIMIT.fxRate).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`fx-rate:${ip}`, RATE_LIMIT.fxRate)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

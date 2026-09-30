@@ -57,7 +57,7 @@ export async function POST(
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
 
-    if (!checkRateLimit(`order-feedback:${auth.id}`, RATE_LIMIT.assisted).allowed) {
+    if (!(await checkRateLimit(`order-feedback:${auth.id}`, RATE_LIMIT.assisted)).allowed) {
       throw new APIError(429, "You have sent a few of these. Give us a moment to look.");
     }
 

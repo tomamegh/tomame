@@ -451,6 +451,10 @@ export async function getMarketingSettings(): Promise<MarketingSettings> {
     supportHours: readString(settings.support_hours),
     companyAddress: readString(settings.company_address),
     paymentChannels: readStringArray(settings.payment_channels),
+    supportEmail: readString(settings.support_email),
+    supportReplyTime: readString(settings.support_reply_time),
+    refundPromiseTitle: readString(settings.refund_promise_title),
+    refundPromiseDetail: readString(settings.refund_promise_detail),
   };
 }
 

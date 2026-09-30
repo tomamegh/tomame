@@ -14,7 +14,7 @@ import {
 } from "@/components/layout/admin";
 import { formatGhs } from "@/features/marketing/format";
 
-export const metadata: Metadata = { title: "Bags · Tomame admin" };
+export const metadata: Metadata = { title: "Bags · Admin" };
 
 /**
  * `/admin/bags` — what customers are putting in their bags right now.

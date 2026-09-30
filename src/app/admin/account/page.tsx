@@ -11,7 +11,7 @@ import type { Metadata } from "next";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 export const metadata: Metadata = {
-  title: "Account · Tomame admin",
+  title: "Account · Admin",
   description: "Your own profile and password.",
 };
 

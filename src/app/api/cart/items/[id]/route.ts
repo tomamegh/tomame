@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, rateLimitSubject } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { bagLineIdSchema, updateBagLineSchema } from "@/features/bag/schema";
 import { removeBagLine, updateBagLine } from "@/features/bag/services/bag.service";
@@ -18,8 +18,9 @@ type Params = { params: Promise<{ id: string }> };
 async function prepare(request: NextRequest, params: Params["params"]) {
   const user = await getAuthenticatedUser();
   const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
-  const key = viewer.userId ?? viewer.sessionId ?? request.headers.get("x-forwarded-for") ?? "unknown";
-  if (!checkRateLimit(`cart-write:${key}`, RATE_LIMIT.general).allowed) throw new APIError(429, "Too many requests");
+  // Never the quote-session cookie: it is client-controlled, so anonymous callers go by IP.
+  const key = rateLimitSubject(request, viewer.userId);
+  if (!(await checkRateLimit(`cart-write:${key}`, RATE_LIMIT.general)).allowed) throw new APIError(429, "Too many requests");
   const { id } = await params;
   const parsedId = bagLineIdSchema.safeParse(id);
   if (!parsedId.success) throw new APIError(404, "That line is not in your bag");

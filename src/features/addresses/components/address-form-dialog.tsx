@@ -14,7 +14,7 @@ import { useCreateAddress } from "@/features/addresses/hooks/useAddresses";
 import { createAddressSchema, type CreateAddressInput } from "@/features/addresses/schema";
 import type { DeliveryAddress } from "@/features/addresses/types";
 import { formatGhs } from "@/features/marketing/format";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 

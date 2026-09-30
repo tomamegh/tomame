@@ -10,7 +10,7 @@ import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { DeliveryAddress } from "@/features/addresses/types";
 import type { PaymentChannel } from "@/features/payments/types";
 import { useCreateWatch } from "@/features/watches/hooks/useWatches";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { useBag, useRemoveBagLine, useUpdateBagLine } from "../hooks/useBag";
 import { useBagPayment } from "../hooks/useBagPayment";

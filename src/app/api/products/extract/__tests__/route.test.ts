@@ -25,7 +25,11 @@ vi.mock("@/lib/quote-session", () => ({
     finalize: (response: Response) => response,
   })),
 }));
-vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: vi.fn() }));
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: vi.fn(),
+  getClientIp: (r: Request) => r.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown",
+  rateLimitSubject: (r: Request, id?: string | null) => (id ? `user:${id}` : `ip:${r.headers.get("x-forwarded-for") ?? "unknown"}`),
+}));
 
 import { getCachedExtractionByHash } from "@/db/queries/extraction-cache";
 import { checkRateLimit } from "@/lib/rate-limit";

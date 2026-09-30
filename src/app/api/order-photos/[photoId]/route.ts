@@ -4,7 +4,7 @@ import { getUserSession } from "@/features/auth/services/auth.service";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { readOrderPhotoForViewer } from "@/features/order-photos/services/order-photos.service";
 import { APIError, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 /**
@@ -29,8 +29,8 @@ export async function GET(
   { params }: { params: Promise<{ photoId: string }> },
 ) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`order-photo:${ip}`, RATE_LIMIT.parcelPhotos).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`order-photo:${ip}`, RATE_LIMIT.parcelPhotos)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

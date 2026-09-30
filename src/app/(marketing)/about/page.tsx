@@ -15,7 +15,7 @@ import { MarketingIcon } from "../_components/marketing-icon";
 import { Eyebrow, MARKETING_GUTTER } from "../_components/marketing-primitives";
 
 export const metadata: Metadata = {
-  title: "About · Tomame",
+  title: "About",
   description:
     "Tomame buys, ships and delivers from abroad for customers in Ghana, with the price agreed before a cedi moves.",
 };

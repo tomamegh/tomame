@@ -6,7 +6,7 @@ import { answerSourcingRequestSchema } from "@/features/sourcing/schema";
 import { answerSourcing } from "@/features/sourcing/services/sourcing.service";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * PATCH /api/admin/sourcing-requests/:id — the buyer's answer (065).
@@ -19,8 +19,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-sourcing-write:${ip}`, RATE_LIMIT.admin).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`admin-sourcing-write:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

@@ -17,7 +17,7 @@ import { AdminPricingConsole } from "@/features/settings/components/admin-pricin
 import { getAllRates } from "@/lib/exchange-rates/service";
 
 export const metadata: Metadata = {
-  title: "Pricing · Tomame admin",
+  title: "Pricing · Admin",
 };
 
 /**

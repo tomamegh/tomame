@@ -57,3 +57,71 @@ export function useVisibleInterval(callback: () => void, ms: number, active: boo
     };
   }, [active, ms]);
 }
+
+export interface BackoffOptions {
+  /** First delay, and the delay again after the page becomes visible. */
+  minMs: number;
+  /** Ceiling the delay grows to. */
+  maxMs: number;
+  /** Multiplier applied after every tick. */
+  factor: number;
+}
+
+/** The delay after `current`: grown by `factor`, capped at `maxMs`. Pure. */
+export function nextBackoffDelay(current: number, { minMs, maxMs, factor }: BackoffOptions): number {
+  return Math.min(maxMs, Math.max(minMs, Math.round(current * factor)));
+}
+
+/**
+ * Like `useVisibleInterval`, but each tick waits longer than the last, from
+ * `minMs` up to `maxMs`. For a poll whose answer usually lands early and then
+ * may take a while: the first few seconds stay responsive, and a slow job does
+ * not keep asking every two seconds. Restarts from `minMs` whenever it is
+ * re-activated or the tab becomes visible again.
+ */
+export function useVisibleBackoff(callback: () => void, options: BackoffOptions, active: boolean): void {
+  const latest = useRef(callback);
+  latest.current = callback;
+  const { minMs, maxMs, factor } = options;
+
+  useEffect(() => {
+    if (!active) return;
+    const opts = { minMs, maxMs, factor };
+    let delay = minMs;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const stop = () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+
+    const schedule = () => {
+      if (timer !== null) return;
+      timer = setTimeout(() => {
+        timer = null;
+        latest.current();
+        delay = nextBackoffDelay(delay, opts);
+        schedule();
+      }, delay);
+    };
+
+    const sync = () => {
+      if (document.visibilityState === "visible") {
+        latest.current();
+        delay = minMs;
+        schedule();
+      } else {
+        stop();
+      }
+    };
+
+    if (document.visibilityState === "visible") schedule();
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", sync);
+    };
+  }, [active, minMs, maxMs, factor]);
+}

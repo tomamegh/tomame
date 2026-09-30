@@ -10,7 +10,7 @@ import { useCreateAssistedRequest } from "@/features/assisted/hooks/useAssisted"
 import { createAssistedRequestSchema, type CreateAssistedRequestInput } from "@/features/assisted/schema";
 import type { AssistedRequest } from "@/features/assisted/types";
 import { hostOf } from "@/features/bag/components/format";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import { useCreatePaste } from "../hooks/usePastes";

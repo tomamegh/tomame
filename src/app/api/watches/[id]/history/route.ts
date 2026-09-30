@@ -23,7 +23,7 @@ export async function GET(
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
 
-    if (!checkRateLimit(`watches-history:${auth.id}`, RATE_LIMIT.general).allowed) {
+    if (!(await checkRateLimit(`watches-history:${auth.id}`, RATE_LIMIT.general)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

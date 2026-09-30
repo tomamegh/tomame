@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
-vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: vi.fn(() => ({ allowed: true })) }));
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: vi.fn(() => ({ allowed: true })),
+  getClientIp: (r: Request) => r.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown",
+  rateLimitSubject: (r: Request, id?: string | null) => (id ? `user:${id}` : `ip:${r.headers.get("x-forwarded-for") ?? "unknown"}`),
+}));
 
 import { GET } from "@/app/api/image-passthrough/route";
 import { checkRateLimit } from "@/lib/rate-limit";

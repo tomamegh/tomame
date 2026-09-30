@@ -8,7 +8,7 @@ import { AdminBadge, AdminButton, AdminCard, AdminEmpty } from "@/components/lay
 import type { OrderFeedbackRow, OrderFeedbackStatus } from "@/db/queries/order-feedback";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import {
   useFeedbackQueue,

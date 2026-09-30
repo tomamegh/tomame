@@ -8,7 +8,7 @@ import { enqueuePaste, runExtractionJob } from "@/features/extraction/services/e
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp, rateLimitSubject } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { toPasteStatus } from "@/features/extraction/services/paste-status";
 
@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
     const user = await getAuthenticatedUser();
     const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
 
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`paste:${ip}`, RATE_LIMIT.extraction).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`paste:${ip}`, RATE_LIMIT.extraction)).allowed) {
       throw new APIError(429, "Too many requests. Please wait a few minutes and try again.");
     }
 
@@ -86,13 +86,13 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`pastes-list:${ip}`, RATE_LIMIT.general).allowed) {
-      throw new APIError(429, "Too many requests");
-    }
 
     const user = await getAuthenticatedUser();
     const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
+    // Polled every few seconds, so it has its own budget, keyed by user (or IP).
+    if (!(await checkRateLimit(`pastes-list:${rateLimitSubject(request, user?.id)}`, RATE_LIMIT.poll)).allowed) {
+      throw new APIError(429, "Too many requests");
+    }
 
     const rows = await listPastesForViewer(viewer);
     // One read each for the whole page rather than one per row.

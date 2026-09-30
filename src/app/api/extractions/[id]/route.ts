@@ -5,7 +5,7 @@ import { quoteForViewer } from "@/features/quotes/services/quote-lock.service";
 import { isWatching } from "@/features/watches/services/watches.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, rateLimitSubject } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 /**
@@ -20,10 +20,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`extractions-read:${ip}`, RATE_LIMIT.general).allowed) {
-      throw new APIError(429, "Too many requests");
-    }
     const { id } = await params;
 
     const qtyRaw = request.nextUrl.searchParams.get("quantity");
@@ -34,6 +30,10 @@ export async function GET(
 
     const user = await getAuthenticatedUser();
     const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
+    // The quote screen polls this; it has the poll budget, keyed by user (or IP).
+    if (!(await checkRateLimit(`extractions-read:${rateLimitSubject(request, user?.id)}`, RATE_LIMIT.poll)).allowed) {
+      throw new APIError(429, "Too many requests");
+    }
 
     const [quote, watching] = await Promise.all([
       quoteForViewer({ ...row.result, extraction_cache_id: row.id, cached: true }, quantity, viewer),

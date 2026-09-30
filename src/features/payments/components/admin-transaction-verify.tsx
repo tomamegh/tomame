@@ -6,7 +6,7 @@ import { ArrowsClockwise, CheckCircle, WarningCircle } from "@phosphor-icons/rea
 
 import { AdminBadge } from "@/components/layout/admin";
 import { AdminButton, AdminConfirm } from "@/components/layout/admin";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { AdminPaymentStatus } from "@/db/queries/admin-money";

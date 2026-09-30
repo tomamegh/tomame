@@ -1,9 +1,16 @@
 import { Resend } from "resend";
+import { env } from "@/lib/env";
 import { htmlToText } from "./plain-text";
 
-const resend = new Resend(process.env.RESEND_API_KEY || 'resend-api-key');
-
-const fromAddress = process.env.RESEND_FROM_EMAIL ?? "Tomame <no-reply@tomame.com>";
+// Built on first send rather than at import, so a module that merely imports
+// the transport (and a test that mocks it) never constructs a client. The key
+// and sender come from `env`, which fails fast when either is missing: there
+// is deliberately no placeholder key and no default sender domain.
+let client: Resend | null = null;
+function resend(): Resend {
+  client ??= new Resend(env.email.resendApiKey);
+  return client;
+}
 
 /**
  * Every message goes out as HTML plus a plain-text alternative. Callers that
@@ -17,8 +24,8 @@ export async function sendEmail(opts: {
   html: string;
   text?: string;
 }) {
-  const { error } = await resend.emails.send({
-    from: fromAddress,
+  const { error } = await resend().emails.send({
+    from: env.email.fromAddress,
     to: opts.to,
     subject: opts.subject,
     html: opts.html,

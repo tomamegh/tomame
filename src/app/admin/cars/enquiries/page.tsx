@@ -19,7 +19,7 @@ import { EnquiryQueue } from "./enquiry-queue";
 import type { AdminCarEnquiry } from "./enquiry-queue";
 
 export const metadata: Metadata = {
-  title: "Car enquiries · Tomame admin",
+  title: "Car enquiries · Admin",
   description: "Customers asking what a car costs, and customers making an offer.",
 };
 

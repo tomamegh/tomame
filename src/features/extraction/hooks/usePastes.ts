@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { bagKeys } from "@/features/bag/hooks/useAddToBag";
 import type { AddToBagResult } from "@/features/bag/types";
-import { apiFetch } from "@/lib/auth/api-helpers";
-import { useVisibleInterval } from "@/lib/use-visible-interval";
+import { apiFetch } from "@/lib/api-client";
+import { useVisibleBackoff, type BackoffOptions } from "@/lib/use-visible-interval";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { PasteStatus } from "../services/paste-status";
 
@@ -14,11 +14,12 @@ export const pasteKeys = { all: ["pastes"] as const };
 /**
  * How often the screen asks again while a link is still being read.
  *
- * Two seconds, matching the bag: a paste usually lands in five to twenty, so
- * this is a handful of requests per link rather than a live feed. Polling stops
- * the moment nothing is reading — an idle screen must not sit there asking.
+ * Starts at two seconds, matching the bag: a paste usually lands in five to
+ * twenty. Each tick then waits 1.5x longer, up to ten seconds, so a slow job
+ * is a few requests a minute rather than thirty. Polling stops the moment
+ * nothing is reading — an idle screen must not sit there asking.
  */
-export const PASTE_POLL_MS = 2_000;
+export const PASTE_POLL: BackoffOptions = { minMs: 2_000, maxMs: 10_000, factor: 1.5 };
 
 export function usePastes(initialData: PasteStatus[]) {
   const query = useQuery<PasteStatus[]>({
@@ -41,7 +42,7 @@ export function usePastes(initialData: PasteStatus[]) {
   // page…" a minute later, until the customer reloaded.
   const anyReading = query.data.some((p) => p.outcome === "reading");
   const { refetch } = query;
-  useVisibleInterval(() => void refetch(), PASTE_POLL_MS, anyReading);
+  useVisibleBackoff(() => void refetch(), PASTE_POLL, anyReading);
 
   return query;
 }

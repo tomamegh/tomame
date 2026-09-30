@@ -4,7 +4,7 @@ import { AdminPage } from "@/components/layout/admin";
 import { ContactQueue } from "@/features/contact/components/contact-queue";
 
 export const metadata: Metadata = {
-  title: "Contact messages · Tomame admin",
+  title: "Contact messages · Admin",
 };
 
 /**

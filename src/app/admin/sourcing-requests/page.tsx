@@ -4,7 +4,7 @@ import { AdminPage } from "@/components/layout/admin";
 import { SourcingQueue } from "@/features/sourcing/components/sourcing-queue";
 
 export const metadata: Metadata = {
-  title: "Sourcing requests · Tomame admin",
+  title: "Sourcing requests · Admin",
 };
 
 /**

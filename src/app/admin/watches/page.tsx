@@ -37,7 +37,7 @@ import type { Metadata } from "next";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 export const metadata: Metadata = {
-  title: "Price watches · Tomame admin",
+  title: "Price watches · Admin",
   description: "Products customers asked us to re-check.",
 };
 

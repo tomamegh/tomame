@@ -26,7 +26,7 @@ import {
 } from "@/features/orders/components/admin-transitions";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export const metadata: Metadata = { title: "Order · Tomame admin" };
+export const metadata: Metadata = { title: "Order · Admin" };
 
 /**
  * One order, with everything an admin needs to do their job on it.

@@ -8,6 +8,8 @@ import {
   releaseCarOrder,
 } from "@/features/cars/services/car-orders.service";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { RATE_LIMIT } from "@/config/security";
 import { requireAdmin, requireAuth } from "@/lib/auth/guards";
 
 /**
@@ -56,6 +58,9 @@ export async function PATCH(
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
     const admin = requireAdmin(auth);
+    if (!(await checkRateLimit(`admin-car-orders:${admin.id}`, RATE_LIMIT.admin)).allowed) {
+      throw new APIError(429, "Too many requests");
+    }
 
     const { carOrderId } = await params;
     if (!z.uuid().safeParse(carOrderId).success) {

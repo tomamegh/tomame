@@ -5,7 +5,7 @@ import { OpsOverviewView } from "@/features/ops/components/ops-overview";
 import { getOpsOverview } from "@/features/ops/ops.service";
 
 export const metadata: Metadata = {
-  title: "Health · Tomame admin",
+  title: "Health · Admin",
 };
 
 export const dynamic = "force-dynamic";

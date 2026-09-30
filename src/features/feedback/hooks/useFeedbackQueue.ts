@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { OrderFeedbackRow, OrderFeedbackStatus } from "@/db/queries/order-feedback";
 import type { OrderHoldRow } from "@/db/queries/order-holds";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import type { ApiSuccessResponse } from "@/types/api";
 
 /**

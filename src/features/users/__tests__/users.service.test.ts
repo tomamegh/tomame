@@ -4,9 +4,11 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn() }));
+vi.mock("@/db/queries/auth-sessions", () => ({ revokeUserSessions: vi.fn(async () => 1) }));
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { revokeUserSessions } from "@/db/queries/auth-sessions";
 import {
   adminResetUserPassword,
   createUser,
@@ -100,6 +102,15 @@ describe("setUserActive", () => {
     expect(client.auth.admin.updateUserById).toHaveBeenCalledWith("u-1", { ban_duration: "876000h" });
     expect(isUserDeactivated(updated)).toBe(true);
     expect(logAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "user_deactivated", entityId: "u-1" }));
+    // Their open sessions end too, not just future sign-ins.
+    expect(revokeUserSessions).toHaveBeenCalledWith("u-1");
+  });
+
+  it("still deactivates when ending the sessions fails (the ban holds at the next refresh)", async () => {
+    fakeClient({ id: "u-1", email: "b@example.com", created_at: "2026-09-11T00:00:00Z" });
+    vi.mocked(revokeUserSessions).mockRejectedValueOnce(new Error("rpc failed"));
+    const updated = await setUserActive(admin, "u-1", false);
+    expect(isUserDeactivated(updated)).toBe(true);
   });
 
   it("reactivates by lifting the ban", async () => {
@@ -108,6 +119,7 @@ describe("setUserActive", () => {
 
     expect(client.auth.admin.updateUserById).toHaveBeenCalledWith("u-1", { ban_duration: "none" });
     expect(isUserDeactivated(updated)).toBe(false);
+    expect(revokeUserSessions).not.toHaveBeenCalled();
     expect(logAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "user_reactivated" }));
   });
 

@@ -25,6 +25,16 @@ export const env = {
   app: {
     url: required("NEXT_PUBLIC_APP_URL"),
   },
+  /** Transactional email. No fallback: a wrong key or sender domain fails every send silently. */
+  email: {
+    resendApiKey: required("RESEND_API_KEY"),
+    /** e.g. `Tomame <no-reply@your-verified-domain>`; must be a domain verified in Resend. */
+    fromAddress: required("RESEND_FROM_EMAIL"),
+  },
+  /** Bearer secret pg_cron sends to /api/cron/*. */
+  cron: {
+    secret: required("CRON_SECRET"),
+  },
   /** Extraction tiers. Each is skipped (not fatal) when its key is absent. */
   extraction: {
     browserlessApiKey: optional("BROWSERLESS_API_KEY"),

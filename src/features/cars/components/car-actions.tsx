@@ -12,7 +12,7 @@ import {
 } from "@phosphor-icons/react/ssr";
 
 import { CAR_PRICE_STATES, type CarPriceState } from "@/config/constants";
-import { ApiFetchError, apiFetch } from "@/lib/auth/api-helpers";
+import { ApiFetchError, apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";

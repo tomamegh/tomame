@@ -7,7 +7,7 @@ import { ArrowsClockwise, WarningCircle } from "@phosphor-icons/react/ssr";
 import { AdminBadge, AdminCard, AdminEmpty } from "@/components/layout/admin";
 import type { AdminPricingConstantRow } from "@/db/queries/admin-money";
 import type { WorkedExample } from "@/features/marketing/types";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";

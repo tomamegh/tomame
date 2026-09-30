@@ -13,7 +13,7 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { logger } from "@/lib/logger";
 
 export const metadata: Metadata = {
-  title: "Cars en route to Ghana · Tomame",
+  title: "Cars en route to Ghana",
   description:
     "Vehicles we have already bought and put on a ship, priced landed in Tema with duty and clearing paid.",
 };

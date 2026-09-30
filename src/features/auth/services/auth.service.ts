@@ -223,10 +223,17 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
 
   const [{ data: claimsData }, { data: profile, error }] = await Promise.all([
     supabase.auth.getClaims(),
-    supabase.from("profiles").select("*").eq("id", data.user.id).single(),
+    supabase.from("profiles").select("*").eq("id", data.user.id).maybeSingle(),
   ]);
 
-  if (!profile || error) return null;
+  // No row is "not a user we know" (null → 401). A failed read is an outage,
+  // not a signed-out visitor: answered null it logged real customers out and
+  // bounced admins to the login screen whenever the database hiccuped.
+  if (error) {
+    logger.error("getAuthenticatedUser: profile read failed", { code: error.code, message: error.message });
+    throw new APIError(500, "Could not load your account");
+  }
+  if (!profile) return null;
 
   return {
     ...withClaimMetadata(data.user, claimsData?.claims),
@@ -261,9 +268,13 @@ export async function getUserSession(): Promise<{
     .from("profiles")
     .select("*")
     .eq("id", data.user.id)
-    .single();
+    .maybeSingle();
 
-  if (!profile || error) throw new APIError(401, "Unauthorized to perform this action");
+  if (error) {
+    logger.error("getUserSession: profile read failed", { code: error.code, message: error.message });
+    throw new APIError(500, "Could not load your account");
+  }
+  if (!profile) throw new APIError(401, "Unauthorized to perform this action");
 
   return {
     supabase,

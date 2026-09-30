@@ -16,7 +16,7 @@ import { createAddress, listAddresses } from "@/features/addresses/services/addr
 async function prepare() {
   const user = await getAuthenticatedUser();
   const auth = requireAuth(user);
-  if (!checkRateLimit(`addresses:${auth.id}`, RATE_LIMIT.general).allowed) throw new APIError(429, "Too many requests");
+  if (!(await checkRateLimit(`addresses:${auth.id}`, RATE_LIMIT.general)).allowed) throw new APIError(429, "Too many requests");
   return auth;
 }
 

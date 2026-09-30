@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { CATALOG_SEARCH } from "@/config/catalog";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { CatalogSearchPayload } from "../types";
 

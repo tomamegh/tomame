@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Notifications · Tomame admin",
+  title: "Notifications · Admin",
   description: "Every message the platform has sent, and whether it landed.",
 };
 

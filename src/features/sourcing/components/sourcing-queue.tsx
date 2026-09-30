@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import type { PriceWatchRow, SourcingStatus } from "@/db/queries/price-watches";
 import { hostOf } from "@/features/bag/components/format";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import type { OriginCountry } from "@/features/orders/types";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";

@@ -3,7 +3,7 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { updateCategoryMappingSchema } from "@/features/pricing/schema";
@@ -15,8 +15,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { category } = await context.params;
     const decodedCategory = decodeURIComponent(category);
 
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-category-mappings:${ip}`, RATE_LIMIT.admin).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`admin-category-mappings:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
@@ -81,8 +81,8 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const { category } = await context.params;
     const decodedCategory = decodeURIComponent(category);
 
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-category-mappings:${ip}`, RATE_LIMIT.admin).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`admin-category-mappings:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

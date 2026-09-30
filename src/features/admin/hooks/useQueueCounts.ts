@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type { AdminQueueCounts } from "@/db/queries/admin-queues";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { useVisibleInterval } from "@/lib/use-visible-interval";
 import type { ApiSuccessResponse } from "@/types/api";
 

@@ -6,7 +6,11 @@ vi.mock("@/features/auth/services/auth.service", () => ({
   canAccessAdmin: (s: { app_metadata?: { role?: string } } | null) => s?.app_metadata?.role === "admin",
 }));
 vi.mock("@/features/order-delivery/services/courier.service", () => ({ dispatchOrderCourier: vi.fn() }));
-vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: vi.fn(() => ({ allowed: true })) }));
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: vi.fn(() => ({ allowed: true })),
+  getClientIp: (r: Request) => r.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown",
+  rateLimitSubject: (r: Request, id?: string | null) => (id ? `user:${id}` : `ip:${r.headers.get("x-forwarded-for") ?? "unknown"}`),
+}));
 
 import { getUserSession } from "@/features/auth/services/auth.service";
 import { dispatchOrderCourier } from "@/features/order-delivery/services/courier.service";

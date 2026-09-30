@@ -67,3 +67,20 @@ describe("runCronJob", () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe("secretsMatch (constant-time bearer check)", () => {
+  it("matches only the exact secret", async () => {
+    const { secretsMatch } = await import("@/lib/auth/cron");
+    expect(secretsMatch("Bearer s3cret", "Bearer s3cret")).toBe(true);
+    expect(secretsMatch("Bearer s3creT", "Bearer s3cret")).toBe(false);
+  });
+  it("answers false on a length mismatch instead of throwing", async () => {
+    const { secretsMatch } = await import("@/lib/auth/cron");
+    expect(secretsMatch("Bearer s3cret-and-more", "Bearer s3cret")).toBe(false);
+    expect(secretsMatch("", "Bearer s3cret")).toBe(false);
+  });
+  it("refuses a bearer that only shares a prefix with the secret", () => {
+    expect(authorizeCron(req("Bearer s3cre"), "x")?.status).toBe(401);
+    expect(authorizeCron(req("Bearer s3cretX"), "x")?.status).toBe(401);
+  });
+});

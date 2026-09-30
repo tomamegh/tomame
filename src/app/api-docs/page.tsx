@@ -1,16 +1,24 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { getApiDocs } from "@/lib/swagger";
 import dynamic from "next/dynamic";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 export const metadata: Metadata = {
-  title: "Tomame API Docs",
+  title: "API docs · Admin",
+  robots: { index: false, follow: false },
 };
 
 const SwaggerUI = dynamic(() => import("@/components/swagger-ui"), {
   ssr: true,
 });
 
-export default function ApiDocsPage() {
+/** Admins only: the spec maps every route, which is not for the public. */
+export default async function ApiDocsPage() {
+  const user = await getAuthenticatedUser();
+  if (!canAccessAdmin(user)) notFound();
+
   const spec = JSON.stringify(getApiDocs());
 
   return <SwaggerUI spec={spec} />;

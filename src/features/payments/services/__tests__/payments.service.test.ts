@@ -687,6 +687,19 @@ describe("handleWebhookEvent — retry contract (R9)", () => {
     expect(linkOrderToPayment).not.toHaveBeenCalled();
   });
 
+  it("throws when the payment lookup itself fails, so Paystack retries instead of the charge being dropped", async () => {
+    seedPayment();
+    db.failReads = true;
+
+    await expect(
+      handleWebhookEvent({
+        event: "charge.success",
+        data: { reference: REFERENCE, status: "success", amount: 125_050, currency: "GHS" },
+      }),
+    ).rejects.toMatchObject({ statusCode: 500 });
+    expect(linkOrderToPayment).not.toHaveBeenCalled();
+  });
+
   it("accepts a charge it has already finalized, without repeating the effects", async () => {
     seedPayment({ status: "success" });
 

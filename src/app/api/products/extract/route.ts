@@ -6,7 +6,7 @@ import { resolveViewer } from "@/lib/quote-session";
 import { getCachedExtractionByHash } from "@/db/queries/extraction-cache";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 // Chain budget is 25s (config/extraction.ts). Headroom for enrichment scheduling + pricing.
@@ -68,12 +68,12 @@ export async function POST(request: NextRequest) {
     // immediately — so that every paste, cached or fresh, follows one path and
     // is recorded against the customer there.
     const cached = await getCachedExtractionByHash(prepared.urlHash);
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+    const ip = getClientIp(request);
     if (!cached) {
-      if (!checkRateLimit(`extraction:${ip}`, RATE_LIMIT.extraction).allowed) {
+      if (!(await checkRateLimit(`extraction:${ip}`, RATE_LIMIT.extraction)).allowed) {
         throw new APIError(429, "Too many requests. Please wait a few minutes and try again.");
       }
-    } else if (!checkRateLimit(`extraction:cache:${ip}`, CACHE_HIT_RATE_LIMIT).allowed) {
+    } else if (!(await checkRateLimit(`extraction:cache:${ip}`, CACHE_HIT_RATE_LIMIT)).allowed) {
       throw new APIError(429, "Too many requests. Please wait a few minutes and try again.");
     }
 

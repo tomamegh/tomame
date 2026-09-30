@@ -3,7 +3,7 @@ import { paystackWebhookSchema } from "@/features/payments/schema";
 import { handleWebhookEvent } from "@/features/payments/services/payments.service";
 import { verifyWebhookSignature } from "@/lib/paystack/client";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { logger } from "@/lib/logger";
 
@@ -25,8 +25,8 @@ import { logger } from "@/lib/logger";
 export async function POST(request: NextRequest) {
   try {
     // Rate limit by IP
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`webhook-paystack:${ip}`, RATE_LIMIT.webhooks).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`webhook-paystack:${ip}`, RATE_LIMIT.webhooks)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

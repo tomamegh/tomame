@@ -19,7 +19,7 @@ import { readCarOrderMoney, readPriceOrigin, type CarOrderPayment } from "./car-
 import { CarSalesBoard, type AdminCarSale } from "./car-sales-board";
 
 export const metadata: Metadata = {
-  title: "Car sales · Tomame admin",
+  title: "Car sales · Admin",
   description: "Who bought which car, what they have paid, and what is still owing.",
 };
 

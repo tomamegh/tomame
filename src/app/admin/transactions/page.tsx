@@ -21,7 +21,7 @@ import { AdminTransactionsView } from "@/features/payments/components/admin-tran
  */
 
 export const metadata: Metadata = {
-  title: "Transactions · Tomame admin",
+  title: "Transactions · Admin",
 };
 
 /**

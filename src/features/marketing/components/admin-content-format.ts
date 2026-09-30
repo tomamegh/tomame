@@ -101,6 +101,9 @@ export function settingWarning(key: string): string | null {
       return "Input only. The Fees page prices this live through the pricing engine, so the figures on the page are never taken from here, but the shape must match workedExampleInputSchema or the worked example stops rendering.";
     case "onboarding_tour_enabled":
       return "Off means nobody new is shown the tour. Anyone part-way through keeps the tour they are already in until they finish or dismiss it, and nobody who has already seen it sees it again either way.";
+    case "refund_promise_title":
+    case "refund_promise_detail":
+      return "Shown on the Fees page. This is a promise about money: keep it word for word in line with the refund policy.";
     case "whatsapp_number":
       return "Shown in the marketing footer, on the contact page and on Home's “Ask a buyer” card. It is the number customers actually message.";
     default:

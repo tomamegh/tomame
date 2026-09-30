@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { APIError } from "@/lib/auth/api-helpers";
+import { revokeUserSessions } from "@/db/queries/auth-sessions";
 import type { MessageResponse } from "@/types/api";
 import type { Order } from "@/features/orders/types";
 import type {
@@ -128,6 +129,26 @@ async function getAllUsers(
   return { users, count: users.length };
 }
 
+/**
+ * End every session the user holds after a change to who they are (role) or
+ * whether they may sign in (deactivation), so an open tab cannot keep acting
+ * on the old answer. The change itself has already happened and been audited;
+ * a failed revocation is logged, not thrown, because the ban and the role are
+ * still enforced on the next token refresh.
+ */
+async function endSessionsAfterChange(userId: string, reason: string): Promise<void> {
+  try {
+    const ended = await revokeUserSessions(userId);
+    logger.info("User sessions revoked", { userId, reason, ended });
+  } catch (error: unknown) {
+    logger.error("Revoking user sessions failed", {
+      userId,
+      reason,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 // ── Service functions ─────────────────────────────────────────────────────────
 
 export async function promoteUserToAdmin(
@@ -161,6 +182,7 @@ export async function promoteUserToAdmin(
     entityId: user.id,
     metadata: { previousRole: "user", newRole: "admin" },
   });
+  await endSessionsAfterChange(userId, "role_changed");
 
   return { ...user, profile };
 }
@@ -184,16 +206,9 @@ export async function createAdminUser(
     throw new APIError(500, "Failed to create user");
   }
 
-  const { data: profile, error } = await client
-    .from("profiles")
-    .select()
-    .eq("id", data.user.id)
-    .single();
-
-    if(error) {
-      throw new APIError(201, 'User was created but system failed to return the data')
-    }
-
+  // The account exists from here on, whatever the profile read below does, so
+  // the audit row is written first: a failed read must not leave a created
+  // account with no trail.
   await logAuditEvent({
     actorId: admin.id,
     actorRole: "admin",
@@ -202,6 +217,21 @@ export async function createAdminUser(
     entityId: data.user.id,
     metadata: { createdBy: admin.email, newAdminEmail: email },
   });
+
+  const { data: profile, error } = await client
+    .from("profiles")
+    .select()
+    .eq("id", data.user.id)
+    .single();
+
+  if (error) {
+    logger.error("createAdminUser: profile read after create failed", {
+      userId: data.user.id,
+      code: error.code,
+      message: error.message,
+    });
+    throw new APIError(500, "The account was created, but loading it failed. Refresh the users list.");
+  }
 
   return { ...data.user, profile };
 }
@@ -321,6 +351,7 @@ export async function updateUser(
       entityId: userId,
       metadata: { previousRole: target.role, newRole: role },
     });
+    await endSessionsAfterChange(userId, "role_changed");
   }
 
   const result = await getUserById(client, userId);
@@ -373,8 +404,9 @@ export function isUserDeactivated(user: Pick<PlatformUser, "banned_until">, now 
  * Deactivate or reactivate an account with an auth ban. A ban blocks sign-in
  * and token refresh; the account, its orders, payments and audit trail stay,
  * which is why there is no delete — `audit_logs` is append-only and a dozen
- * tables point at the user without a cascade. A session already open keeps its
- * access token until it expires (up to an hour).
+ * tables point at the user without a cascade. Deactivating also ends every
+ * session they hold (`revoke_user_sessions`, 077), so an open tab is signed out
+ * on its next request instead of keeping its access token for up to an hour.
  */
 export async function setUserActive(
   admin: PlatformUser,
@@ -408,6 +440,7 @@ export async function setUserActive(
     entityId: userId,
     metadata: { email: target.email ?? null, role: target.profile.role },
   });
+  if (!active) await endSessionsAfterChange(userId, "deactivated");
 
   const updated = await getUserById(client, userId);
   if (!updated) throw new APIError(500, "Failed to fetch updated user");

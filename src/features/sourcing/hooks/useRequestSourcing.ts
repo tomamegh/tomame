@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { bagKeys } from "@/features/bag/hooks/useAddToBag";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { CreateSourcingRequestInput } from "../schema";

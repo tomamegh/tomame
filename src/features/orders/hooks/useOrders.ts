@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { Order, OrderList } from "../types";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { CustomerOrderHistoryEntry } from "@/features/orders/services/orders.service";

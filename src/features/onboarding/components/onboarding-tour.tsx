@@ -6,7 +6,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, ArrowRight, X } from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/utils";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { shouldShowOnboardingTour } from "../tour-predicate";
 import { buildOnboardingTourSteps, type OnboardingTourStep } from "../steps";
 import type { OnboardingSignals } from "../services/onboarding-state.service";

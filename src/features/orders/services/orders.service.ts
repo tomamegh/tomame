@@ -27,6 +27,11 @@ import { isSchemaMissingError } from "@/lib/supabase/errors";
 import type { Viewer } from "@/features/quotes/types";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 
+/**
+ * null ONLY when there is no such order (or RLS hides it). A database error
+ * throws a 500: read as null it became a 404 "Order not found" for an order
+ * that exists, which sent customers and admins looking for the wrong problem.
+ */
 export async function getOrderById(
   client: SupabaseClient,
   orderId: string,
@@ -35,10 +40,15 @@ export async function getOrderById(
     .from("orders")
     .select("*")
     .eq("id", orderId)
-    .single();
+    .maybeSingle();
 
-  if (error) return null;
-  return data as Order;
+  if (error) {
+    // An id that is not a uuid is a lookup of nothing, not an outage.
+    if (error.code === "22P02") return null;
+    logger.error("getOrderById failed", { orderId, code: error.code, message: error.message });
+    throw new APIError(500, "Could not load the order");
+  }
+  return (data as Order | null) ?? null;
 }
 
 async function upsertOrderDelivery(
@@ -72,9 +82,17 @@ async function upsertOrderDelivery(
   }
 }
 
-async function updateOrderStatus(
+/**
+ * Compare-and-set: the row moves only if it is still in `from`, the status the
+ * caller validated the transition against. Two admins (or an admin and the
+ * customer's cancel) racing on one order used to both "win", each writing its
+ * own audit row and email; now the loser gets a 409, mirroring
+ * `updateOrderGroupStatus`. A database error is a 500.
+ */
+export async function updateOrderStatus(
   client: SupabaseClient,
   orderId: string,
+  from: string,
   updates: {
     status: string;
     tracking_number?: string;
@@ -84,13 +102,14 @@ async function updateOrderStatus(
     eta_to?: string;
     delivered_at?: string;
   },
-): Promise<Order | null> {
+): Promise<Order> {
   const { data, error } = await client
     .from("orders")
     .update(updates)
     .eq("id", orderId)
+    .eq("status", from)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     logger.error("updateOrderStatus failed", {
@@ -99,7 +118,10 @@ async function updateOrderStatus(
       code: error.code,
       message: error.message,
     });
-    return null;
+    throw new APIError(500, "Failed to update order status");
+  }
+  if (!data) {
+    throw new APIError(409, "This order changed while you were working on it. Reload and try again.");
   }
   return data as Order;
 }
@@ -543,10 +565,7 @@ export async function updateOrderStatusAdmin(
   }
 
   const supabase = createAdminClient();
-  const updated = await updateOrderStatus(supabase, orderId, updatePayload);
-  if (!updated) {
-    throw new APIError(500, "Failed to update order status");
-  }
+  const updated = await updateOrderStatus(supabase, orderId, order.status, updatePayload);
 
   // Sync order_deliveries record when entering or completing the shipping pipeline
   if (newStatus === "in_transit" || newStatus === "delivered") {
@@ -673,10 +692,9 @@ export async function cancelOrderByUser(
     throw new APIError(409, "A payment for this order is still in progress. Wait for it to finish or fail, then try again.");
   }
 
-  const updated = await updateOrderStatus(supabase, orderId, {
+  const updated = await updateOrderStatus(supabase, orderId, "pending", {
     status: "cancelled",
   });
-  if (!updated) throw new APIError(500, "Failed to cancel order");
 
   await logAuditEvent({
     actorId: user.id,

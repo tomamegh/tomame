@@ -27,7 +27,8 @@ import { isAuthenticated } from "@/lib/supabase/current-user";
 import { StandaloneHomeRedirect } from "@/features/pwa/components";
 
 export const metadata: Metadata = {
-  title: "Tomame: Shop the world. Pay in cedis.",
+  // Absolute: it already carries the brand, so the root "%s · Tomame" template must not add it again.
+  title: { absolute: "Tomame: Shop the world. Pay in cedis." },
   description:
     "Paste a link from any US store and see the full price at your door before you pay: item, tax, fee, freight. Mobile Money or card, delivered in Ghana.",
 };

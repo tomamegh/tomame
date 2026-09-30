@@ -9,7 +9,7 @@ import { AdminBadge, AdminButton, AdminCard, AdminConfirm } from "@/components/l
 import { CAR_PRICE_STATES } from "@/config/constants";
 import { carTitle, priceLabel } from "@/features/cars/format";
 import type { CarListingView } from "@/features/cars/types";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import type { ApiSuccessResponse } from "@/types/api";
 

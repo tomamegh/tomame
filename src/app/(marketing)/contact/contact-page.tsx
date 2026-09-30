@@ -37,8 +37,10 @@ const CONTACT_METHODS = [
   {
     icon: MailIcon,
     title: 'Email',
-    value: 'support@tomame.ca',
-    desc: 'Fastest response, usually under 2 hours',
+    /** Replaced by `site_settings.support_email`; the row is dropped when none is set. */
+    value: null as string | null,
+    /** Completed with `site_settings.support_reply_time`. */
+    desc: 'Fastest response',
   },
   {
     icon: MessageCircle,
@@ -55,9 +57,10 @@ const CONTACT_METHODS = [
   },
 ];
 
-const WHY_TOMAME = [
+/** `null` marks the reply-time line, filled from `site_settings.support_reply_time` or dropped. */
+const WHY_TOMAME: (string | null)[] = [
   'Transparent pricing: every fee itemized before you pay',
-  'Fast response times, usually under 2 hours',
+  null,
   'Local team in Accra available on WhatsApp',
   'Pre-payment only: your money is safe before sourcing',
   'Live order tracking from purchase to delivery',
@@ -68,12 +71,30 @@ export interface ContactPageProps {
   whatsappHref: string | null;
   /** `site_settings.whatsapp_number`, as displayed. */
   whatsappNumber: string | null;
+  /** `site_settings.support_email`. */
+  supportEmail: string | null;
+  /** `site_settings.support_reply_time`, mid-sentence ("usually under 2 hours"). */
+  supportReplyTime: string | null;
 }
 
-export function ContactPage({ whatsappHref, whatsappNumber }: ContactPageProps) {
+export function ContactPage({
+  whatsappHref,
+  whatsappNumber,
+  supportEmail,
+  supportReplyTime,
+}: ContactPageProps) {
   const contactMethods = CONTACT_METHODS.flatMap((method) => {
+    if (method.title === 'Email') {
+      if (!supportEmail) return [];
+      const desc = supportReplyTime ? `${method.desc}, ${supportReplyTime}` : method.desc;
+      return [{ ...method, value: supportEmail, desc }];
+    }
     if (method.title !== 'WhatsApp') return [method];
     return whatsappNumber ? [{ ...method, value: whatsappNumber }] : [];
+  });
+  const whyTomame = WHY_TOMAME.flatMap((item) => {
+    if (item !== null) return [item];
+    return supportReplyTime ? [`Fast response times, ${supportReplyTime}`] : [];
   });
 
   return (
@@ -185,7 +206,7 @@ export function ContactPage({ whatsappHref, whatsappNumber }: ContactPageProps) 
                 </p>
 
                 <ul className="mt-6 space-y-3">
-                  {WHY_TOMAME.map((item) => (
+                  {whyTomame.map((item) => (
                     <li key={item} className="flex items-start gap-3">
                       <CheckCircle2
                         className="mt-0.5 h-4 w-4 shrink-0 text-rose-500"

@@ -3,12 +3,16 @@ import { type NextRequest } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { safeInternalPath } from "@/lib/auth/post-auth-destination";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? (type === "recovery" ? "/auth/reset-password" : "/");
+  // `next` is attacker-controlled (it rides in the emailed link), so only a
+  // same-origin path is honoured; anything else falls back to the default.
+  const next =
+    safeInternalPath(searchParams.get("next")) ?? (type === "recovery" ? "/auth/reset-password" : "/");
 
   if (token_hash && type) {
     const supabase = await createClient();

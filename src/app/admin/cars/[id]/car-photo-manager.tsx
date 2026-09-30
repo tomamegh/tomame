@@ -20,7 +20,7 @@ import {
   AdminEmpty,
 } from "@/components/layout/admin";
 import type { CarPhotoView } from "@/features/cars/types";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";

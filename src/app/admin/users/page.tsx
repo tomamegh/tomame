@@ -19,7 +19,7 @@ import type { Metadata } from "next";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 export const metadata: Metadata = {
-  title: "Users · Tomame admin",
+  title: "Users · Admin",
   description: "Everyone with a Tomame account.",
 };
 

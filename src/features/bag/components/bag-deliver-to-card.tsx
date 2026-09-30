@@ -11,7 +11,7 @@ import { Buildings, CheckCircle, HouseLine, MapPin, Plus, Storefront } from "@ph
 import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import { useAddresses } from "@/features/addresses/hooks/useAddresses";
 import type { DeliveryAddress } from "@/features/addresses/types";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import { bagKeys } from "../hooks/useAddToBag";

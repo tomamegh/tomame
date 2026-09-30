@@ -12,7 +12,7 @@ import { storeForUrl } from "@/features/extraction/stores";
 import { SimilarProductsRail } from "@/features/catalog/components/similar-products-rail";
 import { useAddToBag } from "@/features/bag/hooks/useAddToBag";
 import { useRequestSourcing } from "@/features/sourcing/hooks/useRequestSourcing";
-import { apiFetch, ApiFetchError } from "@/lib/auth/api-helpers";
+import { apiFetch, ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";

@@ -64,6 +64,13 @@ export interface MarketingSettings {
   supportHours: string | null;
   companyAddress: string | null;
   paymentChannels: string[];
+  /** `support_email` (077). The contact page drops the email row when unset. */
+  supportEmail: string | null;
+  /** `support_reply_time` (077), mid-sentence: "usually under 2 hours". */
+  supportReplyTime: string | null;
+  /** `refund_promise_title` / `refund_promise_detail` (077), the Fees page's refund card. */
+  refundPromiseTitle: string | null;
+  refundPromiseDetail: string | null;
 }
 
 // ── Page payloads ────────────────────────────────────────────────────────────

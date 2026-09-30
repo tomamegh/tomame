@@ -42,7 +42,7 @@ import { cn } from "@/lib/utils";
  * because no check has ever run.
  */
 export const metadata: Metadata = {
-  title: "Transaction · Tomame admin",
+  title: "Transaction · Admin",
 };
 
 /** Never cached: this screen exists to answer "what is true right now". */

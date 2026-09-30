@@ -8,7 +8,7 @@ import { PRICING_TO_REGION } from "@/features/extraction/url";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
 import { gapFillOverrides } from "@/features/extraction/quote.service";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 /**
@@ -38,8 +38,8 @@ const previewSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`pricing-preview:${ip}`, RATE_LIMIT.general).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`pricing-preview:${ip}`, RATE_LIMIT.general)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

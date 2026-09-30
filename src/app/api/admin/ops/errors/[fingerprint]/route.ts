@@ -6,7 +6,7 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
 import { requireAdmin, requireAuth } from "@/lib/auth/guards";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * POST /api/admin/ops/errors/:fingerprint — "I have looked at this one."
@@ -17,8 +17,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ fingerprint: string }> }) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-ops-errors:${ip}`, RATE_LIMIT.admin).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`admin-ops-errors:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
     const user = await getAuthenticatedUser();

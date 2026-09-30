@@ -17,7 +17,7 @@ import {
   AdminButton,
   AdminConfirm,
 } from "@/components/layout/admin";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import { describeFreight, describeValueFee } from "./pricing-group-format";

@@ -3,6 +3,8 @@ import { NextRequest } from "next/server";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { RATE_LIMIT } from "@/config/security";
 import { setOnboardingStatusSchema } from "@/features/onboarding/schema";
 import { setOnboardingStatus } from "@/features/onboarding/services/onboarding-state.service";
 
@@ -28,6 +30,9 @@ export async function PATCH(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
+    if (!(await checkRateLimit(`onboarding:${auth.id}`, RATE_LIMIT.general)).allowed) {
+      throw new APIError(429, "Too many requests");
+    }
 
     await setOnboardingStatus(auth.id, parsed.data);
 

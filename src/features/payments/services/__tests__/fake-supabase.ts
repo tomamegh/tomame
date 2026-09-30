@@ -16,6 +16,8 @@ export type TableName = "payments" | "orders" | "order_groups" | "car_orders" | 
 export type FakeDb = Partial<Record<TableName, Row[]>> & { payments: Row[] } & {
   /** Set to make subsequent writes fail, as a dropped connection would. */
   failWrites?: boolean;
+  /** Set to make subsequent reads fail, as a dropped connection would. */
+  failReads?: boolean;
   /**
    * Tables to answer as if the migration that creates them has not been applied.
    *
@@ -176,6 +178,9 @@ class FakeQuery implements PromiseLike<Result> {
   async maybeSingle(): Promise<Result> {
     const missing = this.missing();
     if (missing) return missing;
+    if (this.db.failReads && this.op === "select") {
+      return { data: null, error: { code: "57P01", message: "connection lost" } };
+    }
     if (this.db.failWrites && this.op !== "select") {
       return { data: null, error: { code: "57P01", message: "connection lost" } };
     }

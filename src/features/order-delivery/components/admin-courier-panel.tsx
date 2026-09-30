@@ -6,7 +6,7 @@ import { BikeIcon, PhoneIcon, SendIcon } from "lucide-react";
 
 import { AdminBadge, AdminButton, AdminCard, AdminConfirm } from "@/components/layout/admin";
 import { formatAdminDateTime } from "@/features/orders/components/admin-order-display";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import { COURIER_NAME_MAX, formatGhanaPhone } from "../schema";

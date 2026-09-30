@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { recordJobRun, type JobRunOutcome } from "@/db/queries/job-heartbeats";
@@ -23,12 +24,24 @@ export function authorizeCron(request: NextRequest, job: string): NextResponse |
     return NextResponse.json({ error: "Cron secret not configured" }, { status: 503 });
   }
 
-  const header = request.headers.get("authorization");
-  if (header !== `Bearer ${secret}`) {
+  const header = request.headers.get("authorization") ?? "";
+  if (!secretsMatch(header, `Bearer ${secret}`)) {
     logger.warn("Cron endpoint unauthorized access attempt", { job });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return null;
+}
+
+/**
+ * Constant-time comparison, so response timing does not leak how much of the
+ * secret a guess got right. `timingSafeEqual` throws on unequal lengths, hence
+ * the length check first (length alone is not the secret).
+ */
+export function secretsMatch(given: string, expected: string): boolean {
+  const a = Buffer.from(given, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 /**

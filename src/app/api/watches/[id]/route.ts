@@ -21,7 +21,7 @@ export async function DELETE(
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
 
-    if (!checkRateLimit(`watches-delete:${auth.id}`, RATE_LIMIT.watches).allowed) {
+    if (!(await checkRateLimit(`watches-delete:${auth.id}`, RATE_LIMIT.watches)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

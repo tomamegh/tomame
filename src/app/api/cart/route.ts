@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, rateLimitSubject } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { addToBagSchema, setBagDeliverySchema } from "@/features/bag/schema";
 import { addToBag, getBag, setBagDelivery } from "@/features/bag/services/bag.service";
@@ -17,15 +17,17 @@ import { addToBag, getBag, setBagDelivery } from "@/features/bag/services/bag.se
  * names a quote and a quantity; every number comes from the server.
  */
 
-function viewerKey(userId: string | null, sessionId: string | null, request: NextRequest): string {
-  return userId ?? sessionId ?? request.headers.get("x-forwarded-for") ?? "unknown";
+// A signed-in viewer is keyed by user id; anyone else by IP. The quote-session
+// cookie is client-controlled (drop it and you get a fresh bucket), so it never keys a limit.
+function viewerKey(userId: string | null, request: NextRequest): string {
+  return rateLimitSubject(request, userId);
 }
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
     const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
-    if (!checkRateLimit(`cart-read:${viewerKey(viewer.userId, viewer.sessionId, request)}`, RATE_LIMIT.general).allowed) {
+    if (!(await checkRateLimit(`cart-read:${viewerKey(viewer.userId, request)}`, RATE_LIMIT.general)).allowed) {
       throw new APIError(429, "Too many requests");
     }
     return finalize(successResponse(await getBag(viewer)));
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
     const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
-    if (!checkRateLimit(`cart-write:${viewerKey(viewer.userId, viewer.sessionId, request)}`, RATE_LIMIT.general).allowed) {
+    if (!(await checkRateLimit(`cart-write:${viewerKey(viewer.userId, request)}`, RATE_LIMIT.general)).allowed) {
       throw new APIError(429, "Too many requests");
     }
     const body: unknown = await request.json().catch(() => {
@@ -58,7 +60,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
     const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
-    if (!checkRateLimit(`cart-write:${viewerKey(viewer.userId, viewer.sessionId, request)}`, RATE_LIMIT.general).allowed) {
+    if (!(await checkRateLimit(`cart-write:${viewerKey(viewer.userId, request)}`, RATE_LIMIT.general)).allowed) {
       throw new APIError(429, "Too many requests");
     }
     const body: unknown = await request.json().catch(() => {

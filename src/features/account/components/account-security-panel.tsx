@@ -6,7 +6,7 @@ import { Eye, EyeSlash } from "@phosphor-icons/react/ssr";
 import { z } from "zod";
 
 import { Input } from "@/components/ui/input";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import { formatNotificationStamp } from "../format";

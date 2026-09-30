@@ -4,7 +4,7 @@ import { AdminPasteQueue } from "@/features/extraction/components/admin-paste-qu
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Paste queue · Tomame admin",
+  title: "Paste queue · Admin",
   description: "Every link a customer has handed the extractor.",
 };
 

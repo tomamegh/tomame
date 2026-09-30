@@ -47,7 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const user = await getAuthenticatedUser();
   if (!canAccessAdmin(user)) return hidden;
 
-  return { ...hidden, title: "Builder · Tomame" };
+  return { ...hidden, title: "Builder" };
 }
 
 /** Overrides change out of band; a cached shell would show a stale crop. */

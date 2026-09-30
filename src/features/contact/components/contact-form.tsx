@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Send, CheckCircle2 } from "lucide-react";
 import { contactSchema, type ContactFormData } from "../schema";
 import { useSendContactMessage } from "../hooks/useContact";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import { Input, Textarea } from "@/components/ui/form";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";

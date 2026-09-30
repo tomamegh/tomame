@@ -20,6 +20,15 @@ export const RATE_LIMIT = {
    * rather than an anonymous attacker.
    */
   admin: { windowMs: 15 * 60 * 1000, maxRequests: 200 },
+  /**
+   * Status polls — 1200 per 15 minutes per signed-in user, or per IP for a
+   * visitor. The paste queue and the quote screen poll GET /api/pastes and
+   * GET /api/extractions/:id every 2–10 s while a link is reading; on
+   * `general` (60 per 15 minutes) a single tab hit 429 inside two minutes.
+   * These reads are cheap and scoped to the viewer, so the budget only has to
+   * stop a runaway loop, not an honest few tabs.
+   */
+  poll: { windowMs: 15 * 60 * 1000, maxRequests: 1200 },
   /** Order creation — 5 requests per hour per user */
   orders: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
   /** Payment initialization — 10 requests per 15 minutes */

@@ -17,7 +17,7 @@ import {
 } from "@/components/layout/admin";
 import { formatAdminDateTime } from "@/features/orders/components/admin-order-display";
 
-export const metadata: Metadata = { title: "Boxes · Tomame admin" };
+export const metadata: Metadata = { title: "Boxes · Admin" };
 
 /**
  * `/admin/boxes` — the consolidation boxes items are packed into.

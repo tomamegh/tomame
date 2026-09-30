@@ -8,7 +8,7 @@ import type { ContactMessageRow, ContactMessageStatus } from "@/db/queries/conta
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import { useContactQueue, useMoveContactMessage } from "../hooks/useContactQueue";

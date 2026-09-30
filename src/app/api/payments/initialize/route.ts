@@ -4,13 +4,13 @@ import { initializePayment } from "@/features/payments/services/payments.service
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`payments-init:${ip}`, RATE_LIMIT.payments).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`payments-init:${ip}`, RATE_LIMIT.payments)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

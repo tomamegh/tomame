@@ -27,7 +27,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 export async function POST(request: NextRequest) {
   try {
     const auth = requireAuth(await getAuthenticatedUser());
-    if (!checkRateLimit(`sourcing:${auth.id}`, RATE_LIMIT.orders).allowed) {
+    if (!(await checkRateLimit(`sourcing:${auth.id}`, RATE_LIMIT.orders)).allowed) {
       throw new APIError(429, "You have sent a few of these. Give us a moment to get to them.");
     }
 

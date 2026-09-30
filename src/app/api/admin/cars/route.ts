@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { adminCarListQuerySchema, createCarListingSchema } from "@/features/cars/schema";
 import { createCar, listCarsForAdmin } from "@/features/cars/services/cars.service";
@@ -25,8 +25,8 @@ import { createCar, listCarsForAdmin } from "@/features/cars/services/cars.servi
 /** GET — every listing, drafts included. The admin console's index. */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-cars-read:${ip}`, RATE_LIMIT.admin).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`admin-cars-read:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
@@ -60,8 +60,8 @@ export async function GET(request: NextRequest) {
 /** POST — add a listing. Unpublished unless the body says otherwise. */
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-cars:${ip}`, RATE_LIMIT.admin).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`admin-cars:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

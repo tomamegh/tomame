@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CAR_ENQUIRY_KINDS, type CarEnquiryKind } from "@/config/constants";
-import { ApiFetchError, apiFetch } from "@/lib/auth/api-helpers";
+import { ApiFetchError, apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";

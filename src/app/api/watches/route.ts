@@ -25,7 +25,7 @@ export async function GET() {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
 
-    if (!checkRateLimit(`watches-list:${auth.id}`, RATE_LIMIT.general).allowed) {
+    if (!(await checkRateLimit(`watches-list:${auth.id}`, RATE_LIMIT.general)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
 
-    if (!checkRateLimit(`watches-create:${auth.id}`, RATE_LIMIT.watches).allowed) {
+    if (!(await checkRateLimit(`watches-create:${auth.id}`, RATE_LIMIT.watches)).allowed) {
       throw new APIError(429, "You've added a lot of watches today. Try again later.");
     }
 

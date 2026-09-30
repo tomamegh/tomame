@@ -4,7 +4,7 @@ import { markNotificationRead } from "@/features/notifications/services/notifica
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 const paramsSchema = z.object({
@@ -23,8 +23,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`notifications-read:${ip}`, RATE_LIMIT.general).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`notifications-read:${ip}`, RATE_LIMIT.general)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

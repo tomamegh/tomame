@@ -9,7 +9,7 @@ import type { ReceiptFulfilment } from "@/db/queries/receipt-state";
 
 import { AssistedRequestDialog } from "@/features/assisted/components";
 import { useCreatePaste } from "@/features/extraction/hooks/usePastes";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 

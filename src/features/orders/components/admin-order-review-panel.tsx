@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { AdminBadge, AdminCard } from "@/components/layout/admin/admin-page";
 import { formatGhs } from "@/features/marketing/format";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { Order, OriginCountry } from "../types";

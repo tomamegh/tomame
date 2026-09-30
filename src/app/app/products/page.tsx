@@ -16,7 +16,7 @@ import { resolveCatalogQuery } from "@/features/catalog/components/format";
 import type { CatalogProduct } from "@/features/catalog/types";
 
 export const metadata: Metadata = {
-  title: "Search priced products · Tomame",
+  title: "Search priced products",
   description:
     "Search products we have already read and priced, with the full cedi total worked out.",
 };

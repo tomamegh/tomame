@@ -13,6 +13,11 @@ export const SITE_SETTING_KEYS = [
   "payment_hold_note",
   "payment_expiry_minutes",
   "unpaid_order_ttl_hours",
+  // 077: copy that used to be hardcoded on /contact and /fees.
+  "support_email",
+  "support_reply_time",
+  "refund_promise_title",
+  "refund_promise_detail",
 ] as const;
 
 export type SiteSettingKey = (typeof SITE_SETTING_KEYS)[number];

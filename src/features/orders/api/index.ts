@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 
 export async function getOrders() {
   try {

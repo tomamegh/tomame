@@ -13,7 +13,7 @@ import {
 } from "@/components/layout/admin";
 import { AdminOrdersBoard } from "@/features/orders/components/admin-orders-board";
 
-export const metadata: Metadata = { title: "Orders · Tomame admin" };
+export const metadata: Metadata = { title: "Orders · Admin" };
 
 /**
  * `/admin/orders` — every order, and the queue of the ones a person has to price.

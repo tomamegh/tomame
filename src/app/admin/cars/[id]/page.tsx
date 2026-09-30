@@ -16,7 +16,7 @@ import { CarPhotoManager } from "./car-photo-manager";
 import { CarPublishPanel } from "./car-publish-panel";
 
 export const metadata: Metadata = {
-  title: "Car listing · Tomame admin",
+  title: "Car listing · Admin",
 };
 
 /**

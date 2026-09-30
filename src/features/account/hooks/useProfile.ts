@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { useSession } from "@/features/auth/providers/auth-provider";
 import type { PlatformUser } from "@/features/users/types";
 import type { ApiSuccessResponse } from "@/types/api";

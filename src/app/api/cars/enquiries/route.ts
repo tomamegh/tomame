@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
 
-    if (!checkRateLimit(`car-enquiry-create:${auth.id}`, RATE_LIMIT.assisted).allowed) {
+    if (!(await checkRateLimit(`car-enquiry-create:${auth.id}`, RATE_LIMIT.assisted)).allowed) {
       throw new APIError(
         429,
         "That is a lot of enquiries in one hour. Give us a chance to answer the ones you have already sent.",

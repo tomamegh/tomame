@@ -61,13 +61,13 @@ interface CarPageProps {
 export async function generateMetadata({ params }: CarPageProps): Promise<Metadata> {
   const { slug } = await params;
   const found = await getPublishedCarBySlug(slug);
-  if (!found) return { title: "Car not found · Tomame" };
+  if (!found) return { title: "Car not found" };
 
   const title = carTitle(found.car);
   const price = priceLabel(found.car);
 
   return {
-    title: `${title} · Tomame`,
+    title: `${title}`,
     description: `${title}: ${price.text}${
       price.isAmount ? ", landed in Tema with duty and clearing paid" : ""
     }.`,

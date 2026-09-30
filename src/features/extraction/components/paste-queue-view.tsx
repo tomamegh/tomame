@@ -20,7 +20,7 @@ import {
 import { AssistedRequestDialog } from "@/features/assisted/components";
 import { describePendingWait, hostOf, type PendingWait } from "@/features/bag/components/format";
 import type { BagLinePending } from "@/features/bag/types";
-import { ApiFetchError } from "@/lib/auth/api-helpers";
+import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { CATALOG_SEARCH } from "@/config/catalog";
 import { cn } from "@/lib/utils";

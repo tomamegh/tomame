@@ -4,6 +4,7 @@ import { ArrowUUpLeft, LockSimple } from "@phosphor-icons/react/ssr";
 import {
   getFeeLines,
   getFeesWorkedExample,
+  getMarketingSettings,
   getPublishedContent,
   resolveMarketingFigures,
 } from "@/features/marketing/services";
@@ -15,7 +16,7 @@ import { FeeRow } from "./_components/fee-row";
 import { WorkedExampleCard } from "./_components/worked-example-card";
 
 export const metadata: Metadata = {
-  title: "Fees · Tomame",
+  title: "Fees",
   description:
     "One Tomame fee, and everything else at the rate we're charged. See a live worked example priced by the same engine that quotes your order.",
 };
@@ -30,7 +31,7 @@ interface FeesPageProps {
 export default async function FeesPage({ searchParams }: FeesPageProps) {
   const params = await searchParams;
 
-  const [feeLines, figures, compareRows, baseExample, rateLockHours] = await Promise.all([
+  const [feeLines, figures, compareRows, baseExample, rateLockHours, settings] = await Promise.all([
     getFeeLines(),
     resolveMarketingFigures(),
     getPublishedContent("compare_row"),
@@ -40,6 +41,8 @@ export default async function FeesPage({ searchParams }: FeesPageProps) {
       (constants) => constants.rate_lock_hours,
       () => null,
     ),
+    // The refund card's copy is admin-owned (`refund_promise_*`, 077).
+    getMarketingSettings(),
   ]);
 
   // The chip is an index into the admin's own preset list, never a raw price:
@@ -122,19 +125,23 @@ export default async function FeesPage({ searchParams }: FeesPageProps) {
             />
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5 rounded-2xl bg-tm-green-bg p-4.5">
-                <ArrowUUpLeft
-                  weight="duotone"
-                  className="size-5.5 text-tm-green"
-                  aria-hidden="true"
-                />
-                <p className="text-sm font-bold leading-tight text-tm-green-ink">
-                  Can&apos;t source it? 100% back.
-                </p>
-                <p className="text-xs leading-relaxed text-[#166534]">
-                  Including our fee, within 24 hours.
-                </p>
-              </div>
+              {settings.refundPromiseTitle ? (
+                <div className="flex flex-col gap-1.5 rounded-2xl bg-tm-green-bg p-4.5">
+                  <ArrowUUpLeft
+                    weight="duotone"
+                    className="size-5.5 text-tm-green"
+                    aria-hidden="true"
+                  />
+                  <p className="text-sm font-bold leading-tight text-tm-green-ink">
+                    {settings.refundPromiseTitle}
+                  </p>
+                  {settings.refundPromiseDetail ? (
+                    <p className="text-xs leading-relaxed text-[#166534]">
+                      {settings.refundPromiseDetail}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="flex flex-col gap-1.5 rounded-2xl bg-tm-amber-bg p-4.5">
                 <LockSimple

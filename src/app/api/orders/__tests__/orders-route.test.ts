@@ -12,7 +12,11 @@ vi.mock("@/features/orders/services/orders.service", () => ({
   createOrder: vi.fn(),
   listUserOrders: vi.fn(),
 }));
-vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: vi.fn(() => ({ allowed: true })) }));
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: vi.fn(() => ({ allowed: true })),
+  getClientIp: (r: Request) => r.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown",
+  rateLimitSubject: (r: Request, id?: string | null) => (id ? `user:${id}` : `ip:${r.headers.get("x-forwarded-for") ?? "unknown"}`),
+}));
 // The rate lock is resolved from the session cookie, which needs a real request
 // context this test has no business standing up.
 vi.mock("@/lib/quote-session", () => ({

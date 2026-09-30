@@ -9,7 +9,7 @@ import { Eyebrow, MARKETING_GUTTER } from "../_components/marketing-primitives";
 import { FaqList } from "./_components/faq-list";
 
 export const metadata: Metadata = {
-  title: "Questions · Tomame",
+  title: "Questions",
   description:
     "What people ask before their first order: how the price is worked out, which stores we buy from, how long delivery takes, and what happens if an item cannot be sourced.",
 };

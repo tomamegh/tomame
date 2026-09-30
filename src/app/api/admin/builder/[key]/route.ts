@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { isBuilderEnabled } from "@/config/builder";
@@ -43,8 +43,8 @@ async function authorise(request: NextRequest, key: string, bucket: string) {
   // Narrowed here so callers get MarketingImageKey, not string.
   const imageKey = key;
 
-  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-  if (!checkRateLimit(`${bucket}:${ip}`, RATE_LIMIT.admin).allowed) {
+  const ip = getClientIp(request);
+  if (!(await checkRateLimit(`${bucket}:${ip}`, RATE_LIMIT.admin)).allowed) {
     throw new APIError(429, "Too many requests");
   }
 

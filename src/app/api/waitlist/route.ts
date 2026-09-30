@@ -3,7 +3,7 @@ import { waitlistSignupSchema } from "@/features/marketing/schema";
 import { joinWaitlist } from "@/features/marketing/services/waitlist.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 /**
@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
       throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
     }
 
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`waitlist:${ip}`, RATE_LIMIT.waitlist).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`waitlist:${ip}`, RATE_LIMIT.waitlist)).allowed) {
       throw new APIError(429, "Too many requests. Please try again later.");
     }
 

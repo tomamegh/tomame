@@ -6,7 +6,7 @@ import type { OrderFeedbackStatus } from "@/db/queries/order-feedback";
 import { FeedbackQueue } from "@/features/feedback/components/feedback-queue";
 
 export const metadata: Metadata = {
-  title: "Parcel feedback · Tomame admin",
+  title: "Parcel feedback · Admin",
 };
 
 const STATUSES = ["open", "in_review", "resolved", "dismissed"] as const;

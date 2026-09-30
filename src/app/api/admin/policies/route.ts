@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { RATE_LIMIT } from "@/config/security";
 import { createPolicy } from "@/features/policies/services/policies.service";
 
 /**
@@ -27,6 +29,9 @@ export async function POST(request: NextRequest) {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
     const admin = requireAdmin(auth);
+    if (!(await checkRateLimit(`admin-policies-create:${admin.id}`, RATE_LIMIT.admin)).allowed) {
+      throw new APIError(429, "Too many requests");
+    }
 
     const body: unknown = await request.json().catch(() => {
       throw new APIError(400, "Invalid JSON");

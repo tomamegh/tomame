@@ -14,7 +14,7 @@ import {
   recipientLabel,
   relativeTime,
 } from "@/features/notifications/components/admin-notification-format";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";
 

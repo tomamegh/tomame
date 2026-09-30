@@ -46,8 +46,7 @@ vi.mock("@/lib/supabase/admin", () => ({
         return {
           select: () => ({
             eq: () => ({
-              single: async () =>
-                orderRow ? { data: orderRow, error: null } : { data: null, error: { message: "no rows" } },
+              maybeSingle: async () => ({ data: orderRow, error: null }),
             }),
           }),
         };

@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { AdminBadge, AdminEmpty } from "@/components/layout/admin";
-import { apiFetch } from "@/lib/auth/api-helpers";
+import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import type { ErrorIssueRow } from "@/db/queries/error-events";
 import { formatRelativeTime } from "@/features/app-home/components/format";

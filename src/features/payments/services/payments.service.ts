@@ -66,6 +66,11 @@ async function insertPayment(
   return data as Payment;
 }
 
+/**
+ * null ONLY when no row has that reference. A database error throws: the
+ * webhook answers a missing payment 200 "ignored" and Paystack never retries
+ * it, so a blip read as "not found" would drop a real charge on the floor.
+ */
 async function getPaymentByReference(
   client: SupabaseClient,
   reference: string
@@ -74,10 +79,13 @@ async function getPaymentByReference(
     .from("payments")
     .select("*")
     .eq("reference", reference)
-    .single();
+    .maybeSingle();
 
-  if (error) return null;
-  return data as Payment;
+  if (error) {
+    logger.error("getPaymentByReference failed", { reference, code: error.code, message: error.message });
+    throw new APIError(500, "Could not load the payment");
+  }
+  return (data as Payment | null) ?? null;
 }
 
 async function getPaymentsByUserId(

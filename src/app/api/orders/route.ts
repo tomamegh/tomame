@@ -7,7 +7,7 @@ import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveViewer } from "@/lib/quote-session";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
 /**
@@ -18,8 +18,8 @@ import { RATE_LIMIT } from "@/config/security";
  */
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`orders-create:${ip}`, RATE_LIMIT.orders).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`orders-create:${ip}`, RATE_LIMIT.orders)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 

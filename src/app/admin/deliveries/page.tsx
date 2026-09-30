@@ -14,7 +14,7 @@ import {
 } from "@/components/layout/admin";
 import { adminStatusLabel } from "@/features/orders/components/admin-transitions";
 
-export const metadata: Metadata = { title: "Deliveries · Tomame admin" };
+export const metadata: Metadata = { title: "Deliveries · Admin" };
 
 /**
  * `/admin/deliveries` — every order past payment, and where it has got to.

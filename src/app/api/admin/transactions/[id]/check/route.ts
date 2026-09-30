@@ -5,7 +5,7 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { checkTransactionWithPaystack } from "@/features/payments/services/admin-verification.service";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
 import { requireAdmin, requireAuth } from "@/lib/auth/guards";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * POST /api/admin/transactions/:id/check
@@ -23,8 +23,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-    if (!checkRateLimit(`admin-txn-check:${ip}`, RATE_LIMIT.admin).allowed) {
+    const ip = getClientIp(request);
+    if (!(await checkRateLimit(`admin-txn-check:${ip}`, RATE_LIMIT.admin)).allowed) {
       throw new APIError(429, "Too many requests");
     }
 
