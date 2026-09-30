@@ -53,18 +53,13 @@ export async function getUserById(
   return { ...authResult.data.user, profile };
 }
 
-async function getUserByEmail(
-  client: SupabaseClient,
-  email: string,
-): Promise<UserProfile | null> {
-  const { data, error } = await client
-    .from("profiles")
-    .select("*")
-    .eq("email", email)
-    .single();
-
-  if (error) return null;
-  return data as UserProfile;
+/**
+ * Auth owns email uniqueness (`profiles` has no email column), so a duplicate
+ * is read off the createUser error rather than checked beforehand.
+ */
+function isEmailTaken(error: { code?: string }): boolean {
+  // Codes only: auth answers 422 for a weak password too.
+  return error.code === "email_exists" || error.code === "user_already_exists";
 }
 
 async function updateUserRole(
@@ -177,11 +172,6 @@ export async function createAdminUser(
 ): Promise<PlatformUser> {
   const client = createAdminClient();
 
-  const existing = await getUserByEmail(client, email);
-  if (existing) {
-    throw new APIError(409, "Email already in use");
-  }
-
   const { data, error: authError } = await client.auth.admin.createUser({
     email,
     password,
@@ -189,6 +179,7 @@ export async function createAdminUser(
   });
 
   if (authError) {
+    if (isEmailTaken(authError)) throw new APIError(409, "Email already in use");
     logger.error("Admin createUser failed", { error: authError.message });
     throw new APIError(500, "Failed to create user");
   }
@@ -271,9 +262,6 @@ export async function createUser(
 ): Promise<PlatformUser> {
   const client = createAdminClient();
 
-  const existing = await getUserByEmail(client, email);
-  if (existing) throw new APIError(409, "Email already in use");
-
   const { data: authData, error: authError } =
     await client.auth.admin.createUser({
       email,
@@ -283,6 +271,7 @@ export async function createUser(
     });
 
   if (authError) {
+    if (isEmailTaken(authError)) throw new APIError(409, "Email already in use");
     logger.error("createUser (admin) failed", { error: authError.message });
     throw new APIError(500, "Failed to create user");
   }
@@ -339,17 +328,18 @@ export async function updateUser(
   return result;
 }
 
+/**
+ * Takes the user the route already resolved by id. It used to look them up
+ * again by email on `profiles`, which has no email column, so every reset 404'd.
+ */
 export async function adminResetUserPassword(
   admin: PlatformUser,
-  targetEmail: string,
+  targetUser: PlatformUser,
 ): Promise<MessageResponse> {
   const client = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-
-  const targetUser = await getUserByEmail(client, targetEmail);
-  if (!targetUser) {
-    throw new APIError(404, "User not found");
-  }
+  const targetEmail = targetUser.email;
+  if (!targetEmail) throw new APIError(400, "This account has no email address");
 
   const { error } = await client.auth.resetPasswordForEmail(targetEmail, {
     redirectTo: `${appUrl}/auth/reset-password`,
@@ -370,4 +360,56 @@ export async function adminResetUserPassword(
   });
 
   return { message: "Password reset email sent" };
+}
+
+/** Supabase has no permanent ban; a century is the documented stand-in. */
+const DEACTIVATED_BAN = "876000h";
+
+export function isUserDeactivated(user: Pick<PlatformUser, "banned_until">, now = new Date()): boolean {
+  return !!user.banned_until && new Date(user.banned_until) > now;
+}
+
+/**
+ * Deactivate or reactivate an account with an auth ban. A ban blocks sign-in
+ * and token refresh; the account, its orders, payments and audit trail stay,
+ * which is why there is no delete — `audit_logs` is append-only and a dozen
+ * tables point at the user without a cascade. A session already open keeps its
+ * access token until it expires (up to an hour).
+ */
+export async function setUserActive(
+  admin: PlatformUser,
+  userId: string,
+  active: boolean,
+): Promise<PlatformUser> {
+  if (userId === admin.id) throw new APIError(400, "You cannot deactivate your own account");
+
+  const client = createAdminClient();
+  const target = await getUserById(client, userId);
+  if (!target) throw new APIError(404, "User not found");
+  // Machine accounts are not changed from the admin screens (see AdminRoleControl).
+  if (target.profile.role === "system") throw new APIError(400, "System accounts cannot be deactivated");
+
+  // Idempotent: asking for the state it is already in changes nothing and writes no audit row.
+  if (isUserDeactivated(target) === !active) return target;
+
+  const { error } = await client.auth.admin.updateUserById(userId, {
+    ban_duration: active ? "none" : DEACTIVATED_BAN,
+  });
+  if (error) {
+    logger.error("setUserActive failed", { userId, active, error: error.message });
+    throw new APIError(500, active ? "Failed to reactivate the account" : "Failed to deactivate the account");
+  }
+
+  await logAuditEvent({
+    actorId: admin.id,
+    actorRole: "admin",
+    action: active ? "user_reactivated" : "user_deactivated",
+    entityType: "user",
+    entityId: userId,
+    metadata: { email: target.email ?? null, role: target.profile.role },
+  });
+
+  const updated = await getUserById(client, userId);
+  if (!updated) throw new APIError(500, "Failed to fetch updated user");
+  return updated;
 }

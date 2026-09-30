@@ -9,7 +9,8 @@ import {
   AdminPage,
 } from "@/components/layout/admin";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
-import { getUserDetail } from "@/features/users/services/users.service";
+import { getUserDetail, isUserDeactivated } from "@/features/users/services/users.service";
+import { AdminAccountStatus } from "@/features/users/components/admin-account-status";
 import { AdminPasswordReset } from "@/features/users/components/admin-password-reset";
 import { AdminRoleControl } from "@/features/users/components/admin-role-control";
 import {
@@ -137,7 +138,7 @@ export default async function AdminUserDetailPage({
         <AdminCard
           index={1}
           title="Access"
-          blurb="Role changes are written by the server with a service-role client and recorded in the audit log."
+          blurb="Role and account changes are written by the server with a service-role client and recorded in the audit log."
         >
           <div className="flex flex-col gap-5">
             <AdminRoleControl
@@ -148,6 +149,15 @@ export default async function AdminUserDetailPage({
             />
             <div className="border-t border-tm-hairline pt-4">
               <AdminPasswordReset userId={user.id} email={user.email ?? null} />
+            </div>
+            <div className="border-t border-tm-hairline pt-4">
+              <AdminAccountStatus
+                userId={user.id}
+                userLabel={name}
+                deactivated={isUserDeactivated(user)}
+                isSelf={viewer.id === user.id}
+                isSystem={user.profile.role === "system"}
+              />
             </div>
           </div>
         </AdminCard>

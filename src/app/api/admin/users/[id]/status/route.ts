@@ -1,12 +1,15 @@
 import { NextRequest } from "next/server";
+import { z } from "zod";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
-import { getUserById, adminResetUserPassword } from "@/features/users/services/users.service";
+import { setUserActive } from "@/features/users/services/users.service";
 
+const statusSchema = z.object({ active: z.boolean() });
+
+/** `POST /api/admin/users/[id]/status` — `{ active: false }` deactivates, `{ active: true }` reactivates. */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -22,12 +25,11 @@ export async function POST(
     const admin = requireAdmin(auth);
 
     const { id } = await params;
-    const targetUser = await getUserById(createAdminClient(), id);
-    if (!targetUser) throw new APIError(404, "User not found");
+    const parsed = statusSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) throw new APIError(400, "Expected { active: boolean }");
 
-    const result = await adminResetUserPassword(admin, targetUser);
-
-    return successResponse(result);
+    const data = await setUserActive(admin, id, parsed.data.active);
+    return successResponse(data);
   } catch (error) {
     return errorResponse(error);
   }

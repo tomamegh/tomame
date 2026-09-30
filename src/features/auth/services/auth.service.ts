@@ -75,6 +75,10 @@ export async function login(details: LoginSchemaType): Promise<PlatformUser> {
   const { data, error } = await supabase.auth.signInWithPassword(details);
 
   if (error) {
+    // Auth checks the password before the ban, so this only reaches someone who knew it.
+    if (error.code === "user_banned") {
+      throw new APIError(403, "This account has been deactivated. Contact support to restore it.");
+    }
     throw new APIError(401, "Invalid email or password");
   }
 
