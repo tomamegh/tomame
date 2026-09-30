@@ -68,7 +68,7 @@ export function roleGrantSummary(role: PlatformRoles): string {
     case "system":
       return "A machine account. It is not a person and should not be assigned by hand.";
     case "warehouse":
-      return "The packaging platform only: receiving parcels, photographing them, packing, printing labels and shipping. They see an item's name, photo and weight and the recipient's name, phone and delivery area — never prices, payments, emails or any admin screen. They are kept out of the storefront too.";
+      return "The packaging platform only: receiving parcels, photographing them, packing, printing labels and shipping. They see an item's name, photo and weight and the recipient's name, phone and delivery area. Never prices, payments, emails or any admin screen. They are kept out of the storefront too.";
     default:
       return "The storefront only: their own bag, orders, addresses and watches. No admin screen and no admin endpoint.";
   }

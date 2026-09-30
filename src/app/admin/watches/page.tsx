@@ -145,7 +145,7 @@ export default async function AdminWatchesPage() {
         <div className="flex flex-col gap-4">
           <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
             <Fact label="Last check recorded">
-              {lastCheckedAt ? (relativeTime(lastCheckedAt, now) ?? "—") : "Never"}
+              {lastCheckedAt ? (relativeTime(lastCheckedAt, now) ?? "–") : "Never"}
             </Fact>
             <Fact label="Never checked yet">
               {formatCount(counts.neverChecked)}
@@ -253,7 +253,7 @@ export default async function AdminWatchesPage() {
                       {recipientLabel(null, alert.user_id)}
                     </Link>
                     <p className="tm-nums mt-1.5 text-[12px] leading-none font-medium text-tm-text-3">
-                      {relativeTime(alert.created_at, now) ?? "—"}
+                      {relativeTime(alert.created_at, now) ?? "–"}
                     </p>
                   </div>
                   <AdminBadge tone={badge.tone}>{badge.label}</AdminBadge>

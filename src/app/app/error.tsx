@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+
+import { reportClientError } from "@/lib/observability/report-client-error";
 import Link from "next/link";
 import { ArrowClockwise, WarningCircle } from "@phosphor-icons/react/ssr";
 
@@ -20,6 +22,7 @@ export default function AppError({
 }) {
   useEffect(() => {
     console.error("app screen failed", error);
+    reportClientError({ kind: "render", message: error.message || "Screen failed", digest: error.digest });
   }, [error]);
 
   return (

@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
+import { warehousePageUser } from "@/features/warehouse/services/page-user";
 import { notFound } from "next/navigation";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { PackageWorkbench } from "@/features/warehouse/components/package-workbench";
 import { getWarehousePackage } from "@/features/warehouse/services/warehouse.service";
 import { APIError } from "@/lib/auth/api-helpers";
-import { requireAuth } from "@/lib/auth/guards";
 
 export const metadata: Metadata = { title: "Package" };
 export const dynamic = "force-dynamic";
@@ -22,7 +21,7 @@ export default async function WarehousePackagePage({
 }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const user = requireAuth(await getAuthenticatedUser());
+  const user = await warehousePageUser(`/warehouse/packages/${id}`);
   const query = await searchParams;
 
   try {

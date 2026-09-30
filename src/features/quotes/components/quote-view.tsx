@@ -31,7 +31,8 @@ import { QuoteSkeleton } from "./quote-skeleton";
 /** Mirrors `createOrderSchema` in `src/features/orders/schema.ts`. */
 const QUANTITY_MIN = 1;
 const QUANTITY_MAX = 100;
-const INSTRUCTIONS_MAX = 2000;
+/** Mirrors `addToBagSchema.special_instructions` (src/features/bag/schema.ts), which the bag route enforces. It was 2000 here, so 1001 to 2000 characters were refused with a 400. */
+const INSTRUCTIONS_MAX = 1000;
 
 /** What `GET /api/extractions/:id` adds to the `Quote` it returns. */
 interface QuoteResponse extends Quote {
@@ -246,7 +247,11 @@ export function QuoteView({
         },
       },
     );
-  }, [addToBag, instructions, quantity, quote, router]);
+    // The gap-fillers' state belongs here too (the derived values are declared
+    // below the early returns, so they cannot be listed themselves). Without
+    // it a customer who typed a missing price and pressed Add sent the value
+    // from an earlier render: the line went into the bag unpriced.
+  }, [addToBag, instructions, quantity, quote, router, gapPriceUsd, gapCountry]);
 
   /**
    * "Ask us to source this" — the CTA an unpriceable item gets instead of a

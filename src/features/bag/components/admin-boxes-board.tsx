@@ -259,7 +259,7 @@ function BoxFact({
           !value ? "text-tm-text-3" : tone === "amber" ? "text-tm-amber" : "text-tm-ink",
         )}
       >
-        {value ?? fallback ?? "—"}
+        {value ?? fallback ?? "–"}
       </dd>
       {hint ? (
         <span className="text-[11px] leading-[1.3] font-medium text-tm-text-3">{hint}</span>

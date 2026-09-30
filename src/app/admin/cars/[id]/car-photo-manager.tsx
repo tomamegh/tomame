@@ -184,7 +184,7 @@ export function CarPhotoManager({
         blurb={
           photos.length === 0
             ? "A car listing with no picture is not a listing, and publishing is refused until there is one."
-            : "The first is the cover — the only picture of this car the storefront list shows. Drag is deliberately not how these move; use the arrows."
+            : "The first is the cover: the only picture of this car the storefront list shows. Drag is deliberately not how these move; use the arrows."
         }
         action={
           <AdminBadge tone={photos.length > 0 ? "green" : "coral"}>
@@ -207,7 +207,7 @@ export function CarPhotoManager({
               title="Nothing photographed yet"
               body={
                 isPublished
-                  ? "This car is on the site with no picture on it. That should not be possible — publishing checks for one — so add a photograph now."
+                  ? "This car is on the site with no picture on it. That should not be possible (publishing checks for one), so add a photograph now."
                   : "Upload the pictures from the auction sheet or the yard. They appear here straight away, before the car is published: only an admin can see a draft's photographs."
               }
             />

@@ -113,7 +113,7 @@ export class CarInvariantError extends Error {
 export class CarListingSoldError extends Error {
   constructor() {
     super(
-      "This car has been bought, so its listing cannot be deleted — the sale record points at it. Unpublish it instead to take it off the site.",
+      "This car has been bought, so its listing cannot be deleted: the sale record points at it. Unpublish it instead to take it off the site.",
     );
     this.name = "CarListingSoldError";
   }

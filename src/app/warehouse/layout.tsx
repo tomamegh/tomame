@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { WarehouseActivityBeacon } from "@/features/warehouse/components/activity-beacon";
 import { WarehouseShell } from "@/features/warehouse/components/warehouse-shell";
 import { canAccessAdmin, canAccessWarehouse } from "@/lib/auth/admin-access";
 
@@ -23,7 +24,10 @@ export const metadata: Metadata = {
  */
 export default async function WarehouseLayout({ children }: { children: React.ReactNode }) {
   const user = await getAuthenticatedUser();
-  if (!user || !canAccessWarehouse(user)) notFound();
+  // A session revoked since its token was minted passes the proxy and fails
+  // here: send it to sign in, not to a 404 (see warehousePageUser).
+  if (!user) redirect("/auth/login?next=%2Fwarehouse");
+  if (!canAccessWarehouse(user)) notFound();
 
   const name =
     [user.profile?.first_name, user.profile?.last_name].filter(Boolean).join(" ").trim() ||
@@ -32,6 +36,8 @@ export default async function WarehouseLayout({ children }: { children: React.Re
 
   return (
     <WarehouseShell operator={{ name, email: user.email ?? null, isAdmin: canAccessAdmin(user) }}>
+      {/* 082: page views for the admin's activity trail. Renders nothing. */}
+      <WarehouseActivityBeacon />
       {children}
     </WarehouseShell>
   );

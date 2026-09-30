@@ -157,11 +157,11 @@ export function Label4x6({
         <Figure label="ITEMS" value={String(pkg.unit_count)} />
         <Figure
           label={weight.estimated ? "WEIGHT (EST.)" : "WEIGHT"}
-          value={weight.value ? formatLbs(weight.value, 1).replace(" lb", "") : "—"}
+          value={weight.value ? formatLbs(weight.value, 1).replace(" lb", "") : "–"}
           unit={weight.value ? "lb" : undefined}
           divider
         />
-        <Figure label="SIZE (IN)" value={dims ? dims.replace(" in", "").replace(/ × /g, "×") : "—"} divider small={!!dims} />
+        <Figure label="SIZE (IN)" value={dims ? dims.replace(" in", "").replace(/ × /g, "×") : "–"} divider small={!!dims} />
       </section>
 
       {/* Package reference */}
@@ -307,7 +307,7 @@ export function Manifest({
         </span>
         <span className="border-l-2 border-black px-[0.1in] py-[0.06in]">
           <span className="block text-[7px] font-extrabold tracking-[0.14em]">CONTENTS</span>
-          {pluralise(pkg.unit_count, "item")} · {weight.value ? formatLbs(weight.value, 1) : "—"}
+          {pluralise(pkg.unit_count, "item")} · {weight.value ? formatLbs(weight.value, 1) : "–"}
         </span>
         <span className="border-l-2 border-black px-[0.1in] py-[0.06in]">
           <span className="block text-[7px] font-extrabold tracking-[0.14em]">ROUTE</span>
@@ -331,7 +331,7 @@ export function Manifest({
                 <span className="line-clamp-2 font-semibold">{line.item?.title ?? line.description}</span>
                 {line.item ? <span className="font-mono text-[8.5px]">{line.item.order_no}</span> : null}
               </td>
-              <td className="py-[0.05in] pr-2 font-semibold">{line.item?.recipient.name ?? "—"}</td>
+              <td className="py-[0.05in] pr-2 font-semibold">{line.item?.recipient.name ?? "–"}</td>
               <td className="px-[0.16in] py-[0.05in] text-right font-extrabold">{line.quantity}</td>
             </tr>
           ))}
@@ -418,5 +418,5 @@ export function cityCode(place: string): string {
     if (key.includes(city)) return code;
   }
   const letters = place.replace(/[^A-Za-z]/g, "").toUpperCase();
-  return letters.slice(0, 3) || "—";
+  return letters.slice(0, 3) || "–";
 }

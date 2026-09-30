@@ -25,6 +25,10 @@ function log(level: LogLevel, message: string, meta?: Record<string, unknown>) {
     captureError({ level: "error", message, meta });
   } else if (level === "warn") {
     console.warn(JSON.stringify(entry));
+    // Opt-in for warnings that are worth counting but not worth an error: an
+    // invalid webhook signature is a scanner most days and a rotated Paystack
+    // key on a bad one, and only the count over an hour can tell which (083).
+    if (meta?.track === true) captureError({ level: "warn", message, meta });
   } else {
     console.log(JSON.stringify(entry));
   }

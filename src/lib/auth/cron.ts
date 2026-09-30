@@ -73,7 +73,7 @@ export async function runCronJob(
     return NextResponse.json({ success: ok, ...summary }, { status: ok ? 200 : 207 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    logger.error(`${job} cron job failed`, { error: message });
+    logger.error(`${job} cron job failed: ${message}`.slice(0, 500), { source: `cron:${job}`, category: "job", error: message });
     await heartbeat(job, { ok: false, ranAt: new Date().toISOString(), durationMs: Date.now() - started, error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }

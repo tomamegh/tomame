@@ -135,7 +135,7 @@ function OrderRow({ order }: { order: AdminOrderRow }) {
       </td>
       <td className={ADMIN_TD}>
         <span className="text-[13px] font-medium text-tm-text-2">
-          {order.customer_name ?? "—"}
+          {order.customer_name ?? "–"}
         </span>
       </td>
       <td className={ADMIN_TD}>
@@ -167,10 +167,10 @@ function OrderRow({ order }: { order: AdminOrderRow }) {
         ) : null}
       </td>
       <td className={ADMIN_TD}>
-        <span className="tm-nums text-[13px] font-medium text-tm-text-2">{eta ?? "—"}</span>
+        <span className="tm-nums text-[13px] font-medium text-tm-text-2">{eta ?? "–"}</span>
       </td>
       <td className={ADMIN_TD}>
-        <span className="tm-nums text-[13px] font-medium text-tm-text-3">{placed ?? "—"}</span>
+        <span className="tm-nums text-[13px] font-medium text-tm-text-3">{placed ?? "–"}</span>
       </td>
     </tr>
   );

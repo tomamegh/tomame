@@ -26,7 +26,7 @@ export function formatCount(value: number): string {
  * of failing every paste when in truth it has not been asked.
  */
 export function formatRate(rate: number | null): string {
-  if (rate == null) return "—";
+  if (rate == null) return "–";
   return `${Math.round(rate * 100)}%`;
 }
 

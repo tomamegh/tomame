@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
+import { warehousePageUser } from "@/features/warehouse/services/page-user";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { ReceiveBench } from "@/features/warehouse/components/receive-bench";
 import { WarehouseHeading } from "@/features/warehouse/components/warehouse-ui";
+import { GuideLink } from "@/features/warehouse/guide/components/guide-link";
 import {
   listWarehouseItems,
   listWarehousePackages,
 } from "@/features/warehouse/services/warehouse.service";
 import type { ItemStage } from "@/features/warehouse/types";
-import { requireAuth } from "@/lib/auth/guards";
 
 export const metadata: Metadata = { title: "Receive" };
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ export default async function WarehouseReceivePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = requireAuth(await getAuthenticatedUser());
+  const user = await warehousePageUser("/warehouse/receive");
   const params = await searchParams;
   const raw = typeof params.stage === "string" ? params.stage : undefined;
   const stage = STAGES.find((s) => s === raw) ?? "all";
@@ -42,7 +42,8 @@ export default async function WarehouseReceivePage({
       <WarehouseHeading
         kicker="Inbound"
         title="Receive & sort"
-        blurb="Log each parcel in as it comes off the truck and weigh it — the customer sees it arrive. Then tick items for one person and pack them together."
+        blurb="Log each parcel in as it comes off the truck and weigh it. The customer sees it arrive. Then tick items for one person and pack them together."
+        action={<GuideLink section="daily-flow">How receiving works</GuideLink>}
       />
       <ReceiveBench
         items={items.filter((i) => i.stage !== "shipped")}

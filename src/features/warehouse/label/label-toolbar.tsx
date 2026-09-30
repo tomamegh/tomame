@@ -26,7 +26,7 @@ import type { PackageStatus } from "../types";
 export type LabelMode = "4x6" | "roll80" | "2x1" | "manifest";
 
 const MODES: Array<{ value: LabelMode; label: string; hint: string }> = [
-  { value: "4x6", label: "Shipping 4×6″", hint: "Label printer, 4×6 labels — goes on top of the box" },
+  { value: "4x6", label: "Shipping 4×6″", hint: "Label printer, 4×6 labels. Goes on top of the box" },
   { value: "roll80", label: "Receipt roll 80 mm", hint: "Receipt printer, 80 mm paper roll" },
   { value: "2x1", label: "Small 2×1″", hint: "For a side, or a parcel inside" },
   { value: "manifest", label: "Manifest", hint: "Contents list for the sleeve" },
@@ -195,7 +195,7 @@ export function LabelToolbar({
               Set the printer driver&apos;s darkness to about 10–15 of 30 and print a test: the barcode should be crisp
               black bars with clean white gaps.
             </li>
-            <li>A 58 mm pocket receipt printer is too narrow for a shipping label — use the 80 mm or 4×6 printer.</li>
+            <li>A 58 mm pocket receipt printer is too narrow for a shipping label. Use the 80 mm or 4×6 printer.</li>
           </ul>
           {pkg.printed ? (
             <p className="mt-2 text-tm-text-3">

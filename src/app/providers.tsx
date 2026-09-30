@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import SupabaseSessionProvider from "@/features/auth/providers/auth-provider";
+import { ClientErrorListener } from "@/components/observability/client-error-listener";
 
 function makeQueryClient(): QueryClient {
   return new QueryClient({
@@ -31,6 +32,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SupabaseSessionProvider>
       <QueryClientProvider client={queryClient}>
+        <ClientErrorListener />
         <TooltipProvider>{children}</TooltipProvider>
       </QueryClientProvider>
     </SupabaseSessionProvider>

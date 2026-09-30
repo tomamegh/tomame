@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
+import { warehousePageUser } from "@/features/warehouse/services/page-user";
 import Link from "next/link";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { PACKAGE_META } from "@/features/warehouse/components/format";
 import { PackageBox } from "@/features/warehouse/components/package-box";
 import { PackageCard } from "@/features/warehouse/components/package-card";
 import { NewPackageButton } from "@/features/warehouse/components/warehouse-actions";
 import { WarehouseHeading } from "@/features/warehouse/components/warehouse-ui";
+import { GuideLink } from "@/features/warehouse/guide/components/guide-link";
 import { listWarehousePackages } from "@/features/warehouse/services/warehouse.service";
 import type { PackageStatus } from "@/features/warehouse/types";
-import { requireAuth } from "@/lib/auth/guards";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Packages" };
@@ -23,7 +23,7 @@ export default async function WarehousePackagesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = requireAuth(await getAuthenticatedUser());
+  const user = await warehousePageUser("/warehouse/packages");
   const params = await searchParams;
   const status = STATUSES.find((s) => s === params.status);
   const all = await listWarehousePackages(user, { limit: 200 });
@@ -49,7 +49,12 @@ export default async function WarehousePackagesPage({
         kicker="Outbound"
         title="Packages"
         blurb="Every box the hub has packed. Tap one to open it and see what is inside."
-        action={<NewPackageButton variant="primary" />}
+        action={
+          <>
+            <GuideLink section="screens">Learn how</GuideLink>
+            <NewPackageButton variant="primary" />
+          </>
+        }
       />
 
       <nav className="-mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0" aria-label="Filter packages">

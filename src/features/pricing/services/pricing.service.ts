@@ -31,7 +31,7 @@ export async function loadPricingCalculator(): Promise<PricingCalculator> {
     const map = constantsRes.value;
     const missing = collectMissingConstants(map);
     if (missing.length > 0) {
-      logger.warn("Pricing constants incomplete — quotes will be flagged for review, not priced", {
+      logger.warn("Pricing constants incomplete, quotes will be flagged for review, not priced", {
         missing,
         present: Object.keys(map).sort(),
       });
@@ -40,7 +40,7 @@ export async function loadPricingCalculator(): Promise<PricingCalculator> {
     // set can price, and refuses as a whole rather than per-field.
     calculator.setConstants(map as Partial<PricingConstants>);
   } else {
-    logger.warn("Failed to load pricing constants from DB — quotes will be flagged for review, not priced", {
+    logger.warn("Failed to load pricing constants from DB, quotes will be flagged for review, not priced", {
       error: String(constantsRes.reason),
     });
   }

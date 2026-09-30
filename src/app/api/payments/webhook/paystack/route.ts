@@ -36,7 +36,9 @@ export async function POST(request: NextRequest) {
     // Verify HMAC-SHA512 signature
     const signature = request.headers.get("x-paystack-signature");
     if (!signature || !verifyWebhookSignature(rawBody, signature)) {
-      logger.warn("Invalid Paystack webhook signature", { ip });
+      // Counted (083); the sink stores it without the ip. A burst means a scanner, or a rotated
+      // PAYSTACK_SECRET_KEY rejecting every real delivery.
+      logger.warn("Invalid Paystack webhook signature", { ip, track: true, source: "webhook:paystack", category: "payment" });
       throw new APIError(400, "Invalid signature");
     }
 
@@ -52,6 +54,9 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       logger.warn("Invalid Paystack webhook payload", {
         error: parsed.error.issues[0]?.message,
+        track: true,
+        source: "webhook:paystack",
+        category: "payment",
       });
       throw new APIError(400, "Invalid payload");
     }

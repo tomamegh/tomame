@@ -9,6 +9,7 @@ import { RATE_LIMIT } from "@/config/security";
 import { AUDIT_ENTITY_TYPES } from "@/config/constants";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { TEXT_CELL_KINDS } from "@/features/marketing/components/admin-content-format";
+import { alertRecipientsSettingSchema } from "@/features/ops/alert-recipients";
 import {
   getDeliveryZone,
   getRegion,
@@ -210,6 +211,15 @@ function validateSettingValue(key: string, value: unknown): unknown {
       );
     }
     return parsed.data;
+  }
+  if (key === "ops_alert_recipients") {
+    // The alert and daily-summary emails go to exactly this list (083). A typo
+    // here is an outage nobody hears about, so it is checked, not stored as given.
+    const parsed = alertRecipientsSettingSchema.safeParse(value);
+    if (!parsed.success) {
+      throw new APIError(400, parsed.error.issues[0]?.message ?? "A list of email addresses, for example [\"ops@example.com\"]");
+    }
+    return [...new Set(parsed.data)];
   }
   if (key === "onboarding_tour_enabled") {
     // Two valid values and no third. Stored as a real JSONB boolean so the app

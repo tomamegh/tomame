@@ -22,7 +22,7 @@ const ProductSchema = z.object({
   category: z.enum(CATEGORY_VALUES).nullable().describe("Closest Tomame category for this product."),
   weight_text: z.string().nullable().describe("Item weight exactly as listed (e.g. '1.2 pounds', '540 g'). Item weight, not shipping/package weight, unless only that is available."),
   dimensions_text: z.string().nullable().describe("Product dimensions as listed."),
-  condition: z.string().nullable().describe("New, Used, Refurbished, etc. — only when the page states it."),
+  condition: z.string().nullable().describe("New, Used, Refurbished, etc. Only when the page states it."),
   seller: z.string().nullable().describe("Merchant / seller name when the page states one (e.g. 'Sold by X', the eBay seller). null otherwise."),
   rating: z.number().nullable().describe("Average customer rating for this product on a 0-5 scale, when shown. Not a seller feedback percentage."),
   review_count: z.number().nullable().describe("Number of ratings or reviews behind that rating, as an integer, when shown."),

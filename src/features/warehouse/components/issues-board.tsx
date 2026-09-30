@@ -202,7 +202,7 @@ function IssueCard({ issue, index, compact = false }: { issue: WarehouseIssue; i
               onChange={(e) => setResolution(e.target.value)}
               rows={2}
               maxLength={2000}
-              placeholder="What you did about it — the customer reads this."
+              placeholder="What you did about it. The customer reads this."
               className="resize-none rounded-[12px] border border-tm-border bg-card px-3 py-2.5 text-[13.5px] font-medium text-tm-ink outline-none placeholder:text-tm-text-3 focus:border-tm-coral/60"
             />
           ) : null}

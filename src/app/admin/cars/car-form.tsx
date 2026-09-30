@@ -438,7 +438,7 @@ export function CarForm({ mode }: { mode: CarFormMode }) {
                     What the price is made of
                   </h3>
                   <p className="max-w-[70ch] text-[12.5px] leading-[1.5] font-medium text-tm-text-2">
-                    Optional, and all four or none — a breakdown with a line missing reads as
+                    Optional, and all four or none: a breakdown with a line missing reads as
                     though that line is zero. When all four are filled in they must add up to
                     the price above, to the pesewa.
                   </p>
@@ -661,8 +661,8 @@ function BreakdownTally({
           {breakdown.total === null
             ? "and there is no price above to match"
             : matches
-              ? "— matches the price above"
-              : `— the price above says ${formatPesewas(breakdown.total)}`}
+              ? "(matches the price above)"
+              : `(the price above says ${formatPesewas(breakdown.total)})`}
         </span>
       </span>
     </div>

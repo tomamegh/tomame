@@ -193,7 +193,7 @@ export function CarPublishPanel({
           if (!open) setConfirming(null);
         }}
         title={`Take ${title} off the site?`}
-        consequence="The listing disappears from the storefront and its photographs stop being served in the same instant — the photo route re-checks this on every request, so even a direct link to a picture stops working. Enquiries already made stay where they are."
+        consequence="The listing disappears from the storefront and its photographs stop being served in the same instant. The photo route re-checks this on every request, so even a direct link to a picture stops working. Enquiries already made stay where they are."
         detail="This is the right thing to do for a car that has sold or is mispriced. Publishing it again puts it straight back."
         confirmLabel="Take it off"
         busy={busy}
@@ -209,7 +209,7 @@ export function CarPublishPanel({
         consequence="The listing, its photographs and the files behind them are removed permanently. This cannot be undone; only the audit log will remember the car existed."
         detail={
           car.is_published
-            ? "This car is live right now. If it has simply sold, take it off the site instead — that is reversible, and this is not."
+            ? "This car is live right now. If it has simply sold, take it off the site instead. That is reversible, and this is not."
             : undefined
         }
         confirmLabel="Delete it"

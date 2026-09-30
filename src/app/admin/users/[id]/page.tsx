@@ -118,7 +118,7 @@ export default async function AdminUserDetailPage({
               <AdminBadge tone={badge.tone}>{badge.label}</AdminBadge>
             </Fact>
             <Fact label="Joined">
-              <span className="tm-nums">{formatJoined(user.created_at) ?? "—"}</span>
+              <span className="tm-nums">{formatJoined(user.created_at) ?? "–"}</span>
             </Fact>
             <Fact label="Last signed in">
               <span className="tm-nums">{formatJoined(user.last_sign_in_at) ?? "Never"}</span>
@@ -245,7 +245,7 @@ export default async function AdminUserDetailPage({
                 <div className="tm-nums flex shrink-0 items-center gap-4 text-[13px] leading-none font-semibold text-tm-text-2">
                   <span>×{line.quantity}</span>
                   <span className="text-tm-ink">
-                    {line.quoted_total_ghs != null ? formatGhs(line.quoted_total_ghs) : "—"}
+                    {line.quoted_total_ghs != null ? formatGhs(line.quoted_total_ghs) : "–"}
                   </span>
                 </div>
               </li>
@@ -374,14 +374,14 @@ export default async function AdminUserDetailPage({
                     <p className="mt-1 text-[12px] leading-none font-medium text-tm-text-3">
                       {watch.last_checked_at ? (
                         <span className="tm-nums">
-                          Checked {relativeTime(watch.last_checked_at, now) ?? "—"}
+                          Checked {relativeTime(watch.last_checked_at, now) ?? "–"}
                         </span>
                       ) : (
                         "Never checked"
                       )}
                       {watch.notified_at ? (
                         <span className="tm-nums">
-                          {" · "}Alerted {relativeTime(watch.notified_at, now) ?? "—"}
+                          {" · "}Alerted {relativeTime(watch.notified_at, now) ?? "–"}
                         </span>
                       ) : null}
                     </p>
@@ -447,7 +447,7 @@ export default async function AdminUserDetailPage({
                       </p>
                       <p className="tm-nums mt-1.5 text-[12px] leading-none font-medium text-tm-text-3">
                         {row.channel === "email" ? "Email" : "WhatsApp"} ·{" "}
-                        {relativeTime(row.created_at, now) ?? "—"}
+                        {relativeTime(row.created_at, now) ?? "–"}
                         {whatsapp ? ` · ${whatsapp.label}` : null}
                       </p>
                       {whatsapp?.reason ? (

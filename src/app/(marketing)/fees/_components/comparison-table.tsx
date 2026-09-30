@@ -139,5 +139,5 @@ export function ComparisonTable({ rows, className }: ComparisonTableProps) {
 /** `site_content.data` is free-form JSONB — anything missing renders as an em dash. */
 function cell(row: SiteContentRow, key: CompareColumn["key"]): string {
   const value = row.data[key];
-  return typeof value === "string" && value.length > 0 ? value : "—";
+  return typeof value === "string" && value.length > 0 ? value : "–";
 }

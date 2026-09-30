@@ -33,6 +33,12 @@ export const RATE_LIMIT = {
   orders: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
   /** Payment initialization — 10 requests per 15 minutes */
   payments: { windowMs: 15 * 60 * 1000, maxRequests: 10 },
+  /**
+   * Browser error reports (POST /api/ops/client-errors): 30 per 10 minutes per
+   * IP. The page already throttles itself to one per issue a minute; this is
+   * the ceiling for a page that does not, or a script pretending to be one.
+   */
+  clientErrors: { windowMs: 10 * 60 * 1000, maxRequests: 30 },
   /** Webhook endpoints — 100 requests per minute */
   webhooks: { windowMs: 60 * 1000, maxRequests: 100 },
   /** Product extraction — 10 requests per 10 minutes per IP. Cache hits are not counted. */

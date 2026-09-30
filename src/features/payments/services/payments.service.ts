@@ -739,7 +739,7 @@ export async function handlePaymentCallback(
   const isSuccess = paystackStatus === "success" && amountMatches && currencyMatches;
 
   if (paystackStatus === "success" && !isSuccess) {
-    logger.error("Paystack verification mismatch — refusing to mark paid", {
+    logger.error("Paystack verification mismatch, refusing to mark paid", {
       reference,
       ...target,
       expectedAmount: payment.amount,
@@ -790,7 +790,7 @@ export async function handlePaymentCallback(
     // than inferred later.
     const needsRefundReview = ordersSettled === 0;
     if (needsRefundReview) {
-      logger.error("Payment settled for an order that is no longer pending — refund review needed", {
+      logger.error("Payment settled for an order that is no longer pending, refund review needed", {
         reference,
         ...target,
         paymentId: payment.id,

@@ -118,8 +118,8 @@ describe("formatRate", () => {
   });
 
   it("shows a dash rather than a nought it has not earned", () => {
-    expect(formatRate(null)).toBe("—");
-    expect(formatRate(Number.NaN)).toBe("—");
+    expect(formatRate(null)).toBe("–");
+    expect(formatRate(Number.NaN)).toBe("–");
   });
 });
 

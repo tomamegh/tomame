@@ -315,7 +315,7 @@ function emptyBody(status: CarEnquiryStatus | "all"): string {
   if (status === CAR_ENQUIRY_STATUSES.OPEN) {
     return "Every enquiry has been answered. A new one lands here when a customer asks what a price-on-request car costs, or offers a figure for a negotiable one.";
   }
-  return "Only cars listed as price-on-request or open to offers can be enquired about — a fixed price is not a negotiation, so there is nothing to ask.";
+  return "Only cars listed as price-on-request or open to offers can be enquired about. A fixed price is not a negotiation, so there is nothing to ask.";
 }
 
 function single(value: string | string[] | undefined): string | undefined {

@@ -21,7 +21,10 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
  */
 const previewSchema = z.object({
   input: z.object({
-    subject: z.string().min(1).max(120),
+    // 200, the same ceiling as the stored `fees_worked_example.subject`
+    // (src/features/marketing/schema.ts). At 120 a longer saved subject made
+    // every live preview answer 400.
+    subject: z.string().min(1).max(200),
     item_price_usd: z.number().positive().max(50_000),
     quantity: z.number().int().min(1).max(100),
     category: z.string().min(1).max(120),

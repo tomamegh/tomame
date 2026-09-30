@@ -317,13 +317,13 @@ async function WaitlistTab() {
                   <tr key={signup.id} className={ADMIN_TR}>
                     <td className={ADMIN_TD}>{signup.email}</td>
                     <td className={`${ADMIN_TD} tm-nums text-tm-text-2`}>
-                      {signup.phone ?? "—"}
+                      {signup.phone ?? "–"}
                     </td>
                     <td className={ADMIN_TD}>
                       <AdminBadge tone="neutral">{signup.region_code}</AdminBadge>
                     </td>
                     <td className={`${ADMIN_TD} tm-nums whitespace-nowrap text-tm-text-2`}>
-                      {formatJoined(signup.created_at) ?? "—"}
+                      {formatJoined(signup.created_at) ?? "–"}
                     </td>
                     <td className={`${ADMIN_TD} tm-nums whitespace-nowrap text-tm-text-2`}>
                       {/*
@@ -332,7 +332,7 @@ async function WaitlistTab() {
                         dash — an honest "not yet", not a claim that they were
                         told.
                       */}
-                      {formatJoined(signup.notified_at) ?? "—"}
+                      {formatJoined(signup.notified_at) ?? "–"}
                     </td>
                   </tr>
                 ))}

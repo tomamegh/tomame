@@ -29,7 +29,7 @@ import {
   type WarehouseOrderRow,
 } from "@/db/queries/warehouse";
 import { listOrderFeedback, type OrderFeedbackStatus } from "@/db/queries/order-feedback";
-import { AUDIT_ENTITY_TYPES } from "@/config/constants";
+import { AUDIT_ENTITY_TYPES, WAREHOUSE_ACTIVITY_KINDS } from "@/config/constants";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { findStore } from "@/features/extraction/stores";
 import { recordOrderEvent } from "@/features/orders/services/order-events.service";
@@ -38,6 +38,8 @@ import type { PlatformUser } from "@/features/users/types";
 import { APIError } from "@/lib/auth/api-helpers";
 import { requireWarehouse, warehouseActorRole } from "@/lib/auth/guards";
 import { logger } from "@/lib/logger";
+
+import { recordWarehouseActivity } from "./activity.service";
 
 import type {
   ItemStage,
@@ -384,6 +386,31 @@ export async function recordLabelPrint(user: PlatformUser, id: string): Promise<
 export async function lookupWarehouseCode(user: PlatformUser, raw: string): Promise<LookupResult> {
   requireWarehouse(user);
   const code = normaliseCode(raw);
+  try {
+    const result = await resolveCode(code);
+    // 082: every scan lands in the admin's activity trail. Never throws.
+    await recordWarehouseActivity(user, {
+      kind: WAREHOUSE_ACTIVITY_KINDS.SCAN,
+      subject_type: result.kind === "package" ? "warehouse_package" : "order",
+      subject_id: result.id,
+      metadata: { code: result.kind === "package" ? result.reference : result.order_no },
+    });
+    return result;
+  } catch (error) {
+    // A code that found nothing is the one scan an admin should see: a torn
+    // label, a typo, or a parcel that is not ours. The raw text is capped —
+    // it is whatever a scanner or a thumb produced.
+    if (error instanceof APIError && (error.statusCode === 404 || error.statusCode === 400)) {
+      await recordWarehouseActivity(user, {
+        kind: WAREHOUSE_ACTIVITY_KINDS.LOOKUP_FAILED,
+        metadata: { code: code?.slice(0, 80) ?? null, raw: raw.trim().slice(0, 120) },
+      });
+    }
+    throw error;
+  }
+}
+
+async function resolveCode(code: string | null): Promise<LookupResult> {
   if (!code) throw new APIError(400, "Scan a label or type a package or order number.");
 
   if (code.startsWith("PKG-")) {

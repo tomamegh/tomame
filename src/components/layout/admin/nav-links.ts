@@ -6,6 +6,7 @@ import {
   BellIcon,
   BookmarkIcon,
   CarIcon,
+  ClipboardListIcon,
   CreditCardIcon,
   FileTextIcon,
   LayoutGridIcon,
@@ -71,6 +72,9 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
       // 081: the packaging platform — its own shell, shared with warehouse
       // operators. Parcel photos and customer feedback live there now.
       { title: "Warehouse", url: "/warehouse", icon: WarehouseIcon, badge: "feedbackOpen" },
+      // 082: the hub seen from the admin — throughput, time at the hub, and
+      // every operator's trail. Admin-only; an operator never reaches it.
+      { title: "Warehouse activity", url: "/admin/warehouse", icon: ClipboardListIcon },
       { title: "Deliveries", url: "/admin/deliveries", icon: TruckIcon },
     ],
   },

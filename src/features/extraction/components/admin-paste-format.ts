@@ -161,7 +161,7 @@ export function summarisePasteCoverage(outcomes: readonly PasteOutcomeInput[]): 
  * this admin is being rebuilt to remove.
  */
 export function formatRate(rate: number | null): string {
-  if (rate === null || !Number.isFinite(rate)) return "—";
+  if (rate === null || !Number.isFinite(rate)) return "–";
   return `${Math.round(rate * 100)}%`;
 }
 

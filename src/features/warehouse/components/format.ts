@@ -27,7 +27,7 @@ export const PACKAGE_META: Record<PackageStatus, { label: string; tone: AdminTon
 };
 
 export function formatLbs(value: number | null | undefined, digits = 2): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  if (value === null || value === undefined || !Number.isFinite(value)) return "–";
   return `${value.toFixed(digits).replace(/\.?0+$/, "") || "0"} lb`;
 }
 
@@ -72,12 +72,12 @@ export function initials(name: string | null): string {
 }
 
 export function formatShortDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "–";
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
 export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "–";
   return new Date(iso).toLocaleString("en-GB", {
     day: "numeric",
     month: "short",
@@ -89,7 +89,7 @@ export function formatDateTime(iso: string | null | undefined): string {
 
 /** "3 min ago", "Yesterday", "12 Sep" — for activity, where the gist beats the stamp. */
 export function formatRelative(iso: string | null | undefined, now = new Date()): string {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const diff = (now.getTime() - new Date(iso).getTime()) / 1000;
   if (diff < 60) return "Just now";
   if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;

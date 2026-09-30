@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
+import { warehousePageUser } from "@/features/warehouse/services/page-user";
 
 import type { OrderFeedbackStatus } from "@/db/queries/order-feedback";
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { IssuesBoard } from "@/features/warehouse/components/issues-board";
 import { WarehouseHeading } from "@/features/warehouse/components/warehouse-ui";
 import { listWarehouseIssues } from "@/features/warehouse/services/warehouse.service";
-import { requireAuth } from "@/lib/auth/guards";
 
 export const metadata: Metadata = { title: "Issues" };
 export const dynamic = "force-dynamic";
@@ -22,7 +21,7 @@ export default async function WarehouseIssuesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = requireAuth(await getAuthenticatedUser());
+  const user = await warehousePageUser("/warehouse/issues");
   const params = await searchParams;
   const status = STATUSES.find((s) => s === params.status) ?? "open";
   const issues = await listWarehouseIssues(user, status);
@@ -32,7 +31,7 @@ export default async function WarehouseIssuesPage({
       <WarehouseHeading
         kicker="Customer replies"
         title="Issues"
-        blurb="Customers see the photos you take and can tell us something is wrong. Sort it while the parcel is still here — once it flies, a mistake is expensive."
+        blurb="Customers see the photos you take and can tell us something is wrong. Sort it while the parcel is still here. Once it flies, a mistake is expensive."
       />
       <IssuesBoard issues={issues} status={status} />
     </div>

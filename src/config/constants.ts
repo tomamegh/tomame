@@ -95,6 +95,20 @@ export const AUDIT_ACTOR_ROLES = {
 export type AuditActorRole =
   (typeof AUDIT_ACTOR_ROLES)[keyof typeof AUDIT_ACTOR_ROLES];
 
+/**
+ * 082. What the warehouse does that is not a state change — the `kind` CHECK on
+ * `warehouse_activity`. Reads, not writes, so they stay out of `audit_logs`.
+ */
+export const WAREHOUSE_ACTIVITY_KINDS = {
+  PAGE_VIEW: "page_view",
+  SCAN: "scan",
+  LOOKUP_FAILED: "lookup_failed",
+  LABEL_VIEW: "label_view",
+} as const;
+
+export type WarehouseActivityKindName =
+  (typeof WAREHOUSE_ACTIVITY_KINDS)[keyof typeof WAREHOUSE_ACTIVITY_KINDS];
+
 export const ORDER_STATUSES = {
   PENDING: "pending",
   PAID: "paid",

@@ -202,7 +202,7 @@ export function ScanConsole() {
                 <>
                   <SmartphoneIcon className="size-6 text-white/80" aria-hidden />
                   <p className="max-w-[40ch] text-[13px] font-medium text-white/85">
-                    This browser cannot open the camera. Open this page in Safari or Chrome, or point your phone&apos;s <b>Camera</b> app at the label&apos;s QR — it opens the package here. A handheld scanner works below too.
+                    This browser cannot open the camera. Open this page in Safari or Chrome, or point your phone&apos;s <b>Camera</b> app at the label&apos;s QR: it opens the package here. A handheld scanner works below too.
                   </p>
                 </>
               ) : camera === "denied" ? (
@@ -234,7 +234,7 @@ export function ScanConsole() {
                   {camera === "starting" ? <Spinner className="size-4" /> : <CameraIcon className="size-4" aria-hidden />}
                   Scan with camera
                 </button>
-                <p className="text-[12px] font-medium text-white/70">Your browser will ask to use the camera — tap Allow.</p>
+                <p className="text-[12px] font-medium text-white/70">Your browser will ask to use the camera. Tap Allow.</p>
                 </>
               )}
             </div>

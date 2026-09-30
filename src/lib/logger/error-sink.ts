@@ -1,5 +1,7 @@
 import crypto from "crypto";
 
+import { categorise, type ErrorCategory } from "./error-category";
+
 /**
  * Where `logger.error` goes when nobody is reading the function log.
  *
@@ -21,7 +23,7 @@ import crypto from "crypto";
 /** Keys whose value never leaves the process, whatever a call site passes. */
 const SECRET_KEY = /pass|secret|token|key|authorization|cookie|session|signature|dsn/i;
 /** Keys that identify a person. Ids are fine; names and contact details are not. */
-const PII_KEY = /email|phone|address|first_?name|last_?name|full_?name|recipient|customer_?name/i;
+const PII_KEY = /email|phone|address|first_?name|last_?name|full_?name|recipient|customer_?name|^ip$|client_?ip/i;
 
 const MAX_STRING = 300;
 const MAX_KEYS = 25;
@@ -69,6 +71,19 @@ function shortenString(value: string): string {
 }
 
 /**
+ * The message as stored. The fingerprint already ignores variable parts, but
+ * `message` keeps the latest wording verbatim, and a PostgREST error can quote
+ * the row it choked on ("Key (email)=(ama@example.com) already exists"). Emails
+ * and long digit runs (phone numbers, card-like strings) never reach the table.
+ */
+export function scrubMessage(message: string): string {
+  return message
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "<email>")
+    .replace(/\+?\d[\d ()-]{8,}\d/g, "<digits>")
+    .slice(0, 2000);
+}
+
+/**
  * What makes two occurrences the same issue.
  *
  * The message with its variable parts removed: uuids, numbers, quoted strings
@@ -104,6 +119,8 @@ export interface ErrorSinkEntry {
   level: "error" | "warn";
   message: string;
   meta?: Record<string, unknown>;
+  /** What kind of failure (083). Guessed from the source and words when absent. */
+  category?: ErrorCategory;
 }
 
 /**
@@ -122,7 +139,8 @@ export function captureError(entry: ErrorSinkEntry): void {
 
   try {
     const source = typeof entry.meta?.source === "string" ? entry.meta.source : null;
-    const fingerprint = fingerprintOf(entry.message, source);
+    const message = scrubMessage(entry.message);
+    const fingerprint = fingerprintOf(message, source);
     const now = Date.now();
     const seen = pending.get(fingerprint);
     if (seen && now - seen.lastWriteMs < WRITE_WINDOW_MS) {
@@ -135,10 +153,11 @@ export function captureError(entry: ErrorSinkEntry): void {
     void writeErrorEvent({
       fingerprint,
       level: entry.level,
-      message: entry.message,
+      message,
       source,
       context: redactMeta(entry.meta),
       occurrences,
+      category: categorise(message, source, entry.category ?? entry.meta?.category),
     });
   } catch (error) {
     console.error(JSON.stringify({ level: "error", message: "error sink failed", detail: String(error) }));
@@ -152,6 +171,7 @@ interface ErrorEventWrite {
   source: string | null;
   context: Record<string, unknown> | null;
   occurrences: number;
+  category: ErrorCategory;
 }
 
 async function writeErrorEvent(row: ErrorEventWrite): Promise<void> {
@@ -159,14 +179,22 @@ async function writeErrorEvent(row: ErrorEventWrite): Promise<void> {
     // Imported lazily so nothing on the happy path pays for it, and so a module
     // that only ever logs does not drag the service-role client in with it.
     const { createAdminClient } = await import("@/lib/supabase/admin");
-    const { error } = await createAdminClient().rpc("record_error_event", {
+    const client = createAdminClient();
+    const args = {
       p_fingerprint: row.fingerprint,
       p_level: row.level,
       p_message: row.message,
       p_source: row.source,
       p_context: row.context,
       p_occurrences: row.occurrences,
-    });
+    };
+    let { error } = await client.rpc("record_error_event", { ...args, p_category: row.category });
+    // A database without 083 has only the six-argument writer. The app and the
+    // migration do not deploy in one step, and losing errors in the gap
+    // between them would be the one outcome this file exists to prevent.
+    if (error && /p_category|function .*record_error_event|PGRST202/i.test(`${error.message} ${error.code ?? ""}`)) {
+      ({ error } = await client.rpc("record_error_event", args));
+    }
     if (error) throw new Error(error.message);
   } catch (error) {
     // console, never logger: see rule 2 above.

@@ -23,6 +23,8 @@ export const CRON_JOBS: readonly CronJobSpec[] = [
   { job: "reconcile-payments", label: "Payment reconciliation", route: "/api/cron/reconcile-payments", everyMinutes: 5, staleAfterMinutes: 20, migration: "059" },
   { job: "recheck-price-watches", label: "Price watch re-check", route: "/api/cron/price-watches", everyMinutes: 10, staleAfterMinutes: 40, migration: "052" },
   { job: "catalog-scrape", label: "Catalogue scrape", route: "/api/cron/catalog-scrape", everyMinutes: 60, staleAfterMinutes: 150, migration: "045" },
+  { job: "ops-alerts", label: "Platform alerts", route: "/api/cron/ops-alerts", everyMinutes: 5, staleAfterMinutes: 20, migration: "083" },
+  { job: "ops-daily-summary", label: "Daily health email", route: "/api/cron/ops-daily-summary", everyMinutes: 1440, staleAfterMinutes: 1560, migration: "083" },
   { job: "fetch-exchange-rates", label: "Exchange rates", route: "/api/cron/exchange-rates", everyMinutes: 240, staleAfterMinutes: 540, migration: "026" },
 ] as const;
 

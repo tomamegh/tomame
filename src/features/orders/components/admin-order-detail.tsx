@@ -359,7 +359,7 @@ function PricingCard({ order, index }: { order: Order; index: number }) {
 
           <dl className="grid grid-cols-2 gap-4 border-t border-tm-hairline pt-4">
             <Fact label="Rule" value={pricing.pricing_method} />
-            <Fact label="Group" value={pricing.pricing_group} fallback="—" />
+            <Fact label="Group" value={pricing.pricing_group} fallback="–" />
             {pricing.weight_lbs != null ? (
               <Fact
                 label="Charged weight"
@@ -418,7 +418,7 @@ function CustomerCard({
           <Fact
             label="Customer since"
             value={formatAdminDate(customer.created_at)}
-            fallback="—"
+            fallback="–"
           />
           <Link
             href={`/admin/users/${customer.id}`}
@@ -467,7 +467,7 @@ function PaymentCard({
           <Fact label="Amount charged" value={formatGhs(payment.amount / 100)} />
           <Fact label="Channel" value={payment.channel} fallback="Not recorded" />
           <Fact label="Reference" value={payment.reference} />
-          <Fact label="Taken" value={formatAdminDateTime(payment.created_at)} fallback="—" />
+          <Fact label="Taken" value={formatAdminDateTime(payment.created_at)} fallback="–" />
           {group ? (
             <Fact
               label="Covers"
@@ -828,7 +828,7 @@ function Fact({
                     : "text-tm-ink",
         )}
       >
-        {value ?? fallback ?? "—"}
+        {value ?? fallback ?? "–"}
       </dd>
       {hint ? (
         <span className="text-[11px] leading-[1.3] font-medium text-tm-text-3">{hint}</span>

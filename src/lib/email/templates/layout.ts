@@ -327,7 +327,7 @@ export function quote(text: string, attribution: string) {
   <tr>
     <td class="tm-panel" style="background-color:${C.paper}; border-radius:12px; padding:18px 20px; font-family:${BODY_FONT};">
       <p class="tm-ink" style="margin:0 0 8px; font-size:16px; line-height:25px; font-style:italic; color:${C.ink};">&ldquo;${text}&rdquo;</p>
-      <p class="tm-text2" style="margin:0; font-size:13px; line-height:18px; font-weight:600; color:${C.text2};">&mdash; ${attribution}</p>
+      <p class="tm-text2" style="margin:0; font-size:13px; line-height:18px; font-weight:600; color:${C.text2};">${attribution}</p>
     </td>
   </tr>
 </table>`;

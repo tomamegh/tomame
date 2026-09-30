@@ -1,7 +1,10 @@
 import * as z from "zod";
 import { PASSWORD } from "@/config/security";
 
-const email = z.email("Invalid email address").trim().toLowerCase();
+// Trim BEFORE the format check. `z.email().trim()` checks first and trims
+// after (zod 4 runs a schema's checks in order), so "ama@example.com " from a
+// phone keyboard's autocomplete was answered "Invalid email address".
+const email = z.string("Invalid email address").trim().toLowerCase().pipe(z.email("Invalid email address"));
 
 const password = z
   .string()

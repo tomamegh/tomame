@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+
+import { reportClientError } from "@/lib/observability/report-client-error";
 import { ArrowClockwise, WarningCircle } from "@phosphor-icons/react/ssr";
 
 /**
@@ -24,6 +26,7 @@ export default function WatchesError({
 }) {
   useEffect(() => {
     console.error("price-watch page failed", error);
+    reportClientError({ kind: "render", message: error.message || "Screen failed", digest: error.digest });
   }, [error]);
 
   return (

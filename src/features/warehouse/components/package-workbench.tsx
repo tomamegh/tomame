@@ -265,7 +265,7 @@ export function PackageWorkbench({
                       className="truncate text-[11.5px] font-medium text-tm-text-3"
                       title={step.done && step.at ? formatDateTime(step.at) : undefined}
                     >
-                      {step.done && step.at ? formatRelative(step.at) : "—"}
+                      {step.done && step.at ? formatRelative(step.at) : "–"}
                     </span>
                     {step.done && step.by ? <span className="truncate text-[11.5px] font-medium text-tm-text-3">{step.by}</span> : null}
                   </span>
@@ -522,7 +522,7 @@ function PackageDetailsForm({ pkg }: { pkg: WarehousePackage }) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-[12.5px] font-semibold text-tm-ink">Size (in) — L × W × H</span>
+        <span className="text-[12.5px] font-semibold text-tm-ink">Size (in): L × W × H</span>
         <div className="grid grid-cols-3 gap-2">
           {numberField("length_in", "L")}
           {numberField("width_in", "W")}

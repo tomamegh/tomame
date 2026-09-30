@@ -6,15 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { listUsers, createUser } from "@/features/users/services/users.service";
-import { z } from "zod";
-
-const createUserSchema = z.object({
-  email: z.email(),
-  password: z.string().min(8),
-  first_name: z.string().min(1),
-  last_name: z.string().min(1),
-  role: z.enum(["user", "admin", "warehouse"]),
-});
+import { createUserSchema } from "@/features/users/schema";
 
 export async function GET(request: NextRequest) {
   try {

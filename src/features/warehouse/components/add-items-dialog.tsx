@@ -188,7 +188,7 @@ export function AddItemsDialog({
                 </div>
               ) : groups.length === 0 ? (
                 <p className="px-4 py-10 text-center text-[13px] font-medium text-tm-text-3">
-                  {query ? "Nothing on the shelf matches." : "The shelf is empty — everything is packed."}
+                  {query ? "Nothing on the shelf matches." : "The shelf is empty. Everything is packed."}
                 </p>
               ) : (
                 groups.map((group) => (

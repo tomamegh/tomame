@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { warehousePageUser } from "@/features/warehouse/services/page-user";
 import {
   ArrowRightIcon,
   BoxesIcon,
@@ -10,14 +11,13 @@ import {
   PlaneTakeoffIcon,
 } from "lucide-react";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { groupByRecipient, pluralise, recipientPlace, formatRelative, formatLbs, packageWeight } from "@/features/warehouse/components/format";
 import { PackageBox } from "@/features/warehouse/components/package-box";
 import { PackageCard } from "@/features/warehouse/components/package-card";
+import { GuideTourCard } from "@/features/warehouse/guide/components/guide-tour-card";
 import { NewPackageButton, PackItemsButton } from "@/features/warehouse/components/warehouse-actions";
 import { ItemThumb, WarehouseHeading } from "@/features/warehouse/components/warehouse-ui";
 import { getWarehouseDashboard } from "@/features/warehouse/services/warehouse.service";
-import { requireAuth } from "@/lib/auth/guards";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export const dynamic = "force-dynamic";
  * — received items grouped by the person they belong to — has a one-tap "pack".
  */
 export default async function WarehouseOverviewPage() {
-  const user = requireAuth(await getAuthenticatedUser());
+  const user = await warehousePageUser("/warehouse");
   const data = await getWarehouseDashboard(user);
   const firstName = user.profile?.first_name?.trim() || null;
   const hour = Number(
@@ -68,6 +68,9 @@ export default async function WarehouseOverviewPage() {
           </>
         }
       />
+
+      {/* 081 guide: offered until this device has finished it or closed the card. */}
+      <GuideTourCard />
 
       {/* The flow of the building */}
       <section aria-label="Hub pipeline" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -116,7 +119,7 @@ export default async function WarehouseOverviewPage() {
             ]
               .filter(Boolean)
               .join(" · ")}
-            <span className="font-medium"> — check before you seal anything.</span>
+            <span className="font-medium">. Check before you seal anything.</span>
           </span>
           <ArrowRightIcon className="ml-auto size-4 text-tm-amber" aria-hidden />
         </Link>

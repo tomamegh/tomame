@@ -84,7 +84,7 @@ async function main() {
   if (readError) throw readError;
 
   if (existing?.role === "admin") {
-    console.log("• profile already has role=admin — nothing to change");
+    console.log("• profile already has role=admin, nothing to change");
     console.log("\nDone (no-op).");
     return;
   }

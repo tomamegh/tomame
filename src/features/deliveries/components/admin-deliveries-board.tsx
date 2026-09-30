@@ -139,7 +139,7 @@ function DeliveryRow({ row }: { row: AdminDeliveryRow }) {
       </td>
       <td className={ADMIN_TD}>
         <span className="text-[13px] font-medium text-tm-text-2">
-          {row.customer_name ?? "—"}
+          {row.customer_name ?? "–"}
         </span>
       </td>
       <td className={ADMIN_TD}>

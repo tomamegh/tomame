@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { webLinkSchema } from "@/lib/validators/link";
 
 // ── Order schemas ─────────────────────────────────────────────────────────────
 
@@ -75,7 +76,10 @@ export const updateOrderStatusSchema = z
     /** 050: the delivery window the customer is shown ("Thu 18 – Sat 20 Sep"). */
     eta_from: isoDate.optional(),
     eta_to: isoDate.optional(),
-    tracking_url: z.url("Must be a valid URL").optional(),
+    // Scheme optional: the admin field is saved by a button click, so the
+    // browser's own type="url" check never runs, and `ups.com/track?…` is a
+    // link to the person pasting it.
+    tracking_url: webLinkSchema("Must be a valid URL").optional(),
     notes: z.string().max(2000).optional(),
   })
   // A backwards window would pass the column CHECK only by luck of which end is

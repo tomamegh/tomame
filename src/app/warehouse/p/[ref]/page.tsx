@@ -1,9 +1,8 @@
 import { notFound, redirect } from "next/navigation";
+import { warehousePageUser } from "@/features/warehouse/services/page-user";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { lookupWarehouseCode } from "@/features/warehouse/services/warehouse.service";
 import { APIError } from "@/lib/auth/api-helpers";
-import { requireAuth } from "@/lib/auth/guards";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +16,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function PackageScanPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = await params;
-  const user = requireAuth(await getAuthenticatedUser());
+  const user = await warehousePageUser(`/warehouse/p/${encodeURIComponent(ref)}`);
   let target;
   try {
     target = await lookupWarehouseCode(user, decodeURIComponent(ref));

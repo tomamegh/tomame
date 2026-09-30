@@ -250,7 +250,7 @@ function EnquiryCard({ row }: { row: AdminCarEnquiry }) {
       ) : (
         <p className="text-[12.5px] leading-[1.45] font-medium text-tm-text-3">
           {isOffer
-            ? "No message — just the figure."
+            ? "No message, just the figure."
             : "No message. They simply want to know what it costs."}
         </p>
       )}
@@ -328,7 +328,7 @@ function EnquiryCard({ row }: { row: AdminCarEnquiry }) {
                 placeholder={
                   isOffer
                     ? "What you are agreeing to, or why not. The customer reads this word for word."
-                    : "Anything the figure does not say on its own — what it includes, how long it holds."
+                    : "Anything the figure does not say on its own: what it includes, how long it holds."
                 }
                 className="min-h-[64px] w-full resize-y rounded-[12px] border-tm-border bg-card text-[13px] leading-[1.5] text-tm-ink placeholder:text-tm-text-3 focus-visible:border-tm-coral/50 focus-visible:ring-tm-coral/20"
               />
@@ -381,7 +381,7 @@ function EnquiryCard({ row }: { row: AdminCarEnquiry }) {
               ? // The single most important sentence on this screen. Accepting is
                 // a record that a person agreed, not a sale: there is no order,
                 // no payment and no state machine behind it.
-                "Accepting records that you agreed to this figure. It takes no money and creates no order — you and the customer carry on from there. Declining needs a reason, because they read it."
+                "Accepting records that you agreed to this figure. It takes no money and creates no order. You and the customer carry on from there. Declining needs a reason, because they read it."
               : "The price you send appears on the customer's enquiry. Nothing is charged and nothing is reserved."}
           </p>
         </div>

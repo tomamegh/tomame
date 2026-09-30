@@ -157,7 +157,7 @@ function BagRow({ bag, now }: { bag: AdminBagRow; now: Date }) {
         </td>
         <td className={ADMIN_TD}>
           <span className="tm-nums text-[12.5px] font-medium text-tm-text-3">
-            {formatAge(bag.updated_at, now) ?? "—"}
+            {formatAge(bag.updated_at, now) ?? "–"}
           </span>
         </td>
       </tr>
@@ -212,7 +212,7 @@ function BagLineRow({ line }: { line: AdminBagLine }) {
       <div className="flex shrink-0 items-center gap-2.5">
         <span className="tm-nums text-[12px] font-medium text-tm-text-2">× {line.quantity}</span>
         <span className="tm-nums text-[12.5px] font-semibold text-tm-ink">
-          {line.snapshot_total_ghs != null ? formatGhs(line.snapshot_total_ghs) : "—"}
+          {line.snapshot_total_ghs != null ? formatGhs(line.snapshot_total_ghs) : "–"}
         </span>
         <AdminBadge tone={state.tone}>{state.label}</AdminBadge>
       </div>

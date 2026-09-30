@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BookOpenIcon,
   BoxesIcon,
   ChevronDownIcon,
+  CircleHelpIcon,
   InboxIcon,
   LayoutGridIcon,
   LogOutIcon,
@@ -52,6 +54,9 @@ const NAV = [
   { href: "/warehouse/packages", label: "Packages", icon: BoxesIcon },
   { href: "/warehouse/issues", label: "Issues", icon: MessageSquareWarningIcon },
 ] as const;
+
+/** The operator guide (081): in the top bar, the account menu, and a "?" — not a sixth tab. */
+const GUIDE_HREF = "/warehouse/guide";
 
 function isActive(pathname: string, href: string, exact?: boolean): boolean {
   if (exact) return pathname === href;
@@ -108,9 +113,33 @@ export function WarehouseShell({
                 </Link>
               );
             })}
+            {/* The guide sits after the four working screens, and only where there is room. */}
+            <Link
+              href={GUIDE_HREF}
+              aria-current={isActive(pathname, GUIDE_HREF) ? "page" : undefined}
+              className={cn(
+                "relative hidden h-9 items-center gap-2 rounded-full px-3.5 text-[13px] font-semibold transition-colors lg:inline-flex",
+                isActive(pathname, GUIDE_HREF) ? "bg-tm-ink text-white" : "text-tm-text-2 hover:bg-tm-hairline hover:text-tm-ink",
+              )}
+            >
+              <BookOpenIcon className="size-4" aria-hidden />
+              Guide
+            </Link>
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <Link
+              href={GUIDE_HREF}
+              aria-label="Help and guide"
+              title="Help and guide"
+              aria-current={isActive(pathname, GUIDE_HREF) ? "page" : undefined}
+              className={cn(
+                "flex size-9 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-tm-coral/40 focus-visible:outline-none lg:hidden",
+                isActive(pathname, GUIDE_HREF) ? "bg-tm-ink text-white" : "text-tm-text-2 hover:bg-tm-hairline hover:text-tm-ink",
+              )}
+            >
+              <CircleHelpIcon className="size-5" aria-hidden />
+            </Link>
             <Link
               href="/warehouse/scan"
               className="tm-cta-gradient hidden h-9 items-center gap-2 rounded-full px-4 text-[13px] font-semibold text-white shadow-[0_10px_24px_-14px_rgba(244,63,94,0.65)] md:inline-flex"
@@ -140,6 +169,12 @@ export function WarehouseShell({
                   </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href={GUIDE_HREF} className="gap-2">
+                    <CircleHelpIcon className="size-4" aria-hidden />
+                    Help &amp; guide
+                  </Link>
+                </DropdownMenuItem>
                 {operator.isAdmin ? (
                   <DropdownMenuItem asChild>
                     <Link href="/admin" className="gap-2">

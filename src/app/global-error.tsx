@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import "./globals.css";
 import { Button } from "@/components/ui/button";
+import { reportClientError } from "@/lib/observability/report-client-error";
 
 export default function GlobalError({
   error,
@@ -11,6 +12,12 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // The root layout itself failed, so this is the worst screen a customer can
+  // reach. It used to tell nobody.
+  useEffect(() => {
+    reportClientError({ kind: "render", message: error.message || "Root layout failed", digest: error.digest });
+  }, [error]);
+
   return (
     <html lang="en">
       <body>

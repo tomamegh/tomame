@@ -290,7 +290,7 @@ function resolveDeliveryFrom({ zones }: FigureInputs): ResolvedFigure {
 
   return {
     source: "delivery_from_ghs",
-    display: hasFreeZone ? "free" : band != null ? formatGhsCompact(min) : "—",
+    display: hasFreeZone ? "free" : band != null ? formatGhsCompact(min) : "–",
     secondary: null,
     note: hasFreeZone ? band : null,
     value: min,

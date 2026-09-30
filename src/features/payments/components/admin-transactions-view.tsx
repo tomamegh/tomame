@@ -179,11 +179,11 @@ export function AdminTransactionsView({ rows, limit, renderedAt }: AdminTransact
                       {row.order_group_id ? (
                         `${row.order_count} ${row.order_count === 1 ? "order" : "orders"}`
                       ) : (
-                        <span className="text-tm-text-3">—</span>
+                        <span className="text-tm-text-3">–</span>
                       )}
                     </td>
                     <td className={cn(ADMIN_TD, "tm-nums whitespace-nowrap text-tm-text-2")}>
-                      {age ?? "—"}
+                      {age ?? "–"}
                     </td>
                     <td className={cn(ADMIN_TD, "text-right")}>
                       <Link

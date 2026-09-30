@@ -29,7 +29,7 @@ describe("formatRate", () => {
   });
 
   it("prints a dash for an unknown rate rather than accusing the extractor of 0%", () => {
-    expect(formatRate(null)).toBe("—");
+    expect(formatRate(null)).toBe("–");
   });
 });
 

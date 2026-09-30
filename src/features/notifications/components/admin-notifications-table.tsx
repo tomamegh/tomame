@@ -116,7 +116,7 @@ export function AdminNotificationsTable({
                   </div>
                 </td>
                 <td className={`${ADMIN_TD} tm-nums whitespace-nowrap text-tm-text-2`}>
-                  {created ?? "—"}
+                  {created ?? "–"}
                 </td>
                 <td className={`${ADMIN_TD} tm-nums whitespace-nowrap text-tm-text-2`}>
                   {/*
@@ -124,7 +124,7 @@ export function AdminNotificationsTable({
                     so a failed row has nothing here by design — an em dash, not
                     a zero and not the creation time.
                   */}
-                  {sent ?? "—"}
+                  {sent ?? "–"}
                 </td>
               </tr>
             );

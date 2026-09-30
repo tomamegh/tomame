@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
+import { warehousePageUser } from "@/features/warehouse/services/page-user";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeftIcon, BoxIcon, MapPinIcon, PhoneIcon, StickyNoteIcon } from "lucide-react";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import type { OrderStatus } from "@/features/orders/types";
 import { AdminOrderParcelPanel } from "@/features/order-photos/components/admin-parcel-panel";
 import { formatDateTime, formatLbs, recipientLines, STAGE_META } from "@/features/warehouse/components/format";
@@ -11,7 +11,6 @@ import { ItemActions } from "@/features/warehouse/components/item-actions";
 import { ItemFlags, ItemThumb, PackageStatusBadge, StageBadge } from "@/features/warehouse/components/warehouse-ui";
 import { getWarehouseItem } from "@/features/warehouse/services/warehouse.service";
 import { APIError } from "@/lib/auth/api-helpers";
-import { requireAuth } from "@/lib/auth/guards";
 
 export const metadata: Metadata = { title: "Item" };
 export const dynamic = "force-dynamic";
@@ -29,7 +28,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function WarehouseItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const user = requireAuth(await getAuthenticatedUser());
+  const user = await warehousePageUser(`/warehouse/items/${id}`);
 
   let item;
   try {
@@ -42,10 +41,10 @@ export default async function WarehouseItemPage({ params }: { params: Promise<{ 
   const facts: Array<{ label: string; value: string }> = [
     { label: "Quantity", value: String(item.quantity) },
     { label: "Listed weight", value: item.listed_weight_lbs ? `${formatLbs(item.listed_weight_lbs)} each` : "Not listed" },
-    { label: "Weighed at hub", value: item.received?.weight_lbs ? formatLbs(item.received.weight_lbs) : "—" },
+    { label: "Weighed at hub", value: item.received?.weight_lbs ? formatLbs(item.received.weight_lbs) : "–" },
     { label: "Arrived", value: item.received ? formatDateTime(item.received.at) : "Not yet" },
-    { label: "Store", value: item.store ?? "—" },
-    { label: "Freight box", value: item.box ? `${item.box.label ?? "Box"}${item.box.departs_at ? ` · ${formatDateTime(item.box.departs_at)}` : ""}` : "—" },
+    { label: "Store", value: item.store ?? "–" },
+    { label: "Freight box", value: item.box ? `${item.box.label ?? "Box"}${item.box.departs_at ? ` · ${formatDateTime(item.box.departs_at)}` : ""}` : "–" },
   ];
 
   return (

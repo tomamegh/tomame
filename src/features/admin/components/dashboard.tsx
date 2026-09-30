@@ -174,7 +174,7 @@ function UnavailableStat({
   return (
     <AdminStat
       label={label}
-      value="—"
+      value="–"
       detail="Could not be read on this load. Reload to try again."
       tone="muted"
       icon={icon}
@@ -306,7 +306,7 @@ function MoneyTiles({ view }: { view: AdminDashboardView }) {
       {money ? (
         <AdminStat
           label="Average payment"
-          value={money.averagePaymentGhs == null ? "—" : formatGhs(money.averagePaymentGhs)}
+          value={money.averagePaymentGhs == null ? "–" : formatGhs(money.averagePaymentGhs)}
           detail={
             money.averagePaymentGhs == null
               ? "Needs at least one settled payment"
@@ -541,7 +541,7 @@ function RecentOrdersCard({ orders }: { orders: DashboardOrderSummary[] | null }
                     )}
                   </td>
                   <td className={`${ADMIN_TD} tm-nums whitespace-nowrap text-tm-text-2`}>
-                    {formatTimestamp(order.createdAt) ?? "—"}
+                    {formatTimestamp(order.createdAt) ?? "–"}
                   </td>
                 </tr>
               ))}
@@ -615,7 +615,7 @@ function RecentPaymentsCard({ payments }: { payments: DashboardPaymentSummary[] 
                     {formatGhs(payment.amountGhs)}
                   </td>
                   <td className={`${ADMIN_TD} tm-nums whitespace-nowrap text-tm-text-2`}>
-                    {formatTimestamp(payment.createdAt) ?? "—"}
+                    {formatTimestamp(payment.createdAt) ?? "–"}
                   </td>
                 </tr>
               ))}

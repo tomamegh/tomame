@@ -75,12 +75,12 @@ export function AdminUsersTable({ users }: { users: readonly PlatformUser[] }) {
                     </span>
                   </Link>
                 </td>
-                <td className={`${ADMIN_TD} text-tm-text-2`}>{user.email ?? "—"}</td>
+                <td className={`${ADMIN_TD} text-tm-text-2`}>{user.email ?? "–"}</td>
                 <td className={ADMIN_TD}>
                   <AdminBadge tone={badge.tone}>{badge.label}</AdminBadge>
                 </td>
                 <td className={`${ADMIN_TD} tm-nums whitespace-nowrap text-tm-text-2`}>
-                  {joined ?? "—"}
+                  {joined ?? "–"}
                 </td>
                 <td className={`${ADMIN_TD} tm-nums whitespace-nowrap text-tm-text-2`}>
                   {/*
@@ -88,7 +88,7 @@ export function AdminUsersTable({ users }: { users: readonly PlatformUser[] }) {
                     by an admin that nobody has used yet. An em dash, never
                     "never" — the dash is the table's own word for "no value".
                   */}
-                  {lastSignIn ?? "—"}
+                  {lastSignIn ?? "–"}
                 </td>
                 <td className={`${ADMIN_TD} text-right`}>
                   <Link

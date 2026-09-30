@@ -31,7 +31,7 @@ describe("warehouse format", () => {
     expect(formatLbs(3)).toBe("3 lb");
     expect(formatLbs(1.25)).toBe("1.25 lb");
     expect(formatLbs(1.5, 1)).toBe("1.5 lb");
-    expect(formatLbs(null)).toBe("—");
+    expect(formatLbs(null)).toBe("–");
   });
 
   it("prefers the scale over the estimate and says which it is", () => {

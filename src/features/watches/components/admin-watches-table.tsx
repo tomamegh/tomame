@@ -115,11 +115,11 @@ export function AdminWatchesTable({
                   </div>
                 </td>
                 <td className={`${ADMIN_TD} tm-nums whitespace-nowrap`}>
-                  {row.last_price_usd != null ? formatUsd(row.last_price_usd) : "—"}
+                  {row.last_price_usd != null ? formatUsd(row.last_price_usd) : "–"}
                 </td>
                 <td className={`${ADMIN_TD} tm-nums whitespace-nowrap text-tm-text-2`}>
                   {row.last_checked_at
-                    ? (relativeTime(row.last_checked_at, now) ?? "—")
+                    ? (relativeTime(row.last_checked_at, now) ?? "–")
                     : "Never"}
                 </td>
                 <td className={`${ADMIN_TD} tm-nums whitespace-nowrap text-tm-text-2`}>
@@ -128,11 +128,11 @@ export function AdminWatchesTable({
                     email landed is the notification row's business, which is
                     why the alerts card below reads the log rather than this.
                   */}
-                  {row.notified_at ? (relativeTime(row.notified_at, now) ?? "—") : "Never"}
+                  {row.notified_at ? (relativeTime(row.notified_at, now) ?? "–") : "Never"}
                 </td>
                 {showError ? (
                   <td className={`${ADMIN_TD} max-w-[42ch] text-tm-text-2`}>
-                    {row.last_error ?? "—"}
+                    {row.last_error ?? "–"}
                   </td>
                 ) : null}
               </tr>

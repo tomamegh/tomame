@@ -543,7 +543,7 @@ async function updateLineRow(id: string, patch: Parameters<typeof updateCartItem
 
 export class BagConstantsMissingError extends Error {
   constructor(keys: string[]) {
-    super(`pricing_constants is missing ${keys.join(", ")} — seed them (migrations 035/037) before the bag can pack boxes`);
+    super(`pricing_constants is missing ${keys.join(", ")}. Seed them (migrations 035/037) before the bag can pack boxes`);
     this.name = "BagConstantsMissingError";
   }
 }
