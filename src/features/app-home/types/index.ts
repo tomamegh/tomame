@@ -1,8 +1,9 @@
 import type { ReceiptFulfilment } from "@/db/queries/receipt-state";
-import type { CarWithCover } from "@/features/cars/services/cars.service";
 import type { CatalogProduct } from "@/features/catalog/types";
 import type { PricingBreakdown } from "@/lib/pricing";
-import type { JourneyView } from "@/features/orders/services/journey-stage";
+import type { JourneyTone } from "@/features/orders/services/journey-stage";
+import type { JourneyTrack } from "@/features/orders/services/journey-track";
+import type { JourneyEta } from "@/features/journeys/types";
 import type { WatchListResponse } from "@/features/watches/types";
 
 /**
@@ -21,18 +22,55 @@ export interface HomeGreeting {
   movingCount: number;
 }
 
-export interface HomeJourney {
+/**
+ * One order on Home's "Your orders" section: the product, where it stands, and
+ * that order's own journey from Paid to the door.
+ *
+ * Every field is a column or is derived from one. The track is the same
+ * `deriveJourneyTrack` the order detail draws, so a stop lit here is lit there.
+ */
+export interface HomeOrder {
   id: string;
+  /** `/app/orders/<id>`. */
+  href: string;
+  /** "TM-00042". */
+  orderNo: string;
   productName: string;
-  productUrl: string;
-  /** Raw `orders.status`, for links and analytics. Display comes from `stage`. */
+  /** Null when the listing had none; the card draws the hatch placeholder. */
+  productImageUrl: string | null;
+  /** Registry name, else the extraction's platform. Null when neither is known. */
+  store: string | null;
+  /** Raw `orders.status`. */
   status: string;
-  /** Label, stop, stage position, tone and ETA — all derived, never invented. */
-  stage: JourneyView;
-  /** `orders.pricing.total_ghs`; null when the order predates a priced snapshot. */
+  /** "In the air", "Being purchased" — `journey-stage.ts`, the one vocabulary. */
+  stageLabel: string;
+  tone: JourneyTone;
+  /** The five stops with their recorded dates, from `orders.status` + `order_events`. */
+  track: JourneyTrack;
+  /** The delivery window the last stop prints: confirmed, else the quote's estimate. */
+  eta: JourneyEta | null;
+  /**
+   * The line under the track: the newest customer-visible event, else the
+   * delivery window, else the stage's own hint. Never an invented date.
+   */
+  latest: HomeOrderLatest;
+  /** The admin's override, else the stored breakdown's total. Null when unpriced. */
   totalGhs: number | null;
   createdAt: string;
+  /**
+   * 075: a rider has the parcel (in transit only). Absent otherwise. The link
+   * is https-only, validated when the admin saved it.
+   */
+  rider?: { trackingUrl: string | null };
 }
+
+export type HomeOrderLatest =
+  /** A real `order_events` row: its title, its note, and when it happened. */
+  | { kind: "event"; title: string; note: string | null; at: string }
+  /** No event yet, but a delivery window exists. */
+  | { kind: "eta"; eta: JourneyEta }
+  /** Neither: the stage's own hint ("Date set when it ships"). */
+  | { kind: "hint"; text: string };
 
 /** "Live receipt · last link you pasted". */
 export interface HomeReceipt {
@@ -132,37 +170,18 @@ export interface HomeFreightBox {
   href: string;
 }
 
-/**
- * "Cars en route to Ghana" — the Home shelf.
- *
- * NULL WHEN THERE IS NOTHING PUBLISHED, and the shelf then renders nothing at
- * all: no placeholder, no "cars coming soon" card, and above all no sample
- * vehicle. `HomeDeals` is null for the same reason and it is worth restating
- * for cars, because a car is the most expensive thing on this site — a made-up
- * product on a price screen is a made-up price, and a made-up CAR is a made-up
- * six-figure price beside a photograph of something that does not exist.
- *
- * `CarWithCover` is a type-only import from a `server-only` module. That is
- * safe precisely because it is type-only: TypeScript erases it, so nothing
- * client-side ever reaches the read behind it.
- */
-export interface HomeCars {
-  /** Newest-arranged published listings with their cover photographs. Never empty. */
-  cars: CarWithCover[];
-  /** Every published listing, not just the ones on the rail — the "see all N" figure. */
-  total: number;
-}
-
 export interface HomeViewModel {
   greeting: HomeGreeting;
-  /** Newest first, cancelled orders excluded. Empty array when there are none. */
-  journeys: HomeJourney[];
+  /**
+   * The customer's placed orders — paid or further along — newest first and
+   * capped. EMPTY when they have placed none, and the section is then not drawn
+   * at all: no placeholder, no example journey.
+   */
+  orders: HomeOrder[];
   /** Null when the customer has pasted nothing, or the extraction has been pruned. */
   receipt: HomeReceipt | null;
   /** Null when the catalogue holds nothing we could price. Never a placeholder. */
   deals: HomeDeals | null;
-  /** Null when no car listing is published. The rail then draws nothing. */
-  cars: HomeCars | null;
   /**
    * How many products the pre-scraped catalogue holds, across every category.
    *

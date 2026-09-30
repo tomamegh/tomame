@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
     }, null);
     // No extraction → nothing to lock against; the ETA still applies when the region is known.
     const country = input.region ? PRICING_TO_REGION[input.region] : null;
-    return successResponse(await withDeliveryEta(breakdown, country, null, new Date()));
+    return successResponse(await withDeliveryEta(breakdown, country, new Date()));
   } catch (err) {
     return errorResponse(err);
   }

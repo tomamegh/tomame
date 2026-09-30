@@ -24,6 +24,7 @@ import {
   type ListCarListingsOptions,
 } from "@/db/queries/cars";
 import { deleteCarPhotoObject } from "./car-photo-storage";
+import { invalidatePublishedCars } from "./cars-availability.service";
 import {
   AUDIT_ACTOR_ROLES,
   AUDIT_ENTITY_TYPES,
@@ -185,6 +186,9 @@ export async function createCar(
     },
   });
 
+  // A car created published puts the Cars tab in the nav.
+  if (row.is_published) invalidatePublishedCars();
+
   return toCarListingView(row);
 }
 
@@ -239,6 +243,8 @@ export async function updateCar(
     },
   });
 
+  if (current.is_published !== row.is_published) invalidatePublishedCars();
+
   return toCarListingView(row);
 }
 
@@ -281,6 +287,9 @@ export async function setCarPublished(
 
   const row = await setCarListingPublished(id, isPublished, actor.id);
   if (!row) throw new APIError(404, "Car listing not found");
+
+  // The Cars tab appears with the first published car and goes with the last.
+  invalidatePublishedCars();
 
   await logAuditEvent({
     actorId: actor.id,
@@ -359,6 +368,8 @@ export async function deleteCar(actor: CarActor, id: string): Promise<CarListing
       actorEmail: actor.email,
     },
   });
+
+  if (row.is_published) invalidatePublishedCars();
 
   return toCarListingView(row);
 }

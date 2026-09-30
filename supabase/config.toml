@@ -226,10 +226,32 @@ pass = "env(RESEND_API_KEY)"
 admin_email = "env(RESEND_EMAIL_FROM)"
 sender_name = "Tomame"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Auth email templates. Same HTML as production: see supabase/templates/README.md,
+# which is also where the dashboard subjects are listed. Hosted Supabase does not
+# read these; they are pasted into the dashboard by hand.
+[auth.email.template.confirmation]
+subject = "Confirm your email to start shopping on Tomame"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Tomame password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Your Tomame sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new email address for Tomame"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.invite]
+subject = "You're invited to Tomame"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.reauthentication]
+subject = "{{ .Token }} is your Tomame verification code"
+content_path = "./supabase/templates/reauthentication.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

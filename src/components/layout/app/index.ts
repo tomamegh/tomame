@@ -5,7 +5,9 @@ export { AppNavLinks } from "./app-nav-links";
 export { NotificationBell } from "./notification-bell";
 export { BagButton } from "./bag-button";
 export {
+  APP_CARS_NAV_ITEM,
   APP_NAV_ITEMS,
+  appNavItems,
   avatarInitial,
   bagLabel,
   formatGreeting,

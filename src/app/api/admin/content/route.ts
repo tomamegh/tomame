@@ -8,9 +8,11 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { AUDIT_ENTITY_TYPES } from "@/config/constants";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { TEXT_CELL_KINDS } from "@/features/marketing/components/admin-content-format";
 import {
   getDeliveryZone,
   getRegion,
+  getSiteContentRow,
   getSiteSetting,
   updateDeliveryZone,
   updateRegion,
@@ -80,6 +82,13 @@ const contentPatchSchema = z.object({
   body: z.string().max(20_000).nullable().optional(),
   sort_order: z.number().int().min(0).max(9999).optional(),
   is_published: z.boolean().optional(),
+  /**
+   * Text cells in `data`: a comparison row's `tomame` / `forwarder` / …, a
+   * shipping method's `window`. Only keys the row already holds as text can be
+   * set, and only on `TEXT_CELL_KINDS`: the other kinds' `data` is wiring
+   * (`value_source`, icons), not copy.
+   */
+  columns: z.record(z.string().min(1).max(64), z.string().max(500)).optional(),
 });
 
 const regionPatchSchema = z.object({
@@ -95,6 +104,8 @@ const regionPatchSchema = z.object({
 const zonePatchSchema = z.object({
   target: z.literal("zone"),
   id: z.uuid(),
+  /** What checkout and "Where we buy" call the zone, e.g. "Pickup at our Weija hub". */
+  name: z.string().trim().min(1).max(128).optional(),
   /** GHS. Non-negative and capped — a stray keystroke must not price a delivery at five figures. */
   fee_ghs: z.number().min(0).max(100_000).optional(),
   extra_days: z.number().int().min(0).max(90).optional(),
@@ -216,9 +227,25 @@ async function patchBlock(
   actorId: string,
   actorEmail: string | null,
 ) {
-  const { target: _target, id, ...patch } = input;
-  if (Object.keys(patch).length === 0) throw new APIError(400, "Nothing to change");
+  const { target: _target, id, columns, ...fields } = input;
+  if (Object.keys(fields).length === 0 && !columns) throw new APIError(400, "Nothing to change");
 
+  let data: Record<string, unknown> | undefined;
+  if (columns) {
+    const current = await getSiteContentRow(id);
+    if (!current) throw new APIError(404, "That content block no longer exists");
+    if (!TEXT_CELL_KINDS.includes(current.kind)) {
+      throw new APIError(400, "This block has no editable text cells");
+    }
+    for (const key of Object.keys(columns)) {
+      if (typeof current.data[key] !== "string") {
+        throw new APIError(400, `“${key}” is not a column of this row`);
+      }
+    }
+    data = { ...current.data, ...columns };
+  }
+
+  const patch = data ? { ...fields, data } : fields;
   const updated = await updateSiteContentRow(id, patch, actorId);
   if (!updated) throw new APIError(404, "That content block no longer exists");
 
@@ -232,7 +259,7 @@ async function patchBlock(
       table: "site_content",
       kind: updated.kind,
       slug: updated.slug,
-      changed: Object.keys(patch),
+      changed: [...Object.keys(fields), ...Object.keys(columns ?? {}).map((key) => `data.${key}`)],
       is_published: updated.is_published,
       actorEmail,
     },

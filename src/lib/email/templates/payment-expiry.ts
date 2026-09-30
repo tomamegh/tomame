@@ -1,4 +1,4 @@
-import { emailLayout, heading, paragraph, muted, divider, button, infoRow, infoTable } from "./layout";
+import { renderEmail, eyebrow, heading, paragraph, muted, button, summaryCard, callout, escapeHtml } from "./layout";
 
 /**
  * The two mails the payment reconciliation job sends (migration 059).
@@ -18,26 +18,26 @@ export interface PaymentExpiredEmailData {
 }
 
 export function paymentExpiredTemplate(data: PaymentExpiredEmailData) {
-  return {
-    subject: "Your Tomame payment did not go through",
-    html: emailLayout(`
-      ${heading("Your payment did not go through")}
+  const amount = `GH₵&nbsp;${data.amountGhs.toFixed(2)}`;
+  return renderEmail("Your Tomame payment did not go through", {
+    preheader: `You have not been charged. Your items are still waiting at the same price.`,
+    body: `
+      ${eyebrow("Payment not completed", "amber")}
+      ${heading("Your payment didn't go through")}
       ${paragraph(
-        `We opened a payment of <strong>GH₵ ${data.amountGhs.toFixed(2)}</strong> for you and Paystack did not report it as completed within ${data.expiryMinutes} minutes, so we have released it. You have not been charged.`,
+        `We opened a payment of <strong>${amount}</strong> for you and Paystack did not report it as completed within ${data.expiryMinutes} minutes, so we have released it.`,
       )}
-      ${divider()}
-      ${infoTable(`
-        ${infoRow("Amount", `GH₵ ${data.amountGhs.toFixed(2)}`)}
-        ${infoRow("Reference", data.reference)}
-      `)}
-      ${divider()}
+      ${callout("<strong>You have not been charged.</strong> Your items are still waiting for you at the same price.", "green")}
+      ${summaryCard({
+        label: "Payment",
+        rows: [["Reference", escapeHtml(data.reference)]],
+        total: ["Amount", amount],
+      })}
       ${button(data.retryUrl, "Pay again")}
-      ${paragraph(
-        `Your items are still waiting for you at the same price. If money did leave your account, reply to this email with the reference above and we will sort it out.`,
-      )}
-      ${muted(`This is a transactional message about a payment you started on Tomame.`)}
-    `),
-  };
+      ${muted("If money did leave your account, write to us with the reference above and we will sort it out.")}
+    `,
+    reason: "This is a transactional message about a payment you started on Tomame.",
+  });
 }
 
 export interface UnpaidOrderCancelledEmailData {
@@ -50,19 +50,20 @@ export interface UnpaidOrderCancelledEmailData {
 }
 
 export function unpaidOrderCancelledTemplate(data: UnpaidOrderCancelledEmailData) {
-  return {
-    subject: "We closed an unpaid Tomame order",
-    html: emailLayout(`
+  const amount = `GH₵&nbsp;${data.amountGhs.toFixed(2)}`;
+  return renderEmail("We closed an unpaid Tomame order", {
+    preheader: "Nothing has been charged. Paste the link again for today's price.",
+    body: `
+      ${eyebrow("Order closed", "neutral")}
       ${heading("We closed an unpaid order")}
       ${paragraph(
-        `<strong>${data.subject}</strong> was waiting for a payment of GH₵ ${data.amountGhs.toFixed(2)} for more than ${data.ttlHours} hours, so we have closed it. Nothing has been charged.`,
+        `<strong>${escapeHtml(data.subject)}</strong> was waiting for a payment of ${amount} for more than ${data.ttlHours} hours, so we have closed it. Nothing has been charged.`,
       )}
       ${paragraph(
-        `Store prices and the exchange rate move, so we do not hold a quote open indefinitely. Paste the link again and you will see today's landed price.`,
+        "Store prices and the exchange rate move, so we do not hold a quote open forever. Paste the link again and you will see today's landed price.",
       )}
-      ${divider()}
       ${button(data.shopUrl, "Get a fresh price")}
-      ${muted(`This is a transactional message about an order you placed on Tomame.`)}
-    `),
-  };
+    `,
+    reason: "This is a transactional message about an order you placed on Tomame.",
+  });
 }

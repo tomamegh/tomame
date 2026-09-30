@@ -104,7 +104,7 @@ export function ReceiptActions({
               className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-tm-border bg-card px-3 text-[13px] leading-none font-semibold transition-colors hover:bg-tm-tint"
             >
               <Path weight="bold" className="size-3.5 text-tm-green" aria-hidden />
-              Track this journey
+              Track this order
               <ArrowRight weight="bold" className="size-3.5" aria-hidden />
             </Link>
           ) : (

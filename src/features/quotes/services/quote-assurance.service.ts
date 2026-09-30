@@ -1,5 +1,7 @@
 import "server-only";
 import { getQuoteAssuranceContent } from "@/db/queries/site-content";
+import { fillRowsTokens } from "@/features/marketing/content-tokens";
+import { resolveContentTokens } from "@/features/marketing/services/marketing-content.service";
 import type { QuoteAssurance } from "../types";
 
 /**
@@ -13,10 +15,13 @@ import type { QuoteAssurance } from "../types";
  * component, because a database that can name an arbitrary icon component is a
  * database that can break the build.
  *
- * A row with no title is dropped rather than rendered as an empty card.
+ * A row with no title is dropped rather than rendered as an empty card, and
+ * `{delivery_window}` is filled from the region's transit days like every
+ * other content row.
  */
 export async function loadQuoteAssurances(): Promise<QuoteAssurance[]> {
-  const rows = await getQuoteAssuranceContent();
+  const [raw, tokens] = await Promise.all([getQuoteAssuranceContent(), resolveContentTokens()]);
+  const rows = fillRowsTokens(raw, tokens);
 
   return rows.flatMap((row) => {
     const title = row.title?.trim();

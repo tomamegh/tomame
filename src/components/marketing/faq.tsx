@@ -22,7 +22,7 @@ const FAQS: FAQItem[] = [
   },
   {
     q: 'How long does delivery take?',
-    a: 'Most orders arrive within 2–4 weeks depending on origin region. Air freight options are available for urgent items.',
+    a: 'Delivery takes 5–7 days from when we buy your item. Everything flies by air.',
   },
   {
     q: 'Is there any minimum order amount?',

@@ -25,7 +25,6 @@ export default function ResetPasswordForm() {
 
   const onSubmit = async (data: ResetPasswordFormSchema) => {
     const parsed = resetPasswordSchema.parse(data);
-    console.log(parsed.password)
     await mutateAsync(parsed);
     router.push("/auth/login?reset=success");
   };

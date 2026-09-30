@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { PricingBreakdown } from "@/lib/pricing";
 import {
   buildReceiptRows,
-  formatEtaDate,
+  formatOrderLatest,
   formatGreetingFor,
   formatRelativeTime,
   RECEIPT_ROW_DELAYS,
@@ -73,14 +73,38 @@ describe("formatRelativeTime", () => {
   });
 });
 
-describe("formatEtaDate", () => {
-  it("formats a bare YYYY-MM-DD as UTC, so it cannot shift a day", () => {
-    expect(formatEtaDate("2026-09-19")).toBe("Lands 19 Sept");
+describe("formatOrderLatest", () => {
+  it("prints a real event with its note and short day", () => {
+    expect(
+      formatOrderLatest({
+        kind: "event",
+        title: "On its way to Accra",
+        note: "New York",
+        at: "2026-09-06T10:00:00.000Z",
+      }),
+    ).toBe("On its way to Accra · New York · 6 Sep");
   });
 
-  it("returns null rather than inventing a date", () => {
-    expect(formatEtaDate("")).toBeNull();
-    expect(formatEtaDate("soon")).toBeNull();
+  it("drops an empty note rather than leaving a stray separator", () => {
+    expect(
+      formatOrderLatest({ kind: "event", title: "Paid", note: null, at: "2026-09-01T09:00:00.000Z" }),
+    ).toBe("Paid · 1 Sep");
+  });
+
+  it("labels a forecast as an estimate and a confirmed window as a promise", () => {
+    const eta = { from: "2026-09-18", to: "2026-09-20" };
+    expect(formatOrderLatest({ kind: "eta", eta: { ...eta, source: "confirmed" } })).toBe(
+      "At your door Fri 18 – Sun 20 Sep",
+    );
+    expect(formatOrderLatest({ kind: "eta", eta: { ...eta, source: "estimated" } })).toBe(
+      "Estimated at your door Fri 18 – Sun 20 Sep",
+    );
+  });
+
+  it("passes the stage hint through", () => {
+    expect(formatOrderLatest({ kind: "hint", text: "Date set when it ships" })).toBe(
+      "Date set when it ships",
+    );
   });
 });
 
@@ -194,8 +218,3 @@ describe("buildReceiptRows", () => {
   });
 });
 
-describe("formatEtaDate tense", () => {
-  it("reads as an arrival once the journey is complete", () => {
-    expect(formatEtaDate("2026-09-06", { landed: true })).toBe("Landed 6 Sept");
-  });
-});

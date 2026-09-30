@@ -1,12 +1,15 @@
 import {
-  emailLayout,
+  renderEmail,
+  eyebrow,
   heading,
   paragraph,
   muted,
-  divider,
   button,
-  infoRow,
-  infoTable,
+  summaryCard,
+  callout,
+  steps,
+  escapeHtml,
+  appUrl,
 } from "./layout";
 import { taxRowLabel } from "@/lib/pricing/tax-label";
 
@@ -48,183 +51,193 @@ interface OrderPlacedEmailData {
   paymentUrl?: string;
 }
 
-function orderDetails(data: OrderEmailData, extraRows = "") {
-  return infoTable(`
-    ${infoRow("Order ID", data.orderId)}
-    ${infoRow("Item", data.productName)}
-    ${extraRows}
-  `);
+/** The journey every paid order walks, as the customer reads it. */
+const JOURNEY = ["Paid", "Buying", "On the way", "Delivered"] as const;
+
+const ORDER_REASON = "You are getting this because you placed an order on Tomame.";
+
+const ghs = (n: number) => `GH₵&nbsp;${n.toFixed(2)}`;
+const usd = (n: number) => `$${n.toFixed(2)}`;
+
+function orderUrl(orderId: string) {
+  return `${appUrl()}/app/orders/${encodeURIComponent(orderId)}`;
 }
 
+function orderCard(data: { productName: string; orderId: string }, rows: SummaryRows = [], total?: readonly [string, string]) {
+  return summaryCard({
+    label: "Your order",
+    title: escapeHtml(data.productName),
+    rows: [["Order reference", `<span style="word-break:break-all;">${escapeHtml(data.orderId)}</span>`], ...rows],
+    total,
+  });
+}
+
+type SummaryRows = Array<readonly [string, string] | false | null | undefined>;
+
 export function orderPaidTemplate(data: OrderEmailData) {
-  return {
-    subject: "Payment confirmed: your Tomame order is being prepared",
-    html: emailLayout(`
-      ${heading("Payment Confirmed")}
-      ${paragraph("Great news! We've received your payment and your order is now queued for processing.")}
-      ${divider()}
-      ${orderDetails(data)}
-      ${divider()}
-      ${paragraph("Our team will begin purchasing your item shortly. We'll notify you at every step of the way.")}
-      ${muted("You'll receive an email when your order moves to the next stage.")}
-    `),
-  };
+  return renderEmail("Payment confirmed: your Tomame order is being prepared", {
+    preheader: `We have your payment for ${data.productName}. Our buyers are on it.`,
+    body: `
+      ${eyebrow("Payment received", "green")}
+      ${heading("You're all paid up")}
+      ${paragraph(`Thank you. Your payment for <strong>${escapeHtml(data.productName)}</strong> is in, and your order is in the queue for our buyers.`)}
+      ${steps(JOURNEY, 0)}
+      ${orderCard(data)}
+      ${paragraph("Next, we buy it from the store. We will write at every step, so there is nothing you need to do.")}
+      ${button(orderUrl(data.orderId), "Track your order")}
+    `,
+    reason: ORDER_REASON,
+  });
 }
 
 export function orderProcessingTemplate(data: OrderEmailData) {
-  return {
-    subject: "Your Tomame order is now being processed",
-    html: emailLayout(`
-      ${heading("Order in Progress")}
-      ${paragraph("We've started processing your order. Our team is purchasing your item from the international store.")}
-      ${divider()}
-      ${orderDetails(data)}
-      ${divider()}
-      ${paragraph("Once your item is ready to ship, we'll send you the tracking details.")}
-      ${muted("Processing typically takes 2–5 business days depending on the source.")}
-    `),
-  };
+  return renderEmail("Your Tomame order is now being processed", {
+    preheader: `We are buying ${data.productName} from the store now.`,
+    body: `
+      ${eyebrow("Order update")}
+      ${heading("We're buying your item")}
+      ${paragraph(`Our team is placing the order for <strong>${escapeHtml(data.productName)}</strong> with the store. Once it reaches our hub and heads for Ghana, you will get the tracking details.`)}
+      ${steps(JOURNEY, 1)}
+      ${orderCard(data)}
+      ${muted("This usually takes 2 to 5 working days, depending on the store.")}
+      ${button(orderUrl(data.orderId), "Track your order")}
+    `,
+    reason: ORDER_REASON,
+  });
 }
 
 export function orderShippedTemplate(data: OrderEmailData) {
-  const extraRows = [
-    data.carrier ? infoRow("Carrier", data.carrier) : "",
-    data.trackingNumber ? infoRow("Tracking #", data.trackingNumber) : "",
-    data.estimatedDeliveryDate
-      ? infoRow("Est. Delivery", data.estimatedDeliveryDate)
-      : "",
-  ].join("");
-
-  return {
-    subject: "Your Tomame order has shipped!",
-    html: emailLayout(`
-      ${heading("Your Order Has Shipped")}
-      ${paragraph("Your item is on its way to Ghana! Here are the details:")}
-      ${divider()}
-      ${orderDetails(data, extraRows)}
-      ${divider()}
-      ${paragraph("We'll let you know as soon as your order is delivered.")}
-      ${muted("Delivery times vary based on shipping method and customs processing.")}
-    `),
-  };
+  return renderEmail("Your Tomame order has shipped!", {
+    preheader: `${data.productName} is on its way to Ghana.`,
+    body: `
+      ${eyebrow("On the way")}
+      ${heading("Your order is on its way to Ghana")}
+      ${paragraph(`<strong>${escapeHtml(data.productName)}</strong> has left our hub. Here is how to follow it.`)}
+      ${steps(JOURNEY, 2)}
+      ${orderCard(data, [
+        data.carrier ? ["Carrier", escapeHtml(data.carrier)] : null,
+        data.trackingNumber ? ["Tracking number", escapeHtml(data.trackingNumber)] : null,
+        data.estimatedDeliveryDate ? ["Expected", escapeHtml(data.estimatedDeliveryDate)] : null,
+      ])}
+      ${paragraph("We will let you know the moment it is delivered.")}
+      ${muted("Delivery times depend on the shipping method and on customs in Ghana.")}
+      ${button(orderUrl(data.orderId), "Track your order")}
+    `,
+    reason: ORDER_REASON,
+  });
 }
 
 export function orderDeliveredTemplate(data: OrderEmailData) {
-  return {
-    subject: "Your Tomame order has been delivered",
-    html: emailLayout(`
-      ${heading("Order Delivered")}
-      ${paragraph("Your order has been successfully delivered. We hope you love your purchase!")}
-      ${divider()}
-      ${orderDetails(data)}
-      ${divider()}
-      ${paragraph("Thank you for shopping with Tomame. We'd love to help you with your next order.")}
-      ${muted("If you have any issues with your delivery, please contact our support team.")}
-    `),
-  };
+  return renderEmail("Your Tomame order has been delivered", {
+    preheader: `${data.productName} has been delivered. Enjoy it.`,
+    body: `
+      ${eyebrow("Delivered", "green")}
+      ${heading("Delivered. Enjoy it!")}
+      ${paragraph(`<strong>${escapeHtml(data.productName)}</strong> has been delivered. We hope it is everything you wanted.`)}
+      ${steps(JOURNEY, JOURNEY.length)}
+      ${orderCard(data)}
+      ${paragraph("Thank you for shopping with Tomame. When you find the next thing you want, paste the link and we will price it in cedis.")}
+      ${muted("Something not right with the delivery? Write to us and we will help.")}
+      ${button(`${appUrl()}/app`, "Shop again")}
+    `,
+    reason: ORDER_REASON,
+  });
 }
 
 export function orderPlacedTemplate(data: OrderPlacedEmailData) {
-  const bodyText = data.needsReview
-    ? "Thanks for your order! Our team needs to review a few details before it can proceed. We'll email you once the review is complete."
-    : "Thanks for your order! Please complete your payment to begin processing.";
+  const body = data.needsReview
+    ? `${paragraph(`Thanks for your order for <strong>${escapeHtml(data.productName)}</strong>. A member of our team needs to check a few details before it can go ahead.`)}
+       ${callout("<strong>No need to pay yet.</strong> We will email you as soon as the review is done.", "amber")}`
+    : paragraph(`Thanks for your order for <strong>${escapeHtml(data.productName)}</strong>. Pay when you are ready and our buyers will get started.`);
 
-  const paymentBtn = !data.needsReview && data.paymentUrl
-    ? button(data.paymentUrl, "Complete Payment")
-    : "";
+  const cta = !data.needsReview && data.paymentUrl
+    ? button(data.paymentUrl, "Complete payment")
+    : button(orderUrl(data.orderId), "View your order");
 
-  return {
-    subject: "We received your Tomame order",
-    html: emailLayout(`
-      ${heading("Order Received")}
-      ${paragraph(bodyText)}
-      ${divider()}
-      ${infoTable(`
-        ${infoRow("Order ID", data.orderId)}
-        ${infoRow("Item", data.productName)}
-        ${infoRow("Total", `GHS ${data.totalGhs.toFixed(2)}`)}
-      `)}
-      ${divider()}
-      ${paymentBtn}
-      ${muted("Log in to your Tomame account to track your order.")}
-    `),
-  };
+  return renderEmail("We received your Tomame order", {
+    preheader: data.needsReview
+      ? `We are checking a few details on ${data.productName}. No payment needed yet.`
+      : `Your order for ${data.productName} is ready to pay: GH₵ ${data.totalGhs.toFixed(2)}.`,
+    body: `
+      ${eyebrow("Order received")}
+      ${heading("We've got your order")}
+      ${body}
+      ${orderCard(data, [], ["Total", ghs(data.totalGhs)])}
+      ${cta}
+      ${muted("Pay by Mobile Money or card through Paystack. Nothing is charged until you pay.")}
+    `,
+    reason: ORDER_REASON,
+  });
 }
 
 export function orderCancelledTemplate(data: OrderEmailData) {
-  return {
-    subject: "Your Tomame order has been cancelled",
-    html: emailLayout(`
-      ${heading("Order Cancelled")}
-      ${paragraph("Your order has been cancelled. If a payment was made, a refund will be processed to your original payment method.")}
-      ${divider()}
-      ${orderDetails(data)}
-      ${divider()}
-      ${paragraph("If you have questions about this cancellation, please reach out to our support team.")}
-      ${muted("Refunds typically take 3–5 business days to appear in your account.")}
-    `),
-  };
+  return renderEmail("Your Tomame order has been cancelled", {
+    preheader: `Your order for ${data.productName} has been cancelled.`,
+    body: `
+      ${eyebrow("Order cancelled", "neutral")}
+      ${heading("Your order has been cancelled")}
+      ${paragraph(`We have cancelled your order for <strong>${escapeHtml(data.productName)}</strong>. If you paid for it, we will refund you to the same Mobile Money wallet or card.`)}
+      ${orderCard(data)}
+      ${muted("Refunds usually show up within 3 to 5 working days. If you have questions about this cancellation, write to us and we will explain.")}
+      ${button(`${appUrl()}/app`, "Back to Tomame")}
+    `,
+    reason: ORDER_REASON,
+  });
 }
 
 export function orderApprovedTemplate(data: OrderReviewEmailData) {
-  const bodyText = data.priceChanged
-    ? "Great news! Our team has reviewed your order and approved it. The price has been updated. Please complete your payment at the new amount."
-    : "Great news! Our team has reviewed your order and it has been approved. Please proceed to payment to begin processing.";
+  const intro = data.priceChanged
+    ? `Good news: we have checked your order for <strong>${escapeHtml(data.productName)}</strong> and it can go ahead. The price has changed since you ordered, so please look at the new total before you pay.`
+    : `Good news: we have checked your order for <strong>${escapeHtml(data.productName)}</strong> and it can go ahead. Pay when you are ready and our buyers will get started.`;
 
-  const paymentBtn = data.paymentUrl
-    ? button(data.paymentUrl, "Complete Payment")
-    : "";
+  const p = data.pricing;
+  const card = p
+    ? orderCard(
+        data,
+        [
+          ["Item price", usd(p.subtotalUsd)],
+          [
+            escapeHtml(taxRowLabel({ subtotal_usd: p.subtotalUsd, tax_percentage: p.taxPercentage, tax_usd: p.taxUsd }, "tax")),
+            usd(p.taxUsd),
+          ],
+          [`Value fee (${(p.valueFeePercentage * 100).toFixed(0)}%)`, usd(p.valueFeeUsd)],
+          ["Freight", ghs(p.flatRateGhs)],
+          ["Rate", `1 USD = ${p.exchangeRate} GHS`],
+        ],
+        ["Total", ghs(p.totalGhs)],
+      )
+    : orderCard(data, [], data.totalGhs !== undefined ? ["Total", ghs(data.totalGhs)] : undefined);
 
-  const pricingRows = data.pricing
-    ? infoTable(`
-        ${infoRow("Order ID", data.orderId)}
-        ${infoRow("Item", data.productName)}
-        ${infoRow("Item price (USD)", `$${data.pricing.subtotalUsd.toFixed(2)}`)}
-        ${infoRow(taxRowLabel({ subtotal_usd: data.pricing.subtotalUsd, tax_percentage: data.pricing.taxPercentage, tax_usd: data.pricing.taxUsd }, "tax"), `$${data.pricing.taxUsd.toFixed(2)}`)}
-        ${infoRow(`Value fee (${(data.pricing.valueFeePercentage * 100).toFixed(0)}%)`, `$${data.pricing.valueFeeUsd.toFixed(2)}`)}
-        ${infoRow("Freight", `GH₵ ${data.pricing.flatRateGhs.toFixed(2)}`)}
-        ${infoRow("Rate", `1 USD = ${data.pricing.exchangeRate} GHS`)}
-        ${infoRow("Total", `GHS ${data.pricing.totalGhs.toFixed(2)}`)}
-      `)
-    : infoTable(`
-        ${infoRow("Order ID", data.orderId)}
-        ${infoRow("Item", data.productName)}
-        ${data.totalGhs !== undefined ? infoRow("Total", `GHS ${data.totalGhs.toFixed(2)}`) : ""}
-      `);
-
-  return {
-    subject: "Your Tomame order has been approved",
-    html: emailLayout(`
-      ${heading("Order Approved")}
-      ${paragraph(bodyText)}
-      ${divider()}
-      ${pricingRows}
-      ${divider()}
-      ${paymentBtn}
-      ${muted("Log in to your Tomame account to complete payment and begin processing.")}
-    `),
-  };
+  return renderEmail("Your Tomame order has been approved", {
+    preheader: data.priceChanged
+      ? `Your order for ${data.productName} is approved at a new price. Check it before you pay.`
+      : `Your order for ${data.productName} is approved and ready to pay.`,
+    body: `
+      ${eyebrow("Approved", "green")}
+      ${heading("Your order is approved")}
+      ${paragraph(intro)}
+      ${data.priceChanged ? callout("<strong>The price has been updated.</strong> The total below is the one you will pay.", "amber") : ""}
+      ${card}
+      ${data.paymentUrl ? button(data.paymentUrl, "Complete payment") : ""}
+      ${muted("Pay by Mobile Money or card through Paystack. Nothing is charged until you pay.")}
+    `,
+    reason: ORDER_REASON,
+  });
 }
 
 export function orderRejectedTemplate(data: OrderReviewEmailData) {
-  const reasonText = data.reason
-    ? paragraph(`<strong>Reason:</strong> ${data.reason}`)
-    : "";
-
-  return {
-    subject: "Update on your Tomame order",
-    html: emailLayout(`
-      ${heading("Order Could Not Be Processed")}
-      ${paragraph("Unfortunately, after reviewing your order our team was unable to proceed with it.")}
-      ${divider()}
-      ${infoTable(`
-        ${infoRow("Order ID", data.orderId)}
-        ${infoRow("Item", data.productName)}
-      `)}
-      ${divider()}
-      ${reasonText}
-      ${paragraph("If a payment was made, a refund will be processed to your original payment method within 3–5 business days.")}
-      ${muted("Please contact our support team if you have any questions.")}
-    `),
-  };
+  return renderEmail("Update on your Tomame order", {
+    preheader: `We could not go ahead with your order for ${data.productName}.`,
+    body: `
+      ${eyebrow("Order update", "neutral")}
+      ${heading("We couldn't go ahead with this one")}
+      ${paragraph(`We checked your order for <strong>${escapeHtml(data.productName)}</strong> and, unfortunately, we are not able to buy it for you.`)}
+      ${data.reason ? callout(`<strong>Why:</strong> ${escapeHtml(data.reason)}`, "neutral") : ""}
+      ${orderCard(data)}
+      ${paragraph("If you paid for it, we will refund you to the same Mobile Money wallet or card within 3 to 5 working days.")}
+      ${muted("Found it on another store? Paste that link and we will price it there.")}
+      ${button(`${appUrl()}/app`, "Find something else")}
+    `,
+    reason: ORDER_REASON,
+  });
 }

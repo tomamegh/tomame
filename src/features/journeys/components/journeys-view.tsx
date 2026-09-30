@@ -102,16 +102,16 @@ export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
         <div className="flex w-full items-center justify-between gap-3 lg:w-auto">
           <div>
             <h1 className="font-display text-[30px] leading-none font-bold lg:text-[34px]">
-              Journeys
+              Your orders
             </h1>
             <p className="mt-2 text-sm leading-none font-normal text-tm-text-2">
-              Every item, from the store to your door.
+              Every order, and its journey from the store to your door.
             </p>
           </div>
 
           <button
             type="button"
-            aria-label={searching ? "Close search" : "Search journeys"}
+            aria-label={searching ? "Close search" : "Search orders"}
             aria-expanded={searching}
             onClick={() => {
               setSearching((open) => !open);
@@ -134,7 +134,7 @@ export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
         */}
         <div
           role="group"
-          aria-label="Filter journeys"
+          aria-label="Filter orders"
           className="flex gap-1.5 rounded-full border border-tm-border bg-card p-1"
         >
           {data.filters.map((entry) => {
@@ -163,7 +163,7 @@ export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Name, store or TM number"
-          aria-label="Search journeys"
+          aria-label="Search orders"
           className="h-12 rounded-[14px] border border-tm-border bg-card px-4 text-sm leading-none font-medium outline-none placeholder:text-tm-text-3 focus:border-tm-coral"
         />
       )}
@@ -207,7 +207,7 @@ export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
 }
 
 /**
- * Two different nothings. "You have no journeys" wants the paste bar; "nothing
+ * Two different nothings. "You have no orders" wants the paste bar; "nothing
  * matches" wants the filter and the search cleared — telling a customer with
  * four delivered parcels to go shopping would be wrong.
  */
@@ -226,11 +226,11 @@ function JourneysEmpty({
     <div className="tm-up flex flex-col items-center gap-3 rounded-[24px] border border-tm-border bg-card px-6 py-14 text-center [animation-delay:0.12s] [animation-duration:0.5s]">
       <Path weight="duotone" className="size-8 text-tm-coral" aria-hidden />
       <p className="font-display text-lg leading-tight font-bold">
-        {narrowed ? "Nothing matches" : "No journeys yet"}
+        {narrowed ? "Nothing matches" : "No orders yet"}
       </p>
       <p className="max-w-[38ch] text-[13px] leading-[1.5] font-normal text-tm-text-2">
         {narrowed
-          ? "Your other journeys are behind another filter, or under a different name."
+          ? "Your other orders are behind another filter, or under a different name."
           : "Paste a link to anything in a US store and we will land it in Accra."}
       </p>
       {narrowed ? (

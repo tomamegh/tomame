@@ -10,20 +10,45 @@ import type { Order, OrderPricingBreakdown, OrderStatus } from "@/features/order
  * hands in the cookie-bound client and RLS scopes the rows.
  */
 
-/** Exactly the columns the Home "Journeys in motion" list renders. */
+/** Exactly the columns the Home "Your orders" section renders. */
 export interface RecentOrderRow {
   id: string;
+  /** 050: "TM-00042". */
+  order_no: string;
   product_name: string;
   product_url: string;
+  product_image_url: string | null;
+  /** `extraction_metadata->>platform`, the store fallback when the URL matches no registry entry. */
+  store_platform: string | null;
   status: OrderStatus;
   pricing: OrderPricingBreakdown | null;
+  admin_total_ghs: number | null;
   /** A single admin-entered DATE, written only on the `in_transit` transition. */
   estimated_delivery_date: string | null;
+  /** 050: the delivery window an operator confirmed. Null until one is set. */
+  eta_from: string | null;
+  eta_to: string | null;
+  delivered_at: string | null;
   created_at: string;
 }
 
-const RECENT_COLUMNS =
-  "id, product_name, product_url, status, pricing, estimated_delivery_date, created_at";
+const RECENT_COLUMNS = [
+  "id",
+  "order_no",
+  "product_name",
+  "product_url",
+  "product_image_url",
+  // Only the one key the store label needs, not the whole extraction snapshot.
+  "store_platform:extraction_metadata->>platform",
+  "status",
+  "pricing",
+  "admin_total_ghs",
+  "estimated_delivery_date",
+  "eta_from",
+  "eta_to",
+  "delivered_at",
+  "created_at",
+].join(", ");
 
 /**
  * Statuses a parcel is counted as "moving" in. Kept next to the query that uses
@@ -36,16 +61,25 @@ export const MOVING_ORDER_STATUSES: readonly OrderStatus[] = [
   "in_transit",
 ];
 
-/** Newest orders first, capped — the Home list shows a handful, not the archive. */
+/**
+ * Newest orders first, capped — the Home list shows a handful, not the archive.
+ * `statuses` narrows the read in SQL, so a run of unpaid checkouts cannot use
+ * up the limit before a paid order is reached.
+ */
 export async function getRecentOrdersForUser(
   client: SupabaseClient,
   userId: string,
   limit: number,
+  statuses?: readonly OrderStatus[],
 ): Promise<RecentOrderRow[]> {
-  const { data, error } = await client
+  let query = client
     .from("orders")
     .select(RECENT_COLUMNS)
-    .eq("user_id", userId)
+    .eq("user_id", userId);
+
+  if (statuses) query = query.in("status", [...statuses]);
+
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .limit(limit);
 

@@ -18,7 +18,8 @@ interface AppBottomTabsProps {
  * The 390px bottom tab bar — `id="v2-mobile"` in
  * `design/Tomame - New Direction v2.dc.html`.
  *
- * 84px tall on a white ground with a hairline top edge, four equal columns, and
+ * 84px tall on a white ground with a hairline top edge, equal columns (four,
+ * or five while the Cars tab exists — a zero-floored column sizes either), and
  * the mock's short labels ("Buy", "Watch"). The active tab is the `fill` icon
  * weight at 600 in coral; inactive tabs are `regular` at 500 in muted text —
  * the mocks treat nav-active as a status, which is why the weight changes.
@@ -55,7 +56,7 @@ export function AppBottomTabs({ items, className }: AppBottomTabsProps) {
     <nav
       aria-label="Primary"
       className={cn(
-        "fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-tm-border bg-card px-2 pt-2.5 lg:hidden",
+        "fixed inset-x-0 bottom-0 z-50 grid auto-cols-[minmax(0,1fr)] grid-flow-col border-t border-tm-border bg-card px-2 pt-2.5 lg:hidden",
         "pb-[max(22px,env(safe-area-inset-bottom))]",
         className,
       )}

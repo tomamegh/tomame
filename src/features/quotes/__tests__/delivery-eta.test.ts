@@ -10,12 +10,10 @@ import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import { pickDefaultDoorZone } from "@/features/delivery/zones";
 import { estimateDeliveryWindow } from "../services/delivery-eta.service";
 
-const constants = { purchase_lead_days_min: 1, purchase_lead_days_max: 3 };
-
 function region(overrides: Partial<RegionRow> = {}): RegionRow {
   return {
     code: "USA", name: "United States", status: "live", hub_city: "Newark",
-    transit_days_min: 14, transit_days_max: 18, store_names: [], tag_names: [],
+    transit_days_min: 5, transit_days_max: 7, store_names: [], tag_names: [],
     blurb: null, photo_key: null, sort_order: 1, departure_weekday: 5, departure_cutoff_hours: 24, ...overrides,
   };
 }
@@ -27,35 +25,35 @@ function zone(overrides: Partial<DeliveryZoneRow> = {}): DeliveryZoneRow {
 const today = new Date("2026-09-12T10:00:00Z");
 
 describe("estimateDeliveryWindow", () => {
-  it("adds lead + transit + zone days to today on each end", () => {
-    expect(estimateDeliveryWindow({ country: "USA", constants, region: region(), zone: zone(), today }))
-      .toEqual({ from: "2026-09-27", to: "2026-10-03" });
+  it("adds transit + zone days to today on each end, with no lead days on top", () => {
+    expect(estimateDeliveryWindow({ country: "USA", region: region(), zone: zone(), today }))
+      .toEqual({ from: "2026-09-17", to: "2026-09-19" });
   });
 
   it("shifts both ends by the zone's extra days", () => {
-    expect(estimateDeliveryWindow({ country: "USA", constants, region: region(), zone: zone({ extra_days: 2 }), today }))
-      .toEqual({ from: "2026-09-29", to: "2026-10-05" });
+    expect(estimateDeliveryWindow({ country: "USA", region: region(), zone: zone({ extra_days: 2 }), today }))
+      .toEqual({ from: "2026-09-19", to: "2026-09-21" });
   });
 
   it("adds no zone days when there is no zone", () => {
-    expect(estimateDeliveryWindow({ country: "USA", constants, region: region(), zone: null, today }))
-      .toEqual({ from: "2026-09-27", to: "2026-10-03" });
+    expect(estimateDeliveryWindow({ country: "USA", region: region(), zone: null, today }))
+      .toEqual({ from: "2026-09-17", to: "2026-09-19" });
   });
 
   it("crosses a month boundary correctly", () => {
-    expect(estimateDeliveryWindow({ country: "USA", constants, region: region(), zone: null, today: new Date("2026-12-20T00:00:00Z") }))
-      .toEqual({ from: "2027-01-04", to: "2027-01-10" });
+    expect(estimateDeliveryWindow({ country: "USA", region: region(), zone: null, today: new Date("2026-12-28T00:00:00Z") }))
+      .toEqual({ from: "2027-01-02", to: "2027-01-04" });
   });
 
   it("returns null when the region has no transit days", () => {
     expect(estimateDeliveryWindow({
-      country: "UK", constants, region: region({ code: "UK", transit_days_min: null, transit_days_max: null }), zone: zone(), today,
+      country: "UK", region: region({ code: "UK", transit_days_min: null, transit_days_max: null }), zone: zone(), today,
     })).toBeNull();
   });
 
   it("returns null when the region is missing or for another country", () => {
-    expect(estimateDeliveryWindow({ country: "UK", constants, region: null, zone: zone(), today })).toBeNull();
-    expect(estimateDeliveryWindow({ country: "UK", constants, region: region(), zone: zone(), today })).toBeNull();
+    expect(estimateDeliveryWindow({ country: "UK", region: null, zone: zone(), today })).toBeNull();
+    expect(estimateDeliveryWindow({ country: "UK", region: region(), zone: zone(), today })).toBeNull();
   });
 });
 

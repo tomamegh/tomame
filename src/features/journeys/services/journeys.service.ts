@@ -10,14 +10,15 @@ import {
   type TrackStopKey,
 } from "@/features/orders/services/journey-track";
 import { listUserOrders } from "@/features/orders/services/orders.service";
-import { findStore } from "@/features/extraction/stores";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { PlatformUser } from "@/features/users/types";
 import type { Order } from "@/features/orders/types";
 import { formatEtaWindow, formatShortDay } from "../format";
+import { orderEta, orderTotalGhs, storeNameFor } from "../order-facts";
 import type {
   JourneyCtaKind,
+  JourneyEta,
   JourneyFilter,
   JourneyFilterKey,
   JourneyRow,
@@ -167,25 +168,9 @@ function newestEvent(events: readonly OrderEventRow[]): OrderEventRow | null {
   return best;
 }
 
-/**
- * The window an operator confirmed, else the estimate the quote showed
- * (`pricing.delivery_eta_from/to`, written pre-purchase from the region's transit
- * band). Null when the order has neither — nothing is invented from a status.
- */
-export function etaOf(order: Order): { from: string | null; to: string | null; source: "confirmed" | "estimated" } | null {
-  if (order.eta_from || order.eta_to) {
-    return { from: order.eta_from ?? null, to: order.eta_to ?? null, source: "confirmed" };
-  }
-  if (order.estimated_delivery_date) {
-    return {
-      from: order.estimated_delivery_date,
-      to: order.estimated_delivery_date,
-      source: "confirmed",
-    };
-  }
-  const from = order.pricing?.delivery_eta_from ?? null;
-  const to = order.pricing?.delivery_eta_to ?? null;
-  return from || to ? { from, to, source: "estimated" } : null;
+/** Kept under its old name for `journey-detail.service.ts`; the rule lives in `order-facts.ts`. */
+export function etaOf(order: Order): JourneyEta | null {
+  return orderEta(order);
 }
 
 /**
@@ -297,23 +282,10 @@ function countSiblings(orders: readonly Order[]): Map<string, string[]> {
   return result;
 }
 
-/**
- * The store's registry name, falling back to what the extraction called the
- * platform. Null when the URL matches nothing we know — better a row with no
- * store than one labelled with a bare hostname the customer never typed.
- */
 export function storeNameOf(order: Order): string | null {
-  const known = findStore(order.product_url);
-  if (known) return known.name;
-  const platform = order.extraction_metadata?.platform;
-  return typeof platform === "string" && platform.trim().length > 0 ? platform : null;
+  return storeNameFor(order.product_url, order.extraction_metadata?.platform);
 }
 
-/** The admin's override when one was set, else the stored breakdown's total. */
 export function totalGhsOf(order: Order): number | null {
-  if (order.admin_total_ghs != null && Number.isFinite(order.admin_total_ghs)) {
-    return order.admin_total_ghs;
-  }
-  const total = order.pricing?.total_ghs;
-  return typeof total === "number" && Number.isFinite(total) ? total : null;
+  return orderTotalGhs(order);
 }

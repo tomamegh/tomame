@@ -8,11 +8,8 @@ import {
 } from "@/config/marketing-images";
 import { getMediaOverrides } from "@/db/queries/media-overrides";
 
-import {
-  getSiteContentByKind,
-  getSiteContentBySlug,
-  type SiteContentRow,
-} from "@/db/queries/site-content";
+import type { SiteContentRow } from "@/db/queries/site-content";
+import { getPublishedContent, getPublishedContentBySlug } from "@/features/marketing/services";
 import { cn } from "@/lib/utils";
 import { MarketingIcon } from "../_components/marketing-icon";
 import { Eyebrow, MARKETING_GUTTER } from "../_components/marketing-primitives";
@@ -37,9 +34,9 @@ export default async function AboutPage() {
   );
 
   const [story, stats, values] = await Promise.all([
-    getSiteContentBySlug("hero_copy", STORY_SLUG),
-    getSiteContentByKind("stat"),
-    getSiteContentByKind("value_prop"),
+    getPublishedContentBySlug("hero_copy", STORY_SLUG),
+    getPublishedContent("stat"),
+    getPublishedContent("value_prop"),
   ]);
 
   const headlineStat = stats[0] ?? null;

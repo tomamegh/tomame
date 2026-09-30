@@ -22,11 +22,11 @@ describe("resolveActiveAppNavKey", () => {
 
   it("prefers the most specific href when two destinations overlap", () => {
     // "/app/orders/new" sits underneath "/app/orders"; a first-match-wins scan
-    // would highlight Journeys while the customer is on the Buy screen.
+    // would highlight Orders while the customer is on the Buy screen.
     expect(resolveActiveAppNavKey("/app/orders/new")).toBe("shop");
   });
 
-  it("keeps Journeys highlighted on a nested journey route", () => {
+  it("keeps Orders highlighted on a nested order route", () => {
     expect(resolveActiveAppNavKey("/app/orders/abc-123")).toBe("orders");
     expect(resolveActiveAppNavKey("/app/orders/abc-123/checkout")).toBe(
       "orders",

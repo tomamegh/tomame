@@ -35,7 +35,7 @@ import type {
  * draw, because nothing in the database backs them: the hub's city when no
  * `hub_received` event has been written, the upstream store's own order number,
  * and a downloadable receipt document. Each would have to be invented, so each
- * element is simply omitted. "Ask about this journey" is a WhatsApp deep link
+ * element is simply omitted. "Ask about this order" is a WhatsApp deep link
  * rather than a message thread — `message_threads`/`messages` are deferred.
  */
 export async function getJourneyDetail(

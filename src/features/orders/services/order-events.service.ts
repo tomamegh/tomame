@@ -37,7 +37,7 @@ const STATUS_EVENTS: Record<string, { kind: OrderEventKind; title: string }> = {
   processing: { kind: "purchased", title: "Our buyer is placing the order" },
   in_transit: { kind: "departed", title: "On its way to Accra" },
   delivered: { kind: "delivered", title: "Delivered to you" },
-  completed: { kind: "completed", title: "Journey complete" },
+  completed: { kind: "completed", title: "Order complete" },
   cancelled: { kind: "cancelled", title: "Order cancelled" },
 };
 

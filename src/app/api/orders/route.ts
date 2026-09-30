@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveViewer } from "@/lib/quote-session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
@@ -33,10 +34,11 @@ export async function POST(request: NextRequest) {
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
 
-    const supabase = await createClient();
     // The rate lock is resolved from the session, never from the body.
     const { viewer } = resolveViewer(request, auth.id);
-    const data = await createOrder(supabase, auth, parsed.data, viewer);
+    // Service role: customers have no INSERT on orders (migration 076). The row
+    // is built server-side from the extraction snapshot, with user_id = auth.id.
+    const data = await createOrder(createAdminClient(), auth, parsed.data, viewer);
 
     return successResponse(data, 201);
   } catch (error) {

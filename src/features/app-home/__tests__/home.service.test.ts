@@ -41,10 +41,10 @@ vi.mock("@/features/catalog/services/catalog-search.service", () => ({
 }));
 // The freight-box card reads the open bag; the bag service reaches Supabase at
 // module scope, so it is stubbed like every other data dependency here.
-vi.mock("@/features/cars/services/cars.service", () => ({
-  listPublishedCars: vi.fn(async () => []),
-  attachCovers: vi.fn(async () => []),
+vi.mock("@/features/orders/services/order-events.service", () => ({
+  mapCustomerOrderEvents: vi.fn(async () => new Map()),
 }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => ({ __brand: "admin" })) }));
 vi.mock("@/features/bag/services/bag.service", () => ({ getBag: vi.fn(async () => null) }));
 vi.mock("@/db/queries/site-settings", () => ({ getSiteSettingsMap: vi.fn() }));
 vi.mock("@/features/watches/services/watches.service", () => ({
@@ -86,11 +86,15 @@ import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { applyRateLock, priceUnderExistingLock } from "@/features/quotes/services/quote-lock.service";
 import { loadQuoteConstants, QuoteConstantsMissingError } from "@/features/quotes/services/quote-constants.service";
 import { logger } from "@/lib/logger";
+import { mapCustomerOrderEvents } from "@/features/orders/services/order-events.service";
+import type { OrderEventRow } from "@/db/queries/order-events";
 
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import {
   HOME_DEALS_LIMIT,
-  HOME_JOURNEY_LIMIT,
+  HOME_ORDER_LIMIT,
+  HOME_ORDER_STATUSES,
+  buildHomeOrders,
   getHomeView,
   timeOfDayFor,
 } from "../services/home.service";
@@ -100,14 +104,35 @@ import {
 function order(overrides: Record<string, unknown> = {}): RecentOrderRow {
   return {
     id: "order-1",
+    order_no: "TM-00042",
     product_name: "Oraimo BoomPop N",
     product_url: "https://www.amazon.com/dp/B0TEST",
+    product_image_url: "https://img.example/boompop.jpg",
+    store_platform: null,
     status: "in_transit",
     pricing: { total_ghs: 5041.16 },
+    admin_total_ghs: null,
     estimated_delivery_date: "2026-09-19",
+    eta_from: null,
+    eta_to: null,
+    delivered_at: null,
     created_at: "2026-09-10T10:00:00.000Z",
     ...overrides,
   } as unknown as RecentOrderRow;
+}
+
+function event(overrides: Partial<OrderEventRow> = {}): OrderEventRow {
+  return {
+    id: "event-1",
+    order_id: "order-1",
+    kind: "departed",
+    title: "On its way to Accra",
+    detail: null,
+    location: "New York",
+    weight_lbs: null,
+    occurred_at: "2026-09-06T10:00:00.000Z",
+    ...overrides,
+  } as OrderEventRow;
 }
 
 function paste(overrides: Record<string, unknown> = {}): ExtractionRequestRow {
@@ -243,67 +268,136 @@ describe("timeOfDayFor", () => {
   });
 });
 
-// ── Journeys ─────────────────────────────────────────────────────────────────
+// ── Your orders ──────────────────────────────────────────────────────────────
 
-describe("getHomeView — journeys", () => {
-  it("derives stage, ETA and total from the order row", async () => {
+describe("getHomeView — your orders", () => {
+  it("asks the database only for placed orders, capped at the Home limit", async () => {
+    signedIn();
+    await getHomeView();
+    expect(getRecentOrdersForUser).toHaveBeenCalledWith(
+      fakeClient,
+      "user-1",
+      HOME_ORDER_LIMIT,
+      HOME_ORDER_STATUSES,
+    );
+    expect(HOME_ORDER_STATUSES).not.toContain("pending");
+    expect(HOME_ORDER_STATUSES).not.toContain("cancelled");
+    expect(HOME_ORDER_STATUSES).toContain("delivered");
+  });
+
+  it("returns no orders — and reads no events — when the customer has placed none", async () => {
+    signedIn();
+    expect((await getHomeView())?.orders).toEqual([]);
+    expect(mapCustomerOrderEvents).not.toHaveBeenCalled();
+  });
+
+  it("builds each card from the order row and its own events", async () => {
     signedIn();
     vi.mocked(getRecentOrdersForUser).mockResolvedValue([order()]);
+    vi.mocked(mapCustomerOrderEvents).mockResolvedValue(new Map([["order-1", [event()]]]));
 
-    const journey = (await getHomeView())?.journeys[0];
+    const card = (await getHomeView())?.orders[0];
 
-    expect(journey?.productName).toBe("Oraimo BoomPop N");
-    expect(journey?.status).toBe("in_transit");
-    expect(journey?.stage.label).toBe("In the air");
-    expect(journey?.stage.trackPercent).toBe(75);
-    expect(journey?.stage.etaDate).toBe("2026-09-19");
-    expect(journey?.totalGhs).toBe(5041.16);
+    expect(mapCustomerOrderEvents).toHaveBeenCalledWith({ __brand: "admin" }, ["order-1"]);
+    expect(card).toMatchObject({
+      id: "order-1",
+      href: "/app/orders/order-1",
+      orderNo: "TM-00042",
+      productName: "Oraimo BoomPop N",
+      productImageUrl: "https://img.example/boompop.jpg",
+      store: "Amazon",
+      stageLabel: "In the air",
+      totalGhs: 5041.16,
+      latest: { kind: "event", title: "On its way to Accra", note: "New York", at: "2026-09-06T10:00:00.000Z" },
+    });
+    const air = card?.track.stops.find((stop) => stop.key === "in_the_air");
+    expect(air?.state).toBe("now");
+    expect(air?.at).toBe("2026-09-06T10:00:00.000Z");
   });
 
-  it("leaves the ETA null when the admin has not set one", async () => {
+  it("keeps the orders when the events read fails — the track falls back to the status", async () => {
     signedIn();
-    vi.mocked(getRecentOrdersForUser).mockResolvedValue([
-      order({ status: "processing", estimated_delivery_date: null }),
-    ]);
+    vi.mocked(getRecentOrdersForUser).mockResolvedValue([order()]);
+    vi.mocked(mapCustomerOrderEvents).mockRejectedValue(new Error("timeout"));
 
-    const journey = (await getHomeView())?.journeys[0];
-    expect(journey?.stage.etaDate).toBeNull();
-    expect(journey?.stage.hint).toBe("Date set when it ships");
+    const cards = (await getHomeView())?.orders ?? [];
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.track.stops.find((stop) => stop.state === "now")?.key).toBe("in_the_air");
+    expect(logger.warn).toHaveBeenCalled();
   });
+});
 
-  it("drops cancelled orders — they have no position on the track", async () => {
-    signedIn();
-    vi.mocked(getRecentOrdersForUser).mockResolvedValue([
-      order({ id: "a", status: "cancelled" }),
-      order({ id: "b", status: "paid" }),
-    ]);
-
-    const journeys = (await getHomeView())?.journeys ?? [];
-    expect(journeys.map((j) => j.id)).toEqual(["b"]);
-  });
-
-  it("caps the list at the Home limit", async () => {
-    signedIn();
-    vi.mocked(getRecentOrdersForUser).mockResolvedValue(
-      Array.from({ length: HOME_JOURNEY_LIMIT + 2 }, (_, i) =>
-        order({ id: `order-${i}` }),
-      ),
+describe("buildHomeOrders", () => {
+  it("drops unpaid and cancelled orders even if the query returned them", () => {
+    const cards = buildHomeOrders(
+      [
+        order({ id: "a", status: "pending" }),
+        order({ id: "b", status: "cancelled" }),
+        order({ id: "c", status: "paid" }),
+        order({ id: "d", status: "delivered" }),
+      ],
+      new Map(),
     );
-
-    expect((await getHomeView())?.journeys).toHaveLength(HOME_JOURNEY_LIMIT);
+    expect(cards.map((card) => card.id)).toEqual(["c", "d"]);
   });
 
-  it("returns an empty list rather than filler when there are no orders", async () => {
-    signedIn();
-    expect((await getHomeView())?.journeys).toEqual([]);
+  it("caps the cards at the Home limit, keeping the newest", () => {
+    const rows = Array.from({ length: HOME_ORDER_LIMIT + 2 }, (_, i) => order({ id: `o-${i}` }));
+    expect(buildHomeOrders(rows, new Map()).map((card) => card.id)).toEqual(
+      rows.slice(0, HOME_ORDER_LIMIT).map((row) => row.id),
+    );
   });
 
-  it("reports a missing pricing snapshot as null, not zero", async () => {
-    signedIn();
-    vi.mocked(getRecentOrdersForUser).mockResolvedValue([
-      order({ pricing: null }),
-    ]);
-    expect((await getHomeView())?.journeys[0]?.totalGhs).toBeNull();
+  it("uses the newest event for the latest line", () => {
+    const [card] = buildHomeOrders(
+      [order()],
+      new Map([
+        [
+          "order-1",
+          [
+            event({ id: "e1", kind: "purchased", title: "Our buyer is placing the order", location: null, occurred_at: "2026-09-02T08:00:00.000Z" }),
+            event({ id: "e2", occurred_at: "2026-09-06T10:00:00.000Z" }),
+          ],
+        ],
+      ]),
+    );
+    expect(card?.latest).toMatchObject({ kind: "event", title: "On its way to Accra" });
+  });
+
+  it("falls back to the delivery window, then to the stage hint — never an invented date", () => {
+    const [withEta] = buildHomeOrders([order({ status: "processing", eta_from: "2026-09-18", eta_to: "2026-09-20" })], new Map());
+    expect(withEta?.latest).toEqual({
+      kind: "eta",
+      eta: { from: "2026-09-18", to: "2026-09-20", source: "confirmed" },
+    });
+
+    const [bare] = buildHomeOrders(
+      [order({ status: "processing", estimated_delivery_date: null, pricing: { total_ghs: 10 } })],
+      new Map(),
+    );
+    expect(bare?.eta).toBeNull();
+    expect(bare?.latest).toEqual({ kind: "hint", text: "Date set when it ships" });
+  });
+
+  it("does not print a delivery window as the latest news once delivered", () => {
+    const [card] = buildHomeOrders(
+      [order({ status: "delivered", delivered_at: "2026-09-19T12:00:00.000Z" })],
+      new Map(),
+    );
+    expect(card?.latest).toEqual({ kind: "hint", text: "Delivered" });
+    expect(card?.track.isComplete).toBe(true);
+    expect(card?.track.stops.at(-1)?.at).toBe("2026-09-19T12:00:00.000Z");
+  });
+
+  it("prefers the admin's total, and reports a missing price as null, not zero", () => {
+    expect(buildHomeOrders([order({ admin_total_ghs: 4800 })], new Map())[0]?.totalGhs).toBe(4800);
+    expect(buildHomeOrders([order({ pricing: null })], new Map())[0]?.totalGhs).toBeNull();
+  });
+
+  it("falls back to the extraction's platform for an unknown store, and to null", () => {
+    const unknown = { product_url: "https://shop.example/p/1" };
+    expect(buildHomeOrders([order({ ...unknown, store_platform: "Etsy" })], new Map())[0]?.store).toBe("Etsy");
+    expect(buildHomeOrders([order({ ...unknown, store_platform: null })], new Map())[0]?.store).toBeNull();
   });
 });
 
@@ -540,7 +634,7 @@ describe("getHomeView — failure policy", () => {
     const view = await getHomeView();
 
     expect(view?.greeting.movingCount).toBe(0);
-    expect(view?.journeys).toHaveLength(1);
+    expect(view?.orders).toHaveLength(1);
     expect(logger.warn).toHaveBeenCalled();
   });
 

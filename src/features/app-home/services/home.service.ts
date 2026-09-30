@@ -3,7 +3,6 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { listWatches } from "@/features/watches/services/watches.service";
-import { attachCovers, listPublishedCars } from "@/features/cars/services/cars.service";
 
 import type { WatchListResponse } from "@/features/watches/types";
 import {
@@ -34,7 +33,16 @@ import { whatsappHref } from "@/components/layout/marketing/links";
 import { priceUnderExistingLock } from "@/features/quotes/services/quote-lock.service";
 import { loadQuoteConstants, QuoteConstantsMissingError } from "@/features/quotes/services/quote-constants.service";
 import type { QuoteConstants, Viewer } from "@/features/quotes/types";
-import { describeJourney } from "@/features/orders/services/journey-stage";
+import { journeyStageFor } from "@/features/orders/services/journey-stage";
+import { deriveJourneyTrack, noteFor } from "@/features/orders/services/journey-track";
+import { mapCustomerOrderEvents } from "@/features/orders/services/order-events.service";
+import { orderEta, orderTotalGhs, storeNameFor } from "@/features/journeys/order-facts";
+import type { OrderEventRow } from "@/db/queries/order-events";
+import { listOwnedOrderCouriers } from "@/db/queries/order-courier";
+import { courierHint } from "@/features/order-delivery/components/courier-format";
+import type { OrderCourier } from "@/features/order-delivery/types";
+import type { OrderStatus } from "@/features/orders/types";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getBag } from "@/features/bag/services/bag.service";
 import type { BagView } from "@/features/bag/types";
 import { logger } from "@/lib/logger";
@@ -42,18 +50,36 @@ import { isSchemaMissingError } from "@/lib/supabase/errors";
 import type { ExtractionResult } from "@/features/extraction/types";
 import type {
   HomeAskBuyer,
-  HomeCars,
   HomeDealCategory,
   HomeDeals,
   HomeFreightBox,
-  HomeJourney,
+  HomeOrder,
+  HomeOrderLatest,
   HomeReceipt,
   HomeViewModel,
   TimeOfDay,
 } from "../types";
 
-/** How many journeys the Home list shows before "All journeys →" takes over. */
-export const HOME_JOURNEY_LIMIT = 4;
+/** How many orders Home shows before "See all orders" takes over. */
+export const HOME_ORDER_LIMIT = 4;
+
+/**
+ * The statuses that make an order "placed" for Home.
+ *
+ * Paid onwards, delivered included — a finished journey is a real one. Two are
+ * left out on purpose. `pending` is a checkout that never settled: Paystack
+ * sends no webhook for an abandoned payment, so these pile up from customers
+ * who closed the payment sheet, and they are not orders the customer thinks of
+ * as placed (the bag and `/app/orders` still offer to finish paying). And
+ * `cancelled` has no position on a track.
+ */
+export const HOME_ORDER_STATUSES: readonly OrderStatus[] = [
+  "paid",
+  "processing",
+  "in_transit",
+  "delivered",
+  "completed",
+];
 
 /**
  * How many pre-priced products the Home shelf shows.
@@ -67,16 +93,6 @@ export const HOME_DEALS_LIMIT = 8;
 
 /** Shelves offered as pills above the Home grid, largest first. */
 export const HOME_DEAL_CATEGORY_LIMIT = 6;
-
-/**
- * How many cars the Home rail carries.
- *
- * Six, which is two full turns of a phone's ~1.15-card window and one turn plus
- * a peek of the desktop's three. The rail is an advert for the forecourt, not
- * the forecourt: everything past six lives at `/app/cars`, which is built for
- * the whole list and is one press away from the shelf's own heading.
- */
-export const HOME_CARS_LIMIT = 6;
 
 /**
  * Everything the Home screen renders, in one server-side read.
@@ -108,12 +124,11 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
     bag,
     deals,
     categories,
-    cars,
   ] = await Promise.all([
       degrade(countMovingOrders(client, user.id), 0, "moving order count"),
       degrade(
-        getRecentOrdersForUser(client, user.id, HOME_JOURNEY_LIMIT + 2),
-        [] as RecentOrderRow[],
+        loadHomeOrders(client, user.id),
+        [] as HomeOrder[],
         "recent orders",
       ),
       degrade(
@@ -153,12 +168,6 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
         "catalogue deals",
       ),
       degrade(listBrowsableCategories(), [] as CatalogCategoryCount[], "catalogue categories"),
-      // THE CAR SHELF. `car_listings` is admin-owned public content, published
-      // or not — nothing here is scoped to this customer. It degrades to null,
-      // which the rail reads as "draw nothing at all": a shelf that cannot be
-      // read must look exactly like a shelf with nothing on it, because the one
-      // thing that must never appear on Home is a car we cannot vouch for.
-      degrade(loadHomeCars(), null as HomeCars | null, "cars en route"),
     ]);
 
   return {
@@ -167,43 +176,15 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
       timeOfDay: timeOfDayFor(new Date()),
       movingCount,
     },
-    journeys: toJourneys(orders),
+    orders,
     receipt: await buildReceipt(latestPaste, viewer),
     deals: buildDeals(deals.results, categories),
-    cars,
     askBuyer: buildAskBuyer(settings),
     watches: watchList,
     rateLockHours: quoteConstants?.rate_lock_hours ?? null,
     freightBox: buildFreightBox(bag),
     catalogueCount: countCatalogue(categories),
   };
-}
-
-// ── Cars ─────────────────────────────────────────────────────────────────────
-
-/**
- * The published cars, with the one photograph a card shows.
- *
- * NULL WHEN NOTHING IS PUBLISHED, which is the same answer a failed read gives,
- * and deliberately so: the rail renders nothing at all in either case. There is
- * no placeholder car and no "cars coming soon" tile, for the reason `buildDeals`
- * gives about products and more so — a made-up product on a price screen is a
- * made-up price, and a made-up CAR is a made-up six-figure price beside a
- * photograph of a vehicle that does not exist.
- *
- * `total` is every published listing, not the six on the rail, so the shelf's
- * link can say "See all 14 cars". That is a real count of things an admin
- * published, not the "how much did we scrape" figure `DealsShelf` deliberately
- * stopped printing.
- *
- * `attachCovers` never throws and never drops a listing: a car whose photo read
- * failed comes back with `cover: null` and its card draws the placeholder
- * glyph, rather than the whole rail disappearing over one storage hiccup.
- */
-export async function loadHomeCars(): Promise<HomeCars | null> {
-  const { cars, total } = await listPublishedCars({ limit: HOME_CARS_LIMIT });
-  if (cars.length === 0) return null;
-  return { cars: await attachCovers(cars), total };
 }
 
 // ── Freight box ──────────────────────────────────────────────────────────────
@@ -245,34 +226,111 @@ export function timeOfDayFor(now: Date): TimeOfDay {
   return "Evening";
 }
 
-// ── Journeys ─────────────────────────────────────────────────────────────────
+// ── Your orders ──────────────────────────────────────────────────────────────
 
 /**
- * Cancelled orders are dropped: the card is "journeys in motion", and a
- * cancelled order has no position on the track. Delivered ones stay — a
- * completed track is a real state, not filler.
+ * The customer's placed orders with each one's own journey.
+ *
+ * Two reads: the orders under the cookie-bound client (RLS scopes them to the
+ * viewer), then every one of their customer-visible events in one query. The
+ * events read is service-role, exactly as the orders list's is, and is safe for
+ * the same reason — its ids came back from the RLS-scoped read above, never
+ * from the request.
  */
-function toJourneys(orders: RecentOrderRow[]): HomeJourney[] {
-  return orders
-    .filter((order) => order.status !== "cancelled")
-    .slice(0, HOME_JOURNEY_LIMIT)
-    .map((order) => ({
-      id: order.id,
-      productName: order.product_name,
-      productUrl: order.product_url,
-      status: order.status,
-      stage: describeJourney({
-        status: order.status,
-        estimatedDeliveryDate: order.estimated_delivery_date,
-      }),
-      totalGhs: totalGhsOf(order),
-      createdAt: order.created_at,
-    }));
+async function loadHomeOrders(
+  client: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<HomeOrder[]> {
+  const rows = await getRecentOrdersForUser(client, userId, HOME_ORDER_LIMIT, HOME_ORDER_STATUSES);
+  if (rows.length === 0) return [];
+  // A failed events read costs the dates, not the orders: the track still
+  // stands where each status puts it.
+  const ids = rows.map((row) => row.id);
+  // The rider hint (075) is ONE batched read beside the events, not one per
+  // card; a failure costs the hint and nothing else.
+  const [events, couriers] = await Promise.all([
+    degrade(
+      mapCustomerOrderEvents(createAdminClient(), ids),
+      new Map<string, OrderEventRow[]>(),
+      "order events",
+    ),
+    degrade(listOwnedOrderCouriers(userId, ids), new Map<string, OrderCourier>(), "order couriers"),
+  ]);
+  return buildHomeOrders(rows, events, couriers);
 }
 
-function totalGhsOf(order: RecentOrderRow): number | null {
-  const total = order.pricing?.total_ghs;
-  return typeof total === "number" && Number.isFinite(total) ? total : null;
+/**
+ * Rows + events → the cards. Pure; tested directly.
+ *
+ * The status filter is applied again here, not only in SQL, so the section's
+ * rule ("placed" means paid onwards) holds whatever the query was asked for.
+ */
+export function buildHomeOrders(
+  rows: readonly RecentOrderRow[],
+  eventsByOrder: ReadonlyMap<string, readonly OrderEventRow[]>,
+  couriersByOrder: ReadonlyMap<string, OrderCourier> = new Map(),
+): HomeOrder[] {
+  return rows
+    .filter((row) => HOME_ORDER_STATUSES.includes(row.status))
+    .slice(0, HOME_ORDER_LIMIT)
+    .map((row) => {
+      const events = eventsByOrder.get(row.id) ?? [];
+      const stage = journeyStageFor(row.status);
+      return {
+        id: row.id,
+        href: `/app/orders/${row.id}`,
+        orderNo: row.order_no,
+        productName: row.product_name,
+        productImageUrl: row.product_image_url,
+        store: storeNameFor(row.product_url, row.store_platform),
+        status: row.status,
+        stageLabel: stage.label,
+        tone: stage.tone,
+        track: deriveJourneyTrack({
+          status: row.status,
+          events,
+          etaFrom: row.eta_from,
+          etaTo: row.eta_to,
+          deliveredAt: row.delivered_at,
+        }),
+        eta: orderEta(row),
+        latest: latestFor(row, events, stage),
+        totalGhs: orderTotalGhs(row),
+        createdAt: row.created_at,
+        ...riderFor(couriersByOrder.get(row.id), row.status),
+      };
+    });
+}
+
+/** Present only when a rider is carrying an in-transit order. */
+function riderFor(courier: OrderCourier | undefined, status: string): Pick<HomeOrder, "rider"> {
+  const hint = courierHint(courier, status);
+  return hint ? { rider: { trackingUrl: hint.trackingUrl } } : {};
+}
+
+/**
+ * In order of truthfulness: what last actually happened, then the delivery
+ * window, then the stage's hint. The same ladder the orders list's hint uses.
+ */
+function latestFor(
+  row: RecentOrderRow,
+  events: readonly OrderEventRow[],
+  stage: { hint: string; isComplete: boolean },
+): HomeOrderLatest {
+  let newest: OrderEventRow | null = null;
+  for (const event of events) {
+    if (!newest || event.occurred_at > newest.occurred_at) newest = event;
+  }
+  if (newest) {
+    return { kind: "event", title: newest.title, note: noteFor(newest), at: newest.occurred_at };
+  }
+
+  // A delivered parcel's window is history, not a promise; its date is already
+  // on the track's last stop.
+  const eta = stage.isComplete ? null : orderEta(row);
+  if (eta) return { kind: "eta", eta };
+
+  return { kind: "hint", text: stage.hint };
 }
 
 // ── Live receipt ─────────────────────────────────────────────────────────────

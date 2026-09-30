@@ -133,6 +133,22 @@ export interface SiteContentPatch {
   body?: string | null;
   sort_order?: number;
   is_published?: boolean;
+  /** The whole `data` payload; callers merge onto the stored one first. */
+  data?: Record<string, unknown>;
+}
+
+/** One block by id, published or not, or null. */
+export async function getSiteContentRow(id: string): Promise<AdminSiteContentRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("site_content")
+    .select(CONTENT_COLUMNS)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to load site content: ${error.message}`);
+  if (!data) return null;
+  const row = data as unknown as AdminSiteContentRow;
+  return { ...row, data: row.data != null && typeof row.data === "object" ? row.data : {} };
 }
 
 export async function updateSiteContentRow(
@@ -273,6 +289,7 @@ export async function getDeliveryZone(id: string): Promise<AdminDeliveryZoneRow 
 }
 
 export interface DeliveryZonePatch {
+  name?: string;
   fee_ghs?: number;
   extra_days?: number;
   note?: string | null;

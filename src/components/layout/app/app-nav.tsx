@@ -47,6 +47,9 @@ export function AppNav({
     ? formatRatePill(rate.base, rate.appliedRate)
     : null;
   const initial = avatarInitial(firstName);
+  // The Cars tab makes the pill group ~90px wider than the four-tab layout the
+  // widths below were measured against. See the logo and rate-pill comments.
+  const withCarsTab = items.length > APP_NAV_ITEMS.length;
 
   return (
     <header
@@ -98,8 +101,28 @@ export function AppNav({
             wordmark returns from `md` up. The mark is the same file in both, so
             the phone downloads nothing extra.
           */}
-          <Logo variant="mark" height={34} decorative priority className="md:hidden" />
-          <Logo variant="horizontal" height={24} decorative priority className="hidden md:inline-flex" />
+          {/*
+            With the Cars tab the five pills need the room: between `lg` and
+            `xl` the full lockup (260px) was measured overlapping the Home pill
+            at 1024px, so the mark stands in for it across that band too.
+          */}
+          <Logo
+            variant="mark"
+            height={34}
+            decorative
+            priority
+            className={cn("md:hidden", isAuthenticated && withCarsTab && "lg:inline-flex xl:hidden")}
+          />
+          <Logo
+            variant="horizontal"
+            height={24}
+            decorative
+            priority
+            className={cn(
+              "hidden md:inline-flex",
+              isAuthenticated && withCarsTab && "lg:hidden xl:inline-flex",
+            )}
+          />
         </Link>
 
         {/*
@@ -150,6 +173,12 @@ export function AppNav({
                 // reason: the middle track only exists — and only crowds this
                 // pill — when the tab group is rendered.
                 isAuthenticated && "lg:hidden xl:inline-flex",
+                // Five tabs leave no desktop width where it fits: the nav's
+                // container stops at 1280px, and there the centre track is
+                // ~580px and the lockup was pushed into the Home pill. So with
+                // the Cars tab the pill is phone-and-tablet only, like the
+                // band above. `cn` resolves the conflicting `xl:` to hidden.
+                isAuthenticated && withCarsTab && "xl:hidden",
               )}
               title={
                 rate?.fetchedAt

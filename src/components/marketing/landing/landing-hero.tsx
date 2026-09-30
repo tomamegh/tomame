@@ -22,7 +22,7 @@ export interface LandingHeroProps {
   trustChips: readonly SiteContentRow[];
   /** The landed-price receipt, priced live by the engine. */
   example: WorkedExample;
-  /** "14–18 days" — the live region's transit window. */
+  /** "5–7 days" — the live region's transit window. */
   transitLabel: string | null;
   /** Admin crop/src overrides from `media_overrides`. */
   mediaOverrides: MediaOverrideMap;

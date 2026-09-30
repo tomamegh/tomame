@@ -19,7 +19,8 @@ import {
   formatPercent,
   formatUsd,
 } from "@/features/marketing/format";
-import type { TimeOfDay } from "../types";
+import { formatEtaWindow, formatShortDay } from "@/features/journeys/format";
+import type { HomeOrderLatest, TimeOfDay } from "../types";
 
 // ── Greeting ─────────────────────────────────────────────────────────────────
 
@@ -93,23 +94,32 @@ export function formatRelativeTime(
   return dayMonth.format(then);
 }
 
+// ── Orders ───────────────────────────────────────────────────────────────────
+
 /**
- * `orders.estimated_delivery_date` is a bare `YYYY-MM-DD`, so it is formatted
- * as a UTC date — parsing it in the renderer's local zone would shift it a day
- * for anyone west of Greenwich. Returns `null` on junk so the caller falls back
- * to the stage hint instead of inventing a date.
+ * The line under an order's track on Home.
  *
- * `landed` flips the tense. The same column is the expected date while a parcel
- * is in the air and the arrival date once it is delivered; "Lands 6 Sept" on a
- * delivered order reads as a date that has not happened yet.
+ * "On its way to Accra · New York · 6 Sep" for a real event; "At your door
+ * Thu 18 – Sat 20 Sep" for a confirmed window, and "Estimated at your door …"
+ * for the quote's forecast, which must not read as a promise; otherwise the
+ * stage's own hint. Every date printed here came off a stored row.
  */
-export function formatEtaDate(
-  isoDate: string,
-  options: { landed?: boolean } = {},
-): string | null {
-  const parsed = new Date(`${isoDate.trim()}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return `${options.landed ? "Landed" : "Lands"} ${dayMonth.format(parsed)}`;
+export function formatOrderLatest(latest: HomeOrderLatest): string {
+  switch (latest.kind) {
+    case "event":
+      return [latest.title, latest.note, formatShortDay(latest.at)]
+        .filter((part): part is string => !!part)
+        .join(" · ");
+    case "eta": {
+      const window = formatEtaWindow(latest.eta);
+      if (!window) return "";
+      return latest.eta.source === "confirmed"
+        ? `At your door ${window}`
+        : `Estimated at your door ${window}`;
+    }
+    case "hint":
+      return latest.text;
+  }
 }
 
 // ── Money ────────────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { countUnreadNotifications } from "@/features/notifications/services/notifications.service";
 import { getFxRateQuote } from "@/features/pricing/services/fx-rate.service";
 import { getBagCount } from "@/features/bag/services/bag.service";
+import { hasPublishedCars } from "@/features/cars/services/cars-availability.service";
 import { readQuoteSessionFromCookies } from "@/lib/quote-session";
 import { cookies } from "next/headers";
 import { logger } from "@/lib/logger";
@@ -28,7 +29,7 @@ export async function getAppChrome(): Promise<AppChromeData> {
   const cookieStore = await cookies();
   const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
 
-  const [unreadCount, rate, bagCount] = await Promise.all([
+  const [unreadCount, rate, bagCount, carsPublished] = await Promise.all([
     // Signed-out visitors reach this layout on the public quote routes
     // (`/app/orders/new`, `/app/orders/review`), where there is no one to have
     // notifications. Skip the query rather than letting it 401.
@@ -68,6 +69,9 @@ export async function getAppChrome(): Promise<AppChromeData> {
       logger.warn("App chrome: bag count unavailable", { error: String(error) });
       return 0;
     }),
+    // Whether the Cars tab exists. Cached across viewers and never throws — a
+    // failed read hides the tab (see cars-availability.service).
+    hasPublishedCars(),
   ]);
 
   return {
@@ -79,6 +83,7 @@ export async function getAppChrome(): Promise<AppChromeData> {
     // Same predicate the proxy gates `/admin` with, on the same JWT claim, so
     // the link cannot appear for someone the gate would turn away.
     isAdmin: canAccessAdmin(user),
+    hasPublishedCars: carsPublished,
   };
 }
 

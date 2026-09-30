@@ -150,9 +150,26 @@ export function regionStatusHelp(status: RegionStatus): string {
   }
 }
 
-/** "7–14 days", "from 7 days", or null when neither bound is set. */
+/**
+ * The kinds whose `data` string values are copy, edited as text cells in the
+ * blocks panel. Every other kind's `data` is wiring (`value_source`, icons).
+ */
+export const TEXT_CELL_KINDS: readonly string[] = ["compare_row", "shipping_method"];
+
+/** A text cell's key as the page that shows it names it. */
+export function compareColumnLabel(key: string): string {
+  const known: Record<string, string> = {
+    tomame: "Tomame",
+    forwarder: "Dollar card + forwarder",
+    traveller: "Someone travelling",
+    window: "Delivery window",
+  };
+  return known[key] ?? key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
+}
+
+/** "5–7 days", "from 5 days", or null when neither bound is set. */
 export function transitWindowLabel(min: number | null, max: number | null): string | null {
-  if (min != null && max != null) return `${min}–${max} days`;
+  if (min != null && max != null) return min === max ? `${min} days` : `${min}–${max} days`;
   if (min != null) return `from ${min} days`;
   if (max != null) return `up to ${max} days`;
   return null;

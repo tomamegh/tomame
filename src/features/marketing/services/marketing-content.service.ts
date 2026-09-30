@@ -3,6 +3,7 @@ import "server-only";
 import {
   getSiteContentByKind,
   getSiteContentByKinds,
+  getSiteContentBySlug,
   type SiteContentKind,
   type SiteContentRow,
 } from "@/db/queries/site-content";
@@ -34,6 +35,14 @@ import {
   formatUsdCompact,
   roundTo2,
 } from "../format";
+import {
+  fillContentTokens,
+  fillRowTokens,
+  fillRowsTokens,
+  contentTokenValues,
+  shippingMethodsMarkdown,
+  type ContentTokenValues,
+} from "../content-tokens";
 import type {
   FeeLine,
   LandingContent,
@@ -263,7 +272,7 @@ function resolveFxBuffer({ constants }: FigureInputs): ResolvedFigure {
 
 /**
  * Ghana-side delivery. "free" whenever any active zone costs nothing (Accra
- * door and the Osu pickup are both 0 in the seed); the note carries the
+ * door and the Weija pickup are both 0 in the seed); the note carries the
  * cheapest-to-dearest paid band so "free" is not read as "free everywhere".
  */
 function resolveDeliveryFrom({ zones }: FigureInputs): ResolvedFigure {
@@ -295,7 +304,7 @@ function resolveDeliveryFrom({ zones }: FigureInputs): ResolvedFigure {
 /** The Fees-page rows, each carrying its resolved live figure. */
 export async function getFeeLines(): Promise<FeeLine[]> {
   const [rows, figures] = await Promise.all([
-    getSiteContentByKind("fee_line"),
+    getPublishedContent("fee_line"),
     resolveMarketingFigures(),
   ]);
 
@@ -320,16 +329,101 @@ export async function getFeeLines(): Promise<FeeLine[]> {
  * Seven kinds, seven sequential selects avoided.
  */
 export async function getLandingContent(): Promise<LandingContent> {
-  const byKind = await getSiteContentByKinds(LANDING_KINDS);
+  const [byKind, tokens] = await Promise.all([
+    getSiteContentByKinds(LANDING_KINDS),
+    resolveContentTokens(),
+  ]);
+  const fill = (rows: SiteContentRow[]) => fillRowsTokens(rows, tokens);
   return {
-    faqs: byKind.faq,
-    testimonials: byKind.testimonial,
-    processSteps: byKind.process_step,
-    valueProps: byKind.value_prop,
-    featureCards: byKind.feature_card,
-    stats: byKind.stat,
-    trustChips: byKind.trust_chip,
+    faqs: fill(byKind.faq),
+    testimonials: fill(byKind.testimonial),
+    processSteps: fill(byKind.process_step),
+    valueProps: fill(byKind.value_prop),
+    featureCards: fill(byKind.feature_card),
+    stats: fill(byKind.stat),
+    trustChips: fill(byKind.trust_chip),
   };
+}
+
+// ── Content tokens ───────────────────────────────────────────────────────────
+
+/**
+ * Live values for the `{delivery_window}`-style tokens admins write into
+ * content (`../content-tokens.ts`). A regions outage leaves every token
+ * unresolved, which drops the rows that use one rather than printing a hole.
+ */
+export async function resolveContentTokens(): Promise<ContentTokenValues> {
+  const [regions, settings] = await Promise.all([
+    listRegions().catch((error: unknown) => {
+      rethrowIfSchemaMissing(error);
+      logger.warn("Marketing: regions unavailable, content tokens unresolved", {
+        error: String(error),
+      });
+      return [];
+    }),
+    getSiteSettingsMap().catch((error: unknown) => {
+      rethrowIfSchemaMissing(error);
+      logger.warn("Marketing: site settings unavailable, content tokens unresolved", {
+        error: String(error),
+      });
+      return {} as Record<string, unknown>;
+    }),
+  ]);
+  return contentTokenValues(regions, settings);
+}
+
+/**
+ * Published rows of one kind with their tokens filled — what a marketing page
+ * reads instead of the raw query, so a stated delivery time always comes from
+ * the region's transit days.
+ */
+export async function getPublishedContent(kind: SiteContentKind): Promise<SiteContentRow[]> {
+  const [rows, tokens] = await Promise.all([getSiteContentByKind(kind), resolveContentTokens()]);
+  return fillRowsTokens(rows, tokens);
+}
+
+/** One published row by kind + slug with its tokens filled, or null. */
+export async function getPublishedContentBySlug(
+  kind: SiteContentKind,
+  slug: string,
+): Promise<SiteContentRow | null> {
+  const [row, tokens] = await Promise.all([getSiteContentBySlug(kind, slug), resolveContentTokens()]);
+  return row ? fillRowTokens(row, tokens) : null;
+}
+
+/** What a policy's tokens are filled from. */
+export interface PolicyTokens {
+  values: ContentTokenValues;
+  /** Published `shipping_method` rows, already filled. */
+  shippingMethods: SiteContentRow[];
+}
+
+export async function resolvePolicyTokens(): Promise<PolicyTokens> {
+  const [values, shippingMethods] = await Promise.all([
+    resolveContentTokens(),
+    getPublishedContent("shipping_method"),
+  ]);
+  return { values, shippingMethods };
+}
+
+/**
+ * Policy markdown with its tokens filled: `{shipping_methods}` becomes the
+ * published methods as a list (Content → Shipping methods), then
+ * `{delivery_window}` the live region's window. A legal page is never
+ * dropped, so a region with no transit days reads as a vague phrase instead of
+ * a number.
+ */
+export function fillPolicyTokens(content: string, tokens: PolicyTokens): string {
+  const withMethods = content.replace(/\{shipping_methods\}\n?/g, () => {
+    const list = shippingMethodsMarkdown(tokens.shippingMethods);
+    return list ? `${list}\n` : "";
+  });
+  return (
+    fillContentTokens(withMethods, {
+      delivery_window: tokens.values.delivery_window ?? "a few days",
+      pickup_point: tokens.values.pickup_point ?? "our hub",
+    }) ?? withMethods
+  );
 }
 
 /** "Where we buy": lanes, Ghana delivery, and the shared delivery figure. */

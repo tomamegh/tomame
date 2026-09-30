@@ -40,20 +40,46 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
   },
   {
     key: "orders",
-    label: "Journeys",
-    mobileLabel: "Journeys",
+    label: "Orders",
+    mobileLabel: "Orders",
     href: "/app/orders",
-    icon: "path",
+    icon: "package",
   },
 ] as const;
+
+/**
+ * The Cars tab — `/app/cars`, the public forecourt. Kept OUT of
+ * `APP_NAV_ITEMS` because it only exists while a listing is published; the
+ * layout builds the real list with `appNavItems`.
+ */
+export const APP_CARS_NAV_ITEM: AppNavItem = {
+  key: "cars",
+  label: "Cars",
+  mobileLabel: "Cars",
+  href: "/app/cars",
+  icon: "car",
+};
+
+/**
+ * The tabs this render shows: the four fixed destinations, plus Cars at the
+ * end once something is published. Nothing published returns the input
+ * untouched, so the bar never links to an empty shelf.
+ */
+export function appNavItems(
+  hasPublishedCars: boolean,
+  items: readonly AppNavItem[] = APP_NAV_ITEMS,
+): readonly AppNavItem[] {
+  if (!hasPublishedCars || items.some((item) => item.key === "cars")) return items;
+  return [...items, APP_CARS_NAV_ITEM];
+}
 
 /**
  * Which tab the current route belongs to, or `null` for an app route with no
  * tab of its own (`/app/account`, `/app/transactions`).
  *
  * **Most specific href wins.** Two of the four destinations overlap by prefix:
- * "Buy for me" is `/app/orders/new`, which sits underneath "Journeys"
- * (`/app/orders`). A naive first-match-wins scan highlights Journeys while the
+ * "Buy for me" is `/app/orders/new`, which sits underneath "Orders"
+ * (`/app/orders`). A naive first-match-wins scan highlights Orders while the
  * customer is on the Buy screen, so candidates are ranked by href length before
  * the first match is taken.
  *

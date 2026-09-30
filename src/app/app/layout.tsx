@@ -1,6 +1,6 @@
 import { AppBottomTabs, AppNav } from "@/components/layout/app";
 import { APP_BOTTOM_TABS_PADDING } from "@/components/layout/app/styles";
-import { APP_NAV_ITEMS } from "@/components/layout/app/links";
+import { appNavItems } from "@/components/layout/app/links";
 import { cn } from "@/lib/utils";
 import { getAppChrome } from "@/features/app-shell/services/app-chrome.service";
 import { getOnboardingSignals } from "@/features/onboarding/services/onboarding-state.service";
@@ -29,10 +29,12 @@ export default async function AppDashboardLayout({
   // Independent of the chrome read above (a separate concern: whose tour has
   // this customer seen, not what the nav shows), run in parallel with it.
   const [chrome, onboarding] = await Promise.all([getAppChrome(), getOnboardingSignals()]);
+  // The four fixed tabs, plus Cars once a listing is published.
+  const navItems = appNavItems(chrome.hasPublishedCars);
 
   return (
     <div className="flex min-h-dvh flex-col bg-tm-paper font-sans text-tm-ink">
-      <AppNav {...chrome} />
+      <AppNav {...chrome} items={navItems} />
 
       {/*
         `overflow-x-clip`: the body must never scroll sideways on a phone. Every
@@ -59,7 +61,7 @@ export default async function AppDashboardLayout({
         public quote flow offers them navigation that can only bounce them to a
         login screen and discard the quote they were building.
       */}
-      {chrome.isAuthenticated && <AppBottomTabs items={APP_NAV_ITEMS} />}
+      {chrome.isAuthenticated && <AppBottomTabs items={navItems} />}
 
       {/*
         The first-run tour. Mounted only for a signed-in viewer — a signed-out

@@ -8,6 +8,7 @@ export { MarketingNavLinks } from "./marketing-nav-links";
 export { MarketingMobileMenu } from "./marketing-mobile-menu";
 export {
   MARKETING_NAV_ITEMS,
+  MARKETING_CARS_NAV_ITEM,
   LEGAL_SLUG_ORDER,
   buildFooterColumns,
   buildLegalColumn,
@@ -17,6 +18,7 @@ export {
   formatSupportLine,
   resolveActiveNavKey,
   whatsappHref,
+  withCarsNavItem,
 } from "./links";
 export type {
   MarketingFooterColumn,

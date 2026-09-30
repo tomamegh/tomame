@@ -138,7 +138,7 @@ function RegionRow({ region }: { region: AdminRegionRow }) {
         <ContentField
           label="Transit window (days)"
           htmlFor={`region-min-${region.code}`}
-          help="Shown on the lane card. Leave either blank to show an open-ended window."
+          help={region.status === "live" ? "The delivery time customers see everywhere: the lane card, the hero, every {delivery_window} in content and policies, and the quote’s ETA dates. Leave either blank to show an open-ended window." : "Shown on the lane card. Leave either blank to show an open-ended window."}
         >
           <div className="flex items-center gap-2">
             <input

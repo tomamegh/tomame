@@ -72,8 +72,8 @@ describe("buildBagSummaryRows", () => {
   });
 
   it("names a pickup point as a pickup, not a door delivery", () => {
-    const pickup: BagDelivery = { kind: "pickup", address_id: null, zone_id: "z9", zone_name: "Osu hub", label: "Osu hub", fee_ghs: 0 };
-    expect(deliveryRow({ ...view, delivery: pickup })).toMatchObject({ label: "Pickup · Osu hub", value: "Free", tone: "free" });
+    const pickup: BagDelivery = { kind: "pickup", address_id: null, zone_id: "z9", zone_name: "Weija hub", label: "Weija hub", fee_ghs: 0 };
+    expect(deliveryRow({ ...view, delivery: pickup })).toMatchObject({ label: "Pickup · Weija hub", value: "Free", tone: "free" });
   });
 });
 

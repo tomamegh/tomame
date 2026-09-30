@@ -1,6 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { whatsappHref } from "@/components/layout/marketing/links";
-import { getMarketingSettings } from "@/features/marketing/services";
+import {
+  fillPolicyTokens,
+  getMarketingSettings,
+  resolvePolicyTokens,
+} from "@/features/marketing/services";
 import type { PolicyRow } from "@/features/policies/types";
 import { PoliciesContent } from "./policies-content";
 
@@ -21,7 +25,7 @@ function sortByPreferredOrder(policies: PolicyRow[]): PolicyRow[] {
 
 export default async function PoliciesPage() {
   const db = createAdminClient();
-  const [{ data }, settings] = await Promise.all([
+  const [{ data }, settings, tokens] = await Promise.all([
     db
       .from("policies")
       .select(
@@ -31,9 +35,15 @@ export default async function PoliciesPage() {
     // The "questions?" block at the foot of the page names the WhatsApp line
     // from `site_settings` — the same row the footer and the contact page read.
     getMarketingSettings(),
+    // `{shipping_methods}` and `{delivery_window}` in the shipping policy print
+    // the published shipping methods and the live region's transit days.
+    resolvePolicyTokens(),
   ]);
 
-  const policies = sortByPreferredOrder((data ?? []) as PolicyRow[]);
+  const policies = sortByPreferredOrder((data ?? []) as PolicyRow[]).map((policy) => ({
+    ...policy,
+    content: fillPolicyTokens(policy.content, tokens),
+  }));
 
   return (
     <PoliciesContent

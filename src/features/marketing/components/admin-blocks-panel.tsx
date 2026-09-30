@@ -6,6 +6,8 @@ import { AdminBadge } from "@/components/layout/admin";
 import type { AdminSiteContentRow } from "@/db/queries/admin-content";
 import { cn } from "@/lib/utils";
 
+import { CONTENT_TOKEN_HELP } from "../content-tokens";
+import { TEXT_CELL_KINDS, compareColumnLabel } from "./admin-content-format";
 import {
   CONTENT_INPUT_CLASS,
   CONTENT_TEXTAREA_CLASS,
@@ -30,7 +32,12 @@ import {
  * a fixed map. A free-text JSON box over all of that invites an admin to rename
  * a `value_source` and silently take a live figure off the Fees page. Title,
  * body, order and publication are the safe surface, and they are what an admin
- * actually needs to change.
+ * actually needs to change. The exceptions are `TEXT_CELL_KINDS` — a
+ * comparison row's cells and a shipping method's window — which are plain copy
+ * and get a text field each.
+ *
+ * A delivery time is never typed as a number: `{delivery_window}` prints the
+ * live region's transit days (`../content-tokens.ts`).
  */
 export function AdminBlocksPanel({ blocks }: { blocks: readonly AdminSiteContentRow[] }) {
   const groups = new Map<string, AdminSiteContentRow[]>();
@@ -71,6 +78,12 @@ function BlockRow({ block }: { block: AdminSiteContentRow }) {
   const [expanded, setExpanded] = useState(false);
   const { patch, isSaving } = useContentPatch();
 
+  // Comparison cells and a shipping method's window are copy; every other
+  // kind's `data` is wiring.
+  const storedColumns = TEXT_CELL_KINDS.includes(block.kind) ? stringEntries(block.data) : {};
+  const [columns, setColumns] = useState(storedColumns);
+  const columnsDirty = Object.keys(storedColumns).some((key) => columns[key] !== storedColumns[key]);
+
   const parsedSort = Number(sortOrder);
   const sortValid = Number.isInteger(parsedSort) && parsedSort >= 0;
 
@@ -78,7 +91,8 @@ function BlockRow({ block }: { block: AdminSiteContentRow }) {
     title !== (block.title ?? "") ||
     body !== (block.body ?? "") ||
     sortOrder !== block.sort_order.toString() ||
-    isPublished !== block.is_published;
+    isPublished !== block.is_published ||
+    columnsDirty;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -91,6 +105,7 @@ function BlockRow({ block }: { block: AdminSiteContentRow }) {
         body: body.trim() || null,
         sort_order: parsedSort,
         is_published: isPublished,
+        ...(columnsDirty ? { columns: trimValues(columns) } : {}),
       },
       {
         successTitle: `${block.slug} updated`,
@@ -140,7 +155,7 @@ function BlockRow({ block }: { block: AdminSiteContentRow }) {
             />
           </ContentField>
 
-          <ContentField label="Body" htmlFor={`block-body-${block.id}`}>
+          <ContentField label="Body" htmlFor={`block-body-${block.id}`} help={CONTENT_TOKEN_HELP}>
             <textarea
               id={`block-body-${block.id}`}
               value={body}
@@ -149,6 +164,22 @@ function BlockRow({ block }: { block: AdminSiteContentRow }) {
               className={CONTENT_TEXTAREA_CLASS}
             />
           </ContentField>
+
+          {Object.keys(storedColumns).length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-3">
+              {Object.keys(storedColumns).map((key) => (
+                <ContentField key={key} label={compareColumnLabel(key)} htmlFor={`block-col-${block.id}-${key}`}>
+                  <input
+                    id={`block-col-${block.id}-${key}`}
+                    type="text"
+                    value={columns[key] ?? ""}
+                    onChange={(event) => setColumns((prev) => ({ ...prev, [key]: event.target.value }))}
+                    className={CONTENT_INPUT_CLASS}
+                  />
+                </ContentField>
+              ))}
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-end gap-5">
             <ContentField
@@ -198,6 +229,19 @@ function BlockRow({ block }: { block: AdminSiteContentRow }) {
   );
 }
 
+/** The string values of a block's `data`, keyed as stored. */
+function stringEntries(data: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value === "string") out[key] = value;
+  }
+  return out;
+}
+
+function trimValues(values: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value.trim()]));
+}
+
 /**
  * The `kind` slugs, in the words an admin would use for the place they appear.
  * Unknown kinds are humanised rather than hidden — a migration that adds one
@@ -217,6 +261,7 @@ function kindLabel(kind: string): string {
     hero_copy: "Hero copy",
     store: "Store list",
     quote_assurance: "Quote screen: assurance cards",
+    shipping_method: "Shipping methods",
   };
   if (known[kind]) return known[kind];
   const words = kind.replace(/_/g, " ").trim();

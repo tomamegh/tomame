@@ -19,7 +19,7 @@ export interface RegionsStripProps {
   mediaOverrides: MediaOverrideMap;
 }
 
-/** "14–18 days", "14 days", or null when the lane has no published window. */
+/** "5–7 days", "7 days", or null when the lane has no published window. */
 export function transitWindow(region: RegionRow): string | null {
   const { transit_days_min: min, transit_days_max: max } = region;
   if (min == null && max == null) return null;

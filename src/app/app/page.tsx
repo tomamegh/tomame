@@ -13,10 +13,9 @@ import {
   FreightBoxCard,
   GreetingChip,
   HeroPasteBar,
-  JourneysInMotion,
   LiveReceiptCard,
+  YourOrders,
 } from "@/features/app-home/components";
-import { CarsRail, accraDay } from "@/features/cars/components";
 import { PriceWatchCard } from "@/features/watches/components";
 
 /**
@@ -40,7 +39,7 @@ function trustChips(rateLockHours: number | null): string[] {
  * helping users shop and once logged in that is what the app should help the
  * user do". So the order of the page is the order of that job: ask for
  * something (a link, or words), then look at what we already hold, then the
- * parcels already moving, and only then the smaller cards.
+ * orders already placed, and only then the smaller cards.
  *
  * WHAT CAME OFF IT. "Shipping from the USA" — the lane card — is gone. It is a
  * marketing claim aimed at somebody deciding whether to sign up, and everyone
@@ -110,26 +109,6 @@ export default async function AppHomePage() {
       </div>
 
       {/*
-        ── Row A½ · On the water ────────────────────────────────────────
-        Cars sit between the doors and the catalogue because a car comes
-        through none of those doors: it is already bought and already on a
-        ship, and the only thing a customer does with it is look and decide.
-        That makes it the first thing on this screen that is not a way of
-        asking us for something.
-
-        Nothing is drawn when no listing is published — no placeholder, no
-        sample vehicle. A made-up car is a made-up six-figure price beside a
-        photograph of a vehicle that does not exist.
-      */}
-      {view.cars && (
-        <CarsRail
-          cars={view.cars.cars}
-          total={view.cars.total}
-          today={accraDay(now)}
-        />
-      )}
-
-      {/*
         ── Row B · Shop ─────────────────────────────────────────────────
         Renders nothing at all when the catalogue holds nothing we could price.
         No placeholder shelf and no sample products: a made-up product on a
@@ -137,23 +116,26 @@ export default async function AppHomePage() {
       */}
       <DealsShelf deals={view.deals} catalogueCount={view.catalogueCount} now={now} />
 
-      {/* ── Row C · In motion ────────────────────────────────────────── */}
       {/*
-        "Your freight box" sits to the right of the journeys, and is only drawn
-        once there is a box: the card is the open bag's first consolidation box,
-        so an empty bag has no percentage to be full of and the journeys take
-        the whole row.
+        ── Row C · Your orders ─────────────────────────────────────────
+        Only drawn once the customer has placed an order (paid onwards): each
+        card is one product with that order's own journey. With no orders and
+        no bag the row is not drawn at all — no placeholder journey. "Your
+        freight box" sits beside the orders when there is a box, and takes the
+        row alone when there are no orders yet.
       */}
-      <div
-        className={
-          view.freightBox
-            ? "grid items-stretch gap-5 lg:grid-cols-[1.35fr_1fr]"
-            : "grid"
-        }
-      >
-        <JourneysInMotion journeys={view.journeys} />
-        {view.freightBox && <FreightBoxCard box={view.freightBox} now={now} />}
-      </div>
+      {(view.orders.length > 0 || view.freightBox) && (
+        <div
+          className={
+            view.orders.length > 0 && view.freightBox
+              ? "grid grid-cols-[minmax(0,1fr)] items-stretch gap-5 lg:grid-cols-[1.35fr_1fr]"
+              : "grid grid-cols-[minmax(0,1fr)]"
+          }
+        >
+          <YourOrders orders={view.orders} />
+          {view.freightBox && <FreightBoxCard box={view.freightBox} now={now} />}
+        </div>
+      )}
 
       {/*
         ── Row D · Everything else ──────────────────────────────────────

@@ -6,7 +6,8 @@ import { createPublicClient } from "@/lib/supabase/public";
 /**
  * Mirrors the `site_content_kind_check` constraint — declared in
  * 036_create_marketing_content_tables.sql and widened by 047 with
- * `quote_assurance` (the three cards under the landed-price receipt).
+ * `quote_assurance` (the three cards under the landed-price receipt), and by
+ * 070 with `shipping_method` (the shipping policy's list of methods).
  */
 export const SITE_CONTENT_KINDS = [
   "faq",
@@ -21,6 +22,7 @@ export const SITE_CONTENT_KINDS = [
   "hero_copy",
   "store",
   "quote_assurance",
+  "shipping_method",
 ] as const;
 
 export type SiteContentKind = (typeof SITE_CONTENT_KINDS)[number];

@@ -14,6 +14,8 @@ import {
 import { getDeliveryRecord } from "@/db/queries/admin-deliveries";
 import { listOrderEvents } from "@/db/queries/order-events";
 import { getOrderGroupById } from "@/db/queries/order-groups";
+import { AdminCourierPanel } from "@/features/order-delivery/components/admin-courier-panel";
+import { getAdminOrderCourier } from "@/features/order-delivery/services/courier.service";
 import { AdminOrderParcelPanel } from "@/features/order-photos/components/admin-parcel-panel";
 import { AdminOrderDetail } from "@/features/orders/components/admin-order-detail";
 import { AdminOrderOps } from "@/features/orders/components/admin-order-ops";
@@ -51,7 +53,7 @@ export default async function AdminOrderDetailPage({
 
   // Six independent reads; none of them depends on another's result, so they go
   // out together rather than in a waterfall six round trips deep.
-  const [customer, payment, delivery, group, siblings, events, auditLogs] = await Promise.all([
+  const [customer, payment, delivery, group, siblings, events, auditLogs, courier] = await Promise.all([
     getOrderCustomer(order.user_id),
     getOrderPayment(order),
     getDeliveryRecord(order.id),
@@ -63,6 +65,7 @@ export default async function AdminOrderDetailPage({
     // is the whole reason that column exists.
     listOrderEvents(createAdminClient(), order.id, { customerVisibleOnly: false }),
     listOrderAuditLogs(order.id),
+    getAdminOrderCourier(order.id),
   ]);
 
   return (
@@ -103,6 +106,19 @@ export default async function AdminOrderDetailPage({
         purpose: when there is a parcel on a shelf, photographing it is the job,
         and burying the control under the receipt is how it goes unfound.
       */}
+      {/*
+        The last mile. Renders only while the order is in transit, or afterwards
+        when a rider was sent (read-only), so it never competes with the camera
+        on a parcel still at the hub.
+      */}
+      <AdminCourierPanel
+        orderId={order.id}
+        status={order.status}
+        courier={courier}
+        customerLabel={customer?.name ?? customer?.email ?? null}
+        index={order.needs_review ? 2 : 1}
+      />
+
       <AdminOrderParcelPanel
         orderId={order.id}
         status={order.status}

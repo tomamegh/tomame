@@ -17,9 +17,9 @@ export interface JourneyItemCardProps {
 /**
  * The right rail of `v2-detail` (design lines 363–369): the listing photo, the
  * store chip, the variant line, the outbound link, the customer's own note, and
- * "Ask about this journey".
+ * "Ask about this order".
  *
- * **"Ask about this journey" is a WhatsApp DEEP LINK, not a message thread.**
+ * **"Ask about this order" is a WhatsApp DEEP LINK, not a message thread.**
  * Kelvin's decision of 2026-09-13 for the assisted-request flow applies here for
  * consistency, so `message_threads`/`messages` (data map §"Phase 5 specs") are
  * deferred and nothing is stored. The number comes from
@@ -94,7 +94,7 @@ export function JourneyItemCard({ item, note, whatsappHref, orderNo }: JourneyIt
           className="flex h-12 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tm-border bg-card text-sm leading-none font-semibold"
         >
           <ChatsCircle weight="duotone" className="size-[18px] text-tm-coral" aria-hidden />
-          Ask about this journey
+          Ask about this order
         </a>
       )}
     </aside>

@@ -43,7 +43,8 @@ const CONTACT_METHODS = [
   {
     icon: MessageCircle,
     title: 'WhatsApp',
-    value: '+233 XX XXX XXXX',
+    /** Replaced by `site_settings.whatsapp_number`; the row is dropped when none is set. */
+    value: null as string | null,
     desc: 'For urgent orders and tracking questions',
   },
   {
@@ -65,9 +66,16 @@ const WHY_TOMAME = [
 export interface ContactPageProps {
   /** `https://wa.me/<digits>` from `site_settings.whatsapp_number`, or null when none is configured. */
   whatsappHref: string | null;
+  /** `site_settings.whatsapp_number`, as displayed. */
+  whatsappNumber: string | null;
 }
 
-export function ContactPage({ whatsappHref }: ContactPageProps) {
+export function ContactPage({ whatsappHref, whatsappNumber }: ContactPageProps) {
+  const contactMethods = CONTACT_METHODS.flatMap((method) => {
+    if (method.title !== 'WhatsApp') return [method];
+    return whatsappNumber ? [{ ...method, value: whatsappNumber }] : [];
+  });
+
   return (
     <main className="bg-white">
       {/* A. Page Header */}
@@ -119,7 +127,7 @@ export function ContactPage({ whatsappHref }: ContactPageProps) {
             variants={stagger}
             className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-3"
           >
-            {CONTACT_METHODS.map((method) => (
+            {contactMethods.map((method) => (
               <motion.article
                 key={method.title}
                 variants={fadeUp}

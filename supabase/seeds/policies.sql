@@ -101,8 +101,7 @@ These terms are governed by the laws of the Republic of Ghana. Disputes will be 
 
 ### Delivery Timeline
 
-- **Standard (Sea freight)**: 3 to 6 weeks from purchase date.
-- **Express (Air freight)**: 7 to 14 days from purchase date. Available on request; additional fee applies.
+{shipping_methods}
 - Timelines are estimates and may vary due to customs clearance, public holidays, or carrier delays.
 
 ### Shipping Fees

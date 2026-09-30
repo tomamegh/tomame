@@ -1,4 +1,4 @@
-import { emailLayout, heading, paragraph, muted, divider, button, infoRow, infoTable } from "./layout";
+import { renderEmail, eyebrow, heading, paragraph, button, summaryCard, callout, escapeHtml } from "./layout";
 
 /**
  * "We've got your parcel, and here's what it looks like" (migration 054).
@@ -39,30 +39,29 @@ export interface ParcelPhotoEmailData {
 export function parcelPhotoTemplate(data: ParcelPhotoEmailData) {
   const many = data.photoCount > 1;
   const noun = many ? `${data.photoCount} photos` : "a photo";
+  const name = escapeHtml(data.productName);
 
-  return {
-    subject: `Your parcel reached our hub: ${data.productName}`,
-    html: emailLayout(`
+  return renderEmail(`Your parcel reached our hub: ${data.productName}`, {
+    preheader: `We took ${noun} of it. Please check it is the right thing before it flies.`,
+    body: `
+      ${eyebrow("At our hub")}
       ${heading("Your parcel is with us")}
-      ${paragraph(
-        `<strong>${data.productName}</strong> has arrived at our US hub, and we took ${noun} of it before it goes any further.`,
-      )}
-      ${divider()}
-      ${infoTable(`
-        ${infoRow("Order", data.orderNo)}
-        ${infoRow("Item", data.productName)}
-        ${data.location ? infoRow("Where", data.location) : ""}
-        ${data.weightLbs !== null ? infoRow("Received weight", `${data.weightLbs} lb`) : ""}
-      `)}
-      ${divider()}
-      ${button(data.journeyUrl, many ? "See the photos" : "See the photo")}
-      ${paragraph(
+      ${paragraph(`<strong>${name}</strong> has arrived at our US hub, and we took ${noun} of it before it goes any further.`)}
+      ${summaryCard({
+        label: "Your order",
+        title: name,
+        rows: [
+          ["Order", escapeHtml(data.orderNo)],
+          data.location ? ["Where", escapeHtml(data.location)] : null,
+          data.weightLbs !== null ? ["Received weight", `${data.weightLbs} lb`] : null,
+        ],
+      })}
+      ${callout(
         `<strong>Please take a look now.</strong> If it is not what you ordered (wrong colour, wrong model, damaged in the box), tell us from that same screen and we will sort it while your parcel is still on the ground. Once it flies, putting it right costs a return from Ghana.`,
       )}
+      ${button(data.journeyUrl, many ? "See the photos" : "See the photo")}
       ${paragraph(`If it looks right, you can say so too. It takes a second, and it tells us to send it on.`)}
-      ${muted(
-        `We keep parcel photos private to your account: the picture opens only for you, on a page you have to be signed in to reach, which is why it is a link here rather than an image. You are getting this because it is your order. Email notifications can be switched off in your Tomame account. You will still see this in the app.`,
-      )}
-    `),
-  };
+    `,
+    reason: `We keep parcel photos private to your account: the picture opens only for you, on a page you have to be signed in to reach, which is why it is a link here rather than an image. You are getting this because it is your order. You will still see this in the app if you switch emails off.`,
+  });
 }

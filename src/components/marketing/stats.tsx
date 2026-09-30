@@ -10,7 +10,7 @@ type Stat = {
 const STATS: Stat[] = [
   { value: '5,000+', label: 'Orders delivered' },
   { value: '3', label: 'Regions sourced' },
-  { value: '14 days', label: 'Average delivery' },
+  { value: '5–7 days', label: 'Delivery time' },
   { value: '100%', label: 'Transparent pricing' },
 ];
 

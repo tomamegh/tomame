@@ -86,9 +86,9 @@ describe("regionStatusBadge / regionStatusHelp", () => {
 
 describe("transitWindowLabel", () => {
   it("renders a window, a floor, a ceiling, or nothing", () => {
-    expect(transitWindowLabel(7, 14)).toBe("7–14 days");
-    expect(transitWindowLabel(7, null)).toBe("from 7 days");
-    expect(transitWindowLabel(null, 14)).toBe("up to 14 days");
+    expect(transitWindowLabel(5, 7)).toBe("5–7 days");
+    expect(transitWindowLabel(5, null)).toBe("from 5 days");
+    expect(transitWindowLabel(null, 7)).toBe("up to 7 days");
     expect(transitWindowLabel(null, null)).toBeNull();
   });
 });

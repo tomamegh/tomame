@@ -23,7 +23,7 @@ vi.mock("../services/quote-constants.service", () => {
   };
 });
 vi.mock("../services/delivery-eta.service", () => ({
-  loadDeliveryWindow: vi.fn(async () => ({ from: "2026-09-27", to: "2026-10-03" })),
+  loadDeliveryWindow: vi.fn(async () => ({ from: "2026-09-17", to: "2026-09-19" })),
 }));
 // The real helper matches on message text (db/queries flatten PostgREST errors).
 vi.mock("@/lib/supabase/errors", () => ({
@@ -113,7 +113,7 @@ describe("applyRateLock — minting", () => {
     });
     expect(new Date(inserted.expires_at).getTime() - new Date(inserted.locked_at).getTime()).toBe(24 * 3600 * 1000);
     expect(pricing).toMatchObject({ rate_lock_id: "minted-1", rate_locked_until: inserted.expires_at, exchange_rate: 15.01 });
-    expect(pricing).toMatchObject({ delivery_eta_from: "2026-09-27", delivery_eta_to: "2026-10-03" });
+    expect(pricing).toMatchObject({ delivery_eta_from: "2026-09-17", delivery_eta_to: "2026-09-19" });
     expect(logAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "quote_lock_minted", actorRole: "system", entityType: "quote_lock", entityId: "minted-1" }));
   });
 
@@ -144,7 +144,7 @@ describe("applyRateLock — minting", () => {
     const { pricing } = await applyRateLock({ viewer: anon, extraction, extractionCacheId: null, quantity: 1, overrides: null });
     expect(findActiveLock).not.toHaveBeenCalled();
     expect(insertQuoteLock).not.toHaveBeenCalled();
-    expect(pricing).toMatchObject({ exchange_rate: 15.01, delivery_eta_from: "2026-09-27" });
+    expect(pricing).toMatchObject({ exchange_rate: 15.01, delivery_eta_from: "2026-09-17" });
     expect(pricing?.rate_lock_id).toBeUndefined();
   });
 

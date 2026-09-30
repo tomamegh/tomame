@@ -200,17 +200,16 @@ export async function consumeQuoteLocksForOrder(input: {
 
 /**
  * Attach the pre-purchase delivery window. Degrades to the bare breakdown when
- * the region has no transit days or the lookup fails — except a missing table
- * or a missing seeded constant, which surface.
+ * the region has no transit days or the lookup fails — except a missing table,
+ * which surfaces.
  */
 export async function withDeliveryEta(
   pricing: PricingBreakdown,
   country: EtaCountry | null,
-  constants: QuoteConstants | null,
   today: Date,
 ): Promise<PricingBreakdown> {
   if (!country) return pricing;
-  const window = await loadEta(country, constants ?? (await loadConstants()), today);
+  const window = await loadEta(country, today);
   return window ? { ...pricing, delivery_eta_from: window.from, delivery_eta_to: window.to } : pricing;
 }
 
@@ -231,9 +230,9 @@ async function priceForViewer(input: ApplyRateLockInput, opts: PriceForViewerOpt
 
   // Live pricing, the lock lookup, the constants and the ETA are independent;
   // the calculator is loaded once and prices live and locked on the same instance.
-  const constantsP: Promise<QuoteConstants | null> = opts.mint || opts.eta ? loadConstants() : Promise.resolve(null);
+  const constantsP: Promise<QuoteConstants | null> = opts.mint ? loadConstants() : Promise.resolve(null);
   const etaP: Promise<DeliveryWindow | null> =
-    opts.eta && extraction.country ? constantsP.then((c) => loadEta(extraction.country as EtaCountry, c, now)) : Promise.resolve(null);
+    opts.eta && extraction.country ? loadEta(extraction.country as EtaCountry, now) : Promise.resolve(null);
   const lockP: Promise<LockLookup | null> = wantsLock
     ? resolveLockForOrder(viewer, extractionCacheId, now).then(
         (lock): LockLookup => ({ ok: true, lock }),
@@ -297,10 +296,9 @@ async function loadConstants(): Promise<QuoteConstants | null> {
   }
 }
 
-async function loadEta(country: EtaCountry, constants: QuoteConstants | null, today: Date): Promise<DeliveryWindow | null> {
-  if (!constants) return null;
+async function loadEta(country: EtaCountry, today: Date): Promise<DeliveryWindow | null> {
   try {
-    return await loadDeliveryWindow(country, constants, today);
+    return await loadDeliveryWindow(country, today);
   } catch (err) {
     rethrowIfLoud(err);
     logger.warn("quote: delivery ETA unavailable", { country, error: err instanceof Error ? err.message : String(err) });

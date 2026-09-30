@@ -21,6 +21,33 @@ export const MARKETING_NAV_ITEMS: readonly MarketingNavItem[] = [
   { key: "about", label: "About", href: "/about" },
 ] as const;
 
+/**
+ * The Cars tab. NOT in `MARKETING_NAV_ITEMS`: it exists only while at least one
+ * listing is published (`hasPublishedCars`), so the layout adds it with
+ * `withCarsNavItem`. It points into the app because `/app/cars` is the public
+ * forecourt — there is no marketing copy of the car pages.
+ */
+export const MARKETING_CARS_NAV_ITEM: MarketingNavItem = {
+  key: "cars",
+  label: "Cars",
+  href: "/app/cars",
+};
+
+/**
+ * The nav with Cars in it when something is published, and exactly the input
+ * when nothing is — no tab, no link to an empty shelf. Cars sits after "Where
+ * we buy": it is a second thing we sell, not a page about how we sell.
+ */
+export function withCarsNavItem(
+  items: readonly MarketingNavItem[],
+  hasPublishedCars: boolean,
+): readonly MarketingNavItem[] {
+  if (!hasPublishedCars || items.some((item) => item.key === "cars")) return items;
+  const after = items.findIndex((item) => item.key === "regions");
+  const at = after === -1 ? items.length : after + 1;
+  return [...items.slice(0, at), MARKETING_CARS_NAV_ITEM, ...items.slice(at)];
+}
+
 /** Reading order for the legal column, mirroring the public policies page. */
 export const LEGAL_SLUG_ORDER: readonly string[] = [
   "privacy",
@@ -130,7 +157,7 @@ export function buildFooterColumns(
       heading: "Help",
       links: [
         { label: "FAQ", href: "/faq" },
-        { label: "Track a journey", href: "/app/orders" },
+        { label: "Track an order", href: "/app/orders" },
         { label: "Your bag", href: "/app/bag" },
         ...(chat
           ? [{ label: "WhatsApp", href: chat, external: true as const }]

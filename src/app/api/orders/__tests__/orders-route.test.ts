@@ -6,6 +6,8 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("@/features/auth/services/auth.service", () => ({ getAuthenticatedUser: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({})) }));
+const serviceClient = { service: true };
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => serviceClient) }));
 vi.mock("@/features/orders/services/orders.service", () => ({
   createOrder: vi.fn(),
   listUserOrders: vi.fn(),
@@ -94,6 +96,8 @@ describe("POST /api/orders", () => {
     const res = await POST(request(valid) as never);
     expect(res.status).toBe(201);
     expect((await res.json()).data).toEqual(order);
+    // Customers hold no INSERT on orders (migration 076): the row is written with the service client.
+    expect(vi.mocked(createOrder).mock.calls[0]?.[0]).toBe(serviceClient);
   });
 
   it("rejects a body that fails the schema before touching the service", async () => {

@@ -6,8 +6,8 @@ import { JourneysView } from "@/features/journeys/components";
 import { getJourneys } from "@/features/journeys/services/journeys.service";
 
 export const metadata: Metadata = {
-  title: "Journeys",
-  description: "Every item, from the store to your door.",
+  title: "Your orders",
+  description: "Every order, and its journey from the store to your door.",
 };
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
 }
 
 /**
- * `v2-journeys` — the list.
+ * `v2-journeys` — the customer's orders, each with its own journey.
  *
  * Server component: the whole view model is assembled server-side (filter
  * counts, the five-stop census, each row's stage position) and handed down as
@@ -29,7 +29,7 @@ interface Props {
  * impossible case where the gate let a session through that has since lapsed —
  * `getJourneys` needs a user and must not be handed `null`.
  */
-export default async function JourneysPage({ searchParams }: Props) {
+export default async function OrdersPage({ searchParams }: Props) {
   const [{ payment }, user] = await Promise.all([searchParams, getAuthenticatedUser()]);
   if (!user) redirect(`/auth/login?next=${encodeURIComponent("/app/orders")}`);
 

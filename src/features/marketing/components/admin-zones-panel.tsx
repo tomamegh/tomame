@@ -54,6 +54,7 @@ export function AdminZonesPanel({ zones }: { zones: readonly AdminDeliveryZoneRo
 function ZoneRow({ zone }: { zone: AdminDeliveryZoneRow }) {
   const [fee, setFee] = useState(zone.fee_ghs.toString());
   const [extraDays, setExtraDays] = useState(zone.extra_days.toString());
+  const [name, setName] = useState(zone.name);
   const [note, setNote] = useState(zone.note ?? "");
   const [isActive, setIsActive] = useState(zone.is_active);
   const [confirming, setConfirming] = useState(false);
@@ -67,8 +68,10 @@ function ZoneRow({ zone }: { zone: AdminDeliveryZoneRow }) {
   const isDirty =
     fee !== zone.fee_ghs.toString() ||
     extraDays !== zone.extra_days.toString() ||
+    name !== zone.name ||
     note !== (zone.note ?? "") ||
     isActive !== zone.is_active;
+  const nameValid = name.trim().length > 0;
 
   const feeChanged = feeValid && isFeeChange(zone.fee_ghs, parsedFee);
 
@@ -77,6 +80,7 @@ function ZoneRow({ zone }: { zone: AdminDeliveryZoneRow }) {
       {
         target: "zone",
         id: zone.id,
+        name: name.trim(),
         fee_ghs: parsedFee,
         extra_days: parsedDays,
         note: note.trim() || null,
@@ -96,7 +100,7 @@ function ZoneRow({ zone }: { zone: AdminDeliveryZoneRow }) {
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!feeValid || !daysValid) return;
+    if (!feeValid || !daysValid || !nameValid) return;
     // A fee change goes through the confirmation; everything else saves
     // straight away, because nothing else on this row is a price.
     if (feeChanged) setConfirming(true);
@@ -162,6 +166,26 @@ function ZoneRow({ zone }: { zone: AdminDeliveryZoneRow }) {
             onChange={(event) => setExtraDays(event.target.value)}
             aria-invalid={!daysValid}
             className={`${CONTENT_INPUT_CLASS} tm-nums`}
+          />
+        </ContentField>
+
+        <ContentField
+          label="Name"
+          htmlFor={`zone-name-${zone.id}`}
+          help={
+            zone.kind === "pickup"
+              ? "Shown at checkout and on “Where we buy”. Copy that names the pickup place in a sentence reads the “Pickup point” setting."
+              : "Shown at checkout and on “Where we buy”."
+          }
+          className="sm:col-span-2"
+        >
+          <input
+            id={`zone-name-${zone.id}`}
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            aria-invalid={!nameValid}
+            className={CONTENT_INPUT_CLASS}
           />
         </ContentField>
 

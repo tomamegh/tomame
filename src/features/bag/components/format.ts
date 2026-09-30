@@ -141,7 +141,7 @@ export function buildBagSummaryRows(view: BagView): BagSummaryRow[] {
   return rows;
 }
 
-/** "Door delivery · Greater Accra" / "Pickup · Osu hub" / "Delivery — choose below". */
+/** "Door delivery · Greater Accra" / "Pickup · Weija hub" / "Delivery — choose below". */
 function buildDeliveryRow(view: BagView): BagSummaryRow {
   const delivery = view.delivery;
   if (!delivery) return { key: "delivery", label: "Delivery", value: "choose below", tone: "muted" };

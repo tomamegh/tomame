@@ -39,7 +39,7 @@ const STEPS: Step[] = [
     num: '04',
     icon: HiOutlineCheckBadge,
     title: 'Receive delivery',
-    description: 'Track your order in real-time. Avg 2–4 weeks.',
+    description: 'Track your order in real-time. Delivered in 5–7 days.',
   },
 ];
 

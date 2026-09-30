@@ -15,7 +15,7 @@
  * `ship`, which the mock uses for the Price watch tab. The names are kept as
  * the design authored them so the mock and the build stay diffable.
  */
-export type AppNavKey = "home" | "shop" | "ship" | "orders";
+export type AppNavKey = "home" | "shop" | "ship" | "orders" | "cars";
 
 /** One destination, rendered both as a desktop pill and a mobile tab. */
 export interface AppNavItem {
@@ -38,7 +38,7 @@ export interface AppNavItem {
 }
 
 /** Icon set used by the app chrome, named after the mock's `ph-*` classes. */
-export type AppNavIconName = "house" | "storefront" | "bookmark" | "path";
+export type AppNavIconName = "house" | "storefront" | "bookmark" | "package" | "car";
 
 /**
  * The live FX rate behind the nav pill ("$1 = GH₵14.43").
@@ -80,4 +80,9 @@ export interface AppChromeData {
    * claim, and clicking it would bounce straight back to `/app`.
    */
   isAdmin: boolean;
+  /**
+   * At least one car listing is published, so the Cars tab exists. False hides
+   * the tab outright — no link to an empty shelf. See `hasPublishedCars`.
+   */
+  hasPublishedCars: boolean;
 }

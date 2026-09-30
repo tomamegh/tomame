@@ -31,11 +31,22 @@ describe("getRecentOrdersForUser", () => {
     expect(await getRecentOrdersForUser(client, "user-1", 4)).toEqual(rows);
     expect(calls.from).toEqual(["orders"]);
     expect(calls.select?.[0]).toBe(
-      "id, product_name, product_url, status, pricing, estimated_delivery_date, created_at",
+      "id, order_no, product_name, product_url, product_image_url, " +
+        "store_platform:extraction_metadata->>platform, status, pricing, admin_total_ghs, " +
+        "estimated_delivery_date, eta_from, eta_to, delivered_at, created_at",
     );
     expect(calls.select?.[0]).not.toBe("*");
     expect(calls.eq).toEqual(["user_id", "user-1"]);
+    expect(calls.in).toBeUndefined();
     expect(calls.order).toEqual(["created_at", { ascending: false }]);
+    expect(calls.limit).toEqual([4]);
+  });
+
+  it("narrows by status in SQL when asked, so unpaid rows cannot use up the limit", async () => {
+    const { client, calls } = clientReturning({ data: [], error: null });
+
+    await getRecentOrdersForUser(client, "user-1", 4, ["paid", "delivered"]);
+    expect(calls.in).toEqual(["status", ["paid", "delivered"]]);
     expect(calls.limit).toEqual([4]);
   });
 

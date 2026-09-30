@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { ArrowUUpLeft, LockSimple } from "@phosphor-icons/react/ssr";
 
-import { getSiteContentByKind } from "@/db/queries/site-content";
 import {
   getFeeLines,
   getFeesWorkedExample,
+  getPublishedContent,
   resolveMarketingFigures,
 } from "@/features/marketing/services";
+import { loadQuoteConstants } from "@/features/quotes/services/quote-constants.service";
 import { cn } from "@/lib/utils";
 import { Eyebrow, MARKETING_GUTTER } from "../_components/marketing-primitives";
 import { ComparisonTable } from "./_components/comparison-table";
@@ -29,11 +30,16 @@ interface FeesPageProps {
 export default async function FeesPage({ searchParams }: FeesPageProps) {
   const params = await searchParams;
 
-  const [feeLines, figures, compareRows, baseExample] = await Promise.all([
+  const [feeLines, figures, compareRows, baseExample, rateLockHours] = await Promise.all([
     getFeeLines(),
     resolveMarketingFigures(),
-    getSiteContentByKind("compare_row"),
+    getPublishedContent("compare_row"),
     getFeesWorkedExample(),
+    // The same `pricing_constants.rate_lock_hours` the lock is minted with.
+    loadQuoteConstants().then(
+      (constants) => constants.rate_lock_hours,
+      () => null,
+    ),
   ]);
 
   // The chip is an index into the admin's own preset list, never a raw price:
@@ -137,7 +143,7 @@ export default async function FeesPage({ searchParams }: FeesPageProps) {
                   aria-hidden="true"
                 />
                 <p className="text-sm font-bold leading-tight text-[#8A5A0A]">
-                  Rate locked 24 hours.
+                  {rateLockHours ? `Rate locked ${rateLockHours} hours.` : "Rate locked."}
                 </p>
                 <p className="tm-nums text-xs leading-relaxed text-[#8A5A0A]">
                   Mid-market {fxBuffer.display} buffer, shown on every quote.

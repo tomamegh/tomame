@@ -29,6 +29,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // Without it, OG/Twitter image URLs resolve against localhost:3000 on prod.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://tomame.ca"),
   title: "Tomame",
   description: "Concierge shopping platform for Ghana",
   applicationName: "Tomame",

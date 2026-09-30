@@ -3,11 +3,13 @@ import { notFound, redirect } from "next/navigation";
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { JourneyDetailView } from "@/features/journeys/components";
+import { CourierCard } from "@/features/order-delivery/components/courier-card";
+import { getCourierForViewer } from "@/features/order-delivery/services/courier.service";
 import { getJourneyDetail } from "@/features/journeys/services/journey-detail.service";
 import { APIError } from "@/lib/auth/api-helpers";
 
 export const metadata: Metadata = {
-  title: "Journey",
+  title: "Order",
   description: "Where your parcel is, and what you paid for it.",
 };
 
@@ -17,7 +19,7 @@ interface Props {
 }
 
 /**
- * `v2-detail` — one journey.
+ * `v2-detail` — one order and its journey.
  *
  * Server component, like the list: ownership, the event log, the carrier, the
  * ETA window and the payment are all resolved before the first byte. An order
@@ -29,7 +31,7 @@ interface Props {
  * F5): a legacy unpaid order is paid from here, and the Paystack return lands
  * back on this page with `?payment=`.
  */
-export default async function JourneyDetailPage({ params, searchParams }: Props) {
+export default async function OrderDetailPage({ params, searchParams }: Props) {
   const [{ id }, { payment }, user] = await Promise.all([
     params,
     searchParams,
@@ -38,8 +40,19 @@ export default async function JourneyDetailPage({ params, searchParams }: Props)
   if (!user) redirect(`/auth/login?next=${encodeURIComponent(`/app/orders/${id}`)}`);
 
   try {
-    const journey = await getJourneyDetail(user, id);
-    return <JourneyDetailView journey={journey} paymentOutcome={payment ?? null} />;
+    // In parallel: the courier read is scoped to the viewer's own orders and
+    // answers null for anything else, so it cannot leak ahead of the 404.
+    const [journey, courier] = await Promise.all([
+      getJourneyDetail(user, id),
+      getCourierForViewer(user.id, id),
+    ]);
+    return (
+      <JourneyDetailView
+        journey={journey}
+        paymentOutcome={payment ?? null}
+        courier={<CourierCard courier={courier} orderStatus={journey.status} />}
+      />
+    );
   } catch (error: unknown) {
     if (error instanceof APIError && error.statusCode === 404) notFound();
     throw error;

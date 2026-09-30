@@ -1,4 +1,4 @@
-import { emailLayout, heading, paragraph, muted, divider, button } from "./layout";
+import { renderEmail, eyebrow, heading, paragraph, muted, button, summaryCard, escapeHtml } from "./layout";
 
 /**
  * "Your link is priced" / "We couldn't read your link" — the follow-up a
@@ -21,32 +21,45 @@ export interface PasteFinishedEmailData {
 }
 
 export function pastePricedTemplate(data: PasteFinishedEmailData) {
-  const what = data.productName ? `<strong>${data.productName}</strong>` : `your link from ${data.storeHost}`;
-  return {
-    subject: `Priced: ${data.productName ?? `your link from ${data.storeHost}`}`,
-    html: emailLayout(`
+  const host = escapeHtml(data.storeHost);
+  return renderEmail(`Priced: ${data.productName ?? `your link from ${data.storeHost}`}`, {
+    preheader: "Your landed price in GH₵ is ready: item, tax, our fee, freight and today's rate.",
+    body: `
+      ${eyebrow("Price ready", "green")}
       ${heading("Your link is priced")}
-      ${paragraph(`We finished reading ${what}. The landed price (item, tax, our fee, freight and today's rate) is ready in GH₵.`)}
-      ${divider()}
-      ${button(data.destinationUrl, "See the landed price")}
-      ${muted(
-        "You are getting this because a link you pasted took longer than usual to read and we said we would let you know. Nothing is charged until you approve it.",
+      ${paragraph(
+        data.productName
+          ? `We finished reading <strong>${escapeHtml(data.productName)}</strong>. Your landed price is ready in GH₵.`
+          : `We finished reading your link from <strong>${host}</strong>. Your landed price is ready in GH₵.`,
       )}
-    `),
-  };
+      ${summaryCard({
+        label: "What you pasted",
+        title: data.productName ? escapeHtml(data.productName) : undefined,
+        rows: [
+          ["Store", host],
+          ["Landed price", "Item, tax, our fee, freight and today's rate"],
+        ],
+      })}
+      ${button(data.destinationUrl, "See the landed price")}
+      ${muted("Nothing is charged until you approve it.")}
+    `,
+    reason: "You are getting this because a link you pasted took longer than usual to read and we said we would let you know.",
+  });
 }
 
 export function pasteUnreadableTemplate(data: PasteFinishedEmailData) {
-  return {
-    subject: `We couldn't read your link from ${data.storeHost}`,
-    html: emailLayout(`
+  const host = escapeHtml(data.storeHost);
+  return renderEmail(`We couldn't read your link from ${data.storeHost}`, {
+    preheader: "A second try often works, and a buyer can always find it for you by hand.",
+    body: `
+      ${eyebrow("Link update", "amber")}
       ${heading("We couldn't read that page")}
       ${paragraph(
-        `We tried a few times to read your link from <strong>${data.storeHost}</strong> and could not get a price out of it. Some stores block readers; a second attempt often works, and a buyer can always source it for you by hand.`,
+        `We tried a few times to read your link from <strong>${host}</strong> and could not get a price out of it. Some stores block readers.`,
       )}
-      ${divider()}
-      ${button(data.destinationUrl, "Try again or describe it to a buyer")}
-      ${muted("You are getting this because a link you pasted took longer than usual and we said we would let you know how it went.")}
-    `),
-  };
+      ${paragraph("A second try often works. If it does not, describe the item and one of our buyers will source it for you by hand.")}
+      ${button(data.destinationUrl, "Try again or ask a buyer")}
+    `,
+    reason: "You are getting this because a link you pasted took longer than usual and we said we would let you know how it went.",
+  });
 }

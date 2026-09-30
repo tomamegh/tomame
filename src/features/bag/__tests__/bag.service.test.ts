@@ -40,7 +40,7 @@ vi.mock("@/db/queries/delivery-addresses", () => ({
 vi.mock("@/db/queries/delivery-zones", () => ({
   listActiveDeliveryZones: vi.fn(async () => [
     { id: "z-door", name: "Greater Accra", kind: "door", fee_ghs: 60, extra_days: 0, note: null, sort_order: 1 },
-    { id: "z-pick", name: "Osu hub", kind: "pickup", fee_ghs: 0, extra_days: 0, note: null, sort_order: 2 },
+    { id: "z-pick", name: "Weija hub", kind: "pickup", fee_ghs: 0, extra_days: 0, note: null, sort_order: 2 },
   ]),
 }));
 vi.mock("@/features/extraction/extraction.service", () => ({ getExtractionSnapshot: vi.fn() }));
@@ -367,7 +367,7 @@ describe("delivery", () => {
     vi.mocked(carts.findOpenCart).mockResolvedValue(cart({ delivery_zone_id: "z-pick" }));
     const bag = await setBagDelivery(ANON, { delivery_zone_id: "z-pick" });
     expect(carts.updateCart).toHaveBeenCalledWith("c1", { delivery_zone_id: "z-pick", delivery_address_id: null });
-    expect(bag.delivery).toMatchObject({ kind: "pickup", address_id: null, label: "Osu hub", fee_ghs: 0 });
+    expect(bag.delivery).toMatchObject({ kind: "pickup", address_id: null, label: "Weija hub", fee_ghs: 0 });
     await expect(setBagDelivery(ANON, { delivery_zone_id: "z-door" })).rejects.toMatchObject({ statusCode: 400 });
   });
 

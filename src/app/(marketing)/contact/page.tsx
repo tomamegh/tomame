@@ -12,5 +12,10 @@ import { ContactPage } from "./contact-page";
  */
 export default async function ContactRoute() {
   const settings = await getMarketingSettings();
-  return <ContactPage whatsappHref={whatsappHref(settings.whatsappNumber)} />;
+  return (
+    <ContactPage
+      whatsappHref={whatsappHref(settings.whatsappNumber)}
+      whatsappNumber={settings.whatsappNumber}
+    />
+  );
 }

@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, WhatsappLogo } from "@phosphor-icons/react/ssr";
 
-import { getSiteContentByKind } from "@/db/queries/site-content";
 import { whatsappHref } from "@/components/layout/marketing/links";
-import { getMarketingSettings } from "@/features/marketing/services";
+import { getMarketingSettings, getPublishedContent } from "@/features/marketing/services";
 import { cn } from "@/lib/utils";
 import { Eyebrow, MARKETING_GUTTER } from "../_components/marketing-primitives";
 import { FaqList } from "./_components/faq-list";
@@ -34,7 +33,7 @@ export const metadata: Metadata = {
  */
 export default async function FaqPage() {
   const [faqs, settings] = await Promise.all([
-    getSiteContentByKind("faq"),
+    getPublishedContent("faq"),
     getMarketingSettings(),
   ]);
 

@@ -25,6 +25,12 @@ export interface JourneyDetailViewProps {
   journey: JourneyDetailViewModel;
   /** `?payment=success|failed|error` from a Paystack return, read on the server. */
   paymentOutcome: string | null;
+  /**
+   * The last-mile rider card (075), rendered by the page on the server and
+   * slotted in under the track. A slot rather than data so this client view
+   * does not grow a second copy of the courier rules.
+   */
+  courier?: React.ReactNode;
 }
 
 /**
@@ -44,7 +50,7 @@ export interface JourneyDetailViewProps {
  * Delays are the mock's literals: back link `tmIn .4s`, main card `tmUp .5s`,
  * rail `.08s`, Updates `.1s`, What you paid `.16s`.
  */
-export function JourneyDetailView({ journey, paymentOutcome }: JourneyDetailViewProps) {
+export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyDetailViewProps) {
   const payment = useJourneyPayment();
   const tone = tonePalette(journey.tone);
   const Glyph = stageIcon(journey.status);
@@ -74,7 +80,7 @@ export function JourneyDetailView({ journey, paymentOutcome }: JourneyDetailView
         className="tm-in flex w-fit items-center gap-2 text-sm leading-none font-medium text-tm-text-2 [animation-duration:0.4s]"
       >
         <ArrowLeft className="size-4" aria-hidden />
-        Journeys
+        Your orders
       </Link>
 
       {/*
@@ -181,6 +187,12 @@ export function JourneyDetailView({ journey, paymentOutcome }: JourneyDetailView
               )}
             </div>
           </section>
+
+          {/*
+            The rider comes straight after the track: when someone is on a
+            motorbike with the parcel, the number to call is the whole page.
+          */}
+          {courier}
 
           {/*
             ABOVE Updates and above the receipt (054). The photograph is the

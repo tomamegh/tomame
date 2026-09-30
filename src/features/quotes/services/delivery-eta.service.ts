@@ -2,15 +2,13 @@ import "server-only";
 import { getRegionByCode, type RegionRow } from "@/db/queries/regions";
 import { listActiveDeliveryZones, type DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import { pickDefaultDoorZone } from "@/features/delivery/zones";
-import type { DeliveryWindow, QuoteConstants } from "../types";
-import { loadQuoteConstants } from "./quote-constants.service";
+import type { DeliveryWindow } from "../types";
 
 /** Origin codes as `regions.code` spells them. */
 export type EtaCountry = "USA" | "UK" | "CHINA";
 
 export interface DeliveryWindowInput {
   country: EtaCountry;
-  constants: Pick<QuoteConstants, "purchase_lead_days_min" | "purchase_lead_days_max">;
   /** The `regions` row for `country`, or null when it is not configured. */
   region: RegionRow | null;
   /** The zone the estimate assumes; null adds no zone days. */
@@ -19,41 +17,34 @@ export interface DeliveryWindowInput {
 }
 
 /**
- * from = today + lead_min + transit_min + zone.extra_days
- * to   = today + lead_max + transit_max + zone.extra_days
+ * from = today + transit_min + zone.extra_days
+ * to   = today + transit_max + zone.extra_days
+ *
+ * `regions.transit_days_*` is the published door-to-door promise counted from
+ * payment ("5–7 days" on the marketing site), so the store-purchase lead time is
+ * inside it, not added on top — adding `purchase_lead_days_*` made the quote's
+ * dates run past the window the site advertises.
  *
  * Null when the region has no transit days: an ETA with a made-up transit is
  * worse than none. Dates are UTC calendar days — Ghana is UTC all year.
  */
 export function estimateDeliveryWindow(input: DeliveryWindowInput): DeliveryWindow | null {
-  const { region, zone, constants, today } = input;
+  const { region, zone, today } = input;
   if (!region || region.code !== input.country) return null;
   if (region.transit_days_min == null || region.transit_days_max == null) return null;
 
   const extra = zone?.extra_days ?? 0;
   return {
-    from: toDateString(addDays(today, constants.purchase_lead_days_min + region.transit_days_min + extra)),
-    to: toDateString(addDays(today, constants.purchase_lead_days_max + region.transit_days_max + extra)),
+    from: toDateString(addDays(today, region.transit_days_min + extra)),
+    to: toDateString(addDays(today, region.transit_days_max + extra)),
   };
 }
 
-/**
- * Region + default door zone + constants → window. `constants` is passed in when
- * the caller already holds the map (the lock service does); otherwise loaded.
- */
-export async function loadDeliveryWindow(
-  country: EtaCountry,
-  constants: QuoteConstants | null,
-  today: Date,
-): Promise<DeliveryWindow | null> {
-  const [region, zones, resolvedConstants] = await Promise.all([
-    getRegionByCode(country),
-    listActiveDeliveryZones(),
-    constants ? Promise.resolve(constants) : loadQuoteConstants(),
-  ]);
+/** Region + default door zone → window. */
+export async function loadDeliveryWindow(country: EtaCountry, today: Date): Promise<DeliveryWindow | null> {
+  const [region, zones] = await Promise.all([getRegionByCode(country), listActiveDeliveryZones()]);
   return estimateDeliveryWindow({
     country,
-    constants: resolvedConstants,
     region,
     zone: pickDefaultDoorZone(zones),
     today,

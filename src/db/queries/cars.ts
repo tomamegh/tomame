@@ -178,6 +178,24 @@ export async function listCarListings(
   };
 }
 
+/**
+ * Is at least one listing published? Drives the Cars tab in both navs.
+ *
+ * One id, `limit(1)`, on the published filter — the cheapest question Postgres
+ * can answer here, since every page renders the nav. Not a `count`: the nav
+ * needs a yes or no, and counting the table to get one grows with the table.
+ */
+export async function hasPublishedCarListing(): Promise<boolean> {
+  const { data, error } = await createAdminClient()
+    .from("car_listings")
+    .select("id")
+    .eq("is_published", true)
+    .limit(1);
+
+  if (error) throw new Error(`Failed to check for published cars: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
 /** One listing by id, whatever its publish state. Admin lookup. */
 export async function getCarListingById(id: string): Promise<CarListingRow | null> {
   const { data, error } = await createAdminClient()

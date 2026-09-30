@@ -16,7 +16,7 @@ export interface LaneMapNode {
   flag: string;
   /** `regions.hub_city`, falling back to the region name. */
   city: string;
-  /** "14–18 d" for a live lane, "coming soon" otherwise. */
+  /** "5–7 d" for a live lane, "coming soon" otherwise. */
   detail: string;
   status: RegionStatus;
   /** The cubic this lane flies, in the 600×440 stage's user units. */
@@ -65,7 +65,7 @@ export function regionShortName(region: RegionRow): string {
   return REGION_SHORT_NAME[region.code] ?? region.name;
 }
 
-/** "14–18 days", "14 days", or null when the lane has no published band. */
+/** "5–7 days", "7 days", or null when the lane has no published band. */
 export function transitBand(region: RegionRow, unit = "days"): string | null {
   const { transit_days_min: min, transit_days_max: max } = region;
   if (min == null && max == null) return null;
