@@ -46,12 +46,12 @@ export const GENERIC_STORE_SLUG = "generic";
 const AMAZON_PLAN: ProviderPlanEntry[] = ["scraperapi", "oxylabs", "zyte", "rainforest", "category-map", "platform-html", "structured-data", "llm"];
 const GENERIC_PLAN: ProviderPlanEntry[] = ["zyte", "category-map", "structured-data", "llm"];
 /**
- * Page sources for every store without its own scraper. Zyte's browser first;
- * then ScraperAPI's rendered, residential-proxy fetch, which the paid plan
- * (2026-09-29) makes worth trying on every store, including the ones that block
- * datacenter traffic.
+ * Page sources for every store without its own scraper. ScraperAPI's
+ * residential fetch first (2-9 s, 10 credits on the paid plan since
+ * 2026-09-29), Zyte's browser second: Zyte flaked on Fashion Nova on hosted
+ * dev while its AI reader was already spending most of the 25 s budget.
  */
-const PAGE_ATTEMPTS: HtmlAttemptName[] = ["zyte-browser", "scraperapi-premium"];
+const PAGE_ATTEMPTS: HtmlAttemptName[] = ["scraperapi-premium", "zyte-browser"];
 /**
  * Stores that ban bots (Target, Best Buy, Home Depot, AliExpress, Temu). Zyte
  * was banned or timed out after ~20 s on these (measured 2026-09-30), which

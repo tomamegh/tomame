@@ -39,7 +39,7 @@ describe("store registry", () => {
     expect(generic.isProductUrl("https://unknown-shop.io/products/hat")).toBe(true);
     expect(generic.isProductUrl("https://unknown-shop.io/")).toBe(false);
     expect(generic.isProductUrl("https://unknown-shop.io/search?q=hat")).toBe(false);
-    expect(generic.htmlAttempts).toEqual(["zyte-browser", "scraperapi-premium"]);
+    expect(generic.htmlAttempts).toEqual(["scraperapi-premium", "zyte-browser"]);
   });
 
   it("advertises live stores once each", () => {
