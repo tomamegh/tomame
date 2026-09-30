@@ -134,7 +134,7 @@
 ## 🔮 Future Enhancements (Post-MVP)
 
 ### Advanced Notifications
-- [ ] WhatsApp notifications (optional)
+- [ ] WhatsApp notifications — after launch (customers can already opt in; order status, parcel photo and delivery-rider messages go by email + bell until then)
 - [ ] SMS notifications
 - [ ] Push notifications
 - [ ] Notification preferences per user
