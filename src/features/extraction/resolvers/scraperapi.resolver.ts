@@ -11,7 +11,7 @@ import { TomameCategory, AMAZON_CATEGORY_MAP, EBAY_CATEGORY_MAP } from "@/config
 import { cleanSpecValue, dimensionsFromSpecs, parseWeightLbs, weightFromSpecs, weightInDimensions } from "../weight";
 import { amazonAsinOf, amazonDomainOf, defaultCurrencyForUrl, ebayItemIdOf } from "../url";
 import { fetchTargetProduct } from "./target-redsky";
-import { cleanString, normalizeImages, parseRating, parseReviewCount, parseStoreShipping } from "../scrapers/parse";
+import { cleanString, normalizeImages, parseRating, parseReviewCount, parseStoreShipping, salePrice } from "../scrapers/parse";
 import { hasRequiredFields } from "./merge";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
 
@@ -77,7 +77,9 @@ export function mapScraperApiAmazon(item: ScraperApiAmazonProduct, sourceUrl: st
     }
   }
 
-  const { price, currency } = parseMoney(item.pricing, defaultCurrencyForUrl(sourceUrl));
+  const listed = parseMoney(item.pricing, defaultCurrencyForUrl(sourceUrl));
+  const { price, listPrice } = salePrice(listed.price, parseMoney(item.list_price, defaultCurrencyForUrl(sourceUrl)).price);
+  const currency = price != null ? listed.currency : null;
   const rawImages = item.high_res_images?.length ? item.high_res_images : item.images ?? [];
   const images = normalizeImages(rawImages);
   const dimensions = info.item_dimensions_d_x_w_x_h ?? info.item_dimensions ?? info.product_dimensions ?? null;
@@ -117,7 +119,7 @@ export function mapScraperApiAmazon(item: ScraperApiAmazonProduct, sourceUrl: st
       rating: item.average_rating ?? null,
       reviewCount: item.total_reviews != null ? `${item.total_reviews} reviews` : null,
       availability: item.availability_status ?? null,
-      listPrice: parseMoney(item.list_price, defaultCurrencyForUrl(sourceUrl)).price,
+      listPrice,
       soldBy: item.sold_by ?? null,
       source: "scraperapi",
     },

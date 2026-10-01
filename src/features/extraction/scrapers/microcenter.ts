@@ -3,7 +3,7 @@ import type { PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, MICROCENTER_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyMicrocenterProduct } from "@/lib/apify/client";
 import { parseWeightLbs } from "../weight";
-import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition } from "./parse";
+import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition, salePrice } from "./parse";
 
 type JsonLdNode = Record<string, unknown>;
 
@@ -220,7 +220,7 @@ export function mapApifyMicrocenterProduct(item: ApifyMicrocenterProduct): Scrap
 
   const rawImages = (item.images ?? []).filter((u): u is string => typeof u === "string");
   const images = normalizeImages(rawImages);
-  const price = typeof item.price === "number" && Number.isFinite(item.price) ? item.price : null;
+  const { price, listPrice: originalPrice } = salePrice(item.price, item.original_price);
 
   return {
     title: item.product_name ?? null,
@@ -249,7 +249,7 @@ export function mapApifyMicrocenterProduct(item: ApifyMicrocenterProduct): Scrap
       availability: item.availability ?? null,
       storeLocation: item.store_location ?? null,
       storeInventory: item.store_inventory ?? null,
-      originalPrice: item.original_price ?? null,
+      originalPrice,
       breadcrumbs: item.category ? [item.category] : [],
       source: "apify",
     },

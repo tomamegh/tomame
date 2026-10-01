@@ -54,6 +54,31 @@ describe("structured data parsing", () => {
     expect(ld.seller).toBe("ShopCo Outlet");
   });
 
+  it("charges the sale price when JSON-LD marks the was-price as a StrikethroughPrice spec", () => {
+    const ld = extractFromJsonLd([{
+      "@type": "Product",
+      name: "Sale Dress",
+      offers: {
+        "@type": "Offer",
+        priceCurrency: "USD",
+        priceSpecification: [
+          { "@type": "UnitPriceSpecification", price: "64.99", priceType: "https://schema.org/StrikethroughPrice" },
+          { "@type": "UnitPriceSpecification", price: "44.99" },
+        ],
+      },
+    }]);
+    expect(ld.price).toBe(44.99);
+    expect(ld.metadata?.listPrice).toBe(64.99);
+  });
+
+  it("charges product:sale_price:amount over product:price:amount", () => {
+    const meta = extractFromMeta(cheerio.load(
+      '<meta property="og:title" content="Sale Top"><meta property="product:price:amount" content="40.00">' +
+      '<meta property="product:sale_price:amount" content="28.00"><meta property="product:price:currency" content="USD">',
+    ));
+    expect(meta.price).toBe(28);
+  });
+
   it("leaves typed facts unset when the Product node does not state them", () => {
     const ld = extractFromJsonLd([{ "@type": "Product", name: "Bare", offers: { "@type": "Offer", price: "1", priceCurrency: "USD" } }]);
     expect(ld.condition).toBeUndefined();

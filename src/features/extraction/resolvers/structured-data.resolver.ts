@@ -2,7 +2,7 @@ import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import { logger } from "@/lib/logger";
 import { parseWeightLbs, unitOf } from "../weight";
-import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition } from "../scrapers/parse";
+import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition, salePrice } from "../scrapers/parse";
 import type { PartialProduct, ExtractionResolver, ResolveContext, ResolverResult } from "./types";
 
 type Node = Record<string, unknown>;
@@ -108,14 +108,24 @@ export function extractFromJsonLd(nodes: Node[]): PartialProduct {
 
   const offer = firstOffer(product);
   if (offer) {
-    out.price = num(offer.price ?? offer.lowPrice);
+    let current = num(offer.price ?? offer.lowPrice);
+    let original: number | null = null;
     const cur = str(offer.priceCurrency);
     out.currency = cur ? cur.toUpperCase() : null;
-    if (offer.priceSpecification && typeof offer.priceSpecification === "object") {
-      const ps = offer.priceSpecification as Node;
-      out.price = out.price ?? num(ps.price);
+    // schema.org marks the "was" price as a priceSpecification with priceType
+    // StrikethroughPrice / ListPrice / MSRP; anything else is the selling price.
+    const specs = Array.isArray(offer.priceSpecification) ? offer.priceSpecification : offer.priceSpecification ? [offer.priceSpecification] : [];
+    for (const raw of specs) {
+      if (!raw || typeof raw !== "object") continue;
+      const ps = raw as Node;
+      const isWas = /strikethrough|listprice|msrp|srp/i.test(String(ps.priceType ?? ""));
+      if (isWas) original = original ?? num(ps.price);
+      else current = current ?? num(ps.price);
       out.currency = out.currency ?? str(ps.priceCurrency)?.toUpperCase() ?? null;
     }
+    const sale = salePrice(current, original);
+    out.price = sale.price;
+    if (sale.listPrice != null) out.metadata = { ...(out.metadata ?? {}), listPrice: sale.listPrice };
     const condition = parseSchemaCondition(offer.itemCondition);
     if (condition) out.condition = condition;
     const availability = parseSchemaAvailability(offer.availability);
@@ -181,7 +191,12 @@ export function extractFromMeta($: CheerioAPI): PartialProduct {
   out.description = meta("og:description") ?? meta("description");
   out.brand = meta("product:brand") ?? meta("og:brand");
 
-  const amount = num(meta("product:price:amount") ?? meta("og:price:amount") ?? meta("twitter:data1"));
+  // `product:sale_price:amount` (Facebook catalog tags) is what the store charges
+  // while a sale runs; `product:price:amount` is then the regular price.
+  const amount = salePrice(
+    num(meta("product:sale_price:amount")) ?? num(meta("product:price:amount") ?? meta("og:price:amount") ?? meta("twitter:data1")),
+    meta("product:sale_price:amount") ? num(meta("product:price:amount") ?? meta("og:price:amount")) : null,
+  ).price;
   const currency = str(meta("product:price:currency") ?? meta("og:price:currency"));
   if (amount) {
     out.price = amount;

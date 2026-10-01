@@ -3,7 +3,7 @@ import { EXTRACTION } from "@/config/extraction";
 import { fetchZyteProduct, isZyteConfigured, type ZyteProduct } from "@/lib/zyte/client";
 import { dimensionsFromSpecs, weightFromSpecs } from "../weight";
 import { hasRequiredFields } from "./merge";
-import { addVariant, cleanTitle, normalizeImages, parseAggregateRating, parseSchemaAvailability } from "../scrapers/parse";
+import { addVariant, cleanTitle, normalizeImages, parseAggregateRating, parseSchemaAvailability, salePrice } from "../scrapers/parse";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
 
 const SYMBOL_CURRENCY: Record<string, string> = { $: "USD", "£": "GBP", "€": "EUR", "¥": "CNY", "US$": "USD" };
@@ -34,10 +34,7 @@ export function mapZyteProduct(item: ZyteProduct, fallbackCurrency: string): Par
   // Fashion Nova's sale pages as price 64.99 / regular 44.99 while the page's
   // own offer said 44.99 (2026-10-01), so customers paid the pre-sale price.
   // The customer pays what the store charges, which is the lower one.
-  const listed = num(item.price);
-  const regular = num(item.regularPrice);
-  const swapped = listed != null && regular != null && regular < listed;
-  const price = swapped ? regular : listed;
+  const { price, listPrice } = salePrice(num(item.price), num(item.regularPrice));
   const currency = price == null ? null : item.currency?.toUpperCase() ?? (item.currencyRaw ? SYMBOL_CURRENCY[item.currencyRaw] : undefined) ?? fallbackCurrency;
   const weight = weightFromSpecs(specs);
   const rawImages = (item.images ?? []).map((i) => i?.url).filter((u): u is string => !!u);
@@ -84,7 +81,7 @@ export function mapZyteProduct(item: ZyteProduct, fallbackCurrency: string): Par
       sku: item.sku ?? null,
       gtin: item.gtin?.[0]?.value ?? null,
       availability: item.availability ?? null,
-      listPrice: swapped ? listed : regular,
+      listPrice,
       color: item.color ?? null,
       variant,
       probability: item.metadata?.probability ?? null,

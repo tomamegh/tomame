@@ -2,7 +2,7 @@ import { logger } from "@/lib/logger";
 import { CATALOG_JOB } from "@/config/catalog";
 import { fetchZyteProductList, isZyteConfigured, type ZyteProductFromList } from "@/lib/zyte/client";
 import { hashUrl } from "@/features/extraction/url";
-import { cleanString, normalizeImageUrl } from "@/features/extraction/scrapers/parse";
+import { cleanString, normalizeImageUrl, salePrice } from "@/features/extraction/scrapers/parse";
 import type { CatalogProductInput, CatalogStore } from "@/db/queries/catalog";
 import { currencyOf, dedupe, toNumber, trimRaw, type CatalogSearchFetch, type MapContext } from "./scraperapi-search";
 
@@ -65,7 +65,8 @@ export function mapZyteProductList(store: ZyteSearchStore, products: readonly Zy
     if (!title || !url) continue;
     const listing = canonicalZyteListing(store, url);
     if (!listing) continue;
-    const price = toNumber(p.price);
+    // Same rule as product pages: a "regular" below the price is the two swapped.
+    const { price } = salePrice(toNumber(p.price), toNumber(p.regularPrice));
     items.push({
       store,
       external_id: listing.id,

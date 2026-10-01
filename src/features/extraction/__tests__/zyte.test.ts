@@ -7,6 +7,7 @@ vi.mock("@/lib/env", () => ({
 }));
 
 import { mapZyteProduct, zyteResolver } from "../resolvers/zyte.resolver";
+import { salePrice } from "../scrapers/parse";
 import type { ZyteProduct } from "@/lib/zyte/client";
 
 const f = fixtures as unknown as Record<string, ZyteProduct>;
@@ -46,6 +47,14 @@ describe("mapZyteProduct (real response shapes)", () => {
     const normal = mapZyteProduct({ name: "Dress", price: "44.99", regularPrice: "64.99", currency: "USD" }, "USD");
     expect(normal.price).toBe(44.99);
     expect(normal.metadata?.listPrice).toBe(64.99);
+  });
+
+  it("salePrice: lower of two prices is charged whichever order a vendor reports them in", () => {
+    expect(salePrice(64.99, 44.99)).toEqual({ price: 44.99, listPrice: 64.99 });
+    expect(salePrice(44.99, 64.99)).toEqual({ price: 44.99, listPrice: 64.99 });
+    expect(salePrice(30, null)).toEqual({ price: 30, listPrice: null });
+    expect(salePrice(null, 30)).toEqual({ price: null, listPrice: 30 }); // out of stock: never quote the list price
+    expect(salePrice(0, 30)).toEqual({ price: null, listPrice: 30 });
   });
 
   it("Nike: falls back to the store currency when Zyte gives a symbol", () => {

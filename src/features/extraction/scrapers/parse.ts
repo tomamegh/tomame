@@ -29,6 +29,21 @@ export function parseReviewCount(raw: unknown): number | null {
 }
 
 /**
+ * The price a customer pays, given a store's current price and its "was" /
+ * strike-through / list price. An original BELOW the current price means the
+ * vendor swapped them (Zyte read Fashion Nova's sale pages as price 64.99 /
+ * regular 44.99, 2026-10-01), so the lower is the price and the higher the
+ * original. Every mapper that reads two prices from one response goes through
+ * this, so a sale is honoured whichever store or vendor it comes from.
+ */
+export function salePrice(current: number | null | undefined, original: number | null | undefined): { price: number | null; listPrice: number | null } {
+  const c = typeof current === "number" && Number.isFinite(current) && current > 0 ? current : null;
+  const o = typeof original === "number" && Number.isFinite(original) && original > 0 ? original : null;
+  if (c != null && o != null && o < c) return { price: o, listPrice: c };
+  return { price: c, listPrice: o };
+}
+
+/**
  * A store's shipping charge for one unit, in the listing's currency.
  * 24 / "24.00" / "$24" → 24; "Free" / "FREE shipping" / 0 → 0; anything else
  * (missing, negative, "See details", NaN) → null, meaning unknown. Never reads

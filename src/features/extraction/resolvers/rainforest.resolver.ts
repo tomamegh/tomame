@@ -5,7 +5,7 @@ import { cleanSpecValue, dimensionsFromSpecs, parseWeightLbs, weightFromSpecs, w
 import { EXTRACTION } from "@/config/extraction";
 import { hasRequiredFields } from "./merge";
 import { amazonAsinOf, amazonDomainOf } from "../url";
-import { cleanString, humanizeToken, normalizeImages, parseRating, parseReviewCount } from "../scrapers/parse";
+import { cleanString, humanizeToken, normalizeImages, parseRating, parseReviewCount, salePrice } from "../scrapers/parse";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
 
 /** Rainforest product record → partial product. Exported for tests. */
@@ -25,7 +25,8 @@ export function mapRainforestProduct(item: RainforestProduct): PartialProduct {
     }
   }
 
-  const price = item.buybox_winner?.price;
+  const offer = item.buybox_winner?.price;
+  const { price: amount, listPrice } = salePrice(offer?.value, item.buybox_winner?.rrp?.value);
   const dimensions = cleanSpecValue(item.dimensions) ?? dimensionsFromSpecs(specs);
   const direct = cleanSpecValue(item.weight);
   const fromSpecs = direct ? null : weightFromSpecs(specs);
@@ -39,8 +40,8 @@ export function mapRainforestProduct(item: RainforestProduct): PartialProduct {
   return {
     title: item.title ?? null,
     image: images[0] ?? null,
-    price: typeof price?.value === "number" && price.value > 0 ? price.value : null,
-    currency: price?.currency?.toUpperCase() ?? null,
+    price: amount,
+    currency: amount != null ? offer?.currency?.toUpperCase() ?? null : null,
     description: item.feature_bullets?.length ? item.feature_bullets.join("\n") : item.description ?? null,
     brand: item.brand ?? specs["Brand"] ?? null,
     category,
@@ -64,7 +65,7 @@ export function mapRainforestProduct(item: RainforestProduct): PartialProduct {
       reviewCount: item.ratings_total != null ? `${item.ratings_total} ratings` : null,
       availability: item.buybox_winner?.availability?.type ?? null,
       condition: item.buybox_winner?.condition?.is_new === false ? "Used" : item.buybox_winner ? "New" : null,
-      listPrice: item.buybox_winner?.rrp?.value ?? null,
+      listPrice,
       source: "rainforest",
     },
   };
