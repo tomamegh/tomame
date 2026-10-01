@@ -38,6 +38,16 @@ describe("mapZyteProduct (real response shapes)", () => {
     expect(p.metadata?.listPrice).toBe(3109);
   });
 
+  it("Fashion Nova sale: a regular price below the price is the two swapped, so the lower is charged", () => {
+    const sale = mapZyteProduct({ name: "Brenda Halter Mesh Maxi Dress", price: "64.99", regularPrice: "44.99", currency: "USD" }, "USD");
+    expect(sale.price).toBe(44.99);
+    expect(sale.metadata?.listPrice).toBe(64.99);
+
+    const normal = mapZyteProduct({ name: "Dress", price: "44.99", regularPrice: "64.99", currency: "USD" }, "USD");
+    expect(normal.price).toBe(44.99);
+    expect(normal.metadata?.listPrice).toBe(64.99);
+  });
+
   it("Nike: falls back to the store currency when Zyte gives a symbol", () => {
     const p = mapZyteProduct({ ...f.nike!, currency: undefined, currencyRaw: "$" }, "GBP");
     expect(p.price).toBe(115);
