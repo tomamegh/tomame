@@ -16,6 +16,7 @@ export type StaffAlertTrigger =
   | { kind: "payment_failed"; paymentId: string; reason: "declined" | "expired" }
   | { kind: "order_status"; orderId: string; from: string; to: string; by: string }
   | { kind: "bag_status"; groupId: string; from: string; to: string; by: string }
+  | { kind: "package_shipped"; packageId: string; reference: string; orderIds: string[]; by: string }
   | { kind: "order_review"; orderId: string; outcome: "approved" | "priced" | "rejected" }
   | { kind: "car_order"; carOrderId: string; action: "created" | "cancelled" | "released" };
 
@@ -31,6 +32,7 @@ export function eventOf(t: StaffAlertTrigger): StaffAlertEvent {
       return "payment_failed";
     case "order_status":
     case "bag_status":
+    case "package_shipped":
       return "order_status_changed";
     case "order_review":
       return "order_review";
@@ -55,6 +57,8 @@ export function eventKeyOf(t: StaffAlertTrigger): string {
       return `order_status:order:${t.orderId}:${t.to}`;
     case "bag_status":
       return `order_status:group:${t.groupId}:${t.to}`;
+    case "package_shipped":
+      return `order_status:package:${t.packageId}:in_transit`;
     case "order_review":
       return `order_review:${t.orderId}:${t.outcome}`;
     case "car_order":
@@ -71,6 +75,8 @@ export function entityOf(t: StaffAlertTrigger): { entity_type: string; entity_id
     case "bag_placed":
     case "bag_status":
       return { entity_type: "order_group", entity_id: t.groupId };
+    case "package_shipped":
+      return { entity_type: "warehouse_package", entity_id: t.packageId };
     case "payment_succeeded":
     case "payment_failed":
       return { entity_type: "payment", entity_id: t.paymentId };

@@ -158,12 +158,16 @@ async function readSettings(): Promise<Record<string, unknown>> {
 
 /**
  * From the admin screen. Goes to the list as currently saved (or the env
- * override), and is NOT gated by `alertsEnabled`: an admin pressing "send
- * test" on dev wants to see it arrive. Recorded with its own unique key.
+ * override). Gated like real alerts: off production it sends only when
+ * STAFF_ALERT_RECIPIENTS overrides the list, so dev never mails the
+ * production staff. Recorded with its own unique key.
  */
 export async function sendStaffTestEmail(requestedBy: string, deps: StaffAlertDeps = defaultDeps()): Promise<StaffAlertOutcome> {
   const settings = await readSettings();
-  const { recipients } = resolveStaffRecipients(deps.env.STAFF_ALERT_RECIPIENTS, settings[STAFF_RECIPIENTS_KEY]);
+  const { recipients, from } = resolveStaffRecipients(deps.env.STAFF_ALERT_RECIPIENTS, settings[STAFF_RECIPIENTS_KEY]);
+  if (!alertsEnabled(deps.env) && from !== "env") {
+    return { status: "skipped", subject: "Test emails only send from production (or with STAFF_ALERT_RECIPIENTS set)" };
+  }
   const environment = environmentLabel(deps.env);
   const id = await claimStaffAlertSend({
     event_key: `test:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
@@ -375,6 +379,25 @@ export async function buildAlert(t: StaffAlertTrigger, environment: string | nul
         headline: `${target.reference} is ${human(t.to)}`,
         summary: `${target.reference} for ${customer.name ?? customer.email ?? "a customer"} moved from ${human(t.from)} to ${human(t.to)}.`,
         facts,
+      };
+    }
+    case "package_shipped": {
+      const targets = await Promise.all(t.orderIds.map(orderTarget));
+      const customers = new Set(targets.map((x) => x.userId)).size;
+      return {
+        customer: null,
+        items: targets.flatMap((x) => x.items),
+        totalGhs: targets.reduce((sum, x) => sum + x.totalGhs, 0),
+        payment: null,
+        adminHref: `/warehouse/packages/${t.packageId}`,
+        adminLabel: "Open the package",
+        environment,
+        subject: `${p} Package ${t.reference} in transit · ${targets.length} order${targets.length === 1 ? "" : "s"}`,
+        eyebrow: "Order update",
+        tone: STATUS_TONE.in_transit ?? "green",
+        headline: `${t.reference} has left the hub`,
+        summary: `${targets.length} order${targets.length === 1 ? "" : "s"} for ${customers} customer${customers === 1 ? "" : "s"} moved to in transit.`,
+        facts: [["By", t.by]],
       };
     }
     case "order_review": {

@@ -33,6 +33,7 @@ export async function lookupPublicTracking(input: {
   query: string;
   verifier?: string | null;
   viewerId: string | null;
+  ip?: string;
 }): Promise<PublicTrackingResult> {
   const query = classifyTrackingQuery(input.query);
   if (query.kind === "invalid") return TRACKING_NOT_FOUND;
@@ -46,8 +47,13 @@ export async function lookupPublicTracking(input: {
 
   const verifier = parseVerifier(input.verifier);
   if (level === "coarse" && input.verifier?.trim()) {
-    const limit = await checkRateLimit(`track-verify:${order.order_no}`, RATE_LIMIT.trackVerify);
-    if (!limit.allowed || !verifier) {
+    // Per reference + address, so a stranger guessing cannot lock the customer
+    // out; plus a looser per-reference ceiling against guesses from many addresses.
+    const [mine, all] = await Promise.all([
+      checkRateLimit(`track-verify:${order.order_no}:${input.ip ?? "unknown"}`, RATE_LIMIT.trackVerify),
+      checkRateLimit(`track-verify:${order.order_no}`, RATE_LIMIT.trackVerifyReference),
+    ]);
+    if (!mine.allowed || !all.allowed || !verifier) {
       verifyFailed = true;
     } else {
       const [phones, email] = await Promise.all([

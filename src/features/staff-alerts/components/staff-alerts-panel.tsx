@@ -122,7 +122,7 @@ export function StaffAlertsPanel(props: StaffAlertsPanelProps) {
           <p role="status" className="rounded-[14px] bg-tm-paper px-4 py-3 text-[13px] leading-[1.5] font-medium text-tm-text-2">
             <span className="font-semibold text-tm-ink">Not sending on {props.environment ?? "this deployment"}.</span> Events are
             recorded below as skipped. Only production (tomame.ca) emails the list, unless OPS_ALERTS_ENABLED=true. The test
-            button still sends.
+            button is off here too, unless STAFF_ALERT_RECIPIENTS points it at a test address.
           </p>
         ) : null}
         {props.recipientsFrom === "env" ? (

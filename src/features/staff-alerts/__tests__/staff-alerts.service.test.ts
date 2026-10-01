@@ -164,10 +164,17 @@ describe("event keys", () => {
 });
 
 describe("sendStaffTestEmail", () => {
-  it("sends even on dev, to the saved list, with the dev prefix", async () => {
+  it("does not mail the saved (production) list from dev", async () => {
     const d = deps(DEV);
     const out = await sendStaffTestEmail("admin@x.io", d);
-    expect(out).toMatchObject({ status: "sent", recipients: 2 });
+    expect(out).toMatchObject({ status: "skipped" });
+    expect(d.send).not.toHaveBeenCalled();
+  });
+
+  it("sends on dev to the STAFF_ALERT_RECIPIENTS override, with the dev prefix", async () => {
+    const d = deps({ ...DEV, STAFF_ALERT_RECIPIENTS: "tester@example.com" });
+    const out = await sendStaffTestEmail("admin@x.io", d);
+    expect(out).toMatchObject({ status: "sent", recipients: 1 });
     expect(d.send.mock.calls[0]![0].subject).toBe("[Tomame dev] Test: staff order alerts are working");
   });
 });

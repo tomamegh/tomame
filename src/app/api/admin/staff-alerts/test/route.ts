@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       entityId: null,
       metadata: { key: "staff_order_alert_recipients", result },
     });
+    if (result.status === "skipped") throw new APIError(409, result.subject);
     if (result.status === "failed") throw new APIError(502, `The test email was not delivered: ${result.error}`);
     return successResponse(result);
   } catch (error) {

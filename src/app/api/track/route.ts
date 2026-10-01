@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
       query: parsed.data.q,
       verifier: parsed.data.verify ?? null,
       viewerId: user?.id ?? null,
+      ip,
     });
     const response = successResponse(result);
     response.headers.set("Cache-Control", "no-store");

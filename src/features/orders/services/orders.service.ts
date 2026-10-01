@@ -563,6 +563,7 @@ export async function advanceOrderFromWarehouse(
   orderId: string,
   newStatus: (typeof WAREHOUSE_ORDER_MOVES)[number],
   trackingData?: OrderTrackingInput,
+  opts?: { staffAlert?: boolean },
 ): Promise<Order> {
   if (!canAccessWarehouse(user)) {
     throw new APIError(403, "Warehouse access required");
@@ -577,6 +578,7 @@ export async function advanceOrderFromWarehouse(
     orderId,
     newStatus,
     trackingData,
+    opts,
   );
 }
 
@@ -587,6 +589,8 @@ async function applyOrderStatusChange(
   orderId: string,
   newStatus: string,
   trackingData?: OrderTrackingInput,
+  // false when the caller sends one staff alert for a batch (a package shipping).
+  opts?: { staffAlert?: boolean },
 ): Promise<Order> {
   const order = await getOrderById(client, orderId);
   if (!order) {
@@ -674,7 +678,9 @@ async function applyOrderStatusChange(
     entityId: orderId,
     metadata: { from: order.status, to: newStatus },
   });
-  notifyStaff({ kind: "order_status", orderId, from: order.status, to: newStatus, by: user.email ?? actorRole });
+  if (opts?.staffAlert !== false) {
+    notifyStaff({ kind: "order_status", orderId, from: order.status, to: newStatus, by: user.email ?? actorRole });
+  }
 
   // The customer's half of the same fact (050). `audit_logs` above stays the
   // compliance record — machine-worded, admin-only; this is the sentence the

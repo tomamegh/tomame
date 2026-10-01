@@ -40,7 +40,7 @@ describe("POST /api/track", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true, data: { found: false } });
     expect(res.headers.get("cache-control")).toBe("no-store");
-    expect(lookupPublicTracking).toHaveBeenCalledWith({ query: "TM-99999", verifier: null, viewerId: null });
+    expect(lookupPublicTracking).toHaveBeenCalledWith(expect.objectContaining({ query: "TM-99999", verifier: null, viewerId: null }));
   });
 
   it("rate-limits by IP before reading anything", async () => {
@@ -54,7 +54,7 @@ describe("POST /api/track", () => {
   it("passes the signed-in viewer so an owner sees their own order", async () => {
     vi.mocked(getAuthenticatedUser).mockResolvedValue({ id: "u-1" } as never);
     await POST(post({ q: "TM-00001", verify: "0192" }));
-    expect(lookupPublicTracking).toHaveBeenCalledWith({ query: "TM-00001", verifier: "0192", viewerId: "u-1" });
+    expect(lookupPublicTracking).toHaveBeenCalledWith(expect.objectContaining({ query: "TM-00001", verifier: "0192", viewerId: "u-1" }));
   });
 
   it("answers a carrier number with the same 200 { found: false } (carrier numbers are internal)", async () => {

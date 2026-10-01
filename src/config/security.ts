@@ -54,7 +54,11 @@ export const RATE_LIMIT = {
    * combined. The last four digits of a phone are 10,000 guesses; at 8 an hour
    * that is two months, far longer than a parcel is in transit.
    */
+  // Per reference AND address: one person guessing gets 8 tries an hour.
   trackVerify: { windowMs: 60 * 60 * 1000, maxRequests: 8 },
+  // Per reference, all addresses: a ceiling on distributed guessing that is
+  // far above what a customer and a few helpers would ever reach.
+  trackVerifyReference: { windowMs: 60 * 60 * 1000, maxRequests: 60 },
   /** Public waitlist signup — 5 requests per hour per IP. */
   waitlist: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
   /**

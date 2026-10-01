@@ -35,6 +35,7 @@ import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { findStore } from "@/features/extraction/stores";
 import { recordOrderEvent } from "@/features/orders/services/order-events.service";
 import { advanceOrderFromWarehouse } from "@/features/orders/services/orders.service";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 import type { PlatformUser } from "@/features/users/types";
 import { APIError } from "@/lib/auth/api-helpers";
 import { requireWarehouse, warehouseActorRole } from "@/lib/auth/guards";
@@ -333,12 +334,12 @@ export async function shipWarehousePackage(
     if (!item || item.order_status === "in_transit") continue;
     try {
       if (item.order_status === "paid") {
-        await advanceOrderFromWarehouse(user, item.order_id, "processing");
+        await advanceOrderFromWarehouse(user, item.order_id, "processing", undefined, { staffAlert: false });
       }
       // 086: the air waybill / forwarder number is INTERNAL. It stays on the
       // package; the order (and so the customer's email, WhatsApp and journey)
       // is tracked by its Tomame number only.
-      await advanceOrderFromWarehouse(user, item.order_id, "in_transit");
+      await advanceOrderFromWarehouse(user, item.order_id, "in_transit", undefined, { staffAlert: false });
     } catch (error) {
       failed.push({
         order_no: item.order_no,
@@ -365,6 +366,11 @@ export async function shipWarehousePackage(
     carrier: carrier ?? null,
     tracking_number: trackingNumber ?? null,
   });
+  // One staff email for the package, not one per order inside it.
+  const orderIds = pkg.lines.flatMap((l) => (l.item ? [l.item.order_id] : []));
+  if (orderIds.length > 0) {
+    notifyStaff({ kind: "package_shipped", packageId: id, reference: row.reference, orderIds, by: user.email ?? "warehouse" });
+  }
   return { package: await getWarehousePackage(user, id), failed };
 }
 
