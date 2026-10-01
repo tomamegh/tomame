@@ -84,14 +84,25 @@ export async function login(details: LoginSchemaType): Promise<PlatformUser> {
 
   const { data: claimsData } = await supabase.auth.getClaims();
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id, role")
     .eq("id", data.user.id)
-    .single();
+    .maybeSingle();
 
-  if (!profile) {
-    throw new APIError(500, "User record not found");
+  // The password was right; anything failing from here is on our side, never
+  // the customer's. A failed read (2026-10-01: Supabase rejected fresh tokens as
+  // "JWT issued at future" for two hours) is an outage to retry, not a missing
+  // account. Either way the half-made session is dropped so they start clean.
+  if (profileError || !profile) {
+    logger.error("login: profile read failed", {
+      code: profileError?.code ?? "no_profile",
+      message: profileError?.message ?? "no profile row for this user",
+    });
+    await supabase.auth.signOut().catch(() => undefined);
+    throw profileError
+      ? new APIError(503, "We couldn't finish signing you in because of a problem on our side. Please try again in a minute.")
+      : new APIError(500, "Your account isn't fully set up. Contact support and we'll fix it.");
   }
 
   await logAuditEvent({
