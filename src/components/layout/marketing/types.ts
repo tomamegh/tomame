@@ -15,7 +15,7 @@ export interface MarketingNavItem {
   href: string;
 }
 
-export type MarketingNavKey = "how" | "regions" | "fees" | "faq" | "about" | "cars";
+export type MarketingNavKey = "how" | "regions" | "fees" | "faq" | "about" | "cars" | "track";
 
 /** A link rendered in the footer. */
 export interface MarketingLink {

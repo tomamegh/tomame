@@ -108,6 +108,8 @@ export interface OrderReviewInput {
     estimated_price_usd?: number;
     product_image_url?: string | null;
     origin_country?: OriginCountry;
+    /** Approve only: per-unit store shipping in the listing currency; replaces the quoted figure. */
+    store_shipping?: number;
   };
   reason?: string;
     admin_total_ghs?: number;

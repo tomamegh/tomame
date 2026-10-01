@@ -1,10 +1,13 @@
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { logger } from "@/lib/logger";
 import { REGION_TO_PRICING } from "@/features/extraction/url";
+import { storeShippingCurrencyOf } from "./store-shipping";
 import type { FxOverride, PricingBreakdown, PricingCalculator } from "@/lib/pricing";
 import { freightCorrectionPatch } from "@/features/pricing/freight-inspection";
 import { reviveRegion } from "./region-revive";
 import type { ExtractionResult, Quote } from "./types";
+
+export { storeShippingCurrencyOf };
 
 export interface PriceOverrides {
   /** Customer-supplied gap-filler, honoured only when the snapshot has no price. */
@@ -74,6 +77,11 @@ export async function priceExtractionWith(
       weightLbs: product.weight_lbs ?? undefined,
       productTitle: product.title ?? undefined,
       region: REGION_TO_PRICING[country],
+      // The store's own shipping to our warehouse, from the server snapshot.
+      // Listed in the product's currency even when the customer filled the price;
+      // Amazon always prices it as 0.
+      storeShipping: extraction.platform === "amazon" ? null : product.store_shipping ?? null,
+      storeShippingCurrency: storeShippingCurrencyOf(extraction, country),
       ...correction,
     }, fx);
     return { pricing, reason: null };

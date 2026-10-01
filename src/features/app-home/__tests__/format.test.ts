@@ -185,10 +185,17 @@ describe("buildReceiptRows", () => {
     ]);
   });
 
-  it("has one entrance delay per row", () => {
-    expect(buildReceiptRows(breakdown())).toHaveLength(
+  it("has one entrance delay per row, store shipping included", () => {
+    expect(buildReceiptRows(breakdown({ store_shipping_usd: 24 }))).toHaveLength(
       RECEIPT_ROW_DELAYS.length,
     );
+  });
+
+  it("prints a Store shipping row only when the store charges shipping", () => {
+    const rows = buildReceiptRows(breakdown({ store_shipping_usd: 48 }));
+    expect(rows.map((row) => row.key)).toEqual(["item", "tax", "fee", "shipping", "freight", "rate"]);
+    expect(rows.find((row) => row.key === "shipping")).toMatchObject({ label: "Store shipping", value: "$48.00" });
+    expect(buildReceiptRows(breakdown()).some((row) => row.key === "shipping")).toBe(false);
   });
 
   it("omits a row rather than printing NaN when a figure is missing", () => {

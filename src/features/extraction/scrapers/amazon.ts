@@ -272,6 +272,7 @@ export function mapApifyAmazonProduct(item: ApifyAmazonProduct, sourceUrl: strin
     images,
     variants: {},
     availability: cleanString(item.warehouseAvailability),
+    store_shipping: null,
     metadata: {
       images: rawImages,
       availableSizes: [],
@@ -343,6 +344,7 @@ export class AmazonScraper implements PlatformScraper {
       images,
       variants,
       availability: extractAvailability($),
+      store_shipping: null,
       metadata: {
         images: allImages,
         availableSizes,

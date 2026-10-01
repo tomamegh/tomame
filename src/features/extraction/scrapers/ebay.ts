@@ -4,7 +4,7 @@ import { TomameCategory, EBAY_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyEbayProduct } from "@/lib/apify/client";
 import { dimensionsFromSpecs, weightFromSpecs } from "../weight";
 import { ebayItemIdOf } from "../url";
-import { addVariant, cleanString, normalizeImages } from "./parse";
+import { addVariant, cleanString, normalizeImages, parseStoreShipping } from "./parse";
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
@@ -240,6 +240,7 @@ export function mapApifyEbayProduct(item: ApifyEbayProduct): ScrapedProduct {
     images,
     variants: {},
     availability: null,
+    store_shipping: parseStoreShipping(item.shippingCost),
     metadata: {
       breadcrumbs: crumbs,
       images: rawImages,
@@ -306,6 +307,7 @@ export class EbayScraper implements PlatformScraper {
       images: normalizeImages(allImages, mainImage),
       variants: extractVariants($),
       availability: extractAvailability($),
+      store_shipping: null,
       metadata: {
         images: allImages,
         itemId: null,

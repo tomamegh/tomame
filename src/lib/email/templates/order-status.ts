@@ -17,7 +17,6 @@ interface OrderEmailData {
   productName: string;
   orderId: string;
   trackingNumber?: string;
-  carrier?: string;
   estimatedDeliveryDate?: string;
 }
 
@@ -28,6 +27,8 @@ interface PricingBreakdownData {
   taxUsd: number;
   valueFeePercentage: number;
   valueFeeUsd: number;
+  /** The store's own shipping to our warehouse, line total. Absent/0 hides the row. */
+  storeShippingUsd?: number;
   flatRateGhs: number;
   exchangeRate: number;
   totalGhs: number;
@@ -115,7 +116,6 @@ export function orderShippedTemplate(data: OrderEmailData) {
       ${paragraph(`<strong>${escapeHtml(data.productName)}</strong> has left our hub. Here is how to follow it.`)}
       ${steps(JOURNEY, 2)}
       ${orderCard(data, [
-        data.carrier ? ["Carrier", escapeHtml(data.carrier)] : null,
         data.trackingNumber ? ["Tracking number", escapeHtml(data.trackingNumber)] : null,
         data.estimatedDeliveryDate ? ["Expected", escapeHtml(data.estimatedDeliveryDate)] : null,
       ])}
@@ -201,6 +201,7 @@ export function orderApprovedTemplate(data: OrderReviewEmailData) {
             usd(p.taxUsd),
           ],
           [`Value fee (${(p.valueFeePercentage * 100).toFixed(0)}%)`, usd(p.valueFeeUsd)],
+          ...(p.storeShippingUsd ? [["Store shipping", usd(p.storeShippingUsd)] as [string, string]] : []),
           ["Freight", ghs(p.flatRateGhs)],
           ["Rate", `1 USD = ${p.exchangeRate} GHS`],
         ],

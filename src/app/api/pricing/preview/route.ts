@@ -8,6 +8,7 @@ import { PRICING_TO_REGION } from "@/features/extraction/url";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
 import { gapFillOverrides } from "@/features/extraction/quote.service";
+import { MAX_STORE_SHIPPING_PER_UNIT } from "@/features/extraction/store-shipping";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
@@ -20,8 +21,12 @@ import { RATE_LIMIT } from "@/config/security";
  *    `itemPriceUsd` is honoured ONLY when the snapshot has no price
  *    (`gapFillOverrides` — the same rule order intake applies; the order will
  *    be flagged for review).
- *  - `itemPriceUsd` + `quantity` (+ `category`, `weightLbs`) → manual estimate,
- *    for orders placed without an extraction. Informational only.
+ *  - `itemPriceUsd` + `quantity` (+ `category`, `weightLbs`, `storeShippingUsd`)
+ *    → manual estimate, for orders placed without an extraction. Informational
+ *    only: `storeShippingUsd` (per unit) is the customer's own figure, never
+ *    carried into an order (order intake prices from extraction_cache, and a
+ *    manual order's shipping is set by an admin at review). Ignored in the
+ *    snapshot mode, where store shipping comes from the snapshot.
  *
  * Nothing returned here is trusted at order time — createOrder recomputes.
  * The lock is resolved server-side from the session; no rate or lock id is
@@ -33,6 +38,7 @@ const previewSchema = z.object({
   quantity: z.coerce.number().int().min(1).max(100).default(1),
   category: z.string().optional(),
   weightLbs: z.coerce.number().positive().optional(),
+  storeShippingUsd: z.coerce.number().finite().min(0).max(MAX_STORE_SHIPPING_PER_UNIT).optional(),
   region: z.enum(["usa", "uk", "china"]).optional(),
 });
 
@@ -50,6 +56,7 @@ export async function GET(request: NextRequest) {
       quantity: sp.get("quantity") || undefined,
       category: sp.get("category") || undefined,
       weightLbs: sp.get("weightLbs") || undefined,
+      storeShippingUsd: sp.get("storeShippingUsd") || undefined,
       region: sp.get("region") || undefined,
     });
     if (!parsed.success) {
@@ -84,6 +91,8 @@ export async function GET(request: NextRequest) {
       category: input.category,
       weightLbs: input.weightLbs,
       region: input.region,
+      storeShipping: input.storeShippingUsd ?? null,
+      storeShippingCurrency: "USD",
     }, null);
     // No extraction → nothing to lock against; the ETA still applies when the region is known.
     const country = input.region ? PRICING_TO_REGION[input.region] : null;

@@ -242,6 +242,7 @@ export function mapApifyMicrocenterProduct(item: ApifyMicrocenterProduct): Scrap
     images,
     variants: {},
     availability: cleanString(item.availability),
+    store_shipping: null,
     metadata: {
       images: rawImages,
       sku: item.sku ?? null,
@@ -362,6 +363,7 @@ export class MicrocenterScraper implements PlatformScraper {
       images: proxiedImages,
       variants: {},
       availability,
+      store_shipping: null,
       metadata: {
         images: proxiedImages,
         productId: linkData.id,

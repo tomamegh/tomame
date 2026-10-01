@@ -28,6 +28,7 @@ import {
   type PackageStatus,
   type WarehouseOrderRow,
 } from "@/db/queries/warehouse";
+import { findInboundParcelByKeys } from "@/db/queries/inbound-parcels";
 import { listOrderFeedback, type OrderFeedbackStatus } from "@/db/queries/order-feedback";
 import { AUDIT_ENTITY_TYPES, WAREHOUSE_ACTIVITY_KINDS } from "@/config/constants";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
@@ -39,6 +40,7 @@ import { APIError } from "@/lib/auth/api-helpers";
 import { requireWarehouse, warehouseActorRole } from "@/lib/auth/guards";
 import { logger } from "@/lib/logger";
 
+import { normaliseTracking } from "../inbound/tracking-number";
 import { recordWarehouseActivity } from "./activity.service";
 
 import type {
@@ -99,6 +101,14 @@ export async function getWarehouseItem(user: PlatformUser, orderId: string): Pro
   const [item] = await hydrateItems([order]);
   if (!item) throw new APIError(404, "Item not found");
   return item;
+}
+
+/** Several items by order id, in any stage — for screens that start from a link, not the bench. */
+export async function listWarehouseItemsByIds(user: PlatformUser, orderIds: string[]): Promise<WarehouseItem[]> {
+  requireWarehouse(user);
+  const ids = [...new Set(orderIds)];
+  if (ids.length === 0) return [];
+  return hydrateItems(await listWarehouseOrders({ ids, limit: ids.length }));
 }
 
 /**
@@ -325,10 +335,10 @@ export async function shipWarehousePackage(
       if (item.order_status === "paid") {
         await advanceOrderFromWarehouse(user, item.order_id, "processing");
       }
-      await advanceOrderFromWarehouse(user, item.order_id, "in_transit", {
-        carrier,
-        tracking_number: trackingNumber,
-      });
+      // 086: the air waybill / forwarder number is INTERNAL. It stays on the
+      // package; the order (and so the customer's email, WhatsApp and journey)
+      // is tracked by its Tomame number only.
+      await advanceOrderFromWarehouse(user, item.order_id, "in_transit");
     } catch (error) {
       failed.push({
         order_no: item.order_no,
@@ -387,14 +397,28 @@ export async function lookupWarehouseCode(user: PlatformUser, raw: string): Prom
   requireWarehouse(user);
   const code = normaliseCode(raw);
   try {
-    const result = await resolveCode(code);
+    const result = await resolveCode(code, raw);
     // 082: every scan lands in the admin's activity trail. Never throws.
-    await recordWarehouseActivity(user, {
-      kind: WAREHOUSE_ACTIVITY_KINDS.SCAN,
-      subject_type: result.kind === "package" ? "warehouse_package" : "order",
-      subject_id: result.id,
-      metadata: { code: result.kind === "package" ? result.reference : result.order_no },
-    });
+    if (result.kind === "inbound_unmatched") {
+      // 086: a carrier barcode nobody registered. A failed lookup, not an
+      // error: the operator is offered "link it" or "log it as unmatched".
+      await recordWarehouseActivity(user, {
+        kind: WAREHOUSE_ACTIVITY_KINDS.LOOKUP_FAILED,
+        metadata: { code: result.code, raw: raw.trim().slice(0, 120), inbound: true },
+      });
+    } else if (result.kind === "inbound") {
+      await recordWarehouseActivity(user, {
+        kind: WAREHOUSE_ACTIVITY_KINDS.SCAN,
+        metadata: { code: result.tracking_key, inbound_parcel_id: result.id },
+      });
+    } else {
+      await recordWarehouseActivity(user, {
+        kind: WAREHOUSE_ACTIVITY_KINDS.SCAN,
+        subject_type: result.kind === "package" ? "warehouse_package" : "order",
+        subject_id: result.id,
+        metadata: { code: result.kind === "package" ? result.reference : result.order_no },
+      });
+    }
     return result;
   } catch (error) {
     // A code that found nothing is the one scan an admin should see: a torn
@@ -410,7 +434,7 @@ export async function lookupWarehouseCode(user: PlatformUser, raw: string): Prom
   }
 }
 
-async function resolveCode(code: string | null): Promise<LookupResult> {
+async function resolveCode(code: string | null, raw: string): Promise<LookupResult> {
   if (!code) throw new APIError(400, "Scan a label or type a package or order number.");
 
   if (code.startsWith("PKG-")) {
@@ -422,6 +446,17 @@ async function resolveCode(code: string | null): Promise<LookupResult> {
     const order = await getWarehouseOrderByNo(code);
     if (!order) throw new APIError(404, `No order ${code}.`);
     return { kind: "order", id: order.id, order_no: order.order_no };
+  }
+  // 086: anything else long enough to be a carrier's number is a store parcel
+  // arriving. The raw scan is normalised again, because the USPS routing prefix
+  // and the FNC1 separator are only recognisable before `normaliseCode`.
+  const tracking = normaliseTracking(raw) ?? normaliseTracking(code);
+  if (tracking) {
+    const parcel = await findInboundParcelByKeys(tracking.candidates);
+    if (parcel) {
+      return { kind: "inbound", id: parcel.id, tracking_key: parcel.tracking_key };
+    }
+    return { kind: "inbound_unmatched", code: tracking.key };
   }
   throw new APIError(404, "That code is not a Tomame package or order.");
 }
@@ -437,7 +472,9 @@ export function normaliseCode(raw: string): string | null {
   if (pkg) return `PKG-${pkg[1]}`;
   const order = value.match(/^TM-?(\d{1,})$/);
   if (order?.[1]) return `TM-${order[1].padStart(5, "0")}`;
-  if (/^\d{5,}$/.test(value)) return `PKG-${value}`;
+  // A bare package number. Capped at eight digits: anything longer is a
+  // carrier's tracking number (USPS and FedEx are all digits), not ours.
+  if (/^\d{5,8}$/.test(value)) return `PKG-${value}`;
   return value;
 }
 

@@ -19,6 +19,8 @@ export const MARKETING_NAV_ITEMS: readonly MarketingNavItem[] = [
   { key: "fees", label: "Fees", href: "/fees" },
   { key: "faq", label: "FAQ", href: "/faq" },
   { key: "about", label: "About", href: "/about" },
+  // 086: the public lookup. Last, because it is for people who already bought.
+  { key: "track", label: "Track", href: "/track" },
 ] as const;
 
 /**
@@ -157,7 +159,7 @@ export function buildFooterColumns(
       heading: "Help",
       links: [
         { label: "FAQ", href: "/faq" },
-        { label: "Track an order", href: "/app/orders" },
+        { label: "Track an order", href: "/track" },
         { label: "Your bag", href: "/app/bag" },
         ...(chat
           ? [{ label: "WhatsApp", href: chat, external: true as const }]

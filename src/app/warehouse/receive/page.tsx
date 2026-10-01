@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { warehousePageUser } from "@/features/warehouse/services/page-user";
 
 import { ReceiveBench } from "@/features/warehouse/components/receive-bench";
@@ -43,7 +44,17 @@ export default async function WarehouseReceivePage({
         kicker="Inbound"
         title="Receive & sort"
         blurb="Log each parcel in as it comes off the truck and weigh it. The customer sees it arrive. Then tick items for one person and pack them together."
-        action={<GuideLink section="daily-flow">How receiving works</GuideLink>}
+        action={
+          <>
+            <Link
+              href="/warehouse/inbound"
+              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-tm-border bg-card px-4 text-[13px] font-semibold text-tm-ink hover:bg-tm-paper"
+            >
+              Store parcels
+            </Link>
+            <GuideLink section="daily-flow">How receiving works</GuideLink>
+          </>
+        }
       />
       <ReceiveBench
         items={items.filter((i) => i.stage !== "shipped")}

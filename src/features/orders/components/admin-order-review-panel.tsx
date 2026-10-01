@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { Order, OriginCountry } from "../types";
+import { orderStoreShippingCurrency, orderStoreShippingPerUnit } from "../store-shipping";
 
 /**
  * The hand-pricing queue, on one order.
@@ -53,6 +54,9 @@ export function AdminOrderReviewPanel({ order, index = 0 }: AdminOrderReviewPane
     order.estimated_price_usd != null ? String(order.estimated_price_usd) : "",
   );
   const [originCountry, setOriginCountry] = useState<OriginCountry>(order.origin_country);
+  const quotedShipping = orderStoreShippingPerUnit(order);
+  const [storeShipping, setStoreShipping] = useState(quotedShipping > 0 ? String(quotedShipping) : "");
+  const shippingCurrency = orderStoreShippingCurrency(order, originCountry);
   const [totalGhs, setTotalGhs] = useState(
     order.admin_total_ghs != null ? String(order.admin_total_ghs) : "",
   );
@@ -73,6 +77,15 @@ export function AdminOrderReviewPanel({ order, index = 0 }: AdminOrderReviewPane
         updates.estimated_price_usd = parsedPrice;
       }
       if (originCountry !== order.origin_country) updates.origin_country = originCountry;
+      if (mode === "approve") {
+        // Blank means "keep what was quoted"; 0 is a real answer (free shipping).
+        const trimmed = storeShipping.trim();
+        const parsedShipping = Number(trimmed);
+        if (trimmed && (!Number.isFinite(parsedShipping) || parsedShipping < 0)) {
+          throw new Error("Store shipping must be zero or more.");
+        }
+        if (trimmed && parsedShipping !== quotedShipping) updates.store_shipping = parsedShipping;
+      }
 
       const body: Record<string, unknown> = { action: mode };
       if (Object.keys(updates).length > 0) body.updates = updates;
@@ -178,6 +191,29 @@ export function AdminOrderReviewPanel({ order, index = 0 }: AdminOrderReviewPane
                 <option value="CHINA">China</option>
               </select>
             </Field>
+            {mode === "approve" ? (
+              <Field
+                label={`Store shipping per unit (${shippingCurrency})`}
+                id="review-store-shipping"
+                className="sm:col-span-2"
+              >
+                <input
+                  id="review-store-shipping"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={storeShipping}
+                  onChange={(event) => setStoreShipping(event.target.value)}
+                  placeholder="0.00"
+                  className={cn(INPUT, "tm-nums")}
+                />
+                <span className="text-[12px] leading-[1.5] font-medium text-tm-text-3">
+                  What the seller charges to ship one unit to our warehouse, in the listing&apos;s
+                  currency. Charged × {order.quantity}. Enter a lower figure when the seller
+                  combines shipping. Leave blank to keep what was quoted.
+                </span>
+              </Field>
+            ) : null}
           </div>
         ) : null}
 

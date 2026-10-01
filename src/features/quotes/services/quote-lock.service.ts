@@ -150,6 +150,19 @@ export function extractionPricer(
   };
 }
 
+/**
+ * The extraction as a lock prices it. A lock minted on a breakdown with no
+ * store shipping (before the field existed, or while the store's shipping was
+ * unknown or free) keeps it out for the life of the lock, so a later re-scrape
+ * that finds seller shipping never moves a price the customer already holds.
+ * Returns the same object when nothing needs stripping.
+ */
+export function extractionUnderLock(extraction: ExtractionResult, lock: QuoteLockRow): ExtractionResult {
+  const lockedShipping = lock.pricing?.store_shipping_usd ?? 0;
+  if (lockedShipping > 0 || extraction.product.store_shipping == null) return extraction;
+  return { ...extraction, product: { ...extraction.product, store_shipping: null } };
+}
+
 /** The frozen FX a lock holds, in the calculator's shape. */
 export function lockFx(lock: QuoteLockRow): FxOverride {
   return { exchange_rate: lock.exchange_rate, mid_market_rate: lock.mid_market_rate, cross_rates: lock.fx_rates };
@@ -255,10 +268,15 @@ async function priceForViewer(input: ApplyRateLockInput, opts: PriceForViewerOpt
     try {
       if (!lookup.ok) throw lookup.error;
       if (lookup.lock) {
+        const underLock = extractionUnderLock(extraction, lookup.lock);
+        const liveUnderLock = underLock === extraction
+          ? live.pricing
+          : (await priceExtractionWith(calculator, underLock, quantity, overrides, null)).pricing;
+        if (!liveUnderLock) throw new Error("Pricing without store shipping failed.");
         pricing = await priceLowerOf({
           lock: lookup.lock,
-          live: live.pricing,
-          priceAt: extractionPricer(calculator, extraction, quantity, overrides),
+          live: liveUnderLock,
+          priceAt: extractionPricer(calculator, underLock, quantity, overrides),
           onLiveWins: { ratchet: true, actorId: viewer.userId },
         });
       } else if (opts.mint && constants) {

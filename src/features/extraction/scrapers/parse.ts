@@ -28,6 +28,25 @@ export function parseReviewCount(raw: unknown): number | null {
   return n >= 0 ? Math.round(n) : null;
 }
 
+/**
+ * A store's shipping charge for one unit, in the listing's currency.
+ * 24 / "24.00" / "$24" → 24; "Free" / "FREE shipping" / 0 → 0; anything else
+ * (missing, negative, "See details", NaN) → null, meaning unknown. Never reads
+ * a currency: vendors put garbage there (ScraperAPI eBay has returned
+ * "delivery in – days"), so the caller prices it in the listing's currency.
+ */
+export function parseStoreShipping(raw: unknown): number | null {
+  if (typeof raw === "number") return Number.isFinite(raw) && raw >= 0 ? Math.round(raw * 100) / 100 : null;
+  if (typeof raw !== "string") return null;
+  const t = raw.replace(/\u00a0/g, " ").trim();
+  if (!t) return null;
+  if (/\bfree\b/i.test(t)) return 0;
+  const m = t.match(/^[^\d-]{0,4}(\d[\d,]*(?:\.\d{1,2})?)\s*[A-Za-z$£€¥]{0,4}$/);
+  if (!m?.[1]) return null;
+  const n = parseFloat(m[1].replace(/,/g, ""));
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+}
+
 /** Store suffixes page parsers and vendors sometimes keep from <title>: "… | SHEIN USA", "… - Walmart.com". */
 const TITLE_STORE_SUFFIX_RE =
   /\s*[|–-]\s*(SHEIN(?: USA)?|eBay|Walmart\.com|Amazon\.com|AliExpress.*|Etsy|Nike\.com|Target)\s*$/i;

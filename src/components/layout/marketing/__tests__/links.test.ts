@@ -38,13 +38,14 @@ describe("resolveActiveNavKey", () => {
     expect(resolveActiveNavKey("/faq", items)).toBeNull();
   });
 
-  it("exposes the five destinations the design shows", () => {
+  it("exposes the five destinations the design shows, then Track (086)", () => {
     expect(MARKETING_NAV_ITEMS.map((item) => item.key)).toEqual([
       "how",
       "regions",
       "fees",
       "faq",
       "about",
+      "track",
     ]);
   });
 });

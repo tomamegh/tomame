@@ -51,6 +51,7 @@ import type { PricingBreakdown, FxOverride } from "@/lib/pricing";
 import type { PlatformUser } from "@/features/users/types";
 import type { Order } from "../types";
 import { reviewOrder } from "../services/orders.review.service";
+import { logAuditEvent } from "@/features/audit/services/audit.service";
 
 const calculate = vi.fn<(input: unknown, fx: FxOverride | null) => Promise<PricingBreakdown>>();
 const CALC = { calculate };
@@ -147,5 +148,69 @@ describe("reviewOrder(approve) — re-pricing under the order's lock", () => {
     await reviewOrder(client, admin, "order-9", { action: "approve" });
     expect(getQuoteLockById).not.toHaveBeenCalled();
     expect(calculate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("reviewOrder(approve) — store shipping override", () => {
+  const noLock = (o: Partial<Order> = {}) =>
+    ({ ...ORDER, pricing: breakdown({ pricing_method: "needs_review" }), ...o }) as unknown as Order;
+
+  it("re-prices with the admin's per-unit figure in the listing currency, and audits from → to", async () => {
+    vi.mocked(getOrderById).mockResolvedValue(noLock({
+      quantity: 2,
+      origin_country: "UK",
+      extraction_metadata: { platform: "ebay", product: { currency: null } } as unknown as Order["extraction_metadata"],
+    }));
+
+    await reviewOrder(client, admin, "order-9", { action: "approve", updates: { store_shipping: 3.5 } });
+
+    expect(calculate).toHaveBeenCalledWith(
+      expect.objectContaining({ storeShipping: 3.5, storeShippingCurrency: "GBP", quantity: 2 }),
+      null,
+    );
+    expect(logAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: "order_review_approved",
+      metadata: expect.objectContaining({
+        storeShippingChanged: true,
+        store_shipping: { from: 0, to: 3.5, currency: "GBP", quantity: 2 },
+      }),
+    }));
+  });
+
+  it("keeps the quoted figure (and its currency) when the admin sends none", async () => {
+    vi.mocked(getOrderById).mockResolvedValue(noLock({
+      pricing: breakdown({ pricing_method: "needs_review", store_shipping: 24, store_shipping_currency: "USD" }),
+    }));
+    await reviewOrder(client, admin, "order-9", { action: "approve" });
+    expect(calculate).toHaveBeenCalledWith(expect.objectContaining({ storeShipping: 24, storeShippingCurrency: "USD" }), null);
+  });
+
+  it("never adds shipping from the extraction snapshot that the order was not priced with", async () => {
+    vi.mocked(getOrderById).mockResolvedValue(noLock({
+      extraction_metadata: { platform: "ebay", product: { currency: "USD", store_shipping: 24 } } as unknown as Order["extraction_metadata"],
+    }));
+    await reviewOrder(client, admin, "order-9", { action: "approve" });
+    expect(calculate).toHaveBeenCalledWith(expect.objectContaining({ storeShipping: null }), null);
+  });
+
+  it("an admin can lower it to 0 (seller combines shipping)", async () => {
+    vi.mocked(getOrderById).mockResolvedValue(noLock({
+      pricing: breakdown({ pricing_method: "needs_review", store_shipping: 24, store_shipping_currency: "USD" }),
+    }));
+    await reviewOrder(client, admin, "order-9", { action: "approve", updates: { store_shipping: 0 } });
+    expect(calculate).toHaveBeenCalledWith(expect.objectContaining({ storeShipping: 0, storeShippingCurrency: "USD" }), null);
+  });
+});
+
+describe("reviewOrderSchema — store shipping", () => {
+  it("accepts 0 and a sane figure, refuses negative, absurd and non-numeric", async () => {
+    const { reviewOrderSchema } = await import("../schema");
+    const parse = (v: unknown) => reviewOrderSchema.safeParse({ action: "approve", updates: { store_shipping: v } }).success;
+    expect(parse(0)).toBe(true);
+    expect(parse(12.5)).toBe(true);
+    expect(parse(-1)).toBe(false);
+    expect(parse(2_000.01)).toBe(false);
+    expect(parse("12")).toBe(false);
+    expect(parse(Number.POSITIVE_INFINITY)).toBe(false);
   });
 });

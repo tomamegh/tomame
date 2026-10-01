@@ -13,6 +13,7 @@ import {
   MessageSquareWarningIcon,
   ScanLineIcon,
   ShieldIcon,
+  TruckIcon,
 } from "lucide-react";
 
 import { Logo } from "@/components/brand/logo";
@@ -53,6 +54,9 @@ const NAV = [
   { href: "/warehouse/receive", label: "Receive", icon: InboxIcon },
   { href: "/warehouse/packages", label: "Packages", icon: BoxesIcon },
   { href: "/warehouse/issues", label: "Issues", icon: MessageSquareWarningIcon },
+  // 086. Fifth, so the phone's bottom bar keeps its four; there it is reached
+  // from Receive and the dashboard. In the top bar only where there is room.
+  { href: "/warehouse/inbound", label: "Inbound", icon: TruckIcon, wide: true },
 ] as const;
 
 /** The operator guide (081): in the top bar, the account menu, and a "?" — not a sixth tab. */
@@ -105,6 +109,7 @@ export function WarehouseShell({
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative inline-flex h-9 items-center gap-2 rounded-full px-3.5 text-[13px] font-semibold transition-colors",
+                    "wide" in item && item.wide && "hidden lg:inline-flex",
                     active ? "bg-tm-ink text-white" : "text-tm-text-2 hover:bg-tm-hairline hover:text-tm-ink",
                   )}
                 >

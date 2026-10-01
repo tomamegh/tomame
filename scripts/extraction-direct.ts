@@ -30,6 +30,7 @@ if (urls.length === 0) {
     console.log(`\n${store.slug}  ${Date.now() - t0} ms  ${url}`);
     console.log(`  title: ${p.title?.slice(0, 70) ?? "-"}`);
     console.log(`  price: ${p.price != null ? `${p.currency} ${p.price}` : "-"}   category: ${p.category ?? "-"}   weight_lbs: ${p.weight_lbs ?? "-"}`);
+    console.log(`  store_shipping: ${p.store_shipping != null ? `${p.currency} ${p.store_shipping}` : "unknown"} (${out.fieldSources.store_shipping ?? "-"})`);
     console.log(`  ran: ${out.ran.join(", ") || "-"}   skipped: ${out.skipped.join(", ") || "-"}   html: ${out.htmlSource ?? "-"}`);
     console.log(`  timings: ${Object.entries(out.timings).map(([k, v]) => `${k}=${v}ms`).join("  ")}`);
     if (out.messages.length) console.log(`  messages: ${out.messages.join(" | ")}`);

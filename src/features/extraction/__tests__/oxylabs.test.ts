@@ -33,6 +33,11 @@ describe("mapOxylabsAmazon (real response shape)", () => {
     expect(p.specifications?.["Item Weight"]).toBe("2.46 ounces");
   });
 
+  it("never carries Oxylabs' price_shipping as store shipping (Amazon prices it as 0)", () => {
+    const item = { ...fixtures.amazon, price_shipping: 7.99 } as unknown as OxylabsAmazonProduct;
+    expect(mapOxylabsAmazon(item, "https://www.amazon.com/dp/B0CHX3QBCH").store_shipping).toBeNull();
+  });
+
   it("promotes seller, rating, review count, availability, images and sibling variants", () => {
     const p = mapOxylabsAmazon(fixtures.amazon as unknown as OxylabsAmazonProduct, "https://www.amazon.com/dp/B0CHX3QBCH");
     expect(p.seller).toBe("iDeals Today");

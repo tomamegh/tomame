@@ -9,6 +9,8 @@ vi.mock("@/features/orders/services/order-events.service", () => ({ recordOrderE
 vi.mock("@/features/orders/services/orders.service", () => ({ advanceOrderFromWarehouse: vi.fn() }));
 vi.mock("@/db/queries/order-feedback", () => ({ listOrderFeedback: vi.fn() }));
 vi.mock("@/db/queries/warehouse", () => ({}));
+vi.mock("@/db/queries/inbound-parcels", () => ({}));
+vi.mock("@/features/warehouse/services/activity.service", () => ({ recordWarehouseActivity: vi.fn() }));
 
 import { normaliseCode } from "@/features/warehouse/services/warehouse.service";
 
@@ -28,6 +30,7 @@ const SAMPLES = [
   "10042",
   "1234",
   "0012345678905",
+  "9400 1118 9922 3197 4284 90",
   "hello",
   "",
   "   ",
@@ -44,6 +47,7 @@ describe("explainCode", () => {
     expect(explainCode("pkg 10042")).toEqual({ kind: "package", code: "PKG-10042" });
     expect(explainCode("tm-42")).toEqual({ kind: "order", code: "TM-00042" });
     expect(explainCode("hello")).toEqual({ kind: "unknown", code: "HELLO" });
+    expect(explainCode("1z999aa10123456784")).toEqual({ kind: "carrier", code: "1Z999AA10123456784", carrier: "UPS" });
     expect(explainCode("  ")).toEqual({ kind: "empty" });
   });
 });

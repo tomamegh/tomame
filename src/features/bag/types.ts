@@ -154,6 +154,8 @@ export interface BagView {
   subtotal_usd: number;
   tax_usd: number;
   fee_usd: number;
+  /** Σ the stores' own shipping to our warehouse (USD), already inside each line's total. */
+  store_shipping_usd: number;
   freight_ghs: number;
   /** Σ chargeable weight over the boxes, for "1 box, 5.4 lb". */
   boxed_weight_lbs: number;

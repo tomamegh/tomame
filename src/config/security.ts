@@ -43,6 +43,18 @@ export const RATE_LIMIT = {
   webhooks: { windowMs: 60 * 1000, maxRequests: 100 },
   /** Product extraction — 10 requests per 10 minutes per IP. Cache hits are not counted. */
   extraction: { windowMs: 10 * 60 * 1000, maxRequests: 10 },
+  /**
+   * Public tracking lookup (086, `POST /api/track`) — 30 per 15 minutes per IP.
+   * A customer checks a parcel a few times a day; a script walking TM-00001
+   * upwards is what this stops.
+   */
+  track: { windowMs: 15 * 60 * 1000, maxRequests: 30 },
+  /**
+   * Second-factor attempts on ONE reference — 8 per hour, from every address
+   * combined. The last four digits of a phone are 10,000 guesses; at 8 an hour
+   * that is two months, far longer than a parcel is in transit.
+   */
+  trackVerify: { windowMs: 60 * 60 * 1000, maxRequests: 8 },
   /** Public waitlist signup — 5 requests per hour per IP. */
   waitlist: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
   /**

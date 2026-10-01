@@ -63,6 +63,32 @@ export const lookupSchema = z.object({
   code: z.string().trim().min(1, "Scan or type a code").max(300),
 });
 
+// ── Inbound parcels (086) ───────────────────────────────────────────────────
+
+const trackingText = z
+  .string()
+  .trim()
+  .min(6, "That is too short to be a tracking number")
+  .max(120, "That is too long to be a tracking number");
+
+/** Register a store's tracking number against an order, before or after it lands. */
+export const registerInboundSchema = z.object({
+  order_id: z.uuid(),
+  tracking_number: trackingText,
+  store_order_ref: optionalText(80),
+  note: optionalText(300),
+});
+
+export const linkInboundSchema = z.object({ order_id: z.uuid() });
+
+/** A parcel that arrived and nobody expected. */
+export const unmatchedInboundSchema = z.object({
+  tracking_number: trackingText,
+  note: optionalText(300),
+});
+
+export type RegisterInboundInput = z.infer<typeof registerInboundSchema>;
+export type UnmatchedInboundInput = z.infer<typeof unmatchedInboundSchema>;
 export type UpdatePackageInput = z.infer<typeof packageDetailsSchema>;
 export type CreatePackageInput = z.infer<typeof createPackageSchema>;
 export type AddPackageItemsInput = z.infer<typeof addPackageItemsSchema>;

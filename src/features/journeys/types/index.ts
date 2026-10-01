@@ -82,14 +82,6 @@ export interface JourneysViewModel {
 
 // ── The detail ──────────────────────────────────────────────────────────────
 
-/** `orders.carrier` + `orders.tracking_number`, when an admin has entered them. */
-export interface JourneyCarrier {
-  name: string;
-  trackingNumber: string | null;
-  /** `order_deliveries.tracking_url` — the carrier's own page. Null when unset. */
-  trackingUrl: string | null;
-}
-
 export interface JourneyEta {
   from: string | null;
   to: string | null;
@@ -139,7 +131,6 @@ export interface JourneyDetailViewModel {
   /** When the order was paid, ISO — from the `payment_received` event. Null while unpaid. */
   paidAt: string | null;
   track: JourneyTrack;
-  carrier: JourneyCarrier | null;
   eta: JourneyEta | null;
   deliverTo: JourneyDeliverTo | null;
   /** Customer-visible `order_events`, newest first. Empty until something happens. */

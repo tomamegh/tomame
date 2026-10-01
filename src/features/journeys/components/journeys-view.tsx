@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MagnifyingGlass, Path, X } from "@phosphor-icons/react/ssr";
 
+import { looksLikeTomameNumber } from "@/features/tracking/public-tracking";
 import { toast } from "@/lib/sonner";
 import { buyAgainHref, useJourneyPayment } from "../hooks/useJourneyPayment";
 import type { JourneyFilterKey, JourneysViewModel } from "../types";
@@ -166,6 +167,20 @@ export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
           aria-label="Search orders"
           className="h-12 rounded-[14px] border border-tm-border bg-card px-4 text-sm leading-none font-medium outline-none placeholder:text-tm-text-3 focus:border-tm-coral"
         />
+      )}
+
+      {/*
+        086: the public /track lookup, offered for a Tomame number (TM-…) only,
+        the one number customers track by. Signed in, /track recognises the
+        owner and shows the full journey.
+      */}
+      {searching && looksLikeTomameNumber(query) && (
+        <Link
+          href={`/track?q=${encodeURIComponent(query.trim())}`}
+          className="-mt-3 w-fit text-[13px] leading-none font-semibold text-tm-coral"
+        >
+          Track “{query.trim()}”
+        </Link>
       )}
 
       <JourneyStopRail stops={data.stops} />

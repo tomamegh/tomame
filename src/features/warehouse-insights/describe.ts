@@ -117,6 +117,7 @@ export function pageName(
     "/warehouse/receive": "receiving",
     "/warehouse/packages": "the packages list",
     "/warehouse/issues": "the issues board",
+    "/warehouse/inbound": "the inbound parcels",
   };
   if (fixed[p]) return { label: fixed[p]!, href: p, isRef: false };
   const pkg = p.match(/^\/warehouse\/packages\/([^/]+)$/);
@@ -286,6 +287,29 @@ export function describeEntry(row: DescribeInput, ctx: DescribeContext): Descrip
     }
     case "warehouse_package_deleted":
       return d([t("deleted"), { ref: str(m, "reference") ?? "a package", href: null }], "deleted", "coral");
+    // 086: store parcels. The parcel itself has no page reference worth
+    // printing beyond its tracking number, which rides in the metadata.
+    case "warehouse_inbound_registered":
+      return d(
+        [t("added tracking"), t(str(m, "tracking_key") ?? "a parcel"), t("to"), orderSeg(str(m, "order_id"), str(m, "order_no"))],
+        "package",
+        "muted",
+      );
+    case "warehouse_inbound_linked":
+      return d(
+        [t("linked parcel"), t(str(m, "tracking_key") ?? ""), t("to"), orderSeg(str(m, "order_id"), str(m, "order_no"))],
+        "package",
+      );
+    case "warehouse_inbound_unlinked":
+      return d(
+        [t("unlinked parcel"), t(str(m, "tracking_key") ?? ""), t("from"), orderSeg(str(m, "order_id"))],
+        "package",
+        "muted",
+      );
+    case "warehouse_inbound_arrived":
+      return d([t("scanned in store parcel"), t(str(m, "tracking_key") ?? "")], "received", "green");
+    case "warehouse_inbound_unmatched_logged":
+      return d([t("logged an unmatched parcel"), t(str(m, "tracking_key") ?? "")], "failed", "amber", str(m, "note"));
     case "warehouse_label_printed": {
       const copy = num(m, "copy");
       return d(

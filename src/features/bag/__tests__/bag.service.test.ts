@@ -100,7 +100,7 @@ const extraction: ExtractionResult = {
   product: {
     title: "AirPods Pro", image: "https://x/1.jpg", price: 249, currency: "USD", description: null, brand: "Apple", category: null,
     size: null, weight: "0.6 lb", weight_lbs: 0.6, dimensions: null, specifications: { Color: "White" }, seller: null, condition: null,
-    rating: null, review_count: null, images: [], variants: {}, availability: null, metadata: {},
+    rating: null, review_count: null, images: [], variants: {}, availability: null, store_shipping: null, metadata: {},
   },
   messages: [], errors: [], source: "scraperapi", sources: ["scraperapi"], confidence: {}, fetched_at: "2026-09-13T00:00:00Z",
 };

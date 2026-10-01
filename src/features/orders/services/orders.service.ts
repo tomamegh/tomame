@@ -28,6 +28,7 @@ import type { Viewer } from "@/features/quotes/types";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
 import { whatsappMessages } from "@/lib/whatsapp/templates";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 
 /**
  * null ONLY when there is no such order (or RLS hides it). A database error
@@ -244,8 +245,7 @@ export async function sendOrderStatusEmail(
         orderId: order.id,
         productName: order.product_name,
         status: newStatus,
-        carrier: trackingData?.carrier,
-        trackingNumber: trackingData?.trackingNumber,
+        trackingNumber: order.order_no,
       }),
     });
 
@@ -262,8 +262,8 @@ export async function sendOrderStatusEmail(
     const emailData = {
       productName: order.product_name,
       orderId: order.id,
-      trackingNumber: trackingData?.trackingNumber,
-      carrier: trackingData?.carrier,
+      // Tomame's own number, never the carrier's (customers only see ours).
+      trackingNumber: order.order_no,
       estimatedDeliveryDate: trackingData?.estimatedDeliveryDate,
     };
 
@@ -427,6 +427,9 @@ export async function createOrder(
       review_reasons: reviewReasons,
     },
   });
+
+  // A bag's orders are announced once, as the group, by checkoutBag.
+  if (!links.order_group_id) notifyStaff({ kind: "order_placed", orderId: order.id });
 
   // Fire-and-forget: notify the customer their order was received
   if (links.suppress_placed_email) return order as Order;
@@ -671,6 +674,7 @@ async function applyOrderStatusChange(
     entityId: orderId,
     metadata: { from: order.status, to: newStatus },
   });
+  notifyStaff({ kind: "order_status", orderId, from: order.status, to: newStatus, by: user.email ?? actorRole });
 
   // The customer's half of the same fact (050). `audit_logs` above stays the
   // compliance record — machine-worded, admin-only; this is the sentence the
@@ -682,14 +686,9 @@ async function applyOrderStatusChange(
       order_group_id: order.order_group_id ?? null,
       kind: narrative.kind,
       title: narrative.title,
-      // The carrier and its tracking number are the customer-facing half of an
-      // `in_transit` change; nothing is written when the admin left them blank.
-      detail:
-        newStatus === "in_transit"
-          ? ([trackingData?.carrier, trackingData?.tracking_number]
-              .filter((part): part is string => !!part?.trim())
-              .join(" · ") || null)
-          : null,
+      // Customers only ever see Tomame's own number (order_no); the carrier and
+      // its tracking number stay with the warehouse and admins.
+      detail: null,
       created_by: user.id,
     });
   }
@@ -778,6 +777,7 @@ export async function cancelOrderByUser(
     entityId: orderId,
     metadata: { from: "pending", to: "cancelled" },
   });
+  notifyStaff({ kind: "order_status", orderId, from: "pending", to: "cancelled", by: "the customer" });
 
   // The customer cancelled it themselves, so the timeline says so in their
   // words too — the journey detail screen renders the same log either way.

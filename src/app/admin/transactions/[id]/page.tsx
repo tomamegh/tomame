@@ -277,6 +277,9 @@ export default async function AdminTransactionDetailPage({
             <DetailRow label="Tomame fee (USD)">
               <span className="tm-nums font-semibold">{formatUsd(txn.group.fee_usd)}</span>
             </DetailRow>
+            <DetailRow label="Store shipping (USD)">
+              <span className="tm-nums font-semibold">{formatUsd(txn.group.store_shipping_usd)}</span>
+            </DetailRow>
             <DetailRow label="Freight">
               <span className="tm-nums font-semibold">{formatGhs(txn.group.freight_ghs)}</span>
             </DetailRow>

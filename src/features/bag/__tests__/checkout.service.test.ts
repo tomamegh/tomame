@@ -50,7 +50,7 @@ const bag = (over: Partial<BagView> = {}): BagView => ({
   consolidation_saving_ghs: 10,
   consolidation_saving_pct: 0.2,
   item_count: 2,
-  subtotal_usd: 15, tax_usd: 2, fee_usd: 1, freight_ghs: 40, boxed_weight_lbs: 2,
+  subtotal_usd: 15, tax_usd: 2, fee_usd: 1, store_shipping_usd: 0, freight_ghs: 40, boxed_weight_lbs: 2,
   total_ghs: 160, // 150 − 10 + 20
   total_usd: 10,
   rate_locked_until: null,
@@ -60,7 +60,7 @@ const bag = (over: Partial<BagView> = {}): BagView => ({
 
 const group = (over: Partial<groups.OrderGroupRow> = {}): groups.OrderGroupRow => ({
   id: "g1", user_id: "u1", payment_id: null, delivery_address_id: "a1", delivery_zone_id: "z1", delivery_address: null, item_count: 2,
-  subtotal_usd: 15, tax_usd: 2, fee_usd: 1, freight_ghs: 40, consolidation_saving_ghs: 10, delivery_fee_ghs: 20, total_ghs: 160, total_pesewas: 16000,
+  subtotal_usd: 15, tax_usd: 2, fee_usd: 1, store_shipping_usd: 0, freight_ghs: 40, consolidation_saving_ghs: 10, delivery_fee_ghs: 20, total_ghs: 160, total_pesewas: 16000,
   status: "pending", created_at: "", updated_at: "", ...over,
 });
 

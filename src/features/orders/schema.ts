@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { webLinkSchema } from "@/lib/validators/link";
+import { MAX_STORE_SHIPPING_PER_UNIT } from "@/features/extraction/store-shipping";
 
 // ── Order schemas ─────────────────────────────────────────────────────────────
 
@@ -48,6 +49,13 @@ export const reviewOrderSchema = z.object({
       estimated_price_usd: z.number().positive().max(50_000).optional(),
       product_image_url: z.url().optional().nullable(),
       origin_country: z.enum(["USA", "UK", "CHINA"]).optional(),
+      /** Per-unit store shipping, in the listing currency (charged × quantity). */
+      store_shipping: z
+        .number()
+        .finite()
+        .min(0, "Store shipping cannot be negative")
+        .max(MAX_STORE_SHIPPING_PER_UNIT, `Store shipping above ${MAX_STORE_SHIPPING_PER_UNIT} per unit is not plausible; use Set price`)
+        .optional(),
     })
     .optional(),
   reason: z.string().max(1000).optional(),

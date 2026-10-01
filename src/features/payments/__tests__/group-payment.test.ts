@@ -31,7 +31,7 @@ const user = { id: "u1", email: "k@x.test", profile: { role: "user" } } as unkno
 
 const group = (over: Partial<OrderGroupRow> = {}): OrderGroupRow => ({
   id: GROUP_ID, user_id: "u1", payment_id: null, delivery_address_id: "a1", delivery_zone_id: "z1", delivery_address: null, item_count: 3,
-  subtotal_usd: 30, tax_usd: 3, fee_usd: 2, freight_ghs: 60, consolidation_saving_ghs: 12, delivery_fee_ghs: 20, total_ghs: 1234.56, total_pesewas: 123456,
+  subtotal_usd: 30, tax_usd: 3, fee_usd: 2, store_shipping_usd: 0, freight_ghs: 60, consolidation_saving_ghs: 12, delivery_fee_ghs: 20, total_ghs: 1234.56, total_pesewas: 123456,
   status: "pending", created_at: "", updated_at: "", ...over,
 });
 const orders = ["o1", "o2", "o3"].map((id) => ({ id, product_name: `P ${id}`, pricing: { total_ghs: 400 }, admin_total_ghs: null }) as unknown as Order);

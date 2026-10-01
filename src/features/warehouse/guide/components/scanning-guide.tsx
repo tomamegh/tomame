@@ -105,6 +105,7 @@ function CodeTester() {
               "flex items-center gap-3 rounded-[16px] px-4 py-3",
               result.kind === "package" && "bg-tm-green-bg text-tm-green-ink",
               result.kind === "order" && "bg-tm-tint text-tm-ink",
+              result.kind === "carrier" && "bg-tm-tint text-tm-ink",
               result.kind === "unknown" && "bg-tm-amber-bg text-[#7a4a06]",
               result.kind === "empty" && "bg-tm-paper text-tm-text-3",
             )}
@@ -120,6 +121,10 @@ function CodeTester() {
               ) : result.kind === "order" ? (
                 <>
                   Order <b className="font-mono">{result.code}</b>: opens the item page, where you log it in.
+                </>
+              ) : result.kind === "carrier" ? (
+                <>
+                  {result.carrier} <b className="font-mono break-all">{result.code}</b>: opens the store parcel and its order, or asks which order it is.
                 </>
               ) : (
                 <>

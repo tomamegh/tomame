@@ -13,7 +13,7 @@ export default function WarehouseScanPage() {
       <WarehouseHeading
         kicker="Look up"
         title="Scan a label"
-        blurb="Scan a package label to see what is inside, or an order's TM-number to log it in."
+        blurb="Scan a package label to see what is inside, an order's TM-number, or the carrier barcode on a parcel from a store to find the order it belongs to."
         action={<GuideLink section="scanning">Camera not working?</GuideLink>}
       />
       <ScanConsole />

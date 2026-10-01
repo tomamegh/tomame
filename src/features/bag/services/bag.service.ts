@@ -767,6 +767,7 @@ export function summarize(cartId: string | null, lines: BagLine[], packed: Packe
     subtotal_usd: sum((p) => p.subtotal_usd),
     tax_usd: sum((p) => p.tax_usd),
     fee_usd: sum((p) => p.value_fee_usd),
+    store_shipping_usd: sum((p) => p.store_shipping_usd ?? 0),
     freight_ghs: sum((p) => p.flat_rate_ghs),
     boxed_weight_lbs: r2(packed.boxes.reduce((acc, b) => acc + b.weight_lbs, 0)),
     total_ghs: totalGhs,

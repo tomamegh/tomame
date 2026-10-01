@@ -203,7 +203,6 @@ export const whatsappMessages = {
     orderId: string;
     productName: string;
     status: string;
-    carrier?: string | null;
     trackingNumber?: string | null;
   }): WhatsAppMessage | null {
     const button = orderPath(d.orderId);
@@ -213,8 +212,8 @@ export const whatsappMessages = {
       case "processing":
         return { template: "order_processing", params: [d.productName], buttonPath: button };
       case "in_transit": {
-        const tracking = [d.carrier, d.trackingNumber].filter((s) => s && s.trim()).join(" ");
-        return { template: "order_shipped", params: [d.productName, tracking || "on your order page"], buttonPath: button };
+        // Tomame's own number only; carrier numbers never reach the customer.
+        return { template: "order_shipped", params: [d.productName, d.trackingNumber?.trim() || "on your order page"], buttonPath: button };
       }
       case "delivered":
         return { template: "order_delivered", params: [d.productName], buttonPath: button };

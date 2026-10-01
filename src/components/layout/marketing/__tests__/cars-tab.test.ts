@@ -15,6 +15,7 @@ describe("withCarsNavItem", () => {
       "fees",
       "faq",
       "about",
+      "track",
     ]);
   });
 

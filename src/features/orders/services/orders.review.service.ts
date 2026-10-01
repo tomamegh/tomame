@@ -10,6 +10,7 @@ import { isLockUnexpired, priceLowerOf } from "@/features/quotes/services/quote-
 import { createAdminClient } from "@/lib/supabase/admin";
 import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
 import { whatsappMessages } from "@/lib/whatsapp/templates";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 import { sendEmail } from "@/lib/email/transport";
 import {
   orderApprovedTemplate,
@@ -17,7 +18,8 @@ import {
 } from "@/lib/email/templates/order-status";
 import { env } from "@/lib/env";
 import { APIError } from "@/lib/auth/api-helpers";
-import type { Order, OrderReviewInput, OrderReviewUpdates } from "../types";
+import type { Order, OrderReviewInput, OrderReviewUpdates, OriginCountry } from "../types";
+import { orderStoreShippingCurrency, orderStoreShippingPerUnit } from "../store-shipping";
 import { PlatformUser } from "@/features/users/types";
 
 // ── DB queries ────────────────────────────────────────────────────────────────
@@ -108,6 +110,7 @@ async function sendReviewEmail(
                     taxUsd: p.tax_usd,
                     valueFeePercentage: p.value_fee_percentage,
                     valueFeeUsd: p.value_fee_usd,
+                    storeShippingUsd: p.store_shipping_usd ?? 0,
                     flatRateGhs: p.flat_rate_ghs,
                     exchangeRate: p.exchange_rate,
                     totalGhs: p.total_ghs,
@@ -135,6 +138,29 @@ async function sendReviewEmail(
       error: err instanceof Error ? err.message : String(err),
     });
   }
+}
+
+/**
+ * The per-unit store shipping to re-price an order with, in the listing
+ * currency. The order's own breakdown is the authority — never the extraction
+ * snapshot, which could carry shipping the customer was not quoted (a lock that
+ * kept it out). An admin override replaces it: this is how "Store shipping
+ * couldn't be confirmed… may be added at review" is honoured, and how a lower
+ * per-unit figure is entered when the seller combines shipping.
+ */
+export function storeShippingOf(
+  order: Pick<Order, "pricing" | "extraction_metadata">,
+  country: OriginCountry,
+  override?: number,
+): { storeShipping: number | null; storeShippingCurrency?: string } {
+  if (override !== undefined) {
+    return { storeShipping: override, storeShippingCurrency: orderStoreShippingCurrency(order, country) };
+  }
+  const p = order.pricing;
+  if (typeof p.store_shipping === "number" && p.store_shipping_currency) {
+    return { storeShipping: p.store_shipping, storeShippingCurrency: p.store_shipping_currency };
+  }
+  return { storeShipping: null };
 }
 
 // ── Service functions ─────────────────────────────────────────────────────────
@@ -165,6 +191,10 @@ export async function reviewOrder(
     const countryChanged =
       input.updates?.origin_country !== undefined &&
       input.updates.origin_country !== order.origin_country;
+    const shippingOverride = input.updates?.store_shipping;
+    const previousStoreShipping = orderStoreShippingPerUnit(order);
+    const storeShippingChanged =
+      shippingOverride !== undefined && shippingOverride !== previousStoreShipping;
 
     const updates: Record<string, unknown> = {
       needs_review: false,
@@ -204,6 +234,9 @@ export async function reviewOrder(
       weightLbs: order.extraction_metadata?.product?.weight_lbs ?? order.pricing.weight_lbs ?? undefined,
       productTitle: input.updates?.product_name ?? order.product_name,
       region: REGION_TO_PRICING[newCountry],
+      // The store shipping the customer was quoted (per unit, listed currency),
+      // or the admin's override of it.
+      ...storeShippingOf(order, newCountry, shippingOverride),
       ...correction,
     };
     const lock = order.pricing.rate_lock_id ? await getQuoteLockById(order.pricing.rate_lock_id) : null;
@@ -219,7 +252,7 @@ export async function reviewOrder(
         : live;
     updates.pricing = newPricing as unknown as Record<string, unknown>;
 
-    if (priceChanged || countryChanged) {
+    if (priceChanged || countryChanged || storeShippingChanged) {
       // Void any pending payment so the customer re-pays at the updated price
       await voidPendingPaymentsForOrder(orderId);
     }
@@ -239,11 +272,23 @@ export async function reviewOrder(
         updates: input.updates ?? null,
         priceChanged,
         countryChanged,
+        storeShippingChanged,
+        ...(shippingOverride !== undefined
+          ? {
+              store_shipping: {
+                from: previousStoreShipping,
+                to: shippingOverride,
+                currency: orderStoreShippingCurrency(order, newCountry),
+                quantity: order.quantity,
+              },
+            }
+          : {}),
         previousReviewReasons: order.review_reasons,
       },
     });
 
-    sendReviewEmail(order.user_id, updated, "approve", { priceChanged });
+    sendReviewEmail(order.user_id, updated, "approve", { priceChanged: priceChanged || storeShippingChanged });
+    notifyStaff({ kind: "order_review", orderId, outcome: "approved" });
 
     return updated as Order;
   }
@@ -295,6 +340,7 @@ export async function reviewOrder(
       },
     });
 
+    notifyStaff({ kind: "order_review", orderId, outcome: "priced" });
     return priceUpdated as Order;
   }
 
@@ -322,6 +368,7 @@ export async function reviewOrder(
     },
   });
 
+  notifyStaff({ kind: "order_review", orderId, outcome: "rejected" });
   sendReviewEmail(order.user_id, updated, "reject", {
     priceChanged: false,
     reason: input.reason,

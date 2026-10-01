@@ -194,6 +194,14 @@ export function paidRows(pricing: OrderPricingBreakdown): PaidRow[] {
     });
   }
 
+  if ((pricing.store_shipping_usd ?? 0) > 0) {
+    rows.push({
+      key: "store_shipping",
+      label: "Store shipping",
+      value: formatUsd(pricing.store_shipping_usd ?? 0),
+    });
+  }
+
   if (pricing.flat_rate_ghs > 0) {
     rows.push({
       key: "freight",

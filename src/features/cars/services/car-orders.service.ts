@@ -13,6 +13,7 @@ import {
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 import { initializePayment } from "@/features/payments/services/payments.service";
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
@@ -473,6 +474,7 @@ async function claimCar(
         balancePesewas: created.price_pesewas - created.deposit_pesewas,
       },
     });
+    notifyStaff({ kind: "car_order", carOrderId: created.id, action: "created" });
 
     return created;
   } catch (error) {
@@ -548,6 +550,7 @@ export async function cancelCarOrder(
       reason,
     },
   });
+  notifyStaff({ kind: "car_order", carOrderId, action: "cancelled" });
   return true;
 }
 
@@ -652,6 +655,7 @@ export async function releaseCarOrder(
       reason: trimmed,
     },
   });
+  notifyStaff({ kind: "car_order", carOrderId, action: "released" });
   return true;
 }
 

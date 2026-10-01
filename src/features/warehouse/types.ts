@@ -161,7 +161,67 @@ export interface WarehouseIssue {
 
 export type LookupResult =
   | { kind: "package"; id: string; reference: string }
-  | { kind: "order"; id: string; order_no: string };
+  | { kind: "order"; id: string; order_no: string }
+  /** 086: a store parcel somebody registered (or logged) — open it. */
+  | { kind: "inbound"; id: string; tracking_key: string }
+  /** 086: a carrier barcode nobody registered — offer to link it or log it. */
+  | { kind: "inbound_unmatched"; code: string };
+
+// ── Inbound parcels (086) ───────────────────────────────────────────────────
+
+export type InboundStatus = "expected" | "arrived" | "unmatched";
+
+/** One Tomame order a store parcel belongs to, as the hub needs to see it. */
+export interface InboundOrderRef {
+  order_id: string;
+  order_no: string;
+  title: string;
+  image_url: string | null;
+  store: string | null;
+  /** First name only: enough to shelve it, and what the label prints first. */
+  first_name: string | null;
+  stage: ItemStage;
+  order_status: string;
+  received_at: string | null;
+  held: boolean;
+}
+
+export interface InboundParcel {
+  id: string;
+  /** Canonical key, upper case, letters and digits. */
+  tracking_key: string;
+  /** Grouped for reading. */
+  tracking_display: string;
+  carrier: string | null;
+  carrier_label: string;
+  status: InboundStatus;
+  source: "registered" | "scanned";
+  store_order_ref: string | null;
+  note: string | null;
+  orders: InboundOrderRef[];
+  registered_by_name: string | null;
+  arrived_at: string | null;
+  arrived_by_name: string | null;
+  created_at: string;
+  /** Whole days since it was registered (expected) or logged (unmatched). */
+  age_days: number;
+}
+
+export interface InboundCounts {
+  expected: number;
+  arrived: number;
+  unmatched: number;
+  /** Expected for more than `INBOUND_LATE_DAYS`. */
+  late: number;
+}
+
+/** An expected parcel this many days old is late — chase the store. */
+export const INBOUND_LATE_DAYS = 7;
+
+/** Where a parcel opens. */
+export function inboundParcelPath(id: string): string {
+  return `/warehouse/inbound/${id}`;
+}
 
 /** The URL the QR code on a label opens. Relative; the label adds the origin. */
 export function packageScanPath(reference: string): string {

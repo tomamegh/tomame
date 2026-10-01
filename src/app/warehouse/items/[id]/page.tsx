@@ -7,8 +7,10 @@ import { ArrowLeftIcon, BoxIcon, MapPinIcon, PhoneIcon, StickyNoteIcon } from "l
 import type { OrderStatus } from "@/features/orders/types";
 import { AdminOrderParcelPanel } from "@/features/order-photos/components/admin-parcel-panel";
 import { formatDateTime, formatLbs, recipientLines, STAGE_META } from "@/features/warehouse/components/format";
+import { OrderInboundPanel } from "@/features/warehouse/components/inbound";
 import { ItemActions } from "@/features/warehouse/components/item-actions";
 import { ItemFlags, ItemThumb, PackageStatusBadge, StageBadge } from "@/features/warehouse/components/warehouse-ui";
+import { listInboundForOrder } from "@/features/warehouse/services/inbound.service";
 import { getWarehouseItem } from "@/features/warehouse/services/warehouse.service";
 import { APIError } from "@/lib/auth/api-helpers";
 
@@ -37,6 +39,8 @@ export default async function WarehouseItemPage({ params }: { params: Promise<{ 
     if (error instanceof APIError && error.statusCode === 404) notFound();
     throw error;
   }
+  // 086: the store's tracking numbers for this order, so the scan finds it.
+  const inbound = await listInboundForOrder(user, id);
 
   const facts: Array<{ label: string; value: string }> = [
     { label: "Quantity", value: String(item.quantity) },
@@ -112,6 +116,13 @@ export default async function WarehouseItemPage({ params }: { params: Promise<{ 
               </a>
             ) : null}
           </section>
+
+          <OrderInboundPanel
+            orderId={item.order_id}
+            orderNo={item.order_no}
+            parcels={inbound}
+            canAdd={item.order_status === "paid" || item.order_status === "processing"}
+          />
 
           <section className="tm-up rounded-[22px] border border-tm-border bg-card p-5 [animation-duration:0.5s] [animation-delay:.1s]">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3.5">

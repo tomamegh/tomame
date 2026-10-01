@@ -6,6 +6,8 @@ vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn
 vi.mock("@/features/orders/services/order-events.service", () => ({ recordOrderEvent: vi.fn() }));
 vi.mock("@/features/orders/services/orders.service", () => ({ advanceOrderFromWarehouse: vi.fn() }));
 vi.mock("@/db/queries/order-feedback", () => ({ listOrderFeedback: vi.fn(async () => []) }));
+vi.mock("@/db/queries/inbound-parcels", () => ({ findInboundParcelByKeys: vi.fn(async () => null) }));
+vi.mock("@/features/warehouse/services/activity.service", () => ({ recordWarehouseActivity: vi.fn() }));
 vi.mock("@/db/queries/warehouse", () => ({
   countPackagesByStatus: vi.fn(),
   deletePackageItem: vi.fn(),
@@ -31,6 +33,8 @@ vi.mock("@/db/queries/warehouse", () => ({
 }));
 
 import * as q from "@/db/queries/warehouse";
+import { findInboundParcelByKeys } from "@/db/queries/inbound-parcels";
+import { recordWarehouseActivity } from "@/features/warehouse/services/activity.service";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { recordOrderEvent } from "@/features/orders/services/order-events.service";
 import { advanceOrderFromWarehouse } from "@/features/orders/services/orders.service";
@@ -39,6 +43,7 @@ import { APIError } from "@/lib/auth/api-helpers";
 
 import {
   createWarehousePackage,
+  lookupWarehouseCode,
   normaliseCode,
   receiveWarehouseItem,
   sealWarehousePackage,
@@ -125,6 +130,11 @@ describe("normaliseCode", () => {
     expect(normaliseCode("10042")).toBe("PKG-10042");
     expect(normaliseCode("   ")).toBeNull();
   });
+
+  it("does not mistake a long all-digit carrier number for a package (086)", () => {
+    expect(normaliseCode("12345678")).toBe("PKG-12345678");
+    expect(normaliseCode("9400 1118 9922 3197 4284 90")).toBe("9400111899223197428490");
+  });
 });
 
 describe("toRecipient", () => {
@@ -209,7 +219,9 @@ describe("shipping", () => {
       ["o-1", "in_transit"],
       ["o-2", "in_transit"],
     ]);
-    expect(vi.mocked(advanceOrderFromWarehouse).mock.calls[1]?.[3]).toMatchObject({ tracking_number: "AWB-1" });
+    // 086: the waybill stays on the package; the customer's order never carries it.
+    expect(vi.mocked(advanceOrderFromWarehouse).mock.calls[1]?.[3]).toBeUndefined();
+    expect(q.updatePackage).toHaveBeenLastCalledWith("p-1", "sealed", expect.objectContaining({ tracking_number: "AWB-1" }));
     expect(q.updatePackage).toHaveBeenCalledWith("p-1", "sealed", expect.objectContaining({ status: "shipped" }));
     expect(logAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({ action: "warehouse_package_shipped", actorRole: "warehouse" }),
@@ -256,5 +268,31 @@ describe("receiving", () => {
   it("refuses an order that is not expected at the hub", async () => {
     vi.mocked(q.listWarehouseOrders).mockResolvedValue([order({ status: "delivered" })] as never);
     await expect(receiveWarehouseItem(operator, "o-1", {})).rejects.toMatchObject({ statusCode: 409 });
+  });
+});
+
+describe("lookupWarehouseCode: store parcels (086)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("opens a registered parcel from its carrier barcode, USPS routing prefix and all", async () => {
+    vi.mocked(findInboundParcelByKeys).mockResolvedValueOnce({ id: "ip-1", tracking_key: "9400111899223197428490" } as never);
+    const result = await lookupWarehouseCode(operator, "42010001" + "9400111899223197428490");
+    expect(result).toEqual({ kind: "inbound", id: "ip-1", tracking_key: "9400111899223197428490" });
+    expect(vi.mocked(findInboundParcelByKeys).mock.calls[0]![0]).toContain("9400111899223197428490");
+    expect(recordWarehouseActivity).toHaveBeenCalledWith(operator, expect.objectContaining({ kind: "scan", metadata: expect.objectContaining({ inbound_parcel_id: "ip-1" }) }));
+  });
+
+  it("answers an unregistered barcode with the code to link, and logs a failed lookup", async () => {
+    const result = await lookupWarehouseCode(operator, "1z999aa10123456784");
+    expect(result).toEqual({ kind: "inbound_unmatched", code: "1Z999AA10123456784" });
+    expect(recordWarehouseActivity).toHaveBeenCalledWith(operator, expect.objectContaining({ kind: "lookup_failed", metadata: expect.objectContaining({ inbound: true }) }));
+  });
+
+  it("still 404s a code too short to be anything", async () => {
+    await expect(lookupWarehouseCode(operator, "abc")).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("refuses a customer", async () => {
+    await expect(lookupWarehouseCode(customer, "1Z999AA10123456784")).rejects.toBeInstanceOf(APIError);
   });
 });

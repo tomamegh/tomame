@@ -175,7 +175,7 @@ export function safeImageSrc(url: string | null): string | null {
 
 // ── Receipt ──────────────────────────────────────────────────────────────────
 
-export type ReceiptRowIcon = "item" | "tax" | "fee" | "freight" | "rate";
+export type ReceiptRowIcon = "item" | "tax" | "fee" | "shipping" | "freight" | "rate";
 
 export interface ReceiptRow {
   key: ReceiptRowIcon;
@@ -194,6 +194,7 @@ export const RECEIPT_ROW_DELAYS = [
   "0.55s",
   "0.7s",
   "0.85s",
+  "1s",
 ] as const;
 
 /**
@@ -253,6 +254,18 @@ export function buildReceiptRows(pricing: PricingBreakdown): ReceiptRow[] {
       icon: "fee",
       label: labelWithPercent(pricing.value_fee_percentage, "Tomame fee"),
       value: formatUsd(pricing.value_fee_usd),
+    });
+  }
+
+  // The store's own shipping to our warehouse. Only when it costs something:
+  // most listings ship free, and a "$0.00" line would read as a charge.
+  const storeShippingUsd = pricing.store_shipping_usd ?? 0;
+  if (Number.isFinite(storeShippingUsd) && storeShippingUsd > 0) {
+    rows.push({
+      key: "shipping",
+      icon: "shipping",
+      label: "Store shipping",
+      value: formatUsd(storeShippingUsd),
     });
   }
 

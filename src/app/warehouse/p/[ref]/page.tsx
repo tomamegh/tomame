@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { warehousePageUser } from "@/features/warehouse/services/page-user";
 
 import { lookupWarehouseCode } from "@/features/warehouse/services/warehouse.service";
+import { inboundParcelPath } from "@/features/warehouse/types";
 import { APIError } from "@/lib/auth/api-helpers";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +25,14 @@ export default async function PackageScanPage({ params }: { params: Promise<{ re
     if (error instanceof APIError && (error.statusCode === 404 || error.statusCode === 400)) notFound();
     throw error;
   }
-  redirect(
+  // 086: a carrier number typed into the label URL is still a store parcel.
+  const destination =
     target.kind === "package"
       ? `/warehouse/packages/${target.id}?scanned=1`
-      : `/warehouse/items/${target.id}`,
-  );
+      : target.kind === "order"
+        ? `/warehouse/items/${target.id}`
+        : target.kind === "inbound"
+          ? inboundParcelPath(target.id)
+          : `/warehouse/inbound/new?code=${encodeURIComponent(target.code)}`;
+  redirect(destination);
 }

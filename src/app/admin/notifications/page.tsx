@@ -18,6 +18,8 @@ import { summariseEvents } from "@/features/notifications/components/admin-notif
 import { formatCount } from "@/features/admin/components/dashboard-format";
 import { cn } from "@/lib/utils";
 import { isWhatsAppConfigured } from "@/lib/whatsapp/config";
+import { StaffAlertsPanel } from "@/features/staff-alerts/components/staff-alerts-panel";
+import { getStaffAlertSettingsView } from "@/features/staff-alerts/staff-alerts-admin.service";
 
 import type { Metadata } from "next";
 
@@ -78,10 +80,11 @@ export default async function AdminNotificationsPage({
   // measured from the same moment.
   const now = new Date();
 
-  const [counts, rows, eventSample] = await Promise.all([
+  const [counts, rows, eventSample, staff] = await Promise.all([
     getAdminNotificationCounts(now),
     listNotificationsForAdmin({ status, channel, event }, ROW_LIMIT),
     listRecentNotificationEvents(EVENT_SAMPLE),
+    getStaffAlertSettingsView(),
   ]);
 
   const breakdown = summariseEvents(eventSample);
@@ -201,8 +204,10 @@ export default async function AdminNotificationsPage({
         </AdminCard>
       ) : null}
 
+      <StaffAlertsPanel {...staff} renderedAt={now.toISOString()} index={2} />
+
       <AdminCard
-        index={2}
+        index={3}
         title={filtered ? "Filtered messages" : "Recent messages"}
         blurb={
           rows.length >= ROW_LIMIT

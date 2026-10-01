@@ -7,7 +7,7 @@ import { resolvePlatform } from "@/features/extraction/scrapers";
 import { hashUrl, regionForUrl } from "@/features/extraction/url";
 import { hasRequiredFields } from "@/features/extraction/resolvers/merge";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
-import { extractionPricer, priceLowerOf, resolveLockForOrder } from "@/features/quotes/services/quote-lock.service";
+import { extractionPricer, extractionUnderLock, priceLowerOf, resolveLockForOrder } from "@/features/quotes/services/quote-lock.service";
 import { QuoteConstantsMissingError } from "@/features/quotes/services/quote-constants.service";
 import type { Viewer } from "@/features/quotes/types";
 import { withProductDefaults, type ExtractionResult } from "@/features/extraction/types";
@@ -202,10 +202,16 @@ export async function buildOrderIntake(
     try {
       const lock = await resolveLockForOrder(viewer, snapshot.id);
       if (lock) {
+        // A lock quoted without store shipping keeps it out (see extractionUnderLock).
+        const underLock = extractionUnderLock(pricingBase, lock);
+        const liveUnderLock = underLock === pricingBase
+          ? live.pricing
+          : (await priceExtractionWith(calculator, underLock, input.quantity, overrides, null)).pricing;
+        if (!liveUnderLock) throw new Error("Pricing without store shipping failed.");
         pricing = await priceLowerOf({
           lock,
-          live: live.pricing,
-          priceAt: extractionPricer(calculator, pricingBase, input.quantity, overrides),
+          live: liveUnderLock,
+          priceAt: extractionPricer(calculator, underLock, input.quantity, overrides),
           onLiveWins: { ratchet: true, actorId: viewer.userId },
         });
         rateLockId = lock.id;

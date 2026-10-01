@@ -50,7 +50,8 @@ export interface ScraperApiEbayProduct {
   color?: string;
   item_specifics?: Array<{ label?: string; value?: string }>;
   seller?: { name?: string; seller_url?: string };
-  shipping_costs?: { value?: number; currency?: string };
+  /** `value` is per unit in the listing currency; `currency` is unreliable scraped text ("delivery in – days"). */
+  shipping_costs?: { value?: number | string; currency?: string };
   rating?: number;
   review_count?: number;
   [key: string]: unknown;

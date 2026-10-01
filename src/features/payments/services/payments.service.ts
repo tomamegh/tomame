@@ -28,6 +28,7 @@ import {
   generatePaymentReference,
 } from "@/lib/paystack/client";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 import { createOrderNotifications } from "@/features/notifications/services/notifications.service";
 import { env } from "@/lib/env";
 import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES, PAYMENT_STATUSES } from "@/config/constants";
@@ -805,6 +806,7 @@ export async function handlePaymentCallback(
       entityId: payment.id,
       metadata: { reference, ...target, ordersSettled, needsRefundReview },
     });
+    notifyStaff({ kind: "payment_succeeded", paymentId: payment.id });
 
     return { redirectUrl: successUrl(target) };
   }
@@ -838,6 +840,7 @@ export async function handlePaymentCallback(
     entityId: payment.id,
     metadata: { reference, ...target, paystackStatus, amountMatches, currencyMatches },
   });
+  notifyStaff({ kind: "payment_failed", paymentId: payment.id, reason: "declined" });
 
   return { redirectUrl: failureUrl(target) };
 }

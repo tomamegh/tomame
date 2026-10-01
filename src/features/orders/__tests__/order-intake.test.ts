@@ -301,3 +301,34 @@ describe("buildOrderIntake — lock failure policy", () => {
     expect(intake.product_url).toBe(URL);
   });
 });
+
+describe("buildOrderIntake — store shipping", () => {
+  it("prices the snapshot's store shipping and ignores any the client sends", async () => {
+    const snap = snapshot();
+    (snap.result.product as unknown as Record<string, unknown>).store_shipping = 24;
+    vi.mocked(getExtractionSnapshot).mockResolvedValue(snap);
+
+    await buildOrderIntake({ ...input, store_shipping: 0, storeShipping: 0 } as unknown as typeof input, viewer);
+
+    const extraction = vi.mocked(priceExtractionWith).mock.calls[0]![1];
+    expect(extraction.product.store_shipping).toBe(24);
+  });
+
+  it("keeps store shipping out of a line whose lock was quoted without it", async () => {
+    const snap = snapshot();
+    (snap.result.product as unknown as Record<string, unknown>).store_shipping = 24;
+    vi.mocked(getExtractionSnapshot).mockResolvedValue(snap);
+    vi.mocked(findActiveLock).mockResolvedValue(lock({ exchange_rate: 15.01, mid_market_rate: 14.43 }));
+    vi.mocked(priceExtractionWith).mockImplementation(async (_c, e) => ({
+      pricing: e.product.store_shipping ? breakdown({ store_shipping_usd: 24, total_ghs: 5125.25 }) : breakdown(),
+      reason: null,
+    }));
+
+    const intake = await buildOrderIntake(input, viewer);
+
+    expect(vi.mocked(priceExtractionWith).mock.calls[1]![1].product.store_shipping).toBeNull();
+    expect(intake.pricing.store_shipping_usd).toBeUndefined();
+    expect(intake.pricing).toMatchObject({ total_ghs: 4765.01, rate_lock_id: "lock-1" });
+    expect(ratchetLockRate).not.toHaveBeenCalled();
+  });
+});

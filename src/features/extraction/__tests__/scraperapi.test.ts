@@ -281,3 +281,35 @@ describe("ScraperAPI weight and dimensions (prod shapes, 2026-09-30)", () => {
     expect(p.dimensions).toBe("18 x 14 x 3");
   });
 });
+
+describe("eBay store shipping (live shape 2026-09-30, item 406597496856)", () => {
+  const listing = (shipping_costs: { value?: number | string; currency?: string } | undefined, currency = "USD") =>
+    mapScraperApiEbay({ title: "MacBook Pro 14", price: { value: 599.99, currency }, shipping_costs }, EBAY_URL);
+
+  it("takes the value and ignores the delivery-time text in `currency`", () => {
+    const p = listing({ value: 24, currency: "delivery in – days" });
+    expect(p.store_shipping).toBe(24);
+    expect(p.currency).toBe("USD");
+    expect(p.metadata?.shippingCost).toBe(24); // kept for older readers
+  });
+
+  it("is in the listing's currency on eBay UK", () => {
+    const p = mapScraperApiEbay(
+      { title: "Headphones", price: { value: 80, currency: "GBP" }, shipping_costs: { value: 4.5, currency: "delivery in – days" } },
+      "https://www.ebay.co.uk/itm/123456789012",
+    );
+    expect(p.store_shipping).toBe(4.5);
+    expect(p.currency).toBe("GBP");
+  });
+
+  it("reads free shipping as 0 and missing / non-numeric as unknown", () => {
+    expect(listing({ value: 0 }).store_shipping).toBe(0);
+    expect(listing({ value: "Free" }).store_shipping).toBe(0);
+    expect(listing({ value: "FREE shipping" }).store_shipping).toBe(0);
+    expect(listing(undefined).store_shipping).toBeNull();
+    expect(listing({ currency: "delivery in – days" }).store_shipping).toBeNull();
+    expect(listing({ value: "See details" }).store_shipping).toBeNull();
+    expect(listing({ value: -3 }).store_shipping).toBeNull();
+    expect(listing({ value: "$12.50" }).store_shipping).toBe(12.5);
+  });
+});

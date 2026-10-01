@@ -53,6 +53,15 @@ export interface PricingInput {
   fixedFreightItemId?: string | null;
   /** Region for tax tier lookup. Defaults to "usa". */
   region?: PricingRegion;
+  /**
+   * What the store charges to ship ONE unit to our warehouse (eBay seller
+   * shipping), in `storeShippingCurrency`. Charged × quantity, converted like
+   * the item price, with no tax and no value fee on it. null/undefined = none
+   * known, priced as 0 (the caller decides whether that needs a note).
+   */
+  storeShipping?: number | null;
+  /** Currency of `storeShipping`. Defaults to `itemCurrency` (USD when only `itemPriceUsd` is given). */
+  storeShippingCurrency?: string;
 }
 
 export type PricingMethod = "flat_rate" | "weight_expression" | "fixed_freight" | "needs_review";
@@ -88,6 +97,17 @@ export interface PricingBreakdown {
   tax_usd: number;
   value_fee_percentage: number;
   value_fee_usd: number;
+  /**
+   * The store's own shipping to our warehouse: per unit as listed (in
+   * `store_shipping_currency`), the line total in USD (× quantity), and that
+   * total at `exchange_rate`. Untaxed and fee-free. Present only when the
+   * store charges shipping; absent (free, unknown, or a breakdown stored before
+   * 2026-09-30) reads as 0.
+   */
+  store_shipping?: number;
+  store_shipping_currency?: string;
+  store_shipping_usd?: number;
+  store_shipping_ghs?: number;
   flat_rate_ghs: number;
   total_ghs: number;
   total_pesewas: number;
@@ -307,6 +327,12 @@ export class PricingCalculator {
   /**
    * Calculate the full pricing breakdown for an order.
    *
+   *   total_ghs = (subtotal_usd + tax_usd + value_fee_usd + store_shipping_usd) × exchange_rate + freight_ghs
+   *
+   * where subtotal_usd = item_price_usd × quantity, value_fee_usd and tax_usd
+   * are on the subtotal only, and store_shipping_usd = the store's per-unit
+   * shipping (converted like the item price) × quantity.
+   *
    * `fx` is required on purpose: pass `null` to price at today's live rate, or
    * a lock's frozen pair to price at the rate the customer was promised. Making
    * callers say which one they mean is what stops a lock being silently
@@ -336,6 +362,16 @@ export class PricingCalculator {
     const itemPriceUsd = input.itemPriceUsd ?? (await this.toUsd(itemPrice, itemCurrency, midRate, fx));
 
     const subtotalUsd = r2(itemPriceUsd * quantity);
+
+    // Store shipping (seller → our warehouse): per unit × quantity, no tax, no fee.
+    const perUnitShipping = input.storeShipping != null && Number.isFinite(input.storeShipping) && input.storeShipping > 0
+      ? r2(input.storeShipping)
+      : 0;
+    const shippingCurrency = (
+      input.storeShippingCurrency ?? (input.itemPriceUsd != null && input.itemPrice == null ? "USD" : itemCurrency)
+    ).toUpperCase();
+    const perUnitShippingUsd = perUnitShipping > 0 ? await this.toUsd(perUnitShipping, shippingCurrency, midRate, fx) : 0;
+    const storeShippingUsd = r2(perUnitShippingUsd * quantity);
     const taxPct = this.getTaxPercentage(region);
     const rawTax = r2(subtotalUsd * taxPct);
     const minimumTax = this.required.minimum_tax_usd;
@@ -351,7 +387,19 @@ export class PricingCalculator {
       mid_market_rate: midRate,
       tax_percentage: taxPct,
       tax_usd: taxUsd,
+      // Only when the store charges something; absent reads as 0 everywhere.
+      ...(storeShippingUsd > 0
+        ? {
+            store_shipping: perUnitShipping,
+            store_shipping_currency: shippingCurrency,
+            store_shipping_usd: storeShippingUsd,
+            store_shipping_ghs: r2(storeShippingUsd * fxRate),
+          }
+        : {}),
     };
+    const shippingNote = storeShippingUsd > 0
+      ? ` + store shipping $${perUnitShippingUsd.toFixed(2)}${quantity > 1 ? ` × ${quantity}` : ""}`
+      : "";
 
     const catPricing = this.lookupCategoryPricing(category);
     const fixed = this.resolveFixedFreight(input);
@@ -368,7 +416,7 @@ export class PricingCalculator {
       extra: Partial<PricingBreakdown> = {},
     ): PricingBreakdown => {
       const valueFeeUsd = r2(subtotalUsd * valueFeePct);
-      const usdComponentGhs = r2((subtotalUsd + taxUsd + valueFeeUsd) * fxRate);
+      const usdComponentGhs = r2((subtotalUsd + taxUsd + valueFeeUsd + storeShippingUsd) * fxRate);
       const totalGhs = r2(usdComponentGhs + flatRateGhs);
       return {
         pricing_method: method,
@@ -380,7 +428,7 @@ export class PricingCalculator {
         total_ghs: totalGhs,
         total_pesewas: Math.round(totalGhs * 100),
         total_usd: fxRate > 0 ? r2(totalGhs / fxRate) : 0,
-        fee_calculation_note: note,
+        fee_calculation_note: `${note}${shippingNote}`,
         ...extra,
       };
     };
@@ -516,7 +564,8 @@ export class PricingCalculator {
   }
 
   private buildReview(
-    base: Pick<PricingBreakdown, "item_price" | "item_currency" | "item_price_usd" | "quantity" | "subtotal_usd" | "exchange_rate" | "mid_market_rate" | "tax_percentage" | "tax_usd">,
+    base: Pick<PricingBreakdown, "item_price" | "item_currency" | "item_price_usd" | "quantity" | "subtotal_usd" | "exchange_rate" | "mid_market_rate" | "tax_percentage" | "tax_usd"> &
+      Partial<Pick<PricingBreakdown, "store_shipping" | "store_shipping_currency" | "store_shipping_usd" | "store_shipping_ghs">>,
     group: string | null,
     valueFeePct: number,
     reason: string,

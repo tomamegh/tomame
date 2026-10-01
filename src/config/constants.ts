@@ -80,6 +80,14 @@ export const AUDIT_ENTITY_TYPES = {
   CAR_ORDER: "car_order",
   /** 081. A package on the warehouse bench: created, packed, sealed, shipped. */
   WAREHOUSE_PACKAGE: "warehouse_package",
+  /** 086. A store's parcel at the hub: registered, linked, unlinked, arrived. */
+  INBOUND_PARCEL: "inbound_parcel",
+  /**
+   * A pre-negotiated freight rate (`fixed_freight_items`). Its own type, not the
+   * `order` the older pricing routes borrow, so "who changed the iPhone rate"
+   * is one filter on the audit log.
+   */
+  FIXED_FREIGHT_ITEM: "fixed_freight_item",
 } as const;
 
 export type AuditEntityType =

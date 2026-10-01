@@ -318,6 +318,7 @@ export function mapApifySheinProduct(item: ApifySheinProduct): ScrapedProduct {
     images,
     variants,
     availability: null,
+    store_shipping: null,
     metadata: {
       breadcrumbs: crumbs,
       images: rawImages,
@@ -425,6 +426,7 @@ export class SheinScraper implements PlatformScraper {
       images: normalizeImages(allImages, mainImage),
       variants,
       availability: null,
+      store_shipping: null,
       metadata: {
         images: allImages,
         goodsId: extractGoodsId($),

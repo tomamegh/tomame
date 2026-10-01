@@ -3,6 +3,7 @@ import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 import { createOrder } from "@/features/orders/services/orders.service";
 import { getDeliveryAddressById } from "@/db/queries/delivery-addresses";
 import { listOrdersByGroup } from "@/db/queries/orders";
@@ -86,6 +87,7 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
     subtotal_usd: bag.subtotal_usd,
     tax_usd: bag.tax_usd,
     fee_usd: bag.fee_usd,
+    store_shipping_usd: bag.store_shipping_usd,
     freight_ghs: bag.freight_ghs,
     consolidation_saving_ghs: bag.consolidation_saving_ghs,
     delivery_fee_ghs: bag.delivery_fee_ghs,
@@ -154,6 +156,7 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
       consolidation_saving_ghs: settled.consolidation_saving_ghs,
     },
   });
+  notifyStaff({ kind: "bag_placed", groupId: group.id });
 
   return toCheckoutResult(settled, orders);
 }
@@ -213,6 +216,7 @@ async function reconcileTotals(group: OrderGroupRow, bag: BagView, orders: Order
     subtotal_usd: sumOf((o) => o.pricing.subtotal_usd),
     tax_usd: sumOf((o) => o.pricing.tax_usd),
     fee_usd: sumOf((o) => o.pricing.value_fee_usd),
+    store_shipping_usd: sumOf((o) => o.pricing.store_shipping_usd ?? 0),
     freight_ghs: sumOf((o) => o.pricing.flat_rate_ghs),
     total_ghs,
     total_pesewas: Math.round(total_ghs * 100),

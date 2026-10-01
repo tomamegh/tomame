@@ -9,8 +9,13 @@ import {
 import { getFeesWorkedExample } from "@/features/marketing/services/worked-example.service";
 import type { WorkedExample } from "@/features/marketing/types";
 import { AdminCategoryMappings } from "@/features/pricing/components/admin-category-mappings";
+import { AdminFixedFreightItems } from "@/features/pricing/components/admin-fixed-freight-items";
 import { AdminPricingGroups } from "@/features/pricing/components/admin-pricing-groups";
 import { AdminPricingTransfer } from "@/features/pricing/components/admin-pricing-transfer";
+import {
+  gatedFixedFreightShelves,
+  listFixedFreightItemsForAdmin,
+} from "@/features/pricing/services/fixed-freight-admin.service";
 import { collectMissingConstants } from "@/features/pricing/services/pricing-constant-keys";
 import { AdminExchangeRatesCard } from "@/features/settings/components/admin-exchange-rates-card";
 import { AdminPricingConsole } from "@/features/settings/components/admin-pricing-console";
@@ -46,10 +51,11 @@ export const dynamic = "force-dynamic";
  * writes an `audit_logs` row.
  */
 export default async function AdminSettingsPage() {
-  const [constants, groups, mappings, rates, example] = await Promise.all([
+  const [constants, groups, mappings, fixedItems, rates, example] = await Promise.all([
     listPricingConstants(),
     listPricingGroupsWithCounts(),
     listCategoryMappings(),
+    listFixedFreightItemsForAdmin(),
     getAllRates(),
     priceWorkedExample(),
   ]);
@@ -69,7 +75,7 @@ export default async function AdminSettingsPage() {
             The formula
           </h2>
           <p className="tm-nums text-[14px] leading-[1.6] font-semibold text-tm-ink">
-            (item + tax + item × fee) × exchange rate + freight
+            (item + tax + item × fee + store shipping) × exchange rate + freight
           </p>
           <p className="max-w-[72ch] text-[13px] leading-[1.55] font-medium text-tm-text-2">
             Freight is charged per item and takes one of four shapes: a group&rsquo;s flat cedi
@@ -96,6 +102,8 @@ export default async function AdminSettingsPage() {
       />
 
       <AdminPricingGroups groups={groups} />
+
+      <AdminFixedFreightItems items={fixedItems} gatedShelves={gatedFixedFreightShelves()} />
 
       <AdminCategoryMappings mappings={mappings} groups={groups} />
 

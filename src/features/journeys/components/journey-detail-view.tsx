@@ -154,20 +154,9 @@ export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyD
             )}
 
             <div className="grid grid-cols-[minmax(0,1fr)] gap-3 border-t border-[#F5EEE9] pt-[18px] sm:grid-cols-2 lg:grid-cols-3">
-              {journey.carrier && (
-                <Tile icon={<Truck weight="duotone" className="size-5 text-tm-coral" aria-hidden />} label="Carrier">
-                  {journey.carrier.trackingUrl ? (
-                    <a
-                      href={journey.carrier.trackingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-tm-coral"
-                    >
-                      {carrierLine(journey.carrier.name, journey.carrier.trackingNumber)}
-                    </a>
-                  ) : (
-                    carrierLine(journey.carrier.name, journey.carrier.trackingNumber)
-                  )}
+              {journey.status !== "pending" && journey.status !== "cancelled" && (
+                <Tile icon={<Truck weight="duotone" className="size-5 text-tm-coral" aria-hidden />} label="Tracking number">
+                  {journey.orderNo}
                 </Tile>
               )}
 
@@ -243,11 +232,6 @@ export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyD
       </div>
     </div>
   );
-}
-
-/** "DHL · 7734 2201 9856", or just the carrier when no number was entered. */
-function carrierLine(name: string, trackingNumber: string | null): string {
-  return trackingNumber ? `${name} · ${trackingNumber}` : name;
 }
 
 /** One of the three facts under the track (design line 329). */

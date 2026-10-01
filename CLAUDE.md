@@ -145,8 +145,14 @@ Every component except the item price is admin-controlled through
 `pricing_groups` and `pricing_constants`, NOT a `pricing_config` table:
 
 ```
-total_ghs = (item_price_usd + tax_usd + item_price_usd × value_fee_pct) × exchange_rate + freight_ghs
+total_ghs = (item_price_usd + tax_usd + item_price_usd × value_fee_pct + store_shipping_usd) × exchange_rate + freight_ghs
 ```
+
+`store_shipping_usd` is the store's own shipping to our warehouse (eBay seller
+shipping from ScraperAPI; Amazon via Oxylabs `price_shipping`, else 0): per unit
+× quantity, converted like the item price, no tax and no fee on it. It lives on
+the product as `store_shipping` (listing currency, null = unknown) and comes
+from the `extraction_cache` snapshot, never the client.
 
 Freight is per item (× quantity) and takes one of four shapes: the group's flat
 GHS rate, a fixed-freight item rate, a weight expression

@@ -25,7 +25,7 @@ const PAY = "https://tomame.ca/app/orders/3f1c2a9e-0000-4000-8000-000000000001";
 const ALL = {
   orderPaid: orderPaidTemplate(ORDER),
   orderProcessing: orderProcessingTemplate(ORDER),
-  orderShipped: orderShippedTemplate({ ...ORDER, carrier: "DHL", trackingNumber: "JD014600003", estimatedDeliveryDate: "Fri 10 Oct" }),
+  orderShipped: orderShippedTemplate({ ...ORDER, trackingNumber: "TM-00042", estimatedDeliveryDate: "Fri 10 Oct" }),
   orderDelivered: orderDeliveredTemplate(ORDER),
   orderPlaced: orderPlacedTemplate({ ...ORDER, totalGhs: 5120, needsReview: false, paymentUrl: PAY }),
   orderPlacedReview: orderPlacedTemplate({ ...ORDER, totalGhs: 5120, needsReview: true }),
@@ -75,7 +75,7 @@ describe("every email", () => {
   it("puts row labels and values on one line in plain text", () => {
     expect(ALL.priceDrop.text).toContain("Now (store price): $320.00");
     expect(ALL.priceDrop.text).toContain("Landed total: GH₵ 5120.00");
-    expect(ALL.orderShipped.text).toContain("Tracking number: JD014600003");
+    expect(ALL.orderShipped.text).toContain("Tracking number: TM-00042");
   });
 
   it("shows order progress in plain text", () => {

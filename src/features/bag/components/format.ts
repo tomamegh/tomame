@@ -131,6 +131,9 @@ export function buildBagSummaryRows(view: BagView): BagSummaryRow[] {
     value: formatUsd(view.tax_usd),
   });
   rows.push({ key: "fee", label: pctLabel("Tomame fee", sharedPercent(view.lines, (p) => p.value_fee_percentage)), value: formatUsd(view.fee_usd) });
+  if (view.store_shipping_usd > 0) {
+    rows.push({ key: "store_shipping", label: "Store shipping", value: formatUsd(view.store_shipping_usd) });
+  }
   const boxes = view.boxes.length;
   const freightLabel = boxes > 0 ? `Freight · ${boxes} box${boxes === 1 ? "" : "es"}, ${formatLbs(view.boxed_weight_lbs)}` : "Freight";
   rows.push({ key: "freight", label: freightLabel, value: formatGhs(view.freight_ghs) });

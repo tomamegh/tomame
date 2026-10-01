@@ -41,7 +41,7 @@ describe("buildBagSummaryRows", () => {
   const view: BagView = {
     delivery: null, delivery_fee_ghs: 0,
     cart_id: "c", lines: [], boxes: [box], unboxed_line_ids: [], consolidation_saving_ghs: 96, consolidation_saving_pct: 0.2, item_count: 2,
-    subtotal_usd: 817, tax_usd: 65.36, fee_usd: 40.85, freight_ghs: 264, boxed_weight_lbs: 5.4, total_ghs: 13489.66, total_usd: 934.84,
+    subtotal_usd: 817, tax_usd: 65.36, fee_usd: 40.85, store_shipping_usd: 0, freight_ghs: 264, boxed_weight_lbs: 5.4, total_ghs: 13489.66, total_usd: 934.84,
     rate_locked_until: null, has_unpriced_lines: false, has_pending_lines: false, has_sourcing_lines: false,
   };
   const doorFree: BagDelivery = { kind: "door", address_id: "a1", zone_id: "z1", zone_name: "Greater Accra", label: "Home · East Legon", fee_ghs: 0 };
@@ -57,6 +57,13 @@ describe("buildBagSummaryRows", () => {
       ["Door delivery · Greater Accra", "Free"],
     ]);
     expect(buildBagSummaryRows({ ...view, consolidation_saving_ghs: 0 }).some((r) => r.key === "saving")).toBe(false);
+  });
+
+  it("adds a Store shipping row after the fee only when the stores charge shipping", () => {
+    const rows = buildBagSummaryRows({ ...view, store_shipping_usd: 24 });
+    expect(rows.map((r) => r.key).slice(0, 4)).toEqual(["items", "tax", "fee", "store_shipping"]);
+    expect(rows[3]).toMatchObject({ label: "Store shipping", value: "$24.00" });
+    expect(buildBagSummaryRows(view).some((r) => r.key === "store_shipping")).toBe(false);
   });
 
   const deliveryRow = (v: BagView) => buildBagSummaryRows(v).find((r) => r.key === "delivery")!;

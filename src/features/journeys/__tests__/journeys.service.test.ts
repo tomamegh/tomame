@@ -36,7 +36,6 @@ const order = (over: Partial<Order> = {}): Order =>
     special_instructions: null,
     pricing: { total_ghs: 5041.16 },
     tracking_number: null,
-    carrier: null,
     estimated_delivery_date: null,
     delivered_at: null,
     extraction_data: null,

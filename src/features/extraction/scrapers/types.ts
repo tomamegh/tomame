@@ -1,6 +1,6 @@
 import type { CheerioAPI } from "cheerio";
 import type { TomameCategory } from "@/config/categories";
-import { addVariant, cleanString, normalizeImages, parseRating, parseReviewCount } from "./parse";
+import { addVariant, cleanString, normalizeImages, parseRating, parseReviewCount, parseStoreShipping } from "./parse";
 
 export type HtmlAttemptName =
   | "direct"
@@ -59,6 +59,12 @@ export interface ScrapedProduct {
   variants: Record<string, string[]>;
   /** Raw store availability phrase, e.g. "In Stock". */
   availability: string | null;
+  /**
+   * What the store charges to ship ONE unit to our warehouse, in `currency`.
+   * 0 = free shipping (stated), null = unknown. Set from structured vendor data
+   * (eBay: ScraperAPI `shipping_costs.value`). Amazon is always null (priced 0).
+   */
+  store_shipping: number | null;
   /** Everything else: vendor ids, list price, breadcrumbs, legacy copies of the typed facts. */
   metadata: Record<string, unknown>;
 }
@@ -84,6 +90,7 @@ export function emptyProduct(): ScrapedProduct {
     images: [],
     variants: {},
     availability: null,
+    store_shipping: null,
     metadata: {},
   };
 }
@@ -127,6 +134,9 @@ export function withProductDefaults(product: Partial<ScrapedProduct> | ScrapedPr
   out.rating = p.rating !== undefined ? p.rating : parseRating(meta.rating);
   out.review_count = p.review_count !== undefined ? p.review_count : parseReviewCount(meta.reviewCount);
   out.availability = p.availability !== undefined ? p.availability : cleanString(meta.availability);
+  // No fallback to metadata.shippingCost: rows cached before `store_shipping`
+  // existed read null (priced 0) so prices customers already hold never move.
+  out.store_shipping = p.store_shipping !== undefined ? parseStoreShipping(p.store_shipping) : null;
 
   const variants: Record<string, string[]> = {};
   if (p.variants && typeof p.variants === "object" && !Array.isArray(p.variants)) {

@@ -8,7 +8,7 @@ type Field = keyof ScrapedProduct;
 const SCALAR_FIELDS: Field[] = [
   "title", "image", "price", "currency", "description", "brand",
   "category", "size", "weight", "weight_lbs", "dimensions",
-  "seller", "condition", "rating", "review_count", "availability",
+  "seller", "condition", "rating", "review_count", "availability", "store_shipping",
 ];
 
 export interface MergeState {
@@ -26,6 +26,8 @@ function isPresent(v: unknown): boolean {
 
 function sane(field: Field, v: unknown): boolean {
   if (field === "price" || field === "weight_lbs") return typeof v === "number" && v > 0;
+  // 0 is a real answer (free shipping), unlike price and weight.
+  if (field === "store_shipping") return typeof v === "number" && Number.isFinite(v) && v >= 0;
   if (field === "currency") return typeof v === "string" && /^[A-Z]{3}$/.test(v);
   if (field === "image") return typeof v === "string" && /^(https?:)?\/\//.test(v);
   if (field === "title") return typeof v === "string" && v.trim().length >= 3;

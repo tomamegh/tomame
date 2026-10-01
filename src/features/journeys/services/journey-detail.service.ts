@@ -18,7 +18,6 @@ import type { PlatformUser } from "@/features/users/types";
 import type { Order } from "@/features/orders/types";
 import { etaOf, storeNameOf } from "./journeys.service";
 import type {
-  JourneyCarrier,
   JourneyDeliverTo,
   JourneyDetailViewModel,
   JourneyItem,
@@ -46,12 +45,11 @@ export async function getJourneyDetail(
   const order = await getOrder(client, user, orderId);
 
   const admin = createAdminClient();
-  const [events, photos, delivery, group, settings, channels] = await Promise.all([
+  const [events, photos, group, settings, channels] = await Promise.all([
     listOrderEvents(admin, order.id, { customerVisibleOnly: true }),
     // Ownership is already `getOrder`'s above, so this reads by order id; it
     // never throws, so a storage hiccup costs the pictures and not the page.
     listVisibleOrderPhotos(order.id),
-    loadDeliveryRow(order.id),
     order.order_group_id ? getOrderGroupById(order.order_group_id) : null,
     // A missing WhatsApp number costs one button, not the page.
     getSiteSettingsMap().catch((error: unknown) => {
@@ -94,7 +92,6 @@ export async function getJourneyDetail(
       etaTo: eta?.to ?? null,
       deliveredAt: order.delivered_at,
     }),
-    carrier: carrierOf(order, delivery),
     eta,
     deliverTo: deliverToOf(group?.delivery_address ?? null),
     updates: events,
@@ -113,51 +110,6 @@ export async function getJourneyDetail(
         ? { orderGroupId: group?.id ?? null }
         : null,
     groupSiblings: siblings,
-  };
-}
-
-// ── Carrier ─────────────────────────────────────────────────────────────────
-
-interface DeliveryRow {
-  carrier: string | null;
-  tracking_number: string | null;
-  tracking_url: string | null;
-}
-
-/**
- * `order_deliveries` carries the one field `orders` does not: `tracking_url`.
- * The row may not exist — before migration 050 the upsert that writes it could
- * never fire (its ON CONFLICT target had no unique index) — so a miss is normal
- * and costs only the outbound link.
- */
-async function loadDeliveryRow(orderId: string): Promise<DeliveryRow | null> {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("order_deliveries")
-    .select("carrier, tracking_number, tracking_url")
-    .eq("order_id", orderId)
-    .maybeSingle();
-
-  if (error) {
-    logger.warn("journey detail: delivery row unavailable", { orderId, error: error.message });
-    return null;
-  }
-  return (data as DeliveryRow | null) ?? null;
-}
-
-/**
- * "DHL · 7734 2201 9856" (design line 330). The carrier is the required half:
- * a tracking number with no carrier names nothing the customer can act on, so
- * the tile is not drawn until an admin has entered a carrier.
- */
-function carrierOf(order: Order, delivery: DeliveryRow | null): JourneyCarrier | null {
-  const name = order.carrier?.trim() || delivery?.carrier?.trim() || null;
-  if (!name) return null;
-
-  return {
-    name,
-    trackingNumber: order.tracking_number?.trim() || delivery?.tracking_number?.trim() || null,
-    trackingUrl: delivery?.tracking_url?.trim() || null,
   };
 }
 

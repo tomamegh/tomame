@@ -17,6 +17,8 @@ export interface OrderGroupRow {
   subtotal_usd: number;
   tax_usd: number;
   fee_usd: number;
+  /** Σ the orders' store shipping (seller → our warehouse), USD. Migration 085. */
+  store_shipping_usd: number;
   freight_ghs: number;
   consolidation_saving_ghs: number;
   delivery_fee_ghs: number;
@@ -32,11 +34,11 @@ export type OrderGroupInsert = Omit<OrderGroupRow, "id" | "payment_id" | "create
 
 /** The money columns checkout may correct once the orders exist (see checkout.service.ts). */
 export type OrderGroupMoneyPatch = Partial<
-  Pick<OrderGroupRow, "subtotal_usd" | "tax_usd" | "fee_usd" | "freight_ghs" | "total_ghs" | "total_pesewas">
+  Pick<OrderGroupRow, "subtotal_usd" | "tax_usd" | "fee_usd" | "store_shipping_usd" | "freight_ghs" | "total_ghs" | "total_pesewas">
 >;
 
 const COLUMNS =
-  "id, user_id, payment_id, delivery_address_id, delivery_zone_id, delivery_address, item_count, subtotal_usd, tax_usd, fee_usd, freight_ghs, consolidation_saving_ghs, delivery_fee_ghs, total_ghs, total_pesewas, status, created_at, updated_at";
+  "id, user_id, payment_id, delivery_address_id, delivery_zone_id, delivery_address, item_count, subtotal_usd, tax_usd, fee_usd, store_shipping_usd, freight_ghs, consolidation_saving_ghs, delivery_fee_ghs, total_ghs, total_pesewas, status, created_at, updated_at";
 
 // ── Queries (service role — every write is the server's) ────────────────────
 
@@ -132,6 +134,7 @@ function normalizeRow(row: Record<string, unknown>): OrderGroupRow {
     subtotal_usd: Number(row.subtotal_usd),
     tax_usd: Number(row.tax_usd),
     fee_usd: Number(row.fee_usd),
+    store_shipping_usd: Number(row.store_shipping_usd ?? 0),
     freight_ghs: Number(row.freight_ghs),
     consolidation_saving_ghs: Number(row.consolidation_saving_ghs),
     delivery_fee_ghs: Number(row.delivery_fee_ghs),

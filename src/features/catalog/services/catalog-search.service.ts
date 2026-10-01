@@ -138,6 +138,14 @@ export interface LandedPriceInput {
   currency: string | null;
   category: string | null;
   weight_lbs?: number | null;
+  /**
+   * Per-unit store shipping in `currency`, when a row carries one from an
+   * extraction. No catalogue query returns it today (no column, and the
+   * search RPCs return fixed columns), so cards price it as 0; never guessed.
+   */
+  store_shipping?: number | null;
+  /** The row's store, when known; Amazon store shipping is always priced 0. */
+  store?: string | null;
 }
 
 /**
@@ -166,6 +174,10 @@ async function calculateLanded(calculator: PricingCalculator, row: LandedPriceIn
         productTitle: row.title,
         region: "usa",
         ...(weightLbs != null ? { weightLbs } : {}),
+        // Same rule as a quote: Amazon is always 0; otherwise only a stored figure.
+        ...(row.store_shipping != null && row.store_shipping > 0 && row.store !== "amazon"
+          ? { storeShipping: Number(row.store_shipping), storeShippingCurrency: currency }
+          : {}),
       },
       null,
     );

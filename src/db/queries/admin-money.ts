@@ -65,6 +65,7 @@ export interface AdminTransactionGroup {
   subtotal_usd: number;
   tax_usd: number;
   fee_usd: number;
+  store_shipping_usd: number;
   freight_ghs: number;
   consolidation_saving_ghs: number;
   delivery_fee_ghs: number;
@@ -198,7 +199,7 @@ export async function getAdminTransaction(id: string): Promise<AdminTransactionD
     const { data: groupRow, error: groupError } = await client
       .from("order_groups")
       .select(
-        "id, status, item_count, subtotal_usd, tax_usd, fee_usd, freight_ghs, consolidation_saving_ghs, delivery_fee_ghs, total_ghs, total_pesewas, created_at",
+        "id, status, item_count, subtotal_usd, tax_usd, fee_usd, store_shipping_usd, freight_ghs, consolidation_saving_ghs, delivery_fee_ghs, total_ghs, total_pesewas, created_at",
       )
       .eq("id", groupId)
       .maybeSingle();
@@ -212,6 +213,7 @@ export async function getAdminTransaction(id: string): Promise<AdminTransactionD
         subtotal_usd: Number(groupRow.subtotal_usd),
         tax_usd: Number(groupRow.tax_usd),
         fee_usd: Number(groupRow.fee_usd),
+        store_shipping_usd: Number(groupRow.store_shipping_usd ?? 0),
         freight_ghs: Number(groupRow.freight_ghs),
         consolidation_saving_ghs: Number(groupRow.consolidation_saving_ghs),
         delivery_fee_ghs: Number(groupRow.delivery_fee_ghs),

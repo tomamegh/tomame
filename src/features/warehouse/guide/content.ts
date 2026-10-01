@@ -536,7 +536,7 @@ export const SCAN_WAYS = [
   },
 ];
 
-export const CODE_EXAMPLES = ["pkg-10042", "PKG10042", "tm-42", "10042", "https://tomame.ca/warehouse/p/PKG-10042"];
+export const CODE_EXAMPLES = ["pkg-10042", "PKG10042", "tm-42", "10042", "https://tomame.ca/warehouse/p/PKG-10042", "1Z 999 AA1 0123 4567 84"];
 
 export const CAMERA_USER_AGENTS = {
   iphone: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",

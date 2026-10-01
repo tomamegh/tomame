@@ -54,6 +54,7 @@ import { loadQuoteConstants, QuoteConstantsMissingError } from "../services/quot
 import {
   applyRateLock,
   consumeQuoteLocksForOrder,
+  extractionUnderLock,
   priceLowerOf,
   priceUnderExistingLock,
   resolveLockForOrder,
@@ -235,6 +236,42 @@ describe("applyRateLock — lower of locked and live, by total", () => {
     expect(pricing).toMatchObject({ exchange_rate: 15.01 });
     expect(pricing?.rate_lock_id).toBeUndefined();
     expect(logger.error).toHaveBeenCalled();
+  });
+});
+
+describe("applyRateLock — store shipping the lock never quoted", () => {
+  const shipped = { country: "USA", product: { price: 263.86, currency: "USD", store_shipping: 24 } } as unknown as ExtractionResult;
+  const runShipped = () => applyRateLock({ viewer: anon, extraction: shipped, extractionCacheId: CACHE_ID, quantity: 1, overrides: null });
+
+  it("keeps store shipping out when the lock's breakdown had none (a re-scrape found it later)", async () => {
+    vi.mocked(findActiveLock).mockResolvedValue(lock());
+    vi.mocked(priceExtractionWith).mockImplementation(async (_c, e) => ({
+      pricing: e.product.store_shipping ? breakdown({ store_shipping_usd: 24, total_ghs: 5125.25 }) : breakdown(),
+      reason: null,
+    }));
+
+    const { pricing } = await runShipped();
+
+    expect(vi.mocked(priceExtractionWith).mock.calls[1]![1].product.store_shipping).toBeNull();
+    expect(pricing?.store_shipping_usd).toBeUndefined();
+    expect(pricing).toMatchObject({ total_ghs: 4765.01, rate_lock_id: "lock-1" });
+    expect(ratchetLockRate).not.toHaveBeenCalled();
+  });
+
+  it("keeps store shipping when the lock was quoted with it", async () => {
+    vi.mocked(findActiveLock).mockResolvedValue(lock({ pricing: breakdown({ store_shipping_usd: 24 }) }));
+    vi.mocked(priceExtractionWith).mockResolvedValue({ pricing: breakdown({ store_shipping_usd: 24, total_ghs: 5125.25 }), reason: null });
+
+    const { pricing } = await runShipped();
+
+    expect(priceExtractionWith).toHaveBeenCalledTimes(1);
+    expect(pricing).toMatchObject({ store_shipping_usd: 24, total_ghs: 5125.25, rate_lock_id: "lock-1" });
+  });
+
+  it("extractionUnderLock returns the same object when nothing needs stripping", () => {
+    expect(extractionUnderLock(extraction, lock())).toBe(extraction);
+    expect(extractionUnderLock(shipped, lock({ pricing: breakdown({ store_shipping_usd: 24 }) }))).toBe(shipped);
+    expect(extractionUnderLock(shipped, lock()).product.store_shipping).toBeNull();
   });
 });
 

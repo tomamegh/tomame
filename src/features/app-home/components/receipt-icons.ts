@@ -4,6 +4,7 @@ import {
   ArrowsLeftRight,
   Bank,
   HandHeart,
+  Package,
   Tag,
 } from "@phosphor-icons/react/ssr";
 
@@ -21,6 +22,7 @@ export const RECEIPT_ROW_ICONS: Record<ReceiptRowIcon, Icon> = {
   item: Tag,
   tax: Bank,
   fee: HandHeart,
+  shipping: Package,
   freight: AirplaneTilt,
   rate: ArrowsLeftRight,
 };

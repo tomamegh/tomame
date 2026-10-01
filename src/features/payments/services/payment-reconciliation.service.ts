@@ -10,6 +10,7 @@ import { listOrdersByGroup } from "@/db/queries/orders";
 import { updateOrderGroupStatus, type OrderGroupRow } from "@/db/queries/order-groups";
 import { listStalePendingCarOrders } from "@/db/queries/car-orders";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 import { cancelCarOrder } from "@/features/cars/services/car-orders.service";
 import type { CarOrderRow } from "@/features/cars/car-orders.types";
 import { APIError } from "@/lib/auth/api-helpers";
@@ -234,6 +235,7 @@ async function expirePayment(
     entityId: payment.id,
     metadata: { reference: payment.reference, ...target, paystackStatus, expiryMinutes: timeouts.expiryMinutes },
   });
+  notifyStaff({ kind: "payment_failed", paymentId: payment.id, reason: "expired" });
 
   // The same three destinations `successUrl`/`failureUrl` resolve, and for the
   // same reason: a car customer sent to /app/orders lands on the parcel screen,
@@ -312,6 +314,7 @@ async function cancelStaleUnpaid(
       entityId: group.id,
       metadata: { ttlHours: timeouts.unpaidOrderTtlHours, order_ids: members.map((o) => o.id) },
     });
+    notifyStaff({ kind: "bag_status", groupId: group.id, from: "pending", to: "cancelled", by: "unpaid-order sweep" });
 
     await notify(group.user_id, "order_expired_unpaid", {
       order_group_id: group.id,
@@ -396,6 +399,8 @@ async function cancelOrderUnpaid(
     entityId: order.id,
     metadata: { from: "pending", to: "cancelled", ttlHours: timeouts.unpaidOrderTtlHours, orderGroupId: groupId },
   });
+  // A bag's orders are announced once, as the group, by the caller.
+  if (!groupId) notifyStaff({ kind: "order_status", orderId: order.id, from: "pending", to: "cancelled", by: "unpaid-order sweep" });
 
   await recordOrderEvent({
     order_id: order.id,

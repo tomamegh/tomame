@@ -29,6 +29,8 @@ export interface OxylabsAmazonProduct {
   price?: number;
   price_buybox?: number;
   price_strikethrough?: number;
+  /** Delivery charge for one unit, in `currency`; 0 when free. */
+  price_shipping?: number;
   currency?: string;
   stock?: string;
   images?: string[];

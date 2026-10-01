@@ -37,6 +37,7 @@ import {
   listCatalogDeals,
   searchCatalog,
   spreadAcrossCategories,
+  strikeLandedTotal,
 } from "../services/catalog-search.service";
 
 function hit(overrides: Partial<CatalogSearchHit>): CatalogSearchHit {
@@ -386,5 +387,24 @@ describe("listCatalogDeals", () => {
 
     expect(out.count).toBe(2);
     expect(out.results.map((r) => r.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("strikeLandedTotal — store shipping", () => {
+  const calc = { calculate } as unknown as Parameters<typeof strikeLandedTotal>[0];
+
+  it("passes no store shipping for a row that carries none (it is never guessed)", async () => {
+    await strikeLandedTotal(calc, { id: "e", title: "Lamp", price_usd: 10, currency: "USD", category: "x", store: "ebay" });
+    expect(calculate.mock.calls[0]![0]).not.toHaveProperty("storeShipping");
+  });
+
+  it("passes a stored per-unit figure in the row's currency", async () => {
+    await strikeLandedTotal(calc, { id: "e", title: "Lamp", price_usd: 10, currency: "USD", category: "x", store: "ebay", store_shipping: 6.5 });
+    expect(calculate.mock.calls[0]![0]).toMatchObject({ storeShipping: 6.5, storeShippingCurrency: "USD" });
+  });
+
+  it("never charges Amazon store shipping", async () => {
+    await strikeLandedTotal(calc, { id: "a", title: "Lamp", price_usd: 10, currency: "USD", category: "x", store: "amazon", store_shipping: 6.5 });
+    expect(calculate.mock.calls[0]![0]).not.toHaveProperty("storeShipping");
   });
 });

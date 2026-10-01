@@ -5,9 +5,13 @@
  * two cannot drift.
  */
 
+import { CARRIER_LABELS, normaliseTracking } from "../inbound/tracking-number";
+
 export type ReadCode =
   | { kind: "package"; code: string }
   | { kind: "order"; code: string }
+  /** 086: a carrier's tracking number. The Scan screen looks for the store parcel. */
+  | { kind: "carrier"; code: string; carrier: string }
   | { kind: "unknown"; code: string }
   | { kind: "empty" };
 
@@ -21,7 +25,7 @@ export function readCode(raw: string): string | null {
   if (pkg) return `PKG-${pkg[1]}`;
   const order = value.match(/^TM-?(\d{1,})$/);
   if (order?.[1]) return `TM-${order[1].padStart(5, "0")}`;
-  if (/^\d{5,}$/.test(value)) return `PKG-${value}`;
+  if (/^\d{5,8}$/.test(value)) return `PKG-${value}`;
   return value;
 }
 
@@ -30,5 +34,7 @@ export function explainCode(raw: string): ReadCode {
   if (!code) return { kind: "empty" };
   if (code.startsWith("PKG-")) return { kind: "package", code };
   if (code.startsWith("TM-")) return { kind: "order", code };
+  const tracking = normaliseTracking(raw);
+  if (tracking) return { kind: "carrier", code: tracking.key, carrier: CARRIER_LABELS[tracking.carrier] };
   return { kind: "unknown", code };
 }

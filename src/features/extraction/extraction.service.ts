@@ -160,6 +160,8 @@ async function weightMattersFor(category: string | null): Promise<boolean> {
   }
 }
 
+export const STORE_SHIPPING_UNKNOWN_MESSAGE = "Store shipping couldn't be confirmed for this listing; it may be added at review.";
+
 function toResult(prepared: PreparedUrl, outcome: ChainOutcome, sourcesRan: ChainOutcome["ran"]): ExtractionResult {
   const complete = hasRequiredFields(outcome.product);
   const messages = [...outcome.messages];
@@ -168,6 +170,9 @@ function toResult(prepared: PreparedUrl, outcome: ChainOutcome, sourcesRan: Chai
   // ships from does the customer see a note, and it is a promise, not a refusal.
   const region = prepared.region ?? inferRegion(prepared.canonicalUrl, outcome.product.currency);
   if (!region) messages.push("We'll confirm which country this store ships from and price it for you before we buy.");
+  // eBay sellers set their own shipping to our warehouse; priced as 0 when we
+  // could not read it, so the customer is told it may still be added.
+  if (prepared.platform === "ebay" && complete && outcome.product.store_shipping == null) messages.push(STORE_SHIPPING_UNKNOWN_MESSAGE);
   if (prepared.store.status === "blocked" && !complete) messages.push(`${prepared.store.name} blocks automated reading right now. Enter the price and our team will verify it.`);
   return {
     extraction_attempted: true,

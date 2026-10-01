@@ -3,12 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { BoxIcon, CameraIcon, CameraOffIcon, CornerDownLeftIcon, KeyboardIcon, PackageIcon, SmartphoneIcon } from "lucide-react";
+import { BoxIcon, CameraIcon, CameraOffIcon, CornerDownLeftIcon, KeyboardIcon, PackageIcon, SmartphoneIcon, TruckIcon } from "lucide-react";
 
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
-import type { LookupResult } from "../types";
+import { inboundParcelPath, type LookupResult } from "../types";
 import { cameraHelp, cameraSupported, createFrameDecoder } from "./frame-decoder";
 import { errorText, warehouseRequest } from "./warehouse-actions";
 
@@ -54,6 +54,21 @@ function writeRecent(list: RecentScan[]) {
   }
 }
 
+/** Where a lookup result opens, and what the recent list calls it. */
+function scanTarget(result: LookupResult): { href: string; label: string } {
+  switch (result.kind) {
+    case "package":
+      return { href: `/warehouse/packages/${result.id}?scanned=1`, label: result.reference };
+    case "order":
+      return { href: `/warehouse/items/${result.id}`, label: result.order_no };
+    // 086: a store parcel. Opening it offers the one-tap log-in.
+    case "inbound":
+      return { href: `${inboundParcelPath(result.id)}?receive=1`, label: result.tracking_key };
+    case "inbound_unmatched":
+      return { href: `/warehouse/inbound/new?code=${encodeURIComponent(result.code)}`, label: result.code };
+  }
+}
+
 export function ScanConsole() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -95,9 +110,7 @@ export function ScanConsole() {
       setError(null);
       try {
         const result = await warehouseRequest<LookupResult>("/api/warehouse/lookup", "POST", { code: value });
-        const href =
-          result.kind === "package" ? `/warehouse/packages/${result.id}?scanned=1` : `/warehouse/items/${result.id}`;
-        const label = result.kind === "package" ? result.reference : result.order_no;
+        const { href, label } = scanTarget(result);
         const next = [{ code: value, label, href, kind: result.kind, at: Date.now() }, ...readRecent().filter((r) => r.label !== label)];
         writeRecent(next);
         setHit(label);
@@ -288,7 +301,7 @@ export function ScanConsole() {
               autoComplete="off"
               autoCapitalize="characters"
               spellCheck={false}
-              placeholder="PKG-10042 or TM-00042"
+              placeholder="PKG-10042, TM-00042 or a carrier barcode"
               className={cn(
                 "h-14 w-full rounded-[18px] border bg-card pr-14 pl-5 font-mono text-[20px] font-bold tracking-wide text-tm-ink uppercase outline-none placeholder:font-sans placeholder:text-[15px] placeholder:font-medium placeholder:tracking-normal placeholder:text-tm-text-3 placeholder:normal-case focus:ring-4",
                 error ? "border-tm-coral focus:ring-tm-coral/15" : "border-tm-border focus:border-tm-coral/60 focus:ring-tm-coral/10",
@@ -323,12 +336,18 @@ export function ScanConsole() {
                   className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-tm-paper/70"
                 >
                   <span className="flex size-9 items-center justify-center rounded-[11px] bg-tm-paper text-tm-text-2">
-                    {r.kind === "package" ? <BoxIcon className="size-4" /> : <PackageIcon className="size-4" />}
+                    {r.kind === "package" ? (
+                      <BoxIcon className="size-4" />
+                    ) : r.kind === "inbound" || r.kind === "inbound_unmatched" ? (
+                      <TruckIcon className="size-4" />
+                    ) : (
+                      <PackageIcon className="size-4" />
+                    )}
                   </span>
                   <span className="flex flex-col">
-                    <span className="font-mono text-[14px] font-bold text-tm-ink">{r.label}</span>
+                    <span className="font-mono text-[14px] font-bold break-all text-tm-ink">{r.label}</span>
                     <span className="text-[12px] font-medium text-tm-text-3">
-                      {r.kind === "package" ? "Package" : "Item"} ·{" "}
+                      {r.kind === "package" ? "Package" : r.kind === "order" ? "Item" : "Store parcel"} ·{" "}
                       {new Date(r.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </span>

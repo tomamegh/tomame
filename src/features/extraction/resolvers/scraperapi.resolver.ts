@@ -11,7 +11,7 @@ import { TomameCategory, AMAZON_CATEGORY_MAP, EBAY_CATEGORY_MAP } from "@/config
 import { cleanSpecValue, dimensionsFromSpecs, parseWeightLbs, weightFromSpecs, weightInDimensions } from "../weight";
 import { amazonAsinOf, amazonDomainOf, defaultCurrencyForUrl, ebayItemIdOf } from "../url";
 import { fetchTargetProduct } from "./target-redsky";
-import { cleanString, normalizeImages, parseRating, parseReviewCount } from "../scrapers/parse";
+import { cleanString, normalizeImages, parseRating, parseReviewCount, parseStoreShipping } from "../scrapers/parse";
 import { hasRequiredFields } from "./merge";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
 
@@ -168,6 +168,9 @@ export function mapScraperApiEbay(item: ScraperApiEbayProduct, sourceUrl: string
     variants: {},
     // `available` is a boolean, not a store phrase; the resolver adds a message when it is false.
     availability: null,
+    // Per unit, in the listing's currency. `shipping_costs.currency` is scraped
+    // delivery-time text ("delivery in – days"), never a currency; ignore it.
+    store_shipping: parseStoreShipping(item.shipping_costs?.value),
     metadata: {
       images: item.images ?? [],
       itemId: item.product_id_epid ?? ebayItemIdOf(sourceUrl),

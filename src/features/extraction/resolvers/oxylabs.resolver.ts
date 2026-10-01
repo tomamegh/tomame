@@ -66,6 +66,9 @@ export function mapOxylabsAmazon(item: OxylabsAmazonProduct, sourceUrl: string):
     images,
     variants,
     availability: cleanString(item.stock),
+    // Amazon prices store shipping as 0: Oxylabs' `price_shipping` is quoted to
+    // an anonymous, non-Prime proxy address and overstates what we pay.
+    store_shipping: null,
     metadata: {
       images: item.images ?? [],
       breadcrumbs,
