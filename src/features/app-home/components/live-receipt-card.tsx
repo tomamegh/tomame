@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { StoreImage as Image } from "@/components/store-image";
 import { LinkSimple, Receipt } from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/utils";

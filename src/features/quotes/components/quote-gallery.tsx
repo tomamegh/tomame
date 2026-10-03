@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import Image from "next/image";
+import { StoreImage as Image } from "@/components/store-image";
 import {
   ArrowSquareOut,
   BookmarkSimple,

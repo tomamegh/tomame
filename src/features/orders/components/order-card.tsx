@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import { StoreImage as Image } from "@/components/store-image";
 import {
   TruckIcon,
   AlertTriangleIcon,

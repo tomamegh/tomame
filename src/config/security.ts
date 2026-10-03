@@ -102,6 +102,13 @@ export const RATE_LIMIT = {
    */
   imgProxy: { windowMs: 10 * 60 * 1000, maxRequests: 20 },
   /**
+   * Unlisted-store photos streamed by `/api/image-passthrough` — 300 per 10
+   * minutes per IP. A plain fetch, not Browserless, and one product gallery
+   * alone is ~10 photos, so the 20 above blanked a gallery by the second page
+   * view. Responses are CDN-cached, so this only counts cache misses.
+   */
+  imagePassthrough: { windowMs: 10 * 60 * 1000, maxRequests: 300 },
+  /**
    * Parcel photo bytes — 300 per 15 minutes per IP.
    *
    * Deliberately loose, because this is an <img src>: one journey screen is

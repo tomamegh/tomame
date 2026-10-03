@@ -34,7 +34,10 @@
  * `imageOptimizerDecision` (below) is what `src/lib/supabase/proxy.ts` calls
  * on every `/_next/image?url=...` request. Anything that fails this check is
  * rewritten to `/api/image-passthrough`, which streams it from our own origin
- * instead of letting Next's optimizer 400 it.
+ * instead of letting Next's optimizer 400 it. On Vercel that rewrite never
+ * runs (the platform answers `/_next/image` first), so product photos render
+ * through `StoreImage` (`src/components/store-image.tsx`), which calls the
+ * same decision before building the URL.
  */
 
 export interface ImageHostEntry {
@@ -58,6 +61,7 @@ const OBSERVED_IMAGE_HOSTS: ImageHostEntry[] = [
     matchSubdomains: false,
     reason: "Many of the 'generic' (unregistered) stores the catalogue scrapes are Shopify storefronts",
   },
+  { hostname: "mediahub.prettylittlething.com", matchSubdomains: false, reason: "PrettyLittleThing product images (prod extraction_cache, 2026-10-03)" },
 ];
 
 /** Copied from `src/features/extraction/resolvers/stores.ts` `domains` — see file comment for why this isn't an import. */

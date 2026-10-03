@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { StoreImage as Image } from "@/components/store-image";
 import { BookmarkSimple, ChatCircleText, CheckCircle, CircleNotch, Minus, Plus, X } from "@phosphor-icons/react/ssr";
 
 import { safeImageSrc } from "@/features/app-home/components/format";

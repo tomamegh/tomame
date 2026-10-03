@@ -34,6 +34,11 @@ export async function updateSession(request: NextRequest) {
   // `/api/image-passthrough`, which fetches under its own guards (no private
   // address space, must really be an image, capped and rate limited).
   //
+  // Vercel serves `/_next/image` itself, ahead of this proxy, so in production
+  // this rewrite never fires: `StoreImage` (`src/components/store-image.tsx`)
+  // makes the same decision before the URL is built. This stays for `next dev`
+  // and any host that does route the optimizer through the proxy.
+  //
   // Checked ahead of the Supabase session refresh below: an image request has
   // no session to refresh, and this is by far the highest-volume path through
   // this proxy.

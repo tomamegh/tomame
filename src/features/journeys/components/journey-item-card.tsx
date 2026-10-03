@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { StoreImage as Image } from "@/components/store-image";
 import { ArrowSquareOut, ChatsCircle, Storefront } from "@phosphor-icons/react/ssr";
 
 import { formatLbs } from "@/features/bag/components/format";

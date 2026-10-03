@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { StoreImage as Image } from "@/components/store-image";
 import Link from "next/link";
 import { ArrowRight, SpinnerGap } from "@phosphor-icons/react/ssr";
 

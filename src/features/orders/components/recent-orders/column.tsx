@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import { StoreImage as Image } from "@/components/store-image";
 import { Order } from "@/features/orders/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { ExternalLinkIcon, PackageIcon, CopyIcon, CheckIcon } from "lucide-react";

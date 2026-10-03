@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { OrderStatusBadge } from "../order-status-badge";
 import type { Order, OrderStatus } from "../../types";
-import Image from "next/image";
+import { StoreImage as Image } from "@/components/store-image";
 import { cn, getBrandConfig } from "@/lib/utils";
 
 // ── Table meta type ───────────────────────────────────────────────────────────

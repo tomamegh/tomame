@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
   }
 
   const ip = getClientIp(request);
-  if (!(await checkRateLimit(`image-passthrough:${ip}`, RATE_LIMIT.imgProxy)).allowed) {
+  if (!(await checkRateLimit(`image-passthrough:${ip}`, RATE_LIMIT.imagePassthrough)).allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
       // Never let a fetched document be sniffed into something executable.
       "X-Content-Type-Options": "nosniff",
       "Content-Disposition": "inline",
-      "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+      "Cache-Control": "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
     },
   });
 }

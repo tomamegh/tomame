@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { StoreImage as Image } from "@/components/store-image";
 import Link from "next/link";
 import { Star } from "@phosphor-icons/react/ssr";
 

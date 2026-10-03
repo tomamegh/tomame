@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import Image from "next/image";
+import { StoreImage as Image } from "@/components/store-image";
 
 import { cn } from "@/lib/utils";
 import { formatGhs, formatUsd } from "@/features/marketing/format";
