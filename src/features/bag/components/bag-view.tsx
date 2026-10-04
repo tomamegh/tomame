@@ -20,6 +20,9 @@ import { BagBoxCard } from "./bag-box-card";
 import { BagContactCard } from "./bag-contact-card";
 import { BagDeliverToCard } from "./bag-deliver-to-card";
 import { BagEmpty } from "./bag-empty";
+import { SiteBanner } from "@/features/banners/components/site-banner";
+import type { LiveBanner } from "@/features/banners/types";
+import { cn } from "@/lib/utils";
 import { AssistedRequestDialog } from "@/features/assisted/components";
 import { BagPasteLinkBar, BagPayBar } from "./bag-pay-bar";
 import { BagPendingGroupCard } from "./bag-pending-group-card";
@@ -42,6 +45,8 @@ export interface BagViewProps {
   pickupEnabled: boolean;
   /** The signed-in viewer's name and phone; null when signed out. Required before checkout. */
   contact: ContactDetails | null;
+  /** Live `checkout` banners (089) — shown beside the summary, above it on a phone. */
+  banners: LiveBanner[];
   /** The viewer's newest unpaid order group, offered again when the bag is empty. */
   pendingGroup: PendingGroupSummary | null;
   /** Server render time, ISO — the countdown is struck from it on both sides so hydration agrees. */
@@ -64,7 +69,7 @@ export interface BagViewProps {
  * whole bag is refetched, because a quantity change moves the box fill, the
  * saving and the total together — nothing here does arithmetic.
  */
-export function BagView({ initialBag, zones, addresses, paymentChannels, paymentHoldNote, isSignedIn, pickupEnabled, contact: initialContact, pendingGroup, renderedAt }: BagViewProps) {
+export function BagView({ initialBag, zones, addresses, paymentChannels, paymentHoldNote, isSignedIn, pickupEnabled, contact: initialContact, banners, pendingGroup, renderedAt }: BagViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: bag } = useBag(initialBag);
@@ -213,6 +218,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
         <BagHeader />
         {pendingGroup ? (
           <>
+            <CheckoutBanners banners={banners} />
             <BagPendingGroupCard group={pendingGroup} paymentChannels={paymentChannels} payment={payment} />
             <BagPayBar
               totalGhs={pendingGroup.total_ghs}
@@ -237,6 +243,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
     <div className="grid items-start gap-7 pb-[95px] lg:grid-cols-[1fr_420px] lg:pb-0">
       <div className="flex flex-col gap-[18px]">
         <BagHeader />
+        <CheckoutBanners banners={banners} className="lg:hidden" />
 
         {bag.boxes.map((box, i) => (
           <BagBoxCard
@@ -307,14 +314,18 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
         <BagDeliverToCard delivery={bag.delivery} zones={zones} addresses={addresses} isSignedIn={isSignedIn} pickupEnabled={pickupEnabled} />
       </div>
 
-      <BagSummaryCard
-        view={bag}
-        now={now}
-        paymentChannels={paymentChannels}
-        paymentHoldNote={paymentHoldNote}
-        payment={payment}
-        blocked={blocked}
-      />
+      {/* The rail is sticky as one piece, so a banner stays beside the Pay button. */}
+      <div className="flex flex-col gap-3 lg:sticky lg:top-5">
+        <CheckoutBanners banners={banners} className="hidden lg:flex lg:empty:hidden" />
+        <BagSummaryCard
+          view={bag}
+          now={now}
+          paymentChannels={paymentChannels}
+          paymentHoldNote={paymentHoldNote}
+          payment={payment}
+          blocked={blocked}
+        />
+      </div>
 
       <BagPayBar
         totalGhs={bag.total_ghs}
@@ -411,5 +422,16 @@ function UnboxedGroup({
         ))}
       </ul>
     </section>
+  );
+}
+
+function CheckoutBanners({ banners, className }: { banners: LiveBanner[]; className?: string }) {
+  if (banners.length === 0) return null;
+  return (
+    <div className={cn("flex flex-col gap-2.5 empty:hidden", className)}>
+      {banners.map((banner) => (
+        <SiteBanner key={banner.id} banner={banner} />
+      ))}
+    </div>
   );
 }

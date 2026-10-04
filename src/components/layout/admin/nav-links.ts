@@ -12,6 +12,7 @@ import {
   LayoutGridIcon,
   LinkIcon,
   MailIcon,
+  MegaphoneIcon,
   MessageCircleIcon,
   PackageIcon,
   ShoppingBagIcon,
@@ -133,6 +134,7 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
       // a vehicle held off the market until somebody records that it arrived.
       { title: "Car sales", url: "/admin/cars/orders", icon: BanknoteIcon, badge: "carBalancesDue" },
       { title: "Content", url: "/admin/content", icon: FileTextIcon },
+      { title: "Banners", url: "/admin/banners", icon: MegaphoneIcon },
       { title: "Policies", url: "/admin/policies", icon: FileTextIcon },
     ],
   },

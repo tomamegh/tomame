@@ -35,6 +35,7 @@ import { toPasteStatus } from "@/features/extraction/services/paste-status";
 import { logger } from "@/lib/logger";
 import { readQuoteSessionFromCookies } from "@/lib/quote-session";
 import { ExtractAndForward } from "./extract-and-forward";
+import { BannerSlot } from "@/features/banners/components";
 
 export const metadata: Metadata = {
   title: "Buy for me",
@@ -112,22 +113,25 @@ export default async function NewOrderPage({
   const catalogueCount = catalogue.categories.reduce((sum, entry) => sum + entry.count, 0);
 
   return (
-    <PasteQueueView
-      initialPastes={pastes.map((p) =>
-        toPasteStatus(p, facts.get(p.extraction_cache_id ?? ""), assisted.get(p.product_url) ?? null),
-      )}
-      stores={SUPPORTED_STORE_NAMES}
-      renderedAt={new Date().toISOString()}
-      watchId={watch ? watch : null}
-      // Only an account can be told when a slow paste lands; the wait copy must
-      // not promise a message to a visitor it cannot reach.
-      notifies={user != null}
-      mode={mode}
-      catalogueCount={catalogueCount}
-      browse={
-        mode === "browse" ? await renderShop(catalogue, params) : null
-      }
-    />
+    <div className="flex min-w-0 flex-col gap-5">
+      <BannerSlot placement="buy" />
+      <PasteQueueView
+        initialPastes={pastes.map((p) =>
+          toPasteStatus(p, facts.get(p.extraction_cache_id ?? ""), assisted.get(p.product_url) ?? null),
+        )}
+        stores={SUPPORTED_STORE_NAMES}
+        renderedAt={new Date().toISOString()}
+        watchId={watch ? watch : null}
+        // Only an account can be told when a slow paste lands; the wait copy must
+        // not promise a message to a visitor it cannot reach.
+        notifies={user != null}
+        mode={mode}
+        catalogueCount={catalogueCount}
+        browse={
+          mode === "browse" ? await renderShop(catalogue, params) : null
+        }
+      />
+    </div>
   );
 }
 

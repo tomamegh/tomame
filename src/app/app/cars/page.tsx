@@ -11,6 +11,7 @@ import {
 } from "@/features/cars/services/cars.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { logger } from "@/lib/logger";
+import { BannerSlot } from "@/features/banners/components";
 
 export const metadata: Metadata = {
   title: "Cars en route to Ghana",
@@ -83,6 +84,7 @@ export default async function CarsPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
+      <BannerSlot placement="cars" />
       <header className="tm-up flex min-w-0 flex-col gap-3">
         <span className="flex w-fit items-center gap-2 rounded-full bg-tm-tint px-3 py-1.5 text-[12px] leading-none font-bold text-tm-coral-strong">
           <Boat weight="duotone" className="size-4" aria-hidden />

@@ -35,6 +35,8 @@ export const AUDIT_ENTITY_TYPES = {
    */
   SITE_SETTING: "site_setting",
   SITE_CONTENT: "site_content",
+  /** 089: admin-written banners in a named slot of the app. */
+  SITE_BANNER: "site_banner",
   REGION: "region",
   DELIVERY_ZONE: "delivery_zone",
   POLICY: "policy",

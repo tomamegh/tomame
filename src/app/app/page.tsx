@@ -17,6 +17,7 @@ import {
   YourOrders,
 } from "@/features/app-home/components";
 import { PriceWatchCard } from "@/features/watches/components";
+import { BannerSlot } from "@/features/banners/components";
 
 /**
  * Trust chips under the paste bar.
@@ -68,6 +69,7 @@ export default async function AppHomePage() {
 
   return (
     <div className="flex flex-col gap-11">
+      <BannerSlot placement="app_home" className="-mb-5" />
       {/*
         ── Row A · Ask ──────────────────────────────────────────────────
         Full width now that the receipt has moved down. The hero is the one
