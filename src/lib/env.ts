@@ -51,6 +51,14 @@ export const env = {
     zyteApiKey: optional("ZYTE_API_KEY"),
   },
   /**
+   * Google Maps Geocoding, for "Use my current location" (088). Optional: the
+   * admin can paste the key into `site_settings.google_maps_api_key` instead;
+   * this env var wins when both are set. A getter, read at call time.
+   */
+  maps: {
+    get googleApiKey() { return optional("GOOGLE_MAPS_API_KEY"); },
+  },
+  /**
    * WhatsApp (Meta Cloud API). Every key optional: the channel is OFF until the
    * access token AND phone number id are both set, and then skipped cleanly
    * (no rows, no errors). Getters, so a test or a redeployed env var is read

@@ -3,6 +3,7 @@ import { createOrderSchema } from "@/features/orders/schema";
 import { createOrder, listUserOrders } from "@/features/orders/services/orders.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth } from "@/lib/auth/guards";
+import { requireContactDetails } from "@/features/account/services/contact-details.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const auth = requireAuth(user);
+    requireContactDetails(auth);
 
     // The rate lock is resolved from the session, never from the body.
     const { viewer } = resolveViewer(request, auth.id);

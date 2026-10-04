@@ -15,6 +15,7 @@ import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { notifyStaff } from "@/features/staff-alerts/notify";
 import { initializePayment } from "@/features/payments/services/payments.service";
+import { requireContactDetails } from "@/features/account/services/contact-details.service";
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import type { PlatformUser } from "@/features/users/types";
@@ -126,6 +127,7 @@ export async function startCarCheckout(
   user: PlatformUser,
   input: CarCheckoutInput,
 ): Promise<CarCheckoutResult> {
+  requireContactDetails(user);
   const listing = await getCarListingById(input.carListingId);
   // A listing that does not exist is a 404; one that exists but is not for sale
   // is a 409, which is the contract this endpoint publishes. The messages are

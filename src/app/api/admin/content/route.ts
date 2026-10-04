@@ -230,6 +230,19 @@ function validateSettingValue(key: string, value: unknown): unknown {
     if (!parsed.success) throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid value");
     return parsed.data;
   }
+  if (key === "pickup_enabled" || key === "address_lookup_enabled") {
+    // 088. Real JSONB booleans, like the tour switch below.
+    if (typeof value !== "boolean") throw new APIError(400, "This setting is either true or false.");
+    return value;
+  }
+  if (key === "google_maps_api_key") {
+    if (typeof value !== "string") throw new APIError(400, "Paste the key as text.");
+    const trimmed = value.trim();
+    if (trimmed && !/^[A-Za-z0-9_-]{20,100}$/.test(trimmed)) {
+      throw new APIError(400, "That does not look like a Google API key (they start with “AIza”).");
+    }
+    return trimmed;
+  }
   if (key === "onboarding_tour_enabled") {
     // Two valid values and no third. Stored as a real JSONB boolean so the app
     // never has to decide what the string "false" means.

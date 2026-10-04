@@ -15,9 +15,16 @@
  * bought what.
  *
  * FULL detail (product, picture, timeline) needs one of:
- *  - a second factor: the last four digits of the phone on the order, or the
- *    account's email, rate-limited per reference (8 an hour, from every address
- *    combined), so ten thousand guesses take longer than the parcel takes;
+ *  - a second factor: the last four digits of a phone on the order (the
+ *    checkout snapshot, the saved address it used, or the profile), or the
+ *    account's email. Limits, from `config/security.ts`: 8 attempts an hour per
+ *    reference per address, and 20 WRONG answers an hour per reference from
+ *    every address combined. 10,000 endings at 20 an hour is ten days for an
+ *    even chance and three weeks to cover them all, longer than a parcel is in
+ *    transit.
+ *    Only wrong answers count toward the shared ceiling, so a stranger's
+ *    guesses can at worst lock the reference's second factor for the rest of
+ *    the hour; the owner can always sign in instead;
  *  - being the signed-in owner.
  *
  * Even full detail carries no name, address, phone, email, price, payment or
@@ -35,15 +42,23 @@ import type { JourneyEta } from "@/features/journeys/types";
 export type TrackingQuery = { kind: "reference"; orderNo: string } | { kind: "invalid" };
 
 /**
- * "tm 42", "TM-00042", "tm00042" → TM-00042. Anything else (a carrier number
- * included) is not a Tomame number and is answered "not found".
+ * "tm 42", "TM-00042", "tm00042", "#TM-00042", "Order TM-42.", "TM-000042" →
+ * TM-00042. Surrounding punctuation, a leading "#" or the word "order", and
+ * extra leading zeros are forgiven; the number is re-padded to the five digits
+ * `orders.order_no` is written with (050: `lpad(n, 5, '0')`). Anything else (a
+ * carrier number included) is not a Tomame number and is answered "not found".
  */
 export function classifyTrackingQuery(raw: string): TrackingQuery {
-  const compact = raw.trim().toUpperCase().replace(/[\s-]+/g, "");
+  if (raw.length > 120) return { kind: "invalid" };
+  const trimmed = raw
+    .toUpperCase()
+    .replace(/^[\s"'`.,:;!?()[\]{}<>*_~#-]+|[\s"'`.,:;!?()[\]{}<>*_~#-]+$/g, "")
+    .replace(/^ORDER\b[\s:#.-]*/, "");
+  const compact = trimmed.replace(/[\s#._-]+/g, "");
   if (!compact || compact.length > 80) return { kind: "invalid" };
-  const ref = compact.match(/^TM(\d{1,8})$/);
-  if (ref?.[1]) return { kind: "reference", orderNo: `TM-${ref[1].padStart(5, "0")}` };
-  return { kind: "invalid" };
+  const digits = compact.match(/^TM(\d{1,12})$/)?.[1]?.replace(/^0+/, "");
+  if (!digits || digits.length > 8) return { kind: "invalid" };
+  return { kind: "reference", orderNo: `TM-${digits.padStart(5, "0")}` };
 }
 
 /** Client-safe: does this look like a Tomame number worth sending to /track? */
@@ -55,7 +70,12 @@ export function looksLikeTomameNumber(raw: string): boolean {
 
 export type Verifier = { kind: "phone_last4"; digits: string } | { kind: "email"; email: string };
 
-/** "0192" or "kwame@x.com". Anything else is no verifier at all. */
+/**
+ * An email, or a phone number of which only the last four digits are compared:
+ * "0192", "024 555 0192" and "+233 24 555 0192" all read as 0192. Fewer than
+ * four digits, or anything with letters in it, is no verifier at all, and the
+ * service does not count it as an attempt.
+ */
 export function parseVerifier(raw: string | null | undefined): Verifier | null {
   const value = raw?.trim() ?? "";
   if (!value) return null;
@@ -63,8 +83,9 @@ export function parseVerifier(raw: string | null | undefined): Verifier | null {
     const email = value.toLowerCase();
     return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? { kind: "email", email } : null;
   }
+  if (!/^[\d\s()+.-]+$/.test(value)) return null;
   const digits = value.replace(/\D/g, "");
-  return digits.length === 4 && value.replace(/[\s-]/g, "").length === 4 ? { kind: "phone_last4", digits } : null;
+  return digits.length >= 4 && digits.length <= 15 ? { kind: "phone_last4", digits: digits.slice(-4) } : null;
 }
 
 export function verifierMatches(
@@ -100,10 +121,29 @@ interface PublicTrackingBase {
   eta: JourneyEta | null;
 }
 
+/**
+ * Why a second factor that was given did not unlock the full view. Each one is
+ * worded differently on the page: a lockout or our own outage must never read
+ * as "that does not match".
+ *  - `mismatch`: checked, and wrong.
+ *  - `limited`: too many tries; not checked. `retryInMinutes` is null when the
+ *    reset time is unknown.
+ *  - `no_phone_on_file`: phone digits given, but the order has no phone to
+ *    compare them with. Steer to the email or to signing in.
+ *  - `invalid`: not an email and not at least four digits. Not counted.
+ *  - `error`: we could not read what is on file.
+ */
+export type VerifyOutcome =
+  | { kind: "mismatch" }
+  | { kind: "limited"; retryInMinutes: number | null }
+  | { kind: "no_phone_on_file" }
+  | { kind: "invalid" }
+  | { kind: "error" };
+
 export interface PublicTrackingCoarse extends PublicTrackingBase {
   detail: "coarse";
-  /** Set when a verifier was given and did not match. */
-  verifyFailed: boolean;
+  /** Set when a verifier was given and did not unlock the full view. */
+  verify: VerifyOutcome | null;
 }
 
 export interface PublicTrackingFull extends PublicTrackingBase {
@@ -140,7 +180,7 @@ export interface ShapeInput {
 export function shapePublicTracking(
   input: ShapeInput,
   level: "coarse" | "full",
-  extras: { ownerHref?: string | null; verifyFailed?: boolean } = {},
+  extras: { ownerHref?: string | null; verify?: VerifyOutcome | null } = {},
 ): PublicTrackingCoarse | PublicTrackingFull {
   const { order } = input;
   const stage = journeyStageFor(order.status);
@@ -177,7 +217,7 @@ export function shapePublicTracking(
     eta: input.eta ? { from: input.eta.from, to: input.eta.to, source: input.eta.source } : null,
   };
 
-  if (level === "coarse") return { ...base, detail: "coarse", verifyFailed: !!extras.verifyFailed };
+  if (level === "coarse") return { ...base, detail: "coarse", verify: extras.verify ?? null };
 
   return {
     ...base,

@@ -17,6 +17,7 @@ import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
 import { listRegions, type RegionRow } from "@/db/queries/regions";
 import { insertBox, listBoxesByIds, updateOpenBox, type ConsolidationBoxRow } from "@/db/queries/consolidation-boxes";
 import { getDeliveryAddressById, listDeliveryAddresses } from "@/db/queries/delivery-addresses";
+import { isPickupEnabled } from "./delivery-settings.service";
 import { listActiveDeliveryZones, type DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { DeliveryAddress } from "@/features/addresses/types";
 import { nextDeparture, packLines, type BoxConstants, type PackedBox } from "./box-packing";
@@ -240,6 +241,7 @@ export async function setBagDelivery(viewer: Viewer, input: SetBagDeliveryInput)
     if (!zone || zone.kind !== "door") throw new APIError(400, "We no longer deliver to this address's zone");
     await updateCart(cart.id, { delivery_address_id: address.id, delivery_zone_id: null });
   } else if (input.delivery_zone_id !== undefined) {
+    if (!(await isPickupEnabled())) throw new APIError(400, "Pickup is not available right now. Choose a delivery address.");
     const zone = (await listActiveDeliveryZones()).find((z) => z.id === input.delivery_zone_id);
     if (!zone || zone.kind !== "pickup") throw new APIError(400, "Choose a pickup point");
     await updateCart(cart.id, { delivery_zone_id: zone.id, delivery_address_id: null });
@@ -292,11 +294,12 @@ async function ownedLine(viewer: Viewer, lineId: string): Promise<{ cart: CartRo
 /**
  * The cart's delivery choice, re-validated: an address that was deleted, lost
  * its zone or belongs to someone else is forgotten; a zone that is no longer an
- * active pickup point likewise. With nothing left, a signed-in customer's
+ * active pickup point — or any pickup point while the admin has pickup switched
+ * off (088), so checkout can only go to a door — likewise. With nothing left, a signed-in customer's
  * default address is chosen and remembered so the bag lands with it selected.
  */
 async function resolveDelivery(viewer: Viewer, cart: CartRow): Promise<BagDelivery | null> {
-  const zones = await listActiveDeliveryZones();
+  const [zones, pickupOn] = await Promise.all([listActiveDeliveryZones(), isPickupEnabled()]);
   const zoneById = (id: string | null) => (id ? zones.find((z) => z.id === id) ?? null : null);
 
   if (cart.delivery_address_id) {
@@ -306,7 +309,7 @@ async function resolveDelivery(viewer: Viewer, cart: CartRow): Promise<BagDelive
     await updateCart(cart.id, { delivery_address_id: null });
   } else if (cart.delivery_zone_id) {
     const zone = zoneById(cart.delivery_zone_id);
-    if (zone?.kind === "pickup") return pickupDelivery(zone);
+    if (zone?.kind === "pickup" && pickupOn) return pickupDelivery(zone);
     await updateCart(cart.id, { delivery_zone_id: null });
   }
 

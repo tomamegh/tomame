@@ -104,6 +104,12 @@ export function settingWarning(key: string): string | null {
     case "refund_promise_title":
     case "refund_promise_detail":
       return "Shown on the Fees page. This is a promise about money: keep it word for word in line with the refund policy.";
+    case "pickup_enabled":
+      return "Off: the pickup option disappears from the bag, a bag already set to pickup is cleared, and checkout needs a door address.";
+    case "address_lookup_enabled":
+      return "Needs the Google Maps API key below. While off, “Use my current location” still saves the customer's map pin; they type the street themselves.";
+    case "google_maps_api_key":
+      return "Private: never sent to customers. Use a key restricted to the Geocoding API. Each lookup is a paid Google request (first 10,000 a month are free).";
     case "whatsapp_number":
       return "Shown in the marketing footer, on the contact page and on Home's “Ask a buyer” card. It is the number customers actually message.";
     default:

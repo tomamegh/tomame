@@ -456,6 +456,7 @@ export async function createOrder(
         const template = orderPlacedTemplate({
           productName: order.product_name,
           orderId: order.id,
+          trackingNumber: order.order_no,
           totalGhs: pricing.total_ghs,
           needsReview: needsReview,
           paymentUrl: needsReview ? undefined : `${env.app.url}/app/orders/${order.id}`,

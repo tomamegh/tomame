@@ -96,7 +96,7 @@ function makeUser(id = USER_ID): PlatformUser {
   return {
     id,
     email: "customer@example.com",
-    profile: { id, role: "user", created_at: new Date(), updated_at: new Date() },
+    profile: { id, role: "user", first_name: "Kwame", last_name: "Mensah", phone: "024 555 0192", created_at: new Date(), updated_at: new Date() },
   } as unknown as PlatformUser;
 }
 

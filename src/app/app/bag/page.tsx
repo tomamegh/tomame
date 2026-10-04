@@ -7,6 +7,7 @@ import { listAddresses } from "@/features/addresses/services/addresses.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { BagView } from "@/features/bag/components";
 import { getBag } from "@/features/bag/services/bag.service";
+import { isPickupEnabled } from "@/features/bag/services/delivery-settings.service";
 import { getBagPaymentSettings } from "@/features/payments/services/payment-channels.service";
 import { readQuoteSessionFromCookies } from "@/lib/quote-session";
 
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
  */
 export default async function BagPage() {
   const userPromise = getAuthenticatedUser();
-  const [user, cookieStore, zones, payment, addresses, pendingGroup] = await Promise.all([
+  const [user, cookieStore, zones, payment, addresses, pendingGroup, pickupEnabled] = await Promise.all([
     userPromise,
     cookies(),
     listActiveDeliveryZones(),
@@ -37,6 +38,7 @@ export default async function BagPage() {
     userPromise.then((u) => (u ? listAddresses(u.id) : [])),
     // A checked-out, unpaid bag: shown when the open bag is empty so a declined payment can be retried.
     userPromise.then((u) => (u ? findLatestPendingGroupForUser(u.id) : null)),
+    isPickupEnabled(),
   ]);
   const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
   const bag = await getBag(viewer);
@@ -49,6 +51,8 @@ export default async function BagPage() {
       paymentChannels={payment.channels}
       paymentHoldNote={payment.holdNote}
       isSignedIn={!!user}
+      pickupEnabled={pickupEnabled}
+      contact={user ? { first_name: user.profile.first_name, last_name: user.profile.last_name, phone: user.profile.phone } : null}
       pendingGroup={pendingGroup ? { id: pendingGroup.id, item_count: pendingGroup.item_count, total_ghs: pendingGroup.total_ghs } : null}
       renderedAt={new Date().toISOString()}
     />

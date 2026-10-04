@@ -29,6 +29,8 @@ export interface BagDeliverToCardProps {
   /** Server-rendered addresses, kept live by the addresses query. */
   addresses: DeliveryAddress[];
   isSignedIn: boolean;
+  /** `site_settings.pickup_enabled` (088). Off: no pickup tile, so checkout needs an address. */
+  pickupEnabled: boolean;
 }
 
 /** The mock's three glyphs, picked off the customer's own label. */
@@ -48,14 +50,17 @@ function AddressIcon({ label, selected }: { label: string; selected: boolean }) 
  * server-side, so the rail's delivery row and total move with it. Nothing here
  * knows what a zone costs.
  */
-export function BagDeliverToCard({ delivery, zones, addresses, isSignedIn }: BagDeliverToCardProps) {
+export function BagDeliverToCard({ delivery, zones, addresses, isSignedIn, pickupEnabled }: BagDeliverToCardProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: savedAddresses } = useAddresses(addresses, isSignedIn);
   const setDelivery = useSetBagDelivery();
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const pickupZone = useMemo(() => zones.find((zone) => zone.kind === "pickup") ?? null, [zones]);
+  const pickupZone = useMemo(
+    () => (pickupEnabled ? (zones.find((zone) => zone.kind === "pickup") ?? null) : null),
+    [pickupEnabled, zones],
+  );
   const doorZones = useMemo(() => zones.filter((zone) => zone.kind === "door"), [zones]);
 
   const selectedAddressId = delivery?.kind === "door" ? delivery.address_id : null;

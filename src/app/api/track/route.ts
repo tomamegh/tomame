@@ -5,7 +5,7 @@ import { RATE_LIMIT } from "@/config/security";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { lookupPublicTracking } from "@/features/tracking/services/public-tracking.service";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp, rateLimitSubject } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   q: z.string().max(120),
@@ -22,8 +22,12 @@ const bodySchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
-    const ip = getClientIp(request);
-    if (!(await checkRateLimit(`track:${ip}`, RATE_LIMIT.track)).allowed) {
+    // A failed session read throws (a 500), like every other route: answering
+    // it as a stranger would hide an outage behind "confirm it is yours".
+    const user = await getAuthenticatedUser();
+    // Keyed per user when signed in, so owners behind one carrier NAT do not
+    // share a budget; per IP otherwise.
+    if (!(await checkRateLimit(`track:${rateLimitSubject(request, user?.id)}`, RATE_LIMIT.track)).allowed) {
       throw new APIError(429, "Too many lookups. Try again in a few minutes.");
     }
     const body: unknown = await request.json().catch(() => {
@@ -32,12 +36,11 @@ export async function POST(request: NextRequest) {
     const parsed = bodySchema.safeParse(body);
     if (!parsed.success) throw new APIError(400, "Enter a Tomame reference or a tracking number");
 
-    const user = await getAuthenticatedUser().catch(() => null);
     const result = await lookupPublicTracking({
       query: parsed.data.q,
       verifier: parsed.data.verify ?? null,
       viewerId: user?.id ?? null,
-      ip,
+      ip: getClientIp(request),
     });
     const response = successResponse(result);
     response.headers.set("Cache-Control", "no-store");

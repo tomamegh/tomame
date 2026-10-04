@@ -25,7 +25,7 @@ const PICKUP = "c5d99974-a1b4-4b49-ac8f-42dd0a0626d9";
 const input = { label: "Home", recipient_name: "Ama", phone: "0245550192", line1: "12 Rd", city: "Accra", delivery_zone_id: DOOR, is_default: false };
 const addr = (over: Partial<DeliveryAddress> = {}): DeliveryAddress => ({
   id: "a1", user_id: "u1", label: "Home", kind: "door", recipient_name: "Ama", phone: "0245550192", line1: "12 Rd", line2: null,
-  area: null, city: "Accra", region: null, delivery_zone_id: DOOR, digital_address: null, is_default: false,
+  area: null, city: "Accra", region: null, delivery_zone_id: DOOR, digital_address: null, latitude: null, longitude: null, is_default: false,
   created_at: "2026-09-01T00:00:00Z", updated_at: "", ...over,
 });
 

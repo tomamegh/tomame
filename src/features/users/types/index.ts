@@ -12,6 +12,8 @@ export interface UserProfile {
   last_name?: string;
   role: PlatformRoles;
   bio?: string;
+  /** 051. Unverified contact number; required before an order (contact-details.ts). */
+  phone?: string | null;
   created_at: Date;
   updated_at: Date;
 }

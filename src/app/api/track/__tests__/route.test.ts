@@ -14,6 +14,8 @@ vi.mock("@/features/tracking/services/public-tracking.service", () => ({
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: vi.fn(async () => ({ allowed: true })),
   getClientIp: (r: Request) => r.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown",
+  rateLimitSubject: (r: Request, userId?: string | null) =>
+    userId ? `user:${userId}` : `ip:${r.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"}`,
 }));
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
@@ -32,6 +34,7 @@ function post(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true } as never);
+  vi.mocked(getAuthenticatedUser).mockResolvedValue(null);
 });
 
 describe("POST /api/track", () => {
@@ -47,7 +50,21 @@ describe("POST /api/track", () => {
     vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false } as never);
     const res = await POST(post({ q: "TM-00001" }));
     expect(res.status).toBe(429);
-    expect(checkRateLimit).toHaveBeenCalledWith("track:203.0.113.9", expect.objectContaining({ maxRequests: 30 }));
+    expect(checkRateLimit).toHaveBeenCalledWith("track:ip:203.0.113.9", expect.objectContaining({ maxRequests: 30 }));
+    expect(lookupPublicTracking).not.toHaveBeenCalled();
+  });
+
+  it("rate-limits a signed-in caller by their account, not the shared IP", async () => {
+    vi.mocked(getAuthenticatedUser).mockResolvedValue({ id: "u-1" } as never);
+    await POST(post({ q: "TM-00001" }));
+    expect(checkRateLimit).toHaveBeenCalledWith("track:user:u-1", expect.any(Object));
+    expect(lookupPublicTracking).toHaveBeenCalledWith(expect.objectContaining({ ip: "203.0.113.9" }));
+  });
+
+  it("answers a failed session read as our error, not as an anonymous lookup", async () => {
+    vi.mocked(getAuthenticatedUser).mockRejectedValue(new Error("auth down"));
+    const res = await POST(post({ q: "TM-00001", verify: "0192" }));
+    expect(res.status).toBe(500);
     expect(lookupPublicTracking).not.toHaveBeenCalled();
   });
 

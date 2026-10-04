@@ -1,6 +1,7 @@
 import "server-only";
 import { createPublicClient } from "@/lib/supabase/public";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // ── Row types ───────────────────────────────────────────────────────────────
 
@@ -92,4 +93,17 @@ export async function getAllSiteSettings(): Promise<SiteSettingRow[]> {
     label: row.label != null ? String(row.label) : "",
     description: row.description != null ? String(row.description) : "",
   }));
+}
+
+/**
+ * Named settings through the SERVICE ROLE, private ones included — for server
+ * code that needs a non-public value such as `google_maps_api_key` (088).
+ * Never hand the result to the browser wholesale.
+ */
+export async function getServerSiteSettings(keys: readonly string[]): Promise<SiteSettingsMap> {
+  const { data, error } = await createAdminClient().from("site_settings").select("key, value").in("key", [...keys]);
+  if (error) throw new Error(`Failed to load site settings: ${error.message}`);
+  const map: SiteSettingsMap = {};
+  for (const row of (data ?? []) as { key: string; value: unknown }[]) map[String(row.key)] = row.value;
+  return map;
 }

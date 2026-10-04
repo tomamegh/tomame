@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { notifyStaff } from "@/features/staff-alerts/notify";
 import { createOrder } from "@/features/orders/services/orders.service";
+import { requireContactDetails } from "@/features/account/services/contact-details.service";
 import { getDeliveryAddressById } from "@/db/queries/delivery-addresses";
 import { listOrdersByGroup } from "@/db/queries/orders";
 import { setCartStatus } from "@/db/queries/carts";
@@ -40,6 +41,7 @@ import { getBag, resolveCart, setBagDelivery } from "./bag.service";
  * of creating a second one.
  */
 export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: CheckoutInput): Promise<CheckoutResult> {
+  requireContactDetails(user);
   // `setBagDelivery` returns the bag it just re-priced (every line under the
   // rate lock, boxes re-packed and persisted). Keep it: a second `getBag` here
   // would redo that whole pass for one checkout. Only a body that named no

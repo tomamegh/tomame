@@ -18,6 +18,9 @@ export interface DeliveryAddress {
   delivery_zone_id: string | null;
   /** GhanaPost GPS, e.g. GA-183-4310 */
   digital_address: string | null;
+  /** 088. Map pin from "Use my current location"; both null when the address was typed. */
+  latitude: number | null;
+  longitude: number | null;
   is_default: boolean;
   created_at: string;
   updated_at: string;

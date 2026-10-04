@@ -14,6 +14,7 @@ import {
 import { CAR_PRICE_STATES, type CarPriceState } from "@/config/constants";
 import { ApiFetchError, apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
+import { CONTACT_DETAILS_REQUIRED_MESSAGE } from "@/features/account/contact-details";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";
 import { enquiryKindFor } from "../format";
@@ -274,6 +275,11 @@ export function CarActions({
         toLogin();
         return;
       }
+      if (error instanceof ApiFetchError && error.message === CONTACT_DETAILS_REQUIRED_MESSAGE) {
+        toast.error({ title: "Add your name and phone first", description: error.message });
+        router.push("/app/account?tab=profile");
+        return;
+      }
       toast.error({
         title: "Could not start the payment",
         description:
@@ -282,7 +288,7 @@ export function CarActions({
             : "Try again in a moment.",
       });
     }
-  }, [carListingId, toLogin]);
+  }, [carListingId, router, toLogin]);
 
   return (
     /*

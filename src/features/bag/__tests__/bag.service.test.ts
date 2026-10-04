@@ -43,6 +43,7 @@ vi.mock("@/db/queries/delivery-zones", () => ({
     { id: "z-pick", name: "Weija hub", kind: "pickup", fee_ghs: 0, extra_days: 0, note: null, sort_order: 2 },
   ]),
 }));
+vi.mock("../services/delivery-settings.service", () => ({ isPickupEnabled: vi.fn(async () => true) }));
 vi.mock("@/features/extraction/extraction.service", () => ({ getExtractionSnapshot: vi.fn() }));
 vi.mock("@/features/quotes/services/quote-lock.service", () => ({ applyRateLock: vi.fn() }));
 // The real module pulls the exchange-rate service (and a Supabase client) in at import time.
@@ -78,6 +79,7 @@ import { getDeliveryAddressById, listDeliveryAddresses } from "@/db/queries/deli
 import type { DeliveryAddress } from "@/features/addresses/types";
 import { addToBag, getBag, removeBagLine, resolveCart, setBagDelivery, summarize, updateBagLine } from "../services/bag.service";
 import type { BagLine } from "../types";
+import { isPickupEnabled } from "../services/delivery-settings.service";
 
 const CACHE_ID = "b4c99974-a1b4-4b49-ac8f-42dd0a0626d8";
 const USER = { userId: "u1", sessionId: null };
@@ -93,7 +95,7 @@ const item = (over: Partial<carts.CartItemRow> = {}): carts.CartItemRow => ({
 });
 const address = (over: Partial<DeliveryAddress> = {}): DeliveryAddress => ({
   id: "a1", user_id: "u1", label: "Home", kind: "door", recipient_name: "K", phone: "0", line1: "1 St", line2: null, area: "East Legon",
-  city: "Accra", region: null, delivery_zone_id: "z-door", digital_address: null, is_default: true, created_at: "", updated_at: "", ...over,
+  city: "Accra", region: null, delivery_zone_id: "z-door", digital_address: null, latitude: null, longitude: null, is_default: true, created_at: "", updated_at: "", ...over,
 });
 const extraction: ExtractionResult = {
   extraction_attempted: true, extraction_success: true, platform: "amazon", country: "USA",
@@ -369,6 +371,16 @@ describe("delivery", () => {
     expect(carts.updateCart).toHaveBeenCalledWith("c1", { delivery_zone_id: "z-pick", delivery_address_id: null });
     expect(bag.delivery).toMatchObject({ kind: "pickup", address_id: null, label: "Weija hub", fee_ghs: 0 });
     await expect(setBagDelivery(ANON, { delivery_zone_id: "z-door" })).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("with pickup switched off, choosing pickup is refused and a remembered pickup is dropped", async () => {
+    vi.mocked(isPickupEnabled).mockResolvedValue(false);
+    vi.mocked(carts.findOpenCart).mockResolvedValue(cart({ delivery_zone_id: "z-pick" }));
+    await expect(setBagDelivery(ANON, { delivery_zone_id: "z-pick" })).rejects.toMatchObject({ statusCode: 400 });
+    const bag = await getBag(ANON);
+    expect(bag.delivery).toBeNull();
+    expect(carts.updateCart).toHaveBeenCalledWith("c1", { delivery_zone_id: null });
+    vi.mocked(isPickupEnabled).mockResolvedValue(true);
   });
 
   it("an address must be the viewer's own, and needs a signed-in viewer", async () => {

@@ -17,6 +17,7 @@ import { formatGhs } from "@/features/marketing/format";
 import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
+import { LocateMeButton, useLocateMe, type LocatedFields } from "./locate-me";
 
 export interface AddressFormDialogProps {
   open: boolean;
@@ -42,6 +43,9 @@ type FormState = {
   delivery_zone_id: string;
   digital_address: string;
   is_default: boolean;
+  /** The device's pin, when "Use my current location" was tapped. */
+  latitude: number | null;
+  longitude: number | null;
 };
 
 const EMPTY: FormState = {
@@ -56,6 +60,8 @@ const EMPTY: FormState = {
   delivery_zone_id: "",
   digital_address: "",
   is_default: false,
+  latitude: null,
+  longitude: null,
 };
 
 /** "Greater Accra · Free" / "Kumasi · GH₵40.00" — the zone's own name and fee. */
@@ -78,6 +84,7 @@ function toInput(form: FormState): Record<string, unknown> {
     delivery_zone_id: form.delivery_zone_id,
     digital_address: optional(form.digital_address),
     is_default: form.is_default,
+    ...(form.latitude != null && form.longitude != null && { latitude: form.latitude, longitude: form.longitude }),
   };
 }
 
@@ -90,6 +97,7 @@ export function AddressFormDialog({ open, onOpenChange, zones, onCreated, onUnau
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const createAddress = useCreateAddress();
+  const locate = useLocateMe();
 
   const doorZones = useMemo(() => zones.filter((zone) => zone.kind === "door"), [zones]);
 
@@ -98,15 +106,31 @@ export function AddressFormDialog({ open, onOpenChange, zones, onCreated, onUnau
     setErrors((prev) => (prev[key] ? { ...prev, [key]: "" } : prev));
   }, []);
 
+  // Lookup suggestions only fill what the customer has not typed themselves.
+  const onLocated = useCallback((found: LocatedFields) => {
+    setForm((prev) => ({
+      ...prev,
+      latitude: found.latitude,
+      longitude: found.longitude,
+      line1: prev.line1 || found.line1 || "",
+      area: prev.area || found.area || "",
+      city: prev.city || found.city || "",
+      region: prev.region || found.region || "",
+      delivery_zone_id: prev.delivery_zone_id || found.delivery_zone_id || "",
+    }));
+    setErrors({});
+  }, []);
+
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!next) {
         setForm(EMPTY);
         setErrors({});
+        locate.reset();
       }
       onOpenChange(next);
     },
-    [onOpenChange],
+    [locate, onOpenChange],
   );
 
   const onSubmit = useCallback(
@@ -152,6 +176,21 @@ export function AddressFormDialog({ open, onOpenChange, zones, onCreated, onUnau
         </DialogHeader>
 
         <form className="flex flex-col gap-3.5" onSubmit={onSubmit} noValidate>
+          <LocateMeButton
+            state={locate}
+            pinned={form.latitude != null}
+            onLocate={() => locate.run(onLocated)}
+            onClear={() => {
+              setForm((prev) => ({ ...prev, latitude: null, longitude: null }));
+              locate.reset();
+            }}
+          />
+          {errors.latitude ? (
+            <p role="alert" className="text-xs leading-[1.4] font-medium text-tm-coral-strong">
+              {errors.latitude}
+            </p>
+          ) : null}
+
           <div className="grid gap-3.5 sm:grid-cols-2">
             <Field id="address-label" label="Name this address" error={errors.label}>
               <Input
@@ -187,12 +226,13 @@ export function AddressFormDialog({ open, onOpenChange, zones, onCreated, onUnau
             />
           </Field>
 
-          <Field id="address-line1" label="Street or house" error={errors.line1}>
+          <Field id="address-line1" label="Street, house or landmark" error={errors.line1}>
             <Input
               id="address-line1"
               value={form.line1}
               onChange={(e) => set("line1", e.target.value)}
               autoComplete="address-line1"
+              placeholder="Blue gate opposite the Shell station"
               aria-invalid={!!errors.line1}
             />
           </Field>

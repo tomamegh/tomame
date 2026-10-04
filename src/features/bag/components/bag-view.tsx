@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { DeliveryAddress } from "@/features/addresses/types";
+import { hasContactDetails, type ContactDetails } from "@/features/account/contact-details";
 import type { PaymentChannel } from "@/features/payments/types";
 import { useCreateWatch } from "@/features/watches/hooks/useWatches";
 import { ApiFetchError } from "@/lib/api-client";
@@ -16,6 +17,7 @@ import { useBag, useRemoveBagLine, useUpdateBagLine } from "../hooks/useBag";
 import { useBagPayment } from "../hooks/useBagPayment";
 import type { BagLine, BagView as BagViewData, PendingGroupSummary } from "../types";
 import { BagBoxCard } from "./bag-box-card";
+import { BagContactCard } from "./bag-contact-card";
 import { BagDeliverToCard } from "./bag-deliver-to-card";
 import { BagEmpty } from "./bag-empty";
 import { AssistedRequestDialog } from "@/features/assisted/components";
@@ -36,6 +38,10 @@ export interface BagViewProps {
   /** `site_settings.payment_hold_note`; null hides the line under the pay button. */
   paymentHoldNote: string | null;
   isSignedIn: boolean;
+  /** `site_settings.pickup_enabled` (088); the server enforces it too. */
+  pickupEnabled: boolean;
+  /** The signed-in viewer's name and phone; null when signed out. Required before checkout. */
+  contact: ContactDetails | null;
   /** The viewer's newest unpaid order group, offered again when the bag is empty. */
   pendingGroup: PendingGroupSummary | null;
   /** Server render time, ISO — the countdown is struck from it on both sides so hydration agrees. */
@@ -58,7 +64,7 @@ export interface BagViewProps {
  * whole bag is refetched, because a quantity change moves the box fill, the
  * saving and the total together — nothing here does arithmetic.
  */
-export function BagView({ initialBag, zones, addresses, paymentChannels, paymentHoldNote, isSignedIn, pendingGroup, renderedAt }: BagViewProps) {
+export function BagView({ initialBag, zones, addresses, paymentChannels, paymentHoldNote, isSignedIn, pickupEnabled, contact: initialContact, pendingGroup, renderedAt }: BagViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: bag } = useBag(initialBag);
@@ -66,6 +72,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   const updateLine = useUpdateBagLine();
   const removeLine = useRemoveBagLine();
   const createWatch = useCreateWatch();
+  const [contact, setContact] = useState(initialContact);
   const [busyLineId, setBusyLineId] = useState<string | null>(null);
   // The line whose "Describe it instead" was pressed; null closes the dialog.
   const [describing, setDescribing] = useState<BagLine | null>(null);
@@ -116,7 +123,8 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
     bag.lines.length === 0 ||
     bag.has_unpriced_lines ||
     bag.has_sourcing_lines ||
-    (isSignedIn && !bag.delivery);
+    (isSignedIn && !bag.delivery) ||
+    (isSignedIn && !(contact && hasContactDetails(contact)));
 
   const linesById = useMemo(() => new Map(bag.lines.map((l) => [l.id, l])), [bag.lines]);
   const unboxed = bag.unboxed_line_ids.map((id) => linesById.get(id)).filter((l): l is BagLine => !!l);
@@ -294,7 +302,9 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
           <span className="text-[13px] font-medium text-tm-text-3">Same week, same box</span>
         </Link>
 
-        <BagDeliverToCard delivery={bag.delivery} zones={zones} addresses={addresses} isSignedIn={isSignedIn} />
+        {isSignedIn && contact && <BagContactCard contact={contact} onSaved={setContact} />}
+
+        <BagDeliverToCard delivery={bag.delivery} zones={zones} addresses={addresses} isSignedIn={isSignedIn} pickupEnabled={pickupEnabled} />
       </div>
 
       <BagSummaryCard

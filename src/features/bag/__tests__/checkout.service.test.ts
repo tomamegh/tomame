@@ -28,7 +28,7 @@ import { getBag, resolveCart, setBagDelivery } from "../services/bag.service";
 import { checkoutBag } from "../services/checkout.service";
 import type { BagLine, BagView } from "../types";
 
-const user = { id: "u1" } as unknown as PlatformUser;
+const user = { id: "u1", profile: { first_name: "Kwame", last_name: "Mensah", phone: "024 555 0192" } } as unknown as PlatformUser;
 const viewer = { userId: "u1", sessionId: "s1" };
 
 const pricing = (total_ghs: number): PricingBreakdown =>
@@ -176,5 +176,12 @@ describe("checkoutBag", () => {
     await expect(checkoutBag(user, viewer, {})).rejects.toThrow("boom");
     expect(groups.updateOrderGroupStatus).toHaveBeenCalledWith("g1", "pending", "cancelled");
     expect(setCartStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe("checkoutBag — contact details", () => {
+  it("refuses before touching the bag when the account has no name or phone", async () => {
+    const bare = { id: "u1", profile: { role: "user" } } as unknown as PlatformUser;
+    await expect(checkoutBag(bare, { userId: "u1", sessionId: null }, {})).rejects.toMatchObject({ statusCode: 409 });
   });
 });

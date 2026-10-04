@@ -100,6 +100,7 @@ async function sendReviewEmail(
         ? orderApprovedTemplate({
             productName: order.product_name,
             orderId: order.id,
+            trackingNumber: order.order_no,
             totalGhs: p.total_ghs,
             pricing:
               p.pricing_method !== "needs_review"
@@ -122,6 +123,7 @@ async function sendReviewEmail(
         : orderRejectedTemplate({
             productName: order.product_name,
             orderId: order.id,
+            trackingNumber: order.order_no,
             reason: opts.reason,
           });
 

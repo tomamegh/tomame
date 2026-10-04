@@ -518,6 +518,7 @@ function DeliveryCard({
 }) {
   const address = group?.delivery_address ?? null;
   const lines = address ? addressLines(address) : [];
+  const pin = address ? mapPinUrl(address) : null;
 
   return (
     <AdminCard index={index} title="Delivery">
@@ -534,6 +535,16 @@ function DeliveryCard({
                 </span>
               ))}
             </address>
+            {pin ? (
+              <a
+                href={pin}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1.5 inline-block text-[12.5px] leading-none font-semibold text-tm-coral hover:underline"
+              >
+                Open the customer's map pin
+              </a>
+            ) : null}
           </div>
         ) : (
           <p className="text-[12.5px] leading-[1.5] font-medium text-tm-text-3">
@@ -577,6 +588,17 @@ function DeliveryCard({
       </div>
     </AdminCard>
   );
+}
+
+/**
+ * Google Maps link for the snapshot's pin (088), or null when the address was
+ * typed. PostgREST may return NUMERIC as a string, so both shapes are read.
+ */
+function mapPinUrl(address: Record<string, unknown>): string | null {
+  const lat = Number(address.latitude);
+  const lng = Number(address.longitude);
+  if (address.latitude == null || address.longitude == null || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 }
 
 /**

@@ -16,6 +16,7 @@ import { taxRowLabel } from "@/lib/pricing/tax-label";
 interface OrderEmailData {
   productName: string;
   orderId: string;
+  /** Tomame's own number (`orders.order_no`, TM-00042), shown as the reference. */
   trackingNumber?: string;
   estimatedDeliveryDate?: string;
 }
@@ -37,6 +38,8 @@ interface PricingBreakdownData {
 interface OrderReviewEmailData {
   productName: string;
   orderId: string;
+  /** Tomame's own number (TM-00042). Shown as the reference when given. */
+  trackingNumber?: string;
   totalGhs?: number;
   pricing?: PricingBreakdownData;
   priceChanged?: boolean;
@@ -47,6 +50,8 @@ interface OrderReviewEmailData {
 interface OrderPlacedEmailData {
   productName: string;
   orderId: string;
+  /** Tomame's own number (TM-00042). Shown as the reference when given. */
+  trackingNumber?: string;
   totalGhs: number;
   needsReview: boolean;
   paymentUrl?: string;
@@ -64,11 +69,21 @@ function orderUrl(orderId: string) {
   return `${appUrl()}/app/orders/${encodeURIComponent(orderId)}`;
 }
 
-function orderCard(data: { productName: string; orderId: string }, rows: SummaryRows = [], total?: readonly [string, string]) {
+/**
+ * The reference a customer reads is Tomame's own number (TM-00042), the one
+ * `/track` and support know it by. The order's UUID stays inside the links; it
+ * is printed only for an order that has no TM number to show.
+ */
+function orderCard(
+  data: { productName: string; orderId: string; trackingNumber?: string },
+  rows: SummaryRows = [],
+  total?: readonly [string, string],
+) {
+  const reference = data.trackingNumber?.trim() || data.orderId;
   return summaryCard({
     label: "Your order",
     title: escapeHtml(data.productName),
-    rows: [["Order reference", `<span style="word-break:break-all;">${escapeHtml(data.orderId)}</span>`], ...rows],
+    rows: [["Order reference", `<span style="word-break:break-all;">${escapeHtml(reference)}</span>`], ...rows],
     total,
   });
 }
@@ -116,7 +131,6 @@ export function orderShippedTemplate(data: OrderEmailData) {
       ${paragraph(`<strong>${escapeHtml(data.productName)}</strong> has left our hub. Here is how to follow it.`)}
       ${steps(JOURNEY, 2)}
       ${orderCard(data, [
-        data.trackingNumber ? ["Tracking number", escapeHtml(data.trackingNumber)] : null,
         data.estimatedDeliveryDate ? ["Expected", escapeHtml(data.estimatedDeliveryDate)] : null,
       ])}
       ${paragraph("We will let you know the moment it is delivered.")}

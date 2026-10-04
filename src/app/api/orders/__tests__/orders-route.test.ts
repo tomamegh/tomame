@@ -36,7 +36,7 @@ import { GET, POST } from "../route";
  * thing that quietly comes back.
  */
 
-const user = { id: "u1", email: "k@example.com", profile: { role: "user" } } as unknown as PlatformUser;
+const user = { id: "u1", email: "k@example.com", profile: { role: "user", first_name: "Kwame", last_name: "Mensah", phone: "024 555 0192" } } as unknown as PlatformUser;
 
 const order = { id: "o1", order_no: "TM-00001" };
 

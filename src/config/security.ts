@@ -44,21 +44,29 @@ export const RATE_LIMIT = {
   /** Product extraction — 10 requests per 10 minutes per IP. Cache hits are not counted. */
   extraction: { windowMs: 10 * 60 * 1000, maxRequests: 10 },
   /**
-   * Public tracking lookup (086, `POST /api/track`) — 30 per 15 minutes per IP.
-   * A customer checks a parcel a few times a day; a script walking TM-00001
+   * Public tracking lookup (086, `POST /api/track`) — 30 per 15 minutes per
+   * caller: the signed-in user's id, or the IP for a visitor (so customers
+   * behind one carrier NAT who are signed in do not share a budget). A
+   * customer checks a parcel a few times a day; a script walking TM-00001
    * upwards is what this stops.
    */
   track: { windowMs: 15 * 60 * 1000, maxRequests: 30 },
   /**
-   * Second-factor attempts on ONE reference — 8 per hour, from every address
-   * combined. The last four digits of a phone are 10,000 guesses; at 8 an hour
-   * that is two months, far longer than a parcel is in transit.
+   * Second-factor attempts on ONE reference from ONE address — 8 an hour,
+   * every attempt counted (input that is neither an email nor four-plus digits
+   * is not an attempt). Checked first; when it denies, the shared per-reference
+   * counter below is not touched, so one noisy address cannot spend it.
    */
-  // Per reference AND address: one person guessing gets 8 tries an hour.
   trackVerify: { windowMs: 60 * 60 * 1000, maxRequests: 8 },
-  // Per reference, all addresses: a ceiling on distributed guessing that is
-  // far above what a customer and a few helpers would ever reach.
-  trackVerifyReference: { windowMs: 60 * 60 * 1000, maxRequests: 60 },
+  /**
+   * WRONG second factors on ONE reference from every address combined — 20 an
+   * hour. Only misses count, so the owner verifying does not burn it. The last
+   * four digits of a phone are 10,000 guesses; at 20 an hour, an even chance
+   * takes about 250 hours (ten days) and certainty three weeks, longer than a
+   * parcel is in transit. It was 60 counting every attempt, which made an even
+   * chance about three and a half days: too close to a transit time.
+   */
+  trackVerifyReference: { windowMs: 60 * 60 * 1000, maxRequests: 20 },
   /** Public waitlist signup — 5 requests per hour per IP. */
   waitlist: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
   /**

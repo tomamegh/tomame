@@ -75,7 +75,16 @@ describe("every email", () => {
   it("puts row labels and values on one line in plain text", () => {
     expect(ALL.priceDrop.text).toContain("Now (store price): $320.00");
     expect(ALL.priceDrop.text).toContain("Landed total: GH₵ 5120.00");
-    expect(ALL.orderShipped.text).toContain("Tracking number: TM-00042");
+    expect(ALL.orderShipped.text).toContain("Order reference: TM-00042");
+  });
+
+  it("shows the TM number as the reference and keeps the UUID only in links", () => {
+    const paid = orderPaidTemplate({ ...ORDER, trackingNumber: "TM-00042" });
+    expect(paid.text).toContain("Order reference: TM-00042");
+    expect(paid.html).toContain(`/app/orders/${ORDER.orderId}`);
+    expect(paid.html.replace(/href="[^"]*"/g, "")).not.toContain(ORDER.orderId);
+    // An order with no TM number yet keeps the old reference.
+    expect(ALL.orderPaid.text).toContain(`Order reference: ${ORDER.orderId}`);
   });
 
   it("shows order progress in plain text", () => {

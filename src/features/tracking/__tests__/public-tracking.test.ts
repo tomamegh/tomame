@@ -7,9 +7,12 @@ vi.mock("@/db/queries/public-tracking", () => ({
   getOrderPhones: vi.fn(async () => ["024 555 0192"]),
   getTrackingOrderByNo: vi.fn(async () => null),
   listTrackingEvents: vi.fn(async () => []),
+  peekRateLimitCount: vi.fn(async () => ({ count: 0, resetAt: Date.now() + 60 * 60 * 1000 })),
 }));
+vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 import * as q from "@/db/queries/public-tracking";
+import { logger } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 import {
@@ -37,6 +40,7 @@ const ORDER = {
   estimated_delivery_date: null,
   delivered_at: null,
   order_group_id: "g-1",
+  delivery_address_id: null,
   est_from: null,
   est_to: null,
   platform: null,
@@ -55,7 +59,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true } as never);
   vi.mocked(q.listTrackingEvents).mockResolvedValue(EVENTS as never);
+  vi.mocked(q.getOrderPhones).mockResolvedValue(["024 555 0192"]);
+  vi.mocked(q.getOrderOwnerEmail).mockResolvedValue("kwame@tomame.local");
+  vi.mocked(q.peekRateLimitCount).mockResolvedValue({ count: 0, resetAt: Date.now() + 60 * 60 * 1000 });
 });
+
+const PER_ADDRESS = "track-verify:TM-00002:203.0.113.9";
+const PER_REFERENCE = "track-verify:TM-00002";
+const keysHit = () => vi.mocked(checkRateLimit).mock.calls.map(([key]) => key);
 
 describe("classifyTrackingQuery", () => {
   it("reads a Tomame reference however it is typed", () => {
@@ -67,6 +78,16 @@ describe("classifyTrackingQuery", () => {
     expect(classifyTrackingQuery("1Z 999 AA1 0123 4567 84")).toEqual({ kind: "invalid" });
     expect(classifyTrackingQuery("TBA123456789012")).toEqual({ kind: "invalid" });
     expect(classifyTrackingQuery("9400111899223197428490")).toEqual({ kind: "invalid" });
+  });
+
+  it("forgives punctuation, a #, the word order, lowercase and extra zeros", () => {
+    const ref = { kind: "reference", orderNo: "TM-00042" };
+    for (const raw of ["#TM-00042", "Order TM-00042", "order #tm-42", "(TM-00042).", "  tm-00042!  ", "TM-000042", "Order: TM 0000042", "tm_42"]) {
+      expect(classifyTrackingQuery(raw), raw).toEqual(ref);
+    }
+    expect(classifyTrackingQuery("TM-123456")).toEqual({ kind: "reference", orderNo: "TM-123456" });
+    expect(classifyTrackingQuery("TM-00000")).toEqual({ kind: "invalid" });
+    expect(classifyTrackingQuery("Order 42")).toEqual({ kind: "invalid" });
   });
 
   it("refuses short or junk queries", () => {
@@ -85,12 +106,15 @@ describe("looksLikeTomameNumber", () => {
 });
 
 describe("the second factor", () => {
-  it("accepts exactly four digits or an email", () => {
+  it("accepts four digits, a full phone number (last four kept) or an email", () => {
     expect(parseVerifier("0192")).toEqual({ kind: "phone_last4", digits: "0192" });
+    expect(parseVerifier("024 555 0192")).toEqual({ kind: "phone_last4", digits: "0192" });
+    expect(parseVerifier("+233 (24) 555-0192")).toEqual({ kind: "phone_last4", digits: "0192" });
+    expect(parseVerifier("01920")).toEqual({ kind: "phone_last4", digits: "1920" });
     expect(parseVerifier(" Kwame@Tomame.local ")).toEqual({ kind: "email", email: "kwame@tomame.local" });
     expect(parseVerifier("192")).toBeNull();
-    expect(parseVerifier("01920")).toBeNull();
     expect(parseVerifier("ab12")).toBeNull();
+    expect(parseVerifier("kwame")).toBeNull();
   });
 
   it("matches the last four of any phone on file, or the email", () => {
@@ -126,7 +150,7 @@ describe("lookupPublicTracking", () => {
 
   it("shows the full journey once the last four digits of the phone match, still with no PII", async () => {
     vi.mocked(q.getTrackingOrderByNo).mockResolvedValue(ORDER as never);
-    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "0192", viewerId: null });
+    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "0192", viewerId: null, ip: "203.0.113.9" });
     expect(res).toMatchObject({
       found: true,
       detail: "full",
@@ -135,21 +159,68 @@ describe("lookupPublicTracking", () => {
     });
     const text = JSON.stringify(res);
     for (const word of PII) expect(text).not.toContain(word);
-    expect(checkRateLimit).toHaveBeenCalledWith("track-verify:TM-00002", expect.any(Object));
+    // A right answer spends the per-address budget only, never the reference's.
+    expect(keysHit()).toEqual([PER_ADDRESS]);
   });
 
-  it("says when the second factor is wrong, and stays coarse", async () => {
+  it("accepts a full phone number and compares its last four digits", async () => {
     vi.mocked(q.getTrackingOrderByNo).mockResolvedValue(ORDER as never);
-    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "1111", viewerId: null });
-    expect(res).toMatchObject({ found: true, detail: "coarse", verifyFailed: true });
+    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "+233 24 555 0192", viewerId: null });
+    expect(res).toMatchObject({ detail: "full" });
   });
 
-  it("stops checking a reference's second factor once its budget is spent, even with the right answer", async () => {
+  it("says when the second factor is wrong, stays coarse, and counts the miss against the reference", async () => {
     vi.mocked(q.getTrackingOrderByNo).mockResolvedValue(ORDER as never);
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false } as never);
-    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "0192", viewerId: null });
-    expect(res).toMatchObject({ detail: "coarse", verifyFailed: true });
+    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "1111", viewerId: null, ip: "203.0.113.9" });
+    expect(res).toMatchObject({ found: true, detail: "coarse", verify: { kind: "mismatch" } });
+    expect(keysHit()).toEqual([PER_ADDRESS, PER_REFERENCE]);
+  });
+
+  it("says no phone is on file rather than 'does not match', and does not count it", async () => {
+    vi.mocked(q.getTrackingOrderByNo).mockResolvedValue(ORDER as never);
+    vi.mocked(q.getOrderPhones).mockResolvedValue([]);
+    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "0192", viewerId: null, ip: "203.0.113.9" });
+    expect(res).toMatchObject({ detail: "coarse", verify: { kind: "no_phone_on_file" } });
+    expect(keysHit()).toEqual([PER_ADDRESS]);
+  });
+
+  it("does not count input that is neither an email nor four digits", async () => {
+    vi.mocked(q.getTrackingOrderByNo).mockResolvedValue(ORDER as never);
+    for (const verifier of ["12", "hello", "ab12"]) {
+      const res = await lookupPublicTracking({ query: "TM-00002", verifier, viewerId: null });
+      expect(res).toMatchObject({ detail: "coarse", verify: { kind: "invalid" } });
+    }
+    expect(checkRateLimit).not.toHaveBeenCalled();
+    expect(q.peekRateLimitCount).not.toHaveBeenCalled();
+  });
+
+  it("locks out with its own answer when the address is over budget, and leaves the reference counter alone", async () => {
+    vi.mocked(q.getTrackingOrderByNo).mockResolvedValue(ORDER as never);
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0, resetAt: Date.now() + 12 * 60 * 1000 } as never);
+    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "0192", viewerId: null, ip: "203.0.113.9" });
+    expect(res).toMatchObject({ detail: "coarse", verify: { kind: "limited", retryInMinutes: 12 } });
+    expect(keysHit()).toEqual([PER_ADDRESS]);
+    expect(q.peekRateLimitCount).not.toHaveBeenCalled();
     expect(q.getOrderPhones).not.toHaveBeenCalled();
+  });
+
+  it("stops checking once the reference's misses reach the ceiling, even with the right answer", async () => {
+    vi.mocked(q.getTrackingOrderByNo).mockResolvedValue(ORDER as never);
+    vi.mocked(q.peekRateLimitCount).mockResolvedValue({ count: 20, resetAt: Date.now() + 30 * 60 * 1000 });
+    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "0192", viewerId: null, ip: "203.0.113.9" });
+    expect(res).toMatchObject({ detail: "coarse", verify: { kind: "limited", retryInMinutes: 30 } });
+    expect(q.peekRateLimitCount).toHaveBeenCalledWith(PER_REFERENCE, 3600);
+    expect(q.getOrderPhones).not.toHaveBeenCalled();
+    expect(keysHit()).toEqual([PER_ADDRESS]);
+  });
+
+  it("answers a failed read of what is on file as our error, not a mismatch, and logs it", async () => {
+    vi.mocked(q.getTrackingOrderByNo).mockResolvedValue(ORDER as never);
+    vi.mocked(q.getOrderOwnerEmail).mockRejectedValue(new Error("auth down"));
+    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "kwame@tomame.local", viewerId: null });
+    expect(res).toMatchObject({ detail: "coarse", verify: { kind: "error" } });
+    expect(logger.error).toHaveBeenCalled();
+    expect(keysHit()).not.toContain(PER_REFERENCE);
   });
 
   it("gives the signed-in owner the full view and a link to their order", async () => {

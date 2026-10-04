@@ -19,7 +19,7 @@ export interface BagSummaryCardProps {
   paymentHoldNote: string | null;
   /** Selection and the pay action, owned by `BagView` so the 390px bar shares them. */
   payment: BagPayment;
-  /** True when nothing here may start a payment — no lines, an unpriced line, or no delivery chosen. */
+  /** True when nothing here may start a payment — no lines, an unpriced line, no delivery chosen, or no name and phone on the account. */
   blocked: boolean;
 }
 

@@ -5,7 +5,7 @@ import type { CreateAddressInput, UpdateAddressInput } from "@/features/addresse
 
 // Data access only (service role — every write is the server's). Owner checks,
 // default promotion and zone validation live in addresses.service.ts.
-const COLUMNS = "id, user_id, label, kind, recipient_name, phone, line1, line2, area, city, region, delivery_zone_id, digital_address, is_default, created_at, updated_at";
+const COLUMNS = "id, user_id, label, kind, recipient_name, phone, line1, line2, area, city, region, delivery_zone_id, digital_address, latitude, longitude, is_default, created_at, updated_at";
 
 export async function listDeliveryAddresses(userId: string): Promise<DeliveryAddress[]> {
   const { data, error } = await createAdminClient().from("delivery_addresses").select(COLUMNS).eq("user_id", userId).order("is_default", { ascending: false }).order("created_at");

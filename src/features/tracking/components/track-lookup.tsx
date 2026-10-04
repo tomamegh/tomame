@@ -13,7 +13,7 @@ import { formatEtaWindow } from "@/features/journeys/format";
 import { apiFetch, ApiFetchError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
-import type { PublicTrackingFull, PublicTrackingResult } from "../public-tracking";
+import type { PublicTrackingFull, PublicTrackingResult, VerifyOutcome } from "../public-tracking";
 
 /**
  * The public tracking lookup (086), on `/track` and reused by the signed-in
@@ -54,6 +54,9 @@ export function TrackLookup({ initialQuery }: { initialQuery: string }) {
         setAsked(value);
         if (!verifier) router.replace(`/track?q=${encodeURIComponent(value)}`, { scroll: false });
       } catch (e) {
+        // A failed lookup must not leave the last answer on screen as if it
+        // were this one's.
+        setResult(null);
         setError(e instanceof ApiFetchError ? e.message : "Could not look that up. Try again.");
       } finally {
         setBusy(false);
@@ -67,6 +70,17 @@ export function TrackLookup({ initialQuery }: { initialQuery: string }) {
     ran.current = true;
     void run(initialQuery);
   }, [initialQuery, run]);
+
+  // On a phone the five stops overflow sideways; bring the parcel's own stop
+  // into view rather than always showing the first two.
+  const trackScroller = useRef<HTMLDivElement>(null);
+  const currentStop = result?.found ? currentStopIndex(result.track.stops) : -1;
+  useEffect(() => {
+    const el = trackScroller.current;
+    if (!el || currentStop < 0 || el.scrollWidth <= el.clientWidth) return;
+    const stopWidth = el.scrollWidth / 5;
+    el.scrollTo({ left: Math.max(0, stopWidth * (currentStop + 0.5) - el.clientWidth / 2), behavior: "smooth" });
+  }, [currentStop, result]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -118,7 +132,7 @@ export function TrackLookup({ initialQuery }: { initialQuery: string }) {
         <section className="tm-up flex min-w-0 flex-col gap-[22px] overflow-hidden rounded-[24px] border border-tm-border bg-card px-[22px] py-[26px] [animation-duration:0.5s] lg:px-7">
           <Header result={result} />
           {/* The track scrolls rather than crushing five stops into a phone. */}
-          <div className="-mx-[22px] min-w-0 overflow-x-auto px-[22px] lg:mx-0 lg:px-0">
+          <div ref={trackScroller} className="-mx-[22px] min-w-0 overflow-x-auto px-[22px] lg:mx-0 lg:px-0">
             <div className="min-w-[560px]">
               <JourneyTrackRail track={result.track} eta={result.eta} />
             </div>
@@ -134,8 +148,8 @@ export function TrackLookup({ initialQuery }: { initialQuery: string }) {
             >
               <p className="flex items-start gap-2 text-[13.5px] leading-[1.5] font-medium text-tm-text-2">
                 <LockKey weight="duotone" className="mt-0.5 size-5 shrink-0 text-tm-coral" aria-hidden />
-                To see the item and every update, confirm it is yours: the last 4 digits of the phone number on the
-                order, or the email you signed up with.
+                To see the item and every update, confirm it is yours: the last 4 digits of your phone number, or
+                the email you signed up with.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <label htmlFor="track-verify" className="sr-only">
@@ -145,8 +159,10 @@ export function TrackLookup({ initialQuery }: { initialQuery: string }) {
                   id="track-verify"
                   value={verify}
                   onChange={(e) => setVerify(e.target.value)}
-                  placeholder="Last 4 digits, or your email"
+                  placeholder="Last 4 digits of your phone, or your email"
                   autoComplete="off"
+                  // Digits first on a phone keyboard; an email still types fine.
+                  inputMode={/[a-z@]/i.test(verify) ? "email" : "numeric"}
                   maxLength={254}
                   className={cn(INPUT, "sm:flex-1")}
                 />
@@ -158,9 +174,9 @@ export function TrackLookup({ initialQuery }: { initialQuery: string }) {
                   Show details
                 </button>
               </div>
-              {result.verifyFailed ? (
-                <p className="text-[13px] font-semibold text-tm-coral-strong">
-                  That does not match this order. Check it and try again, or sign in to see your orders.
+              {result.verify ? (
+                <p role="alert" className="text-[13px] font-semibold text-tm-coral-strong">
+                  {verifyMessage(result.verify)}
                 </p>
               ) : null}
             </form>
@@ -171,6 +187,31 @@ export function TrackLookup({ initialQuery }: { initialQuery: string }) {
       {result && result.found && result.detail === "full" ? <Full result={result} /> : null}
     </div>
   );
+}
+
+function verifyMessage(outcome: VerifyOutcome): string {
+  switch (outcome.kind) {
+    case "mismatch":
+      return "That does not match this order. Check it and try again, or sign in to see your orders.";
+    case "limited":
+      return outcome.retryInMinutes
+        ? `Too many tries. Try again in about ${outcome.retryInMinutes} minute${outcome.retryInMinutes === 1 ? "" : "s"}, or sign in to see your orders.`
+        : "Too many tries. Try again later, or sign in to see your orders.";
+    case "no_phone_on_file":
+      return "We do not have a phone number on this order. Use the email you signed up with instead, or sign in to see your orders.";
+    case "invalid":
+      return "Enter the last 4 digits of your phone number, or your email.";
+    case "error":
+      return "Something went wrong on our side. Try again in a moment.";
+  }
+}
+
+/** The stop the parcel is at: the one marked now, else the last one reached. */
+function currentStopIndex(stops: ReadonlyArray<{ state: string }>): number {
+  const now = stops.findIndex((s) => s.state === "now");
+  if (now >= 0) return now;
+  for (let i = stops.length - 1; i >= 0; i--) if (stops[i]?.state === "done") return i;
+  return -1;
 }
 
 function Header({ result }: { result: Exclude<PublicTrackingResult, { found: false }> }) {
