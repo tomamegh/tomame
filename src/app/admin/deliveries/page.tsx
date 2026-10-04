@@ -23,7 +23,7 @@ export const metadata: Metadata = { title: "Deliveries · Admin" };
  * fetched `/api/admin/deliveries`, held its stage filter in `useState` and
  * computed its four figures by counting a fetched array in the browser.
  *
- * The stage words are `journey-stage.ts`'s — "Being purchased", "In the air" —
+ * The stage words are `journey-stage.ts`'s — "Purchased", "In the air" —
  * because a buyer on WhatsApp and the customer they are talking to should be
  * looking at one vocabulary, not translating between two.
  */
@@ -71,9 +71,9 @@ export default async function AdminDeliveriesPage({
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <AdminStat
           index={0}
-          label="Being purchased"
+          label="Purchased"
           value={String(counts.processing)}
-          detail="A buyer is placing these with the store"
+          detail="Bought from the store, on the way to our hub"
           tone={counts.processing > 0 ? "coral" : "muted"}
           href="/admin/deliveries?status=processing"
         />

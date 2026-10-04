@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { markOrderPurchased } from "@/features/orders/services/order-purchase.service";
 import { updateOrderStatusSchema } from "@/features/orders/schema";
 import {
   getOrder,
@@ -63,7 +64,13 @@ export async function PATCH(
     const admin = requireAdmin(auth);
 
     const { id } = await params;
-    const { status, ...tracking } = parsed.data;
+    const { status, store_tracking, share_store_tracking, ...tracking } = parsed.data;
+
+    // "Mark as purchased" also registers the store's tracking for the hub.
+    if (status === "processing") {
+      const { order } = await markOrderPurchased(admin, id, { store_tracking, share_store_tracking });
+      return successResponse(order);
+    }
     // Spread straight through: the service's parameter is snake_case now, so the
     // field names on the wire, in the schema, in the service and in the columns
     // are one spelling. They were not before — `tracking_number` and

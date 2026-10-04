@@ -130,7 +130,10 @@ export interface WarehouseReturnAddress {
 
 export interface WarehouseDashboard {
   counts: {
+    /** EXPECTED: purchased (`processing`), not yet logged in at the hub. */
     awaiting: number;
+    /** Paid but not yet marked purchased by an admin, not at the hub either. */
+    not_bought: number;
     received: number;
     packing: number;
     sealed: number;

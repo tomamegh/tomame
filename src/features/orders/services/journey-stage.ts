@@ -33,10 +33,10 @@ export interface JourneyStop {
  * The five stops the Home mini-track draws, in order. Exported so the UI renders
  * the track from this list rather than hardcoding five labels in JSX.
  *
- * COPY NOTE: the stop word is "Purchased", never "Bought" (handoff §4). The
- * status label for `processing` is "Being purchased" — the sentence form of the
- * same word, so there is no discrepancy between the mapping and the copy rule:
- * the label describes the state, the stop names the milestone.
+ * COPY NOTE: the stop word is "Purchased", never "Bought" (handoff §4). Since
+ * the admin's "Mark as purchased" (2026-10-04) the `processing` status means
+ * the store order is placed and the item is on its way to our hub, so its
+ * label is the milestone word itself: "Purchased".
  */
 export const JOURNEY_STOPS: readonly JourneyStop[] = [
   { key: "paid", label: "Paid" },
@@ -49,7 +49,7 @@ export const JOURNEY_STOPS: readonly JourneyStop[] = [
 export interface JourneyStage {
   /** The raw `orders.status` this was derived from. */
   status: string;
-  /** Customer-facing label for the state, e.g. "Being purchased". */
+  /** Customer-facing label for the state, e.g. "Purchased". */
   label: string;
   /** Which of `JOURNEY_STOPS` is lit, or null when the order is off-track. */
   stopKey: string | null;
@@ -91,7 +91,7 @@ const STAGES: Record<string, JourneyStage> = {
   },
   processing: {
     status: "processing",
-    label: "Being purchased",
+    label: "Purchased",
     stopKey: "purchased",
     trackPercent: 40,
     tone: "coral",
@@ -201,7 +201,7 @@ function normalizeEta(value: string | null | undefined): string | null {
  * `journeyStageFor` answers "Unknown" for it until this file learns its stage —
  * visible, rather than absent.
  *
- * The words are the customer's ("Being purchased", "In the air"), used on admin
+ * The words are the customer's ("Purchased", "In the air"), used on admin
  * screens too. A buyer and a customer talking on WhatsApp should be looking at
  * the same vocabulary, not translating between two.
  */

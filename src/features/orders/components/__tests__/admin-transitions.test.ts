@@ -107,7 +107,7 @@ describe("mayEditEtaWindow", () => {
 
 describe("adminStatusTone / adminStatusLabel", () => {
   it("reads the customer's vocabulary rather than inventing one", () => {
-    expect(adminStatusLabel("processing")).toBe("Being purchased");
+    expect(adminStatusLabel("processing")).toBe("Purchased");
     expect(adminStatusLabel("in_transit")).toBe("In the air");
     expect(adminStatusLabel("pending")).toBe("Awaiting payment");
   });

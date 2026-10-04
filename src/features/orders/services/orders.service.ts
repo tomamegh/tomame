@@ -231,6 +231,8 @@ export async function sendOrderStatusEmail(
     trackingNumber?: string;
     carrier?: string;
     estimatedDeliveryDate?: string;
+    /** Store tracking the admin chose to share on the purchased email. */
+    storeTracking?: Array<{ carrier: string; number: string }>;
   },
 ): Promise<void> {
   try {
@@ -265,6 +267,7 @@ export async function sendOrderStatusEmail(
       // Tomame's own number, never the carrier's (customers only see ours).
       trackingNumber: order.order_no,
       estimatedDeliveryDate: trackingData?.estimatedDeliveryDate,
+      storeTracking: trackingData?.storeTracking,
     };
 
     let template: { subject: string; html: string } | null = null;
@@ -543,11 +546,19 @@ export async function updateOrderStatusAdmin(
   orderId: string,
   newStatus: string,
   trackingData?: OrderTrackingInput,
+  opts?: StatusChangeOptions,
 ): Promise<Order> {
   if (!canAccessAdmin(user)) {
     throw new APIError(403, "Admin access required");
   }
-  return applyOrderStatusChange(client, user, "admin", orderId, newStatus, trackingData);
+  return applyOrderStatusChange(client, user, "admin", orderId, newStatus, trackingData, opts);
+}
+
+export interface StatusChangeOptions {
+  /** false when the caller sends one staff alert for a batch (a package shipping). */
+  staffAlert?: boolean;
+  /** Store tracking to print on the customer's purchased email (opt-in, see order-purchase.service). */
+  customerStoreTracking?: Array<{ carrier: string; number: string }>;
 }
 
 /**
@@ -590,8 +601,7 @@ async function applyOrderStatusChange(
   orderId: string,
   newStatus: string,
   trackingData?: OrderTrackingInput,
-  // false when the caller sends one staff alert for a batch (a package shipping).
-  opts?: { staffAlert?: boolean },
+  opts?: StatusChangeOptions,
 ): Promise<Order> {
   const order = await getOrderById(client, orderId);
   if (!order) {
@@ -704,6 +714,7 @@ async function applyOrderStatusChange(
     trackingNumber: trackingData?.tracking_number,
     carrier: trackingData?.carrier,
     estimatedDeliveryDate: eta.midpoint,
+    ...(newStatus === "processing" && opts?.customerStoreTracking?.length && { storeTracking: opts.customerStoreTracking }),
   });
 
   return updated as Order;

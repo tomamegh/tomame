@@ -26,7 +26,7 @@ describe("the one status vocabulary", () => {
     // The five duplicate maps said "In Transit" and "Processing"; the customer's
     // journey said "In the air" and "Being purchased". One of them had to win.
     expect(label("in_transit")).toBe("In the air");
-    expect(label("processing")).toBe("Being purchased");
+    expect(label("processing")).toBe("Purchased");
   });
 
   it("gives every tone a badge class, including the ones off the track", () => {

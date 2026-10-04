@@ -42,7 +42,7 @@ export interface HomeOrder {
   store: string | null;
   /** Raw `orders.status`. */
   status: string;
-  /** "In the air", "Being purchased" — `journey-stage.ts`, the one vocabulary. */
+  /** "In the air", "Purchased" — `journey-stage.ts`, the one vocabulary. */
   stageLabel: string;
   tone: JourneyTone;
   /** The five stops with their recorded dates, from `orders.status` + `order_events`. */

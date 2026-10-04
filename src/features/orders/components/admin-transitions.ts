@@ -65,8 +65,8 @@ const TRANSITION_COPY: Record<TransitionDestination, Omit<AdminTransition, "to">
     destructive: true,
   },
   processing: {
-    label: "Mark as purchasing",
-    blurb: "Tells the customer a buyer is placing their order with the store.",
+    label: "Mark as purchased",
+    blurb: "You have bought it from the store. Add the store's tracking so the hub expects it; the customer is emailed.",
     tone: "coral",
     carriesTracking: false,
     destructive: false,
@@ -173,7 +173,7 @@ export function adminStatusTone(status: string): AdminTone {
   }
 }
 
-/** The customer's own word for a status — "Being purchased", never "processing". */
+/** The customer's own word for a status — "Purchased", never "processing". */
 export function adminStatusLabel(status: string): string {
   return journeyStageFor(status).label;
 }

@@ -89,6 +89,25 @@ export const updateOrderStatusSchema = z
     // link to the person pasting it.
     tracking_url: webLinkSchema("Must be a valid URL").optional(),
     notes: z.string().max(2000).optional(),
+    /**
+     * `processing` only ("Mark as purchased"): the store's tracking numbers,
+     * registered as expected parcels for the hub, and whether the customer's
+     * email may show them (off by default — customers see Tomame's number).
+     */
+    store_tracking: z
+      .array(
+        z.object({
+          tracking_number: z.string().trim().min(6, "That is too short to be a tracking number").max(120),
+          store_order_ref: z.string().trim().max(80).optional().nullable(),
+        }),
+      )
+      .max(5, "Five tracking numbers at most; add more on the warehouse page")
+      .optional(),
+    share_store_tracking: z.boolean().optional(),
+  })
+  .refine((v) => v.status === "processing" || (v.store_tracking === undefined && v.share_store_tracking === undefined), {
+    message: "Store tracking goes with marking an order purchased",
+    path: ["store_tracking"],
   })
   // A backwards window would pass the column CHECK only by luck of which end is
   // which; refuse it here so the admin sees a sentence rather than a 23514.

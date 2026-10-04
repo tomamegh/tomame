@@ -57,7 +57,11 @@ export default async function WarehouseReceivePage({
         }
       />
       <ReceiveBench
-        items={items.filter((i) => i.stage !== "shipped")}
+        // Purchased orders first: those have a store parcel on its way. A paid
+        // order not yet bought stays listed (it can still turn up) but last.
+        items={items
+          .filter((i) => i.stage !== "shipped")
+          .sort((a, b) => Number(a.order_status === "paid") - Number(b.order_status === "paid"))}
         openPackages={packing.map((p) => ({ id: p.id, reference: p.reference, unit_count: p.unit_count, recipients: p.recipients.map((r) => r.name ?? "Customer") }))}
         initialStage={stage}
         initialQuery={query}

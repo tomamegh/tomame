@@ -503,7 +503,11 @@ export async function getWarehouseDashboard(user: PlatformUser): Promise<Warehou
 
   return {
     counts: {
-      awaiting: items.filter((i) => i.stage === "awaiting").length,
+      // Expected means bought: an admin marked it purchased (`processing`), so a
+      // store parcel is on its way. A paid order nobody has bought yet is not
+      // coming, and counting it made "Expected" a to-do list for the buyers.
+      awaiting: items.filter((i) => i.stage === "awaiting" && i.order_status === "processing").length,
+      not_bought: items.filter((i) => i.stage === "awaiting" && i.order_status === "paid").length,
       received: items.filter((i) => i.stage === "received").length,
       packing: counts.packing,
       sealed: counts.sealed,

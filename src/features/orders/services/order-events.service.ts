@@ -34,7 +34,7 @@ import { canAccessAdmin } from "@/lib/auth/admin-access";
  * a status transition knows nothing about.
  */
 const STATUS_EVENTS: Record<string, { kind: OrderEventKind; title: string }> = {
-  processing: { kind: "purchased", title: "Our buyer is placing the order" },
+  processing: { kind: "purchased", title: "Purchased. On its way to our hub" },
   in_transit: { kind: "departed", title: "On its way to Accra" },
   delivered: { kind: "delivered", title: "Delivered to you" },
   completed: { kind: "completed", title: "Order complete" },

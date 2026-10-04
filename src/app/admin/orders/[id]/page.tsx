@@ -24,6 +24,9 @@ import {
   adminStatusLabel,
   adminStatusTone,
 } from "@/features/orders/components/admin-transitions";
+import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { OrderInboundPanel } from "@/features/warehouse/components/inbound";
+import { listInboundForOrder } from "@/features/warehouse/services/inbound.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const metadata: Metadata = { title: "Order · Admin" };
@@ -53,7 +56,7 @@ export default async function AdminOrderDetailPage({
 
   // Six independent reads; none of them depends on another's result, so they go
   // out together rather than in a waterfall six round trips deep.
-  const [customer, payment, delivery, group, siblings, events, auditLogs, courier] = await Promise.all([
+  const [customer, payment, delivery, group, siblings, events, auditLogs, courier, inbound] = await Promise.all([
     getOrderCustomer(order.user_id),
     getOrderPayment(order),
     getDeliveryRecord(order.id),
@@ -66,7 +69,15 @@ export default async function AdminOrderDetailPage({
     listOrderEvents(createAdminClient(), order.id, { customerVisibleOnly: false }),
     listOrderAuditLogs(order.id),
     getAdminOrderCourier(order.id),
+    // Store parcels on their way to the hub (086). `/admin` is admin-gated by
+    // the proxy, and an admin may use the warehouse, so this read is theirs.
+    // A failed read shows no parcels rather than taking the order page down.
+    getAuthenticatedUser()
+      .then((user) => (user ? listInboundForOrder(user, order.id) : []))
+      .catch(() => []),
   ]);
+  // From purchase onwards the store's tracking belongs on this page too.
+  const showInbound = order.status === "processing" || inbound.length > 0;
 
   return (
     <AdminPage
@@ -111,6 +122,15 @@ export default async function AdminOrderDetailPage({
         when a rider was sent (read-only), so it never competes with the camera
         on a parcel still at the hub.
       */}
+      {showInbound ? (
+        <OrderInboundPanel
+          orderId={order.id}
+          orderNo={order.order_no}
+          parcels={inbound}
+          canAdd={order.status === "processing"}
+        />
+      ) : null}
+
       <AdminCourierPanel
         orderId={order.id}
         status={order.status}

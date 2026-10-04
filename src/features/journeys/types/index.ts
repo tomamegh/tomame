@@ -50,7 +50,7 @@ export interface JourneyRow {
   /** `orders.pricing.total_ghs`, or the admin's override. Null when no priced snapshot exists. */
   totalGhs: number | null;
   status: string;
-  /** "In the air", "Being purchased" — from `journey-stage.ts`, one vocabulary. */
+  /** "In the air", "Purchased" — from `journey-stage.ts`, one vocabulary. */
   stageLabel: string;
   tone: JourneyTone;
   /** Stage position on the five-stop track, 0–100. Never progress through time. */

@@ -19,6 +19,12 @@ interface OrderEmailData {
   /** Tomame's own number (`orders.order_no`, TM-00042), shown as the reference. */
   trackingNumber?: string;
   estimatedDeliveryDate?: string;
+  /**
+   * The store's own tracking for the trip to our hub ("UPS", "1Z…"). Only on
+   * the purchased email, and only when the admin ticked "include it" — by
+   * default customers see Tomame's number alone.
+   */
+  storeTracking?: Array<{ carrier: string; number: string }>;
 }
 
 interface PricingBreakdownData {
@@ -58,7 +64,7 @@ interface OrderPlacedEmailData {
 }
 
 /** The journey every paid order walks, as the customer reads it. */
-const JOURNEY = ["Paid", "Buying", "On the way", "Delivered"] as const;
+const JOURNEY = ["Paid", "Purchased", "On the way", "Delivered"] as const;
 
 const ORDER_REASON = "You are getting this because you placed an order on Tomame.";
 
@@ -107,15 +113,21 @@ export function orderPaidTemplate(data: OrderEmailData) {
 }
 
 export function orderProcessingTemplate(data: OrderEmailData) {
-  return renderEmail("Your Tomame order is now being processed", {
-    preheader: `We are buying ${data.productName} from the store now.`,
+  const store = (data.storeTracking ?? []).filter((t) => t.number.trim());
+  const storeRows: SummaryRows = store.map(
+    (t, i) =>
+      [store.length > 1 ? `Store tracking ${i + 1}` : "Store tracking", `<span style="word-break:break-all;">${escapeHtml(`${t.carrier} ${t.number}`)}</span>`] as const,
+  );
+  return renderEmail("We've purchased your item", {
+    preheader: `${data.productName} is purchased and on its way to our hub.`,
     body: `
       ${eyebrow("Order update")}
-      ${heading("We're buying your item")}
-      ${paragraph(`Our team is placing the order for <strong>${escapeHtml(data.productName)}</strong> with the store. Once it reaches our hub and heads for Ghana, you will get the tracking details.`)}
+      ${heading("We've purchased your item")}
+      ${paragraph(`We have purchased <strong>${escapeHtml(data.productName)}</strong> from the store. It is now on its way to our hub, and once it heads for Ghana we will write again.`)}
       ${steps(JOURNEY, 1)}
-      ${orderCard(data)}
-      ${muted("This usually takes 2 to 5 working days, depending on the store.")}
+      ${orderCard(data, storeRows)}
+      ${store.length > 0 ? muted("The store tracking is for the trip to our hub only. Your Tomame number above is the one to track the whole journey with.") : ""}
+      ${muted("Stores usually take 2 to 5 working days to deliver to our hub.")}
       ${button(orderUrl(data.orderId), "Track your order")}
     `,
     reason: ORDER_REASON,

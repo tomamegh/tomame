@@ -14,7 +14,7 @@ import type {
  */
 
 export const STAGE_META: Record<ItemStage, { label: string; tone: AdminTone; hint: string }> = {
-  awaiting: { label: "Expected", tone: "muted", hint: "Paid for, not logged in at the hub yet" },
+  awaiting: { label: "Expected", tone: "muted", hint: "Purchased, not logged in at the hub yet" },
   received: { label: "On the shelf", tone: "amber", hint: "Logged in, waiting to be packed" },
   packed: { label: "Packed", tone: "coral", hint: "In a package that has not left" },
   shipped: { label: "Shipped", tone: "green", hint: "Left the hub" },

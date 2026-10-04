@@ -25,7 +25,7 @@ describe("journeyStageFor — labels", () => {
     expect(labels).toEqual({
       pending: "Awaiting payment",
       paid: "Paid",
-      processing: "Being purchased",
+      processing: "Purchased",
       in_transit: "In the air",
       delivered: "Delivered",
       completed: "Delivered",
@@ -34,7 +34,7 @@ describe("journeyStageFor — labels", () => {
   });
 
   it('uses the "purchase" word, never "bought"', () => {
-    expect(journeyStageFor("processing").label).toContain("purchased");
+    expect(journeyStageFor("processing").label.toLowerCase()).toContain("purchased");
     expect(journeyStageFor("processing").label.toLowerCase()).not.toContain(
       "bought",
     );

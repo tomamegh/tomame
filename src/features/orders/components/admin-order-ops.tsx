@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ArrowRightIcon, PlusIcon, WarehouseIcon, XIcon } from "lucide-react";
 
 import { AdminCard } from "@/components/layout/admin/admin-page";
 import { apiFetch } from "@/lib/api-client";
@@ -56,6 +58,7 @@ export function AdminOrderOps({ order, hasSuccessfulPayment, index = 0 }: AdminO
       blurb="Every change here emails the customer and writes an audit row."
     >
       <div className="flex flex-col gap-5">
+        {order.status === "processing" ? <ContinueAtWarehouse orderId={order.id} /> : null}
         {transitions.map((transition) => (
           <TransitionControl key={transition.to} order={order} transition={transition} />
         ))}
@@ -91,6 +94,12 @@ function TransitionControl({
   const eta = orderEtaFields(order);
   const [etaFrom, setEtaFrom] = useState(eta.from);
   const [etaTo, setEtaTo] = useState(eta.to);
+  // "Mark as purchased": the store's tracking, and whether the customer sees it.
+  const isPurchase = transition.to === "processing";
+  const [storeTracking, setStoreTracking] = useState<string[]>([""]);
+  const [storeOrderRef, setStoreOrderRef] = useState("");
+  const [shareTracking, setShareTracking] = useState(false);
+  const filledTracking = storeTracking.map((t) => t.trim()).filter(Boolean);
 
   const busy = saving || pending;
 
@@ -99,7 +108,14 @@ function TransitionControl({
     try {
       // Only the shipping transition carries tracking; sending these fields on
       // any other one would be noise the service is documented to ignore.
-      const body: Record<string, string> = { status: transition.to };
+      const body: Record<string, unknown> = { status: transition.to };
+      if (isPurchase && filledTracking.length > 0) {
+        body.store_tracking = filledTracking.map((tracking_number) => ({
+          tracking_number,
+          store_order_ref: storeOrderRef.trim() || null,
+        }));
+        body.share_store_tracking = shareTracking;
+      }
       if (transition.carriesTracking) {
         if (carrier.trim()) body.carrier = carrier.trim();
         if (trackingNumber.trim()) body.tracking_number = trackingNumber.trim();
@@ -114,10 +130,17 @@ function TransitionControl({
         body: JSON.stringify(body),
       });
 
-      toast.success({
-        title: "Order moved",
-        description: transition.blurb,
-      });
+      toast.success(
+        isPurchase
+          ? {
+              title: "Marked as purchased",
+              description:
+                filledTracking.length > 0
+                  ? `The hub now expects ${filledTracking.length === 1 ? "this parcel" : `${filledTracking.length} parcels`}. Continue at the warehouse from here.`
+                  : "The customer has been emailed. Add the store tracking when you have it.",
+            }
+          : { title: "Order moved", description: transition.blurb },
+      );
       setConfirming(false);
       startTransition(() => router.refresh());
     } catch (error) {
@@ -140,6 +163,18 @@ function TransitionControl({
           {transition.blurb}
         </p>
       </div>
+
+      {isPurchase ? (
+        <PurchaseFields
+          orderId={order.id}
+          tracking={storeTracking}
+          onTracking={setStoreTracking}
+          storeOrderRef={storeOrderRef}
+          onStoreOrderRef={setStoreOrderRef}
+          share={shareTracking}
+          onShare={setShareTracking}
+        />
+      ) : null}
 
       {transition.carriesTracking ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -221,6 +256,121 @@ function TransitionControl({
         ) : null}
       </div>
     </section>
+  );
+}
+
+// ── Mark as purchased ───────────────────────────────────────────────────────
+
+/** Five, like the API: more than that is a split shipment for the warehouse page. */
+const MAX_STORE_TRACKING = 5;
+
+/**
+ * The store's tracking numbers from its confirmation or shipping email. Each
+ * becomes an EXPECTED parcel at the hub, so the scan finds this order when the
+ * box lands. Optional: the store may not have shipped yet, and the number can
+ * be added later in "Store tracking" below.
+ */
+function PurchaseFields({
+  orderId,
+  tracking,
+  onTracking,
+  storeOrderRef,
+  onStoreOrderRef,
+  share,
+  onShare,
+}: {
+  orderId: string;
+  tracking: string[];
+  onTracking: (next: string[]) => void;
+  storeOrderRef: string;
+  onStoreOrderRef: (next: string) => void;
+  share: boolean;
+  onShare: (next: boolean) => void;
+}) {
+  const hasTracking = tracking.some((t) => t.trim());
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
+        <span className="text-[12px] leading-none font-semibold text-tm-text-2">
+          Store tracking number{tracking.length > 1 ? "s" : ""} (optional)
+        </span>
+        {tracking.map((value, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              aria-label={`Store tracking number ${i + 1}`}
+              value={value}
+              onChange={(event) => onTracking(tracking.map((t, j) => (j === i ? event.target.value : t)))}
+              placeholder="1Z999AA10123456784"
+              className={cn(INPUT, "tm-nums")}
+            />
+            {tracking.length > 1 ? (
+              <button
+                type="button"
+                aria-label={`Remove tracking number ${i + 1}`}
+                onClick={() => onTracking(tracking.filter((_, j) => j !== i))}
+                className="inline-flex size-10 shrink-0 items-center justify-center rounded-full text-tm-text-3 hover:text-tm-ink"
+              >
+                <XIcon className="size-4" aria-hidden />
+              </button>
+            ) : null}
+          </div>
+        ))}
+        {tracking.length < MAX_STORE_TRACKING ? (
+          <button
+            type="button"
+            onClick={() => onTracking([...tracking, ""])}
+            className="inline-flex w-fit items-center gap-1 text-[12.5px] font-semibold text-tm-coral-strong hover:underline"
+          >
+            <PlusIcon className="size-3.5" aria-hidden />
+            The store split it into another parcel
+          </button>
+        ) : null}
+      </div>
+      <Field label="Store order number (optional)" id={`store-ref-${orderId}`}>
+        <input
+          id={`store-ref-${orderId}`}
+          value={storeOrderRef}
+          onChange={(event) => onStoreOrderRef(event.target.value)}
+          placeholder="114-3902157-0071425"
+          maxLength={80}
+          className={cn(INPUT, "tm-nums")}
+        />
+      </Field>
+      <label className={cn("flex items-start gap-2.5", !hasTracking && "opacity-50")}>
+        <input
+          type="checkbox"
+          checked={share && hasTracking}
+          disabled={!hasTracking}
+          onChange={(event) => onShare(event.target.checked)}
+          className="mt-0.5 size-4 accent-tm-coral"
+        />
+        <span className="flex flex-col gap-0.5">
+          <span className="text-[13px] leading-tight font-semibold text-tm-ink">Include the store tracking in the customer&apos;s email</span>
+          <span className="text-[12px] leading-[1.45] font-medium text-tm-text-3">
+            Off by default: customers normally see only the Tomame number. The store&apos;s number covers the trip to our hub only.
+          </span>
+        </span>
+      </label>
+    </div>
+  );
+}
+
+/** After purchase the order's next steps happen at the hub: one tap there. */
+function ContinueAtWarehouse({ orderId }: { orderId: string }) {
+  return (
+    <Link
+      href={`/warehouse/items/${orderId}`}
+      className="flex items-center gap-3 rounded-[16px] border border-tm-coral/30 bg-tm-tint p-4 transition-colors hover:border-tm-coral/60"
+    >
+      <WarehouseIcon className="size-5 shrink-0 text-tm-coral" aria-hidden />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-[14px] leading-tight font-bold text-tm-ink">Continue at the warehouse</span>
+        <span className="text-[12.5px] leading-[1.45] font-medium text-tm-text-2">
+          Purchased and expected at the hub. Receiving, weighing and packing happen there.
+        </span>
+      </span>
+      <ArrowRightIcon className="size-4 shrink-0 text-tm-coral" aria-hidden />
+    </Link>
   );
 }
 

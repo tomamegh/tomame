@@ -88,7 +88,7 @@ describe("every email", () => {
   });
 
   it("shows order progress in plain text", () => {
-    expect(ALL.orderProcessing.text).toContain("Progress: Paid > [Buying] > On the way > Delivered");
+    expect(ALL.orderProcessing.text).toContain("Progress: Paid > [Purchased] > On the way > Delivered");
   });
 
   it("leaves the preheader out of the plain text", () => {
@@ -131,5 +131,23 @@ describe("htmlToText", () => {
   it("drops skipped regions, head and Outlook conditionals", () => {
     const html = `<head><style>p{}</style></head><body><!--text:skip-->hidden<!--/text:skip--><!--[if mso]>vml<![endif]--><p>Shown</p></body>`;
     expect(htmlToText(html)).toBe("Shown");
+  });
+});
+
+describe("purchased email — store tracking", () => {
+  it("shows the store's tracking only when given", async () => {
+    const { orderProcessingTemplate } = await import("../templates/order-status");
+    const plain = orderProcessingTemplate({ productName: "Sony WH-1000XM5", orderId: "o1", trackingNumber: "TM-00042" });
+    expect(plain.html).not.toContain("Store tracking");
+    const shared = orderProcessingTemplate({
+      productName: "Sony WH-1000XM5",
+      orderId: "o1",
+      trackingNumber: "TM-00042",
+      storeTracking: [{ carrier: "UPS", number: "1Z 999 AA1 0123 4567 84" }],
+    });
+    expect(shared.subject).toBe("We've purchased your item");
+    expect(shared.html).toContain("Store tracking");
+    expect(shared.html).toContain("UPS 1Z 999 AA1 0123 4567 84");
+    expect(shared.html).toContain("TM-00042");
   });
 });

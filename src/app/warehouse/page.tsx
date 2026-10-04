@@ -40,7 +40,7 @@ export default async function WarehouseOverviewPage() {
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   const flow = [
-    { label: "Expected", value: data.counts.awaiting, hint: "Paid, on the way to us", href: "/warehouse/receive?stage=awaiting", icon: InboxIcon, tone: "text-tm-text-2" },
+    { label: "Expected", value: data.counts.awaiting, hint: data.counts.not_bought > 0 ? `Purchased, on the way · ${data.counts.not_bought} not bought yet` : "Purchased, on the way to us", href: "/warehouse/receive?stage=awaiting", icon: InboxIcon, tone: "text-tm-text-2" },
     { label: "On the shelf", value: data.counts.received, hint: "Logged in, not packed", href: "/warehouse/receive?stage=received", icon: PackageOpenIcon, tone: "text-tm-amber" },
     { label: "Packing", value: data.counts.packing, hint: "Open on the bench", href: "/warehouse/packages?status=packing", icon: BoxesIcon, tone: "text-tm-amber" },
     { label: "Sealed", value: data.counts.sealed, hint: "Labelled, ready to go", href: "/warehouse/packages?status=sealed", icon: PackageCheckIcon, tone: "text-tm-coral" },

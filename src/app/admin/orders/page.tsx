@@ -162,7 +162,7 @@ function buildPills({
       count: counts.byStatus.paid,
     },
     {
-      label: "Being purchased",
+      label: "Purchased",
       href: href({ status: "processing" }),
       active: status === "processing",
       count: counts.byStatus.processing,
