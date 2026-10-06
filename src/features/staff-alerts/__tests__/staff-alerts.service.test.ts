@@ -13,6 +13,9 @@ vi.mock("@/db/queries/staff-alerts", () => ({
   getStaffPayment: vi.fn(),
   getStaffSourcingRequest: vi.fn(),
   getStaffAssistedRequest: vi.fn(),
+  getStaffOrderFeedback: vi.fn(),
+  getStaffContactMessage: vi.fn(),
+  getStaffCarEnquiry: vi.fn(),
   listStaffOrdersByGroup: vi.fn(),
   readSiteSettingValues: vi.fn(),
 }));
@@ -221,5 +224,39 @@ describe("sendStaffTestEmail", () => {
     vi.mocked(q.readSiteSettingValues).mockResolvedValue({ staff_order_alert_events: { sourcing_requested: false } });
     expect(await processStaffAlert({ kind: "sourcing_requested", watchId: "w1" }, deps())).toEqual({ status: "off" });
     expect(await processStaffAlert({ kind: "assisted_requested", requestId: "a1" }, deps())).toEqual({ status: "off" });
+  });
+
+  it("a customer's reply to a parcel photo emails the staff list with what they said", async () => {
+    vi.mocked(q.getStaffOrderFeedback).mockResolvedValue({
+      id: "f1",
+      order_id: ORDER.id,
+      user_id: "u1",
+      verdict: "other",
+      message: "I was hoping to see the exact size I ordered",
+    });
+    const d = deps();
+    expect(await processStaffAlert({ kind: "order_feedback", feedbackId: "f1" }, d)).toMatchObject({ status: "sent" });
+    const mail = d.send.mock.calls[0]![0] as { subject: string; html: string };
+    expect(mail.subject).toBe("[Tomame] Parcel problem TM-00042: Something else");
+    for (const s of ["I was hoping to see the exact size I ordered", "Kwame Mensah", "/warehouse/issues"]) expect(mail.html).toContain(s);
+  });
+
+  it("a confirmation is sent too, marked as fine", async () => {
+    vi.mocked(q.getStaffOrderFeedback).mockResolvedValue({ id: "f2", order_id: ORDER.id, user_id: "u1", verdict: "looks_right", message: "Looks right to me." });
+    const d = deps();
+    await processStaffAlert({ kind: "order_feedback", feedbackId: "f2" }, d);
+    expect(d.send.mock.calls[0]![0].subject).toBe("[Tomame] Parcel confirmed TM-00042: Looks right");
+  });
+
+  it("the contact form and car enquiries email the staff list", async () => {
+    vi.mocked(q.getStaffContactMessage).mockResolvedValue({ id: "c1", name: "Ama", email: "ama@x.io", subject: "Where is my order?", message: "It has been a week" });
+    vi.mocked(q.getStaffCarEnquiry).mockResolvedValue({ id: "e1", user_id: "u1", kind: "offer", offer_pesewas: 15_000_000, message: "Can you do this?" });
+    const d = deps();
+    await processStaffAlert({ kind: "contact_message", messageId: "c1" }, d);
+    await processStaffAlert({ kind: "car_enquiry", enquiryId: "e1", carTitle: "2018 Toyota Corolla" }, d);
+    const subjects = d.send.mock.calls.map((c) => c[0].subject);
+    expect(subjects).toContain("[Tomame] Message from Ama: Where is my order?");
+    expect(subjects).toContain("[Tomame] Car offer: 2018 Toyota Corolla · GH₵150,000.00");
+    expect(d.send.mock.calls[0]![0].html).toContain("It has been a week");
   });
 });

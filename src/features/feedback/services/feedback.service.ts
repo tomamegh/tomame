@@ -12,6 +12,7 @@ import {
 import { getOrderPhoto } from "@/db/queries/order-photos";
 import { getOrderOwner } from "@/db/queries/orders";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
 import { APIError } from "@/lib/auth/api-helpers";
 import { canAccessWarehouse } from "@/lib/auth/admin-access";
@@ -85,6 +86,7 @@ export async function submitOrderFeedback(
     entityId: row.id,
     metadata: { order_id: orderId, verdict: input.verdict, photo_id: row.photo_id },
   });
+  notifyStaff({ kind: "order_feedback", feedbackId: row.id });
 
   return toOrderFeedback(row);
 }

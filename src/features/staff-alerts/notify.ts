@@ -20,7 +20,10 @@ export type StaffAlertTrigger =
   | { kind: "order_review"; orderId: string; outcome: "approved" | "priced" | "rejected" }
   | { kind: "car_order"; carOrderId: string; action: "created" | "cancelled" | "released" }
   | { kind: "sourcing_requested"; watchId: string }
-  | { kind: "assisted_requested"; requestId: string };
+  | { kind: "assisted_requested"; requestId: string }
+  | { kind: "order_feedback"; feedbackId: string }
+  | { kind: "contact_message"; messageId: string }
+  | { kind: "car_enquiry"; enquiryId: string; carTitle: string };
 
 /** Which toggle a trigger belongs to. */
 export function eventOf(t: StaffAlertTrigger): StaffAlertEvent {
@@ -43,6 +46,10 @@ export function eventOf(t: StaffAlertTrigger): StaffAlertEvent {
     case "sourcing_requested":
     case "assisted_requested":
       return "sourcing_requested";
+    case "order_feedback":
+    case "contact_message":
+    case "car_enquiry":
+      return "customer_message";
   }
 }
 
@@ -72,6 +79,12 @@ export function eventKeyOf(t: StaffAlertTrigger): string {
       return `sourcing_requested:watch:${t.watchId}`;
     case "assisted_requested":
       return `sourcing_requested:assisted:${t.requestId}`;
+    case "order_feedback":
+      return `customer_message:order_feedback:${t.feedbackId}`;
+    case "contact_message":
+      return `customer_message:contact:${t.messageId}`;
+    case "car_enquiry":
+      return `customer_message:car_enquiry:${t.enquiryId}`;
   }
 }
 
@@ -95,6 +108,12 @@ export function entityOf(t: StaffAlertTrigger): { entity_type: string; entity_id
       return { entity_type: "price_watch", entity_id: t.watchId };
     case "assisted_requested":
       return { entity_type: "assisted_request", entity_id: t.requestId };
+    case "order_feedback":
+      return { entity_type: "order_feedback", entity_id: t.feedbackId };
+    case "contact_message":
+      return { entity_type: "contact_message", entity_id: t.messageId };
+    case "car_enquiry":
+      return { entity_type: "car_enquiry", entity_id: t.enquiryId };
   }
 }
 

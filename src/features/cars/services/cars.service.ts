@@ -1,4 +1,5 @@
 import "server-only";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 
 import {
   CarEnquiryExistsError,
@@ -457,6 +458,7 @@ export async function createCarEnquiry(
       actorEmail: customer.email,
     },
   });
+  notifyStaff({ kind: "car_enquiry", enquiryId: row.id, carTitle: carTitle(listing) });
 
   return row;
 }

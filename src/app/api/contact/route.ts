@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 import { insertContactMessage } from "@/db/queries/contact-messages";
 import { contactSchema } from "@/features/contact/schema";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -49,6 +50,8 @@ export async function POST(request: NextRequest) {
       subject: parsed.data.subject,
       message: parsed.data.message,
     });
+
+    notifyStaff({ kind: "contact_message", messageId: row.id });
 
     // Only the id: nothing here needs to travel back to the browser.
     return successResponse({ id: row.id }, 201);

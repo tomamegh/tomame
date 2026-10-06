@@ -8,6 +8,9 @@ import {
   getStaffGroup,
   getStaffOrder,
   getStaffAssistedRequest,
+  getStaffCarEnquiry,
+  getStaffContactMessage,
+  getStaffOrderFeedback,
   getStaffPayment,
   getStaffSourcingRequest,
   listStaffOrdersByGroup,
@@ -488,8 +491,85 @@ export async function buildAlert(t: StaffAlertTrigger, environment: string | nul
         ],
       };
     }
+    case "order_feedback": {
+      const feedback = await getStaffOrderFeedback(t.feedbackId);
+      if (!feedback) throw new Error(`order feedback ${t.feedbackId} not found`);
+      const target = await orderTarget(feedback.order_id);
+      const customer = await customerOf(feedback.user_id);
+      const verdict = FEEDBACK_VERDICT[feedback.verdict] ?? human(feedback.verdict);
+      const fine = feedback.verdict === "looks_right";
+      return {
+        customer,
+        items: target.items,
+        totalGhs: null,
+        payment: null,
+        adminHref: "/warehouse/issues",
+        adminLabel: "Open parcel issues",
+        environment,
+        subject: `${p} ${fine ? "Parcel confirmed" : "Parcel problem"} ${target.reference}: ${verdict}`,
+        eyebrow: fine ? "Customer confirmed" : "Customer reply",
+        tone: fine ? "green" : "coral",
+        headline: fine ? `${target.reference}: the customer says it looks right` : `${target.reference}: ${verdict}`,
+        summary: fine
+          ? `${customer.name ?? customer.email ?? "The customer"} looked at the parcel photo and confirmed it.`
+          : `${customer.name ?? customer.email ?? "The customer"} replied to the parcel photo. Sort it before the parcel ships.`,
+        facts: [["What they said", feedback.message.slice(0, 1000)]],
+      };
+    }
+    case "contact_message": {
+      const message = await getStaffContactMessage(t.messageId);
+      if (!message) throw new Error(`contact message ${t.messageId} not found`);
+      return {
+        customer: { name: message.name, email: message.email, phone: null },
+        items: [],
+        totalGhs: null,
+        payment: null,
+        adminHref: "/admin/contact-messages",
+        adminLabel: "Open messages",
+        environment,
+        subject: `${p} Message from ${message.name}: ${message.subject.slice(0, 80)}`,
+        eyebrow: "Contact form",
+        tone: "amber",
+        headline: message.subject.slice(0, 120),
+        summary: `${message.name} wrote in through the contact form. Reply to ${message.email}.`,
+        facts: [["Message", message.message.slice(0, 2000)]],
+      };
+    }
+    case "car_enquiry": {
+      const enquiry = await getStaffCarEnquiry(t.enquiryId);
+      if (!enquiry) throw new Error(`car enquiry ${t.enquiryId} not found`);
+      const customer = await customerOf(enquiry.user_id);
+      const offer = enquiry.offer_pesewas != null ? formatStaffGhs(enquiry.offer_pesewas / 100) : null;
+      const what = offer ? `offered ${offer} for` : "asked for a price on";
+      const facts: [string, string][] = [];
+      if (offer) facts.push(["Offer", offer]);
+      if (enquiry.message) facts.push(["Message", enquiry.message.slice(0, 1000)]);
+      return {
+        customer,
+        items: [{ name: t.carTitle, quantity: 1, reference: null, href: "/admin/cars/enquiries" }],
+        totalGhs: null,
+        payment: null,
+        adminHref: "/admin/cars/enquiries",
+        adminLabel: "Open car enquiries",
+        environment,
+        subject: `${p} Car ${offer ? "offer" : "price request"}: ${t.carTitle}${offer ? ` · ${offer}` : ""}`,
+        eyebrow: "Car enquiry",
+        tone: "amber",
+        headline: `${offer ? "Offer" : "Price request"} on ${t.carTitle}`,
+        summary: `${customer.name ?? customer.email ?? "A customer"} ${what} ${t.carTitle}.`,
+        facts,
+      };
+    }
   }
 }
+
+const FEEDBACK_VERDICT: Record<string, string> = {
+  looks_right: "Looks right",
+  wrong_item: "Wrong item",
+  wrong_variant: "Wrong size or colour",
+  damaged: "Damaged",
+  other: "Something else",
+};
 
 function hostLabel(url: string): string {
   try {

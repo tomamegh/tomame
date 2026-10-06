@@ -245,6 +245,60 @@ export async function getStaffAssistedRequest(requestId: string): Promise<StaffA
   return (data as StaffAssistedRow | null) ?? null;
 }
 
+export interface StaffOrderFeedbackRow {
+  id: string;
+  order_id: string;
+  user_id: string;
+  verdict: string;
+  message: string;
+}
+
+export async function getStaffOrderFeedback(feedbackId: string): Promise<StaffOrderFeedbackRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("order_feedback")
+    .select("id, order_id, user_id, verdict, message")
+    .eq("id", feedbackId)
+    .maybeSingle();
+  if (error) throw new Error(`staff alerts: order feedback read failed: ${error.message}`);
+  return (data as StaffOrderFeedbackRow | null) ?? null;
+}
+
+export interface StaffContactMessageRow {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}
+
+export async function getStaffContactMessage(messageId: string): Promise<StaffContactMessageRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("contact_messages")
+    .select("id, name, email, subject, message")
+    .eq("id", messageId)
+    .maybeSingle();
+  if (error) throw new Error(`staff alerts: contact message read failed: ${error.message}`);
+  return (data as StaffContactMessageRow | null) ?? null;
+}
+
+export interface StaffCarEnquiryRow {
+  id: string;
+  user_id: string;
+  kind: string;
+  offer_pesewas: number | null;
+  message: string | null;
+}
+
+export async function getStaffCarEnquiry(enquiryId: string): Promise<StaffCarEnquiryRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("car_enquiries")
+    .select("id, user_id, kind, offer_pesewas, message")
+    .eq("id", enquiryId)
+    .maybeSingle();
+  if (error) throw new Error(`staff alerts: car enquiry read failed: ${error.message}`);
+  return (data as StaffCarEnquiryRow | null) ?? null;
+}
+
 export interface StaffCustomer {
   name: string | null;
   email: string | null;
