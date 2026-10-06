@@ -65,7 +65,7 @@ type WatchQueryRow = Omit<AdminWatchRow, "owner"> & {
 export async function listWatchesForAdmin(limit = 100): Promise<AdminWatchRow[]> {
   const { data, error } = await createAdminClient()
     .from("price_watches")
-    .select(`${WATCH_COLUMNS}, profiles(id, first_name, last_name)`)
+    .select(`${WATCH_COLUMNS}, profiles!price_watches_user_id_fkey(id, first_name, last_name)`)
     .order("updated_at", { ascending: false })
     .limit(limit);
 
@@ -86,7 +86,7 @@ export async function listWatchesForAdmin(limit = 100): Promise<AdminWatchRow[]>
 export async function listFailingWatches(limit = 25): Promise<AdminWatchRow[]> {
   const { data, error } = await createAdminClient()
     .from("price_watches")
-    .select(`${WATCH_COLUMNS}, profiles(id, first_name, last_name)`)
+    .select(`${WATCH_COLUMNS}, profiles!price_watches_user_id_fkey(id, first_name, last_name)`)
     .gt("consecutive_failures", 0)
     .order("consecutive_failures", { ascending: false })
     .order("last_checked_at", { ascending: false })

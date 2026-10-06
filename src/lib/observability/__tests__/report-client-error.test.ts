@@ -47,6 +47,10 @@ describe("isIgnorableClientError", () => {
     expect(isIgnorableClientError("Script error.")).toBe(true);
     expect(isIgnorableClientError("ResizeObserver loop completed with undelivered notifications.")).toBe(true);
     expect(isIgnorableClientError("x is undefined", "chrome-extension://abc/inject.js")).toBe(true);
+    expect(isIgnorableClientError("undefined is not an object (evaluating 'window.ethereum.selectedAddress = undefined')")).toBe(true);
+    expect(isIgnorableClientError("undefined is not an object (evaluating 'window.__firefox__.reader')")).toBe(true);
+    expect(isIgnorableClientError("Can't find variable: CONFIG")).toBe(true);
+    expect(isIgnorableClientError("Can't find variable: CONFIGURATION_STEP")).toBe(false);
     expect(isIgnorableClientError("Cannot read properties of undefined (reading 'price')")).toBe(false);
   });
 });

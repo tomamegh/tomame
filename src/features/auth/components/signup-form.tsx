@@ -38,7 +38,8 @@ export default function SignUpForm({ next }: { next?: string | null }) {
   });
 
   const onSubmit = async (data: SignupSchemaType) => {
-    await mutateAsync(data);
+    // A refusal is shown from the mutation's `error`; uncaught it was reported as a site error.
+    if (!(await mutateAsync(data).then(() => true, () => false))) return;
     const verify = new URLSearchParams({ email: data.email });
     if (next) verify.set("next", next);
     router.push(`/auth/verify-email?${verify.toString()}`);

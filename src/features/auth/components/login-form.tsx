@@ -37,8 +37,10 @@ export default function LoginForm() {
   });
 
   const onSubmit = async (data: LoginSchemaType) => {
-    const result = await mutateAsync(data);
-    if (result?.error) return;
+    // A wrong password rejects; the form shows it from the mutation's `error`.
+    // Left uncaught it was reported as a site error on every typo.
+    const result = await mutateAsync(data).catch(() => null);
+    if (!result || result.error) return;
 
     // Where to land is one shared rule (`postAuthDestination`): an explicit
     // `?next=` wins, otherwise an admin is met with the ADMIN view and everyone

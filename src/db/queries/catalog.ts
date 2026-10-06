@@ -447,11 +447,18 @@ export async function writeCatalogLandedPrices(
 ): Promise<number> {
   if (rows.length === 0) return 0;
   const client = createAdminClient();
-  const { data, error } = await client.rpc("set_catalog_landed_prices", { p_rows: rows });
-
-  if (error) throw new Error(`Failed to store catalog landed prices: ${error.message}`);
-  return Number(data ?? 0);
+  // In chunks: one 500-row UPDATE (rewriting the search and trigram indexes)
+  // overlapping another visitor's refresh hit the statement timeout.
+  let written = 0;
+  for (let i = 0; i < rows.length; i += LANDED_WRITE_CHUNK) {
+    const { data, error } = await client.rpc("set_catalog_landed_prices", { p_rows: rows.slice(i, i + LANDED_WRITE_CHUNK) });
+    if (error) throw new Error(`Failed to store catalog landed prices: ${error.message}`);
+    written += Number(data ?? 0);
+  }
+  return written;
 }
+
+const LANDED_WRITE_CHUNK = 100;
 
 // ── job_budgets ─────────────────────────────────────────────────────────────
 

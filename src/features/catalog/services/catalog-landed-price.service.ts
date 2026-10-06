@@ -61,7 +61,21 @@ export interface LandedPriceRefreshSummary {
  * calculator instance (constants, category map, fixed-freight list and FX load
  * once). Idempotent: two overlapping runs write the same numbers.
  */
-export async function refreshCatalogLandedPrices(now: Date = new Date()): Promise<LandedPriceRefreshSummary> {
+let inflight: Promise<LandedPriceRefreshSummary> | null = null;
+
+/**
+ * One refresh per instance at a time: every shop render that finds the prices
+ * stale schedules one, and concurrent runs over the same rows waited on each
+ * other's locks until the statement timeout.
+ */
+export function refreshCatalogLandedPrices(now: Date = new Date()): Promise<LandedPriceRefreshSummary> {
+  inflight ??= runLandedPriceRefresh(now).finally(() => {
+    inflight = null;
+  });
+  return inflight;
+}
+
+async function runLandedPriceRefresh(now: Date): Promise<LandedPriceRefreshSummary> {
   const staleBefore = new Date(now.getTime() - CATALOG_LANDED_PRICE.maxAgeMinutes * 60_000);
   const rows = await listCatalogRowsNeedingLandedPrice({
     staleBeforeIso: staleBefore.toISOString(),

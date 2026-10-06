@@ -25,7 +25,8 @@ export default function ResetPasswordForm() {
 
   const onSubmit = async (data: ResetPasswordFormSchema) => {
     const parsed = resetPasswordSchema.parse(data);
-    await mutateAsync(parsed);
+    // A refusal is shown from the mutation's `error`; uncaught it was reported as a site error.
+    if (!(await mutateAsync(parsed).then(() => true, () => false))) return;
     router.push("/auth/login?reset=success");
   };
 

@@ -5,7 +5,23 @@ const BROWSERLESS_API_URL =
 
 /** True when the Browserless tier can run. Read lazily so tests can set the env. */
 export function isBrowserlessConfigured(): boolean {
-  return !!process.env.BROWSERLESS_API_KEY;
+  return !!process.env.BROWSERLESS_API_KEY && Date.now() >= quotaPausedUntil;
+}
+
+/**
+ * When the plan's units run out, every call answers 401 "usage limit" until
+ * the plan renews or is upgraded. Calling anyway costs each extraction a
+ * round trip and logs an error per paste, so the tier stands down for an hour
+ * on this instance and says so once.
+ */
+let quotaPausedUntil = 0;
+const QUOTA_PAUSE_MS = 60 * 60 * 1000;
+
+function noteQuotaExhausted(status: number, errorText: string): boolean {
+  if (!(status === 401 || status === 429) || !/usage limit|upgrade/i.test(errorText)) return false;
+  quotaPausedUntil = Date.now() + QUOTA_PAUSE_MS;
+  logger.warn("browserless: plan usage limit reached; tier paused for an hour", { status });
+  return true;
 }
 
 function getApiKey(): string {
@@ -162,6 +178,9 @@ export class BrowserlessClient {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "Unknown error");
+        if (noteQuotaExhausted(response.status, errorText)) {
+          return { success: false, html: null, error: "Browserless plan usage limit reached" };
+        }
         logger.warn("browserless unblock failed", { url, proxy: opts.proxy ?? "datacenter", status: response.status, error: errorText.slice(0, 300) });
         return { success: false, html: null, error: `Browserless unblock ${response.status}: ${errorText}` };
       }
@@ -219,6 +238,9 @@ export class BrowserlessClient {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "Unknown error");
+        if (noteQuotaExhausted(response.status, errorText)) {
+          return { success: false, html: null, error: "Browserless plan usage limit reached" };
+        }
         logger.error("browserless scrapeContent failed", {
           url,
           proxy: proxy ?? "datacenter",

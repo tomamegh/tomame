@@ -24,7 +24,8 @@ export default function ForgotPasswordForm() {
   });
 
   const onSubmit = async (data: ForgotPasswordSchema) => {
-    await mutateAsync(data);
+    // A refusal is shown from the mutation's `error`; uncaught it was reported as a site error.
+    if (!(await mutateAsync(data).then(() => true, () => false))) return;
     setSubmitted(true);
   };
 

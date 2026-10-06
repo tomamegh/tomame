@@ -15,6 +15,10 @@ export function isIgnorableClientError(message: string, filename?: string | null
   if (/ResizeObserver loop/i.test(message)) return true;
   if (/AbortError|The user aborted a request|signal is aborted/i.test(message)) return true;
   if (filename && /^(chrome|moz|safari|safari-web)-extension:/i.test(filename)) return true;
+  // Globals other people's code injects into the page: wallet extensions
+  // (window.ethereum), Firefox for iOS (__firefox__), and in-app browsers that
+  // call a CONFIG they never defined. None of them exist in our bundle.
+  if (/window\.ethereum|__firefox__|Can't find variable: CONFIG\b|CONFIG is not defined/.test(message)) return true;
   return false;
 }
 

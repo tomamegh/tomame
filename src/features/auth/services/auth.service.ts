@@ -58,6 +58,14 @@ export async function signup(email: string, password: string): Promise<User> {
     throw new APIError(500, "Registration failed");
   }
 
+  // An address that already has an account comes back as a placeholder user
+  // with no identities and an id that exists nowhere (Supabase's enumeration
+  // guard). Auditing it broke the audit_logs FK; it is the same case as the
+  // 422 above.
+  if (data.user.identities?.length === 0) {
+    throw new APIError(409, "Email already registered");
+  }
+
   await logAuditEvent({
     actorId: data.user.id,
     actorRole: "user",
