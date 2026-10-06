@@ -11,6 +11,8 @@ vi.mock("@/db/queries/staff-alerts", () => ({
   getStaffGroup: vi.fn(),
   getStaffOrder: vi.fn(),
   getStaffPayment: vi.fn(),
+  getStaffSourcingRequest: vi.fn(),
+  getStaffAssistedRequest: vi.fn(),
   listStaffOrdersByGroup: vi.fn(),
   readSiteSettingValues: vi.fn(),
 }));
@@ -176,5 +178,48 @@ describe("sendStaffTestEmail", () => {
     const out = await sendStaffTestEmail("admin@x.io", d);
     expect(out).toMatchObject({ status: "sent", recipients: 1 });
     expect(d.send.mock.calls[0]![0].subject).toBe("[Tomame dev] Test: staff order alerts are working");
+  });
+
+  it("a sourcing request emails the staff list once, with the link and the customer", async () => {
+    vi.mocked(q.getStaffSourcingRequest).mockResolvedValue({
+      id: "w1",
+      user_id: "u1",
+      product_url: "https://www.fashionnova.com/products/dress",
+      product_name: "Brenda <Maxi> Dress",
+      sourcing_status: "requested",
+      customer_price_hint_usd: 40,
+      customer_origin_hint: "USA",
+    });
+    const d = deps();
+    const trigger: StaffAlertTrigger = { kind: "sourcing_requested", watchId: "w1" };
+    expect(await processStaffAlert(trigger, d)).toMatchObject({ status: "sent", recipients: 2 });
+    expect(await processStaffAlert(trigger, d)).toEqual({ status: "duplicate" });
+    const mail = d.send.mock.calls[0]![0] as { subject: string; html: string };
+    expect(mail.subject).toBe("[Tomame] Sourcing request: Brenda <Maxi> Dress");
+    for (const s of ["Brenda &lt;Maxi&gt; Dress", "https://www.fashionnova.com/products/dress", "$40.00", "Kwame Mensah", "/admin/sourcing-requests"]) {
+      expect(mail.html).toContain(s);
+    }
+  });
+
+  it("an assisted request from a signed-out visitor still emails, with their phone", async () => {
+    vi.mocked(q.getStaffAssistedRequest).mockResolvedValue({
+      id: "a1",
+      user_id: null,
+      product_url: "https://www.example-store.com/item/9",
+      description: "The silver one, size M",
+      phone: "+233 20 000 0000",
+    });
+    const d = deps();
+    expect(await processStaffAlert({ kind: "assisted_requested", requestId: "a1" }, d)).toMatchObject({ status: "sent" });
+    const mail = d.send.mock.calls[0]![0] as { subject: string; html: string };
+    expect(mail.subject).toBe("[Tomame] Buyer request: example-store.com");
+    for (const s of ["The silver one, size M", "+233 20 000 0000", "/admin/assisted-requests"]) expect(mail.html).toContain(s);
+    expect(q.getStaffCustomer).not.toHaveBeenCalled();
+  });
+
+  it("the sourcing toggle switches off both kinds", async () => {
+    vi.mocked(q.readSiteSettingValues).mockResolvedValue({ staff_order_alert_events: { sourcing_requested: false } });
+    expect(await processStaffAlert({ kind: "sourcing_requested", watchId: "w1" }, deps())).toEqual({ status: "off" });
+    expect(await processStaffAlert({ kind: "assisted_requested", requestId: "a1" }, deps())).toEqual({ status: "off" });
   });
 });

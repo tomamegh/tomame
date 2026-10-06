@@ -24,6 +24,7 @@ import {
 } from "@/lib/email/templates/sourcing-answered";
 import { env } from "@/lib/env";
 import { hostOf } from "@/features/bag/components/format";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 import { getCartItemById, updateCartItem } from "@/db/queries/carts";
 import {
   answerSourcingRequest,
@@ -184,6 +185,12 @@ export async function requestSourcing(
       country: result.country,
     },
   });
+
+  // A person now has a job to do, so the staff list hears about it. Keyed on the
+  // watch: pressing the button again finds the key and sends nothing.
+  if ((watch.sourcing_status ?? "requested") === "requested") {
+    notifyStaff({ kind: "sourcing_requested", watchId: watch.id });
+  }
 
   return {
     watch_id: watch.id,

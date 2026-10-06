@@ -13,6 +13,7 @@ import { getExtractionRequestById } from "@/db/queries/extraction-requests";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { whatsappHref } from "@/components/layout/marketing/links";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { notifyStaff } from "@/features/staff-alerts/notify";
 import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
 import type { Viewer } from "@/features/quotes/types";
 import { APIError } from "@/lib/auth/api-helpers";
@@ -86,6 +87,7 @@ export async function createAssistedRequest(
     entityId: row.id,
     metadata: { product_url: productUrl },
   });
+  notifyStaff({ kind: "assisted_requested", requestId: row.id });
 
   return toAssistedRequest(row, await supportWhatsappHref());
 }

@@ -7,7 +7,9 @@ import {
   getStaffCustomer,
   getStaffGroup,
   getStaffOrder,
+  getStaffAssistedRequest,
   getStaffPayment,
+  getStaffSourcingRequest,
   listStaffOrdersByGroup,
   readSiteSettingValues,
   type StaffOrderRow,
@@ -439,5 +441,60 @@ export async function buildAlert(t: StaffAlertTrigger, environment: string | nul
         facts,
       };
     }
+    case "sourcing_requested": {
+      const watch = await getStaffSourcingRequest(t.watchId);
+      if (!watch) throw new Error(`sourcing request ${t.watchId} not found`);
+      const customer = await customerOf(watch.user_id);
+      const name = watch.product_name ?? hostLabel(watch.product_url);
+      const facts: [string, string][] = [["Link", watch.product_url]];
+      if (watch.customer_price_hint_usd != null) facts.push(["Customer's price guess", `$${Number(watch.customer_price_hint_usd).toFixed(2)}`]);
+      if (watch.customer_origin_hint) facts.push(["Customer says it ships from", watch.customer_origin_hint]);
+      return {
+        customer,
+        items: [{ name, quantity: 1, reference: null, href: null }],
+        totalGhs: null,
+        payment: null,
+        adminHref: "/admin/sourcing-requests",
+        adminLabel: "Open the sourcing queue",
+        environment,
+        subject: `${p} Sourcing request: ${name.slice(0, 80)}`,
+        eyebrow: "Sourcing request",
+        tone: "amber",
+        headline: "A customer needs this item priced",
+        summary: `${customer.name ?? customer.email ?? "A customer"} added an item we cannot price to their bag. They cannot pay for it until a buyer finds it and enters the price.`,
+        facts,
+      };
+    }
+    case "assisted_requested": {
+      const request = await getStaffAssistedRequest(t.requestId);
+      if (!request) throw new Error(`assisted request ${t.requestId} not found`);
+      const customer = request.user_id ? await customerOf(request.user_id) : null;
+      return {
+        customer: { name: customer?.name ?? null, email: customer?.email ?? null, phone: request.phone || customer?.phone || null },
+        items: [],
+        totalGhs: null,
+        payment: null,
+        adminHref: "/admin/assisted-requests",
+        adminLabel: "Open the assisted queue",
+        environment,
+        subject: `${p} Buyer request: ${hostLabel(request.product_url)}`,
+        eyebrow: "Sourcing request",
+        tone: "amber",
+        headline: "A customer asked a buyer for help",
+        summary: `${customer?.name ?? customer?.email ?? "A visitor"} could not get a price for a link and asked a buyer to reach them on WhatsApp.`,
+        facts: [
+          ["Link", request.product_url],
+          ["What they want", request.description.slice(0, 500)],
+        ],
+      };
+    }
+  }
+}
+
+function hostLabel(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url.slice(0, 60);
   }
 }

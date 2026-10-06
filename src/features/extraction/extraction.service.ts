@@ -11,7 +11,7 @@ import { resolveProduct, continueResolve, type ChainOutcome } from "./resolvers"
 import { hasRequiredFields, hasWeight } from "./resolvers/merge";
 import { inspectFreight } from "@/features/pricing/services/freight-inspector.service";
 import type { FreightInspection } from "@/features/pricing/freight-inspection";
-import { hashUrl, inferRegion, isShortUrl, parseUrl, regionForUrl, resolveShortUrl, type Region } from "./url";
+import { hashUrl, inferRegion, isShortUrl, parseUrl, regionForUrl, resolveShortUrl, usEbayItemUrl, type Region } from "./url";
 import type { ExtractionResult } from "./types";
 
 export interface ExtractionResponse extends ExtractionResult {
@@ -48,6 +48,7 @@ export async function prepareProductUrl(rawUrl: string): Promise<PreparedUrl> {
     resolved = await resolveShortUrl(resolved);
     logger.info("extraction: resolved short URL", { from: rawUrl, to: resolved });
   }
+  resolved = usEbayItemUrl(resolved);
 
   const store = storeForUrl(resolved);
   if (!store) {

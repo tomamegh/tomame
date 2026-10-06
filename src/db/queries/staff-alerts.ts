@@ -206,6 +206,45 @@ export async function getStaffCarOrder(carOrderId: string): Promise<StaffCarOrde
   return (data as StaffCarOrderRow | null) ?? null;
 }
 
+export interface StaffSourcingRow {
+  id: string;
+  user_id: string;
+  product_url: string;
+  product_name: string | null;
+  sourcing_status: string | null;
+  customer_price_hint_usd: number | null;
+  customer_origin_hint: string | null;
+}
+
+export async function getStaffSourcingRequest(watchId: string): Promise<StaffSourcingRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("price_watches")
+    .select("id, user_id, product_url, product_name, sourcing_status, customer_price_hint_usd, customer_origin_hint")
+    .eq("id", watchId)
+    .eq("kind", "sourcing")
+    .maybeSingle();
+  if (error) throw new Error(`staff alerts: sourcing request read failed: ${error.message}`);
+  return (data as StaffSourcingRow | null) ?? null;
+}
+
+export interface StaffAssistedRow {
+  id: string;
+  user_id: string | null;
+  product_url: string;
+  description: string;
+  phone: string;
+}
+
+export async function getStaffAssistedRequest(requestId: string): Promise<StaffAssistedRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("assisted_requests")
+    .select("id, user_id, product_url, description, phone")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (error) throw new Error(`staff alerts: assisted request read failed: ${error.message}`);
+  return (data as StaffAssistedRow | null) ?? null;
+}
+
 export interface StaffCustomer {
   name: string | null;
   email: string | null;

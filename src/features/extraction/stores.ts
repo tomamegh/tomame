@@ -113,7 +113,7 @@ export const STORES: StoreDefinition[] = [
   { slug: "amazon", name: "Amazon", domains: ["amazon.com", "a.co", "amzn.to"], region: "USA", currency: "USD", providers: AMAZON_PLAN, status: "live" },
   { slug: "amazon", name: "Amazon UK", domains: ["amazon.co.uk", "amzn.eu"], region: "UK", currency: "GBP", providers: AMAZON_PLAN, status: "live" },
   {
-    slug: "ebay", name: "eBay", domains: ["ebay.com", "ebay.us", "ebay.to"], region: "USA", currency: "USD",
+    slug: "ebay", name: "eBay", domains: ["ebay.com", "ebay.us", "ebay.to", "ebay.io"], region: "USA", currency: "USD",
     providers: ["scraperapi", "category-map", "platform-html", "structured-data", "llm"], status: "live",
   },
   {

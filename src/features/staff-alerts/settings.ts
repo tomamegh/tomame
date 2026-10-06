@@ -21,6 +21,7 @@ export const STAFF_ALERT_EVENTS = [
   "order_status_changed",
   "order_review",
   "car_order",
+  "sourcing_requested",
 ] as const;
 export type StaffAlertEvent = (typeof STAFF_ALERT_EVENTS)[number];
 
@@ -31,6 +32,7 @@ export const STAFF_EVENT_LABELS: Record<StaffAlertEvent, { label: string; detail
   order_status_changed: { label: "Order status changed", detail: "Processing, in transit, delivered, cancelled" },
   order_review: { label: "Review outcome", detail: "An admin approved, priced or rejected a flagged order" },
   car_order: { label: "Car orders", detail: "A car checkout started, cancelled or released" },
+  sourcing_requested: { label: "Sourcing requested", detail: "A customer asked a buyer to find or price an item" },
 };
 
 export const DEFAULT_STAFF_RECIPIENTS = [

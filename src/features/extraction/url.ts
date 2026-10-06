@@ -14,7 +14,7 @@ const DOMAIN_CURRENCY: Record<string, string> = {
   "argos.co.uk": "GBP",
 };
 
-const SHORT_URL_HOSTS = new Set(["a.co", "amzn.to", "amzn.eu", "ebay.us", "ebay.to", "bit.ly", "ow.ly", "buff.ly"]);
+const SHORT_URL_HOSTS = new Set(["a.co", "amzn.to", "amzn.eu", "ebay.us", "ebay.to", "ebay.io", "bit.ly", "ow.ly", "buff.ly"]);
 
 const TRACKING_PARAMS = [
   "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
@@ -180,6 +180,22 @@ export function amazonAsinOf(url: string): string | null {
 export function amazonDomainOf(url: string): string {
   const host = parseUrl(url)?.hostname.toLowerCase() ?? "";
   return host.match(/amazon\.[a-z.]+$/)?.[0] ?? "amazon.com";
+}
+
+/**
+ * An item on another eBay country site (ebay.de, ebay.ca, ebay.com.au, …) as
+ * the same item on ebay.com; anything else unchanged. An eBay item id is
+ * global, and we buy every eBay item through the US route: ebay.com shows the
+ * seller's own currency and their shipping to the US, which pricing converts
+ * to USD. eBay UK keeps its own store and region.
+ */
+export function usEbayItemUrl(url: string): string {
+  const u = parseUrl(url);
+  const host = u?.hostname.toLowerCase() ?? "";
+  if (!u || !/(^|\.)ebay\.[a-z.]+$/.test(host)) return url;
+  if (["ebay.com", "ebay.co.uk", "ebay.us", "ebay.to", "ebay.io"].some((d) => hostMatches(host, d))) return url;
+  const id = ebayItemIdOf(url);
+  return id ? `https://www.ebay.com/itm/${id}` : url;
 }
 
 /** Numeric item id from any eBay listing URL shape (/itm/<id>, /itm/<slug>/<id>). */

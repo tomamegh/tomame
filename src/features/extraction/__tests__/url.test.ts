@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { defaultCurrencyForUrl, hashUrl, isShortUrl, normalizeUrl, regionForUrl, resolveShortUrl } from "../url";
+import { defaultCurrencyForUrl, hashUrl, isShortUrl, normalizeUrl, regionForUrl, resolveShortUrl, usEbayItemUrl } from "../url";
 import { amazonScraper } from "../scrapers/amazon";
 import { ebayScraper } from "../scrapers/ebay";
 import { sheinScraper } from "../scrapers/shein";
@@ -131,5 +131,29 @@ describe("resolveShortUrl (public endpoint — no open redirect follow)", () => 
     const shared =
       "https://www.amazon.com/dp/B0FG2WQHL2?ref=cm_sw_r_cso_cp_apin_dp_X&ref_=cm_sw_r_cso_cp_apin_dp_X&social_share=cm_sw_r_cso_cp_apin_dp_X";
     expect(hashUrl(shared)).toBe(hashUrl("https://www.amazon.com/dp/B0FG2WQHL2"));
+  });
+});
+
+describe("usEbayItemUrl", () => {
+  it("sends an item on another eBay country site to the same item on ebay.com", () => {
+    expect(usEbayItemUrl("https://www.ebay.de/itm/278324313232?_trkparms=x")).toBe("https://www.ebay.com/itm/278324313232");
+    expect(usEbayItemUrl("https://www.ebay.com.au/itm/some-title/147397615363")).toBe("https://www.ebay.com/itm/147397615363");
+    expect(usEbayItemUrl("https://ebay.ca/itm/147397615363")).toBe("https://www.ebay.com/itm/147397615363");
+  });
+
+  it("leaves ebay.com, eBay UK, share links, non-items and other stores alone", () => {
+    for (const url of [
+      "https://www.ebay.com/itm/147397615363",
+      "https://www.ebay.co.uk/itm/147397615363",
+      "https://ebay.io/m/VOZv0b",
+      "https://www.ebay.de/sch/i.html?_nkw=creed",
+      "https://www.notebay.de/itm/147397615363",
+    ]) {
+      expect(usEbayItemUrl(url)).toBe(url);
+    }
+  });
+
+  it("treats ebay.io as a short link", () => {
+    expect(isShortUrl("https://ebay.io/m/VOZv0b")).toBe(true);
   });
 });

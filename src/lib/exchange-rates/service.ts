@@ -4,8 +4,12 @@ import type { ExchangeRate, ExchangeRateProvider } from "./types";
 import { exchangeRateApiProvider } from "./exchange-rate-api";
 import { freeCurrencyProvider } from "./freecurrency";
 
-/** Currencies the stores we support list prices in. */
-export const RATE_CURRENCIES = ["USD", "GBP", "CNY"] as const;
+/**
+ * Currencies the stores we support list prices in. EUR, CAD and AUD are for
+ * eBay: a listing from a seller abroad is priced in the seller's currency even
+ * on ebay.com, and a currency with no rate cannot be priced at all.
+ */
+export const RATE_CURRENCIES = ["USD", "GBP", "CNY", "EUR", "CAD", "AUD"] as const;
 
 // ── DB queries ────────────────────────────────────────────────────────────────
 
