@@ -92,8 +92,10 @@ export function QuoteReceiptCard({
   onToggleWatch,
 }: QuoteReceiptCardProps) {
   const rows = pricing ? buildReceiptRows(pricing) : [];
+  // A needs_review breakdown carries total_ghs 0 — not a price (the bag treats it the same way).
+  const needsReview = pricing?.pricing_method === "needs_review";
   const total =
-    pricing && Number.isFinite(pricing.total_ghs)
+    pricing && !needsReview && Number.isFinite(pricing.total_ghs)
       ? splitGhsTotal(pricing.total_ghs)
       : null;
 
@@ -138,7 +140,7 @@ export function QuoteReceiptCard({
           </div>
         ) : (
           <p className="text-[20px] leading-[1.2] font-bold">
-            Not priced yet
+            {needsReview ? "Freight to confirm" : "Not priced yet"}
           </p>
         )}
 
@@ -178,10 +180,16 @@ export function QuoteReceiptCard({
               })}
             </dl>
 
-            {pricing?.fee_calculation_note && (
+            {needsReview ? (
               <p className="text-[11px] leading-[1.4] font-medium text-tm-text-3">
-                {pricing.fee_calculation_note}
+                Our team will price the freight for this item before you pay.
               </p>
+            ) : (
+              pricing?.fee_calculation_note && (
+                <p className="text-[11px] leading-[1.4] font-medium text-tm-text-3">
+                  {pricing.fee_calculation_note}
+                </p>
+              )
             )}
           </>
         ) : (

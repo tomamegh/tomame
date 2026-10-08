@@ -269,7 +269,10 @@ export function buildReceiptRows(pricing: PricingBreakdown): ReceiptRow[] {
     });
   }
 
-  if (Number.isFinite(pricing.flat_rate_ghs)) {
+  if (pricing.pricing_method === "needs_review") {
+    // Freight is 0 only because no rule priced it; "GH₵0.00" would read as free.
+    rows.push({ key: "freight", icon: "freight", label: "Freight", value: "To confirm" });
+  } else if (Number.isFinite(pricing.flat_rate_ghs)) {
     rows.push({
       key: "freight",
       icon: "freight",

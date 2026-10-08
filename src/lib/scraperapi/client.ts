@@ -97,18 +97,19 @@ export async function fetchEbayProductStructured(productId: string, country: str
  * `render` runs a headless browser (for pages built client-side); `premium`
  * routes through residential proxies (for stores that block datacenter IPs —
  * the ones we had marked "blocked"). Credits per call, from ScraperAPI's
- * pricing: plain 1, render 10, premium 10, premium + render 25.
+ * pricing: plain 1, render 10, premium 10, premium + render 25, ultra premium 30.
  */
 export async function fetchScraperApiHtml(
   url: string,
   timeoutMs: number,
-  opts: { render?: boolean; premium?: boolean; countryCode?: string } = {},
+  opts: { render?: boolean; premium?: boolean; ultraPremium?: boolean; countryCode?: string } = {},
 ): Promise<string | null> {
   const apiKey = env.extraction.scraperApiKey;
   if (!apiKey) return null;
   const qs = new URLSearchParams({ api_key: apiKey, url, country_code: opts.countryCode ?? "us" });
   if (opts.render) qs.set("render", "true");
   if (opts.premium) qs.set("premium", "true");
+  if (opts.ultraPremium) qs.set("ultra_premium", "true");
   const t0 = Date.now();
   try {
     const res = await fetch(`https://api.scraperapi.com/?${qs.toString()}`, { signal: AbortSignal.timeout(timeoutMs) });

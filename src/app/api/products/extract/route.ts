@@ -9,8 +9,8 @@ import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 
-// Chain budget is 25s (config/extraction.ts). Headroom for enrichment scheduling + pricing.
-export const maxDuration = 60;
+// Chain budget is 25 s, 60 s for SHEIN (stores.ts budgetMs). Headroom for enrichment + pricing.
+export const maxDuration = 120;
 
 /**
  * A cache hit calls no vendor, but it still mints a session for a cookie-less

@@ -13,8 +13,8 @@ import { RATE_LIMIT } from "@/config/security";
 import { toPasteStatus } from "@/features/extraction/services/paste-status";
 
 // The response is immediate; `after()` keeps the invocation alive for the job,
-// which is bounded by the chain's own 25 s budget.
-export const maxDuration = 60;
+// bounded by the chain budget: 25 s, 60 s for SHEIN (stores.ts budgetMs).
+export const maxDuration = 120;
 
 /**
  * POST /api/pastes — put a link on the queue and answer straight away.

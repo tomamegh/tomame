@@ -36,6 +36,8 @@ export interface StoreDefinition {
    * blocked — every path fails today; quote falls straight to manual entry
    */
   status: StoreStatus;
+  /** Chain budget for this store when its only working path is slow. Default `EXTRACTION.totalBudgetMs`. */
+  budgetMs?: number;
   /** Pathname test for "this is a product page" when no scraper owns the store. */
   productPath?: RegExp;
 }
@@ -136,6 +138,8 @@ export const STORES: StoreDefinition[] = [
   {
     slug: "shein", name: "SHEIN", domains: ["shein.com"], region: "CHINA", currency: "USD",
     providers: ["zyte", { name: "platform-html", startAfterMs: 0 }, { name: "structured-data", startAfterMs: 0 }, "category-map", "llm"], status: "beta",
+    // ScraperAPI ultra premium takes 30-50 s; pastes run in the background, so the customer is not held.
+    budgetMs: 60_000,
   },
   {
     slug: "microcenter", name: "Micro Center", domains: ["microcenter.com"], region: "USA", currency: "USD",

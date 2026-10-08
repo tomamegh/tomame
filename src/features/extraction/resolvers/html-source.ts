@@ -46,6 +46,8 @@ type Attempt = {
   minRemainingMs: number;
   /** Extra runs when the first returns a blocked/shell page. */
   retries: number;
+  /** Per-run ceiling; defaults to the browser timeout. */
+  maxTimeoutMs?: number;
   run: (timeoutMs: number) => Promise<{ success: boolean; html: string | null; error: string | null }>;
 };
 
@@ -137,6 +139,19 @@ export async function fetchProductHtml(
         return { success: !!html, html, error: html ? null : "scraperapi (render) returned no page" };
       },
     },
+    "scraperapi-ultra": {
+      name: "scraperapi-ultra",
+      source: "scraperapi",
+      configured: isScraperApiConfigured,
+      // Micro Center answers in <1 s; SHEIN needs 30-50 s and has the budget for it.
+      minRemainingMs: 6_000,
+      retries: 0,
+      maxTimeoutMs: 55_000,
+      run: async (t) => {
+        const html = await fetchScraperApiHtml(url, t, { ultraPremium: true });
+        return { success: !!html, html, error: html ? null : "scraperapi (ultra) returned no page" };
+      },
+    },
     unblock: {
       name: "unblock",
       source: "browserless",
@@ -186,7 +201,7 @@ export async function fetchProductHtml(
         logger.info("html-source: out of budget", { url, skipped: attempt.name, remainingMs: remaining() });
         return null;
       }
-      const timeout = Math.min(EXTRACTION.browserlessTimeoutMs, remaining() - 3_000);
+      const timeout = Math.min(attempt.maxTimeoutMs ?? EXTRACTION.browserlessTimeoutMs, remaining() - 3_000);
       const t0 = Date.now();
       const result = await attempt.run(timeout);
       if (result.success && result.html && scraper.looksLikeProductPage(result.html)) {

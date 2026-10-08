@@ -105,8 +105,8 @@ function timer(ms: number): { promise: Promise<"timer">; clear: () => void } {
  */
 export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome> {
   const started = Date.now();
-  const deadline = started + (input.budgetMs ?? EXTRACTION.totalBudgetMs);
   const store = storeFor(input);
+  const deadline = started + (input.budgetMs ?? store.budgetMs ?? EXTRACTION.totalBudgetMs);
   const scraper = getScraperForStore(store);
   const resolvers = input.resolvers ?? resolversForStore(store);
   const fetcher: HtmlFetcher = input.fetchHtml ?? ((u, o) => fetchProductHtml(u, scraper, deadline, o));

@@ -9,6 +9,7 @@ import { reviveRegion } from "./region-revive";
 import { storeForUrl, type StoreDefinition } from "./stores";
 import { resolveProduct, continueResolve, type ChainOutcome } from "./resolvers";
 import { hasRequiredFields, hasWeight } from "./resolvers/merge";
+import { classifyCategory } from "./category.service";
 import { inspectFreight } from "@/features/pricing/services/freight-inspector.service";
 import type { FreightInspection } from "@/features/pricing/freight-inspection";
 import { hashUrl, inferRegion, isShortUrl, parseUrl, regionForUrl, resolveShortUrl, usEbayItemUrl, type Region } from "./url";
@@ -220,13 +221,49 @@ async function reinspectAfterEnrichment(
   return withFreightInspection(updated, url);
 }
 
+/**
+ * A slow page read can spend the whole chain budget before the category tier
+ * gets its turn (Nike via Zyte, 2026-10-08), and with no category freight is
+ * `needs_review`. The classifier is ~1 s and has its own timeout, so run it once
+ * past the deadline rather than send a product with a price to admin review.
+ */
+async function withLateCategory(outcome: ChainOutcome, store: string): Promise<ChainOutcome> {
+  const p = outcome.product;
+  if (p.category != null || !p.title || !hasRequiredFields(p)) return outcome;
+  const crumbs = Array.isArray(p.metadata?.breadcrumbs) ? p.metadata.breadcrumbs.filter((c): c is string => typeof c === "string") : [];
+  try {
+    const result = await classifyCategory(
+      {
+        store,
+        title: p.title,
+        brand: p.brand,
+        breadcrumbs: crumbs,
+        categoryText: typeof p.metadata?.categoryText === "string" ? p.metadata.categoryText : null,
+      },
+      AbortSignal.timeout(EXTRACTION.classifierTimeoutMs),
+    );
+    if (!result) return outcome;
+    logger.info("extraction: category classified after the chain", { store, category: result.category, source: result.source });
+    return {
+      ...outcome,
+      product: { ...p, category: result.category },
+      confidence: { ...outcome.confidence, category: result.source === "llm" ? Math.min(0.8, Math.max(0.5, result.confidence)) : 0.85 },
+      fieldSources: { ...outcome.fieldSources, category: "category-map" },
+      ran: outcome.ran.includes("category-map") ? outcome.ran : [...outcome.ran, "category-map"],
+    };
+  } catch (err) {
+    logger.warn("extraction: late category failed", { store, error: err instanceof Error ? err.message : String(err) });
+    return outcome;
+  }
+}
+
 async function performExtraction(prepared: PreparedUrl, userId: string | null): Promise<FreshExtraction> {
   const { canonicalUrl, urlHash, platform, region, store } = prepared;
   const chainInput = { url: canonicalUrl, platform, region, store };
 
   // Fast mode: answer as soon as title + price + currency are known. Weight
   // (and anything else the paid tiers add) is filled in by `enrich` below.
-  const outcome = await resolveProduct({ ...chainInput, stopWhenRequired: true });
+  const outcome = await withLateCategory(await resolveProduct({ ...chainInput, stopWhenRequired: true }), platform);
   // Inspected before the first cache write, so the review page never renders an
   // uninspected freight decision for a fresh product.
   const result = await withFreightInspection(toResult(prepared, outcome, outcome.ran), canonicalUrl);

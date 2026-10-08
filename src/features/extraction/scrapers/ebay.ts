@@ -256,8 +256,9 @@ export class EbayScraper implements PlatformScraper {
   public readonly domains = ["ebay.com", "ebay.co.uk", "ebay.us", "ebay.to"];
   public readonly defaultCurrency = "USD";
   public readonly renderWaitSelector = ".x-item-title, .x-price-primary, #itemTitle";
-  // Observed live: every datacenter path returns an error page / empty shell for this store.
-  public readonly htmlAttempts: HtmlAttemptName[] = ["unblock+residential", "content+residential", "unblock"];
+  // ScraperAPI's plain fetch reads item pages in ~2 s (2026-10-08); premium if
+  // that is blocked, Browserless residential last.
+  public readonly htmlAttempts: HtmlAttemptName[] = ["scraperapi", "scraperapi-premium", "unblock+residential"];
 
   public isProductUrl(url: string): boolean {
     return ebayItemIdOf(url) !== null;

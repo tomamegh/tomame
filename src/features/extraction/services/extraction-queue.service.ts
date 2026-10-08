@@ -13,6 +13,7 @@ import {
 } from "@/db/queries/extraction-requests";
 import { getCachedExtractionByHash } from "@/db/queries/extraction-cache";
 import { EXTRACTION } from "@/config/extraction";
+import { STORES } from "../stores";
 import { logger } from "@/lib/logger";
 import { extractPrepared, prepareProductUrl } from "../extraction.service";
 import { notifyPasteFinished, type PasteFinishedResult } from "./paste-notify.service";
@@ -45,7 +46,7 @@ export const MAX_EXTRACTION_ATTEMPTS = 3;
  * customer who walked away is not waiting on a dead job for long, long enough
  * that a merely slow job is never stolen from a worker that is still alive.
  */
-export const STALE_RUNNING_MS = EXTRACTION.totalBudgetMs + 35_000;
+export const STALE_RUNNING_MS = Math.max(EXTRACTION.totalBudgetMs, ...STORES.map((s) => s.budgetMs ?? 0)) + 35_000;
 
 export interface EnqueuedPaste {
   request: ExtractionJobRow;

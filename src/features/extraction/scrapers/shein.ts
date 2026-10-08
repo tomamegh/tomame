@@ -339,8 +339,10 @@ export class SheinScraper implements PlatformScraper {
   public readonly domains = ["shein.com", "us.shein.com", "m.shein.com"];
   public readonly defaultCurrency = "USD";
   public readonly renderWaitSelector = "h1, .product-intro__head-name, [class*='product-intro__head']";
-  // Observed live: every datacenter path returns an error page / empty shell for this store.
-  public readonly htmlAttempts: HtmlAttemptName[] = ["content+residential", "unblock+residential"];
+  // Every datacenter and plain residential path gets an error page or empty shell.
+  // ScraperAPI ultra premium reads it in 30-50 s (2026-10-08), so the store has
+  // a longer budget; Browserless stays as the fallback.
+  public readonly htmlAttempts: HtmlAttemptName[] = ["scraperapi-ultra", "content+residential", "unblock+residential"];
 
   public isProductUrl(url: string): boolean {
     return extractGoodsIdFromUrl(url) !== null;

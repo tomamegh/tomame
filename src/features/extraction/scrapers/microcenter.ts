@@ -263,10 +263,10 @@ export class MicrocenterScraper implements PlatformScraper {
   /**
    * Cloudflare-gated. ScraperAPI's premium (residential) fetch clears it in
    * ~2 s (measured 2026-10-08); Zyte's browser takes ~32 s, past the budget.
-   * One premium request in a few hangs, so it gets a second try before
-   * Browserless unblock.
+   * A burst of requests hangs premium; the retry goes through the ultra pool
+   * (<1 s on this store), then Browserless unblock.
    */
-  public readonly htmlAttempts: HtmlAttemptName[] = ["scraperapi-premium", "scraperapi-premium", "unblock"];
+  public readonly htmlAttempts: HtmlAttemptName[] = ["scraperapi-premium", "scraperapi-ultra", "unblock"];
 
   public isProductUrl(url: string): boolean {
     try {

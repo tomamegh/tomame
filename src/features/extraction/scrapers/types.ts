@@ -12,6 +12,8 @@ export type HtmlAttemptName =
   | "scraperapi-premium"
   /** ScraperAPI with a headless browser and residential proxies (25 credits). >20 s on those stores. */
   | "scraperapi-render"
+  /** ScraperAPI's strongest residential pool (30 credits). The only path through SHEIN: 30-50 s. */
+  | "scraperapi-ultra"
   | "unblock"
   | "unblock+residential"
   | "content+residential"
