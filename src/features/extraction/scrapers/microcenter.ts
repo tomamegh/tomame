@@ -1,5 +1,5 @@
 import type { CheerioAPI } from "cheerio";
-import type { PlatformScraper, ScrapedProduct } from "./types";
+import type { HtmlAttemptName, PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, MICROCENTER_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyMicrocenterProduct } from "@/lib/apify/client";
 import { parseWeightLbs } from "../weight";
@@ -260,6 +260,13 @@ export class MicrocenterScraper implements PlatformScraper {
   public readonly domains = ["microcenter.com"];
   public readonly defaultCurrency = "USD";
   public readonly renderWaitSelector = "[class^='ProductLink_'], h2.productTi, h1";
+  /**
+   * Cloudflare-gated. ScraperAPI's premium (residential) fetch clears it in
+   * ~2 s (measured 2026-10-08); Zyte's browser takes ~32 s, past the budget.
+   * One premium request in a few hangs, so it gets a second try before
+   * Browserless unblock.
+   */
+  public readonly htmlAttempts: HtmlAttemptName[] = ["scraperapi-premium", "scraperapi-premium", "unblock"];
 
   public isProductUrl(url: string): boolean {
     try {

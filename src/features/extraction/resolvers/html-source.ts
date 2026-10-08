@@ -119,8 +119,10 @@ export async function fetchProductHtml(
       configured: isScraperApiConfigured,
       minRemainingMs: 6_000,
       retries: 0,
+      // Answers in 2-9 s; a request that hangs past 10 s rarely recovers, so
+      // hand the budget to the next attempt (or a retry) instead.
       run: async (t) => {
-        const html = await fetchScraperApiHtml(url, t, { premium: true });
+        const html = await fetchScraperApiHtml(url, Math.min(t, 10_000), { premium: true });
         return { success: !!html, html, error: html ? null : "scraperapi (premium) returned no page" };
       },
     },
