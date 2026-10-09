@@ -28,7 +28,7 @@ import { RATE_LIMIT } from "@/config/security";
  * `car_listings.price_pesewas` server-side and snapshots it. The largest charge
  * this platform takes is also the one with the least client input.
  *
- * `RATE_LIMIT.orders` — five per hour, the budget order creation uses, and the
+ * `RATE_LIMIT.orders` — twenty per hour, the budget order creation uses, and the
  * right shape for the same reason: each request through here can write a row
  * that RESERVES A PHYSICAL VEHICLE, and a loop on this endpoint would take every
  * car on the site off the market. Its own bucket (the key is per route), so a

@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = requireAuth(await getAuthenticatedUser());
     if (!(await checkRateLimit(`checkout:${auth.id}`, RATE_LIMIT.orders)).allowed) {
-      throw new APIError(429, "Too many requests");
+      throw new APIError(429, "Too many checkout attempts. Please wait a few minutes and try again.");
     }
     const { viewer, finalize } = resolveViewer(request, auth.id);
 

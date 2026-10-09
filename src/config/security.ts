@@ -29,10 +29,15 @@ export const RATE_LIMIT = {
    * stop a runaway loop, not an honest few tabs.
    */
   poll: { windowMs: 15 * 60 * 1000, maxRequests: 1200 },
-  /** Order creation — 5 requests per hour per user */
-  orders: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
-  /** Payment initialization — 10 requests per 15 minutes */
-  payments: { windowMs: 15 * 60 * 1000, maxRequests: 10 },
+  /**
+   * Order creation / bag checkout — 20 per hour per user. It was 5, and every
+   * refused attempt counts: a customer turned away (the dropped-phone bug of
+   * 2026-10-09) was locked out of paying for an hour after five taps. Checkout
+   * is idempotent, so this only has to stop a runaway loop.
+   */
+  orders: { windowMs: 60 * 60 * 1000, maxRequests: 20 },
+  /** Payment initialization — 20 per 15 minutes per user (not per IP: Ghanaian carriers share one IP across many customers). */
+  payments: { windowMs: 15 * 60 * 1000, maxRequests: 20 },
   /**
    * Browser error reports (POST /api/ops/client-errors): 30 per 10 minutes per
    * IP. The page already throttles itself to one per issue a minute; this is

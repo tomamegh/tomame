@@ -262,6 +262,8 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
       first_name: profile.first_name ?? undefined,
       last_name: profile.last_name ?? undefined,
       bio: profile.bio ?? undefined,
+      // The order guard (requireContactDetails) reads it from here.
+      phone: profile.phone ?? null,
       created_at: new Date(profile.created_at),
       updated_at: new Date(profile.updated_at),
     },
@@ -306,6 +308,7 @@ export async function getUserSession(): Promise<{
         first_name: profile.first_name ?? undefined,
         last_name: profile.last_name ?? undefined,
         bio: profile.bio ?? undefined,
+        phone: profile.phone ?? null,
         created_at: new Date(profile.created_at),
         updated_at: new Date(profile.updated_at),
       },
