@@ -63,7 +63,7 @@ describe("crossRatesToGhs", () => {
 describe("providers make one request per refresh", () => {
   it("exchangerate-api fetches only the USD table", async () => {
     process.env.EXCHANGE_RATE_API_KEY = "k";
-    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ result: "success", conversion_rates: USD_TABLE }) }));
+    const fetchMock = vi.fn(async (_input: string) => ({ ok: true, json: async () => ({ result: "success", conversion_rates: USD_TABLE }) }));
     vi.stubGlobal("fetch", fetchMock);
     const rates = await new ExchangeRateApiProvider().getRates([...RATE_CURRENCIES]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -73,7 +73,7 @@ describe("providers make one request per refresh", () => {
 
   it("freecurrencyapi asks for GHS plus every base against USD in one call", async () => {
     process.env.FREECURRENCY_API_KEY = "k";
-    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ data: USD_TABLE }) }));
+    const fetchMock = vi.fn(async (_input: string) => ({ ok: true, json: async () => ({ data: USD_TABLE }) }));
     vi.stubGlobal("fetch", fetchMock);
     const rates = await new FreeCurrencyProvider().getRates([...RATE_CURRENCIES]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
