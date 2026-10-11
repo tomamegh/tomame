@@ -16,10 +16,34 @@ interface ExchangeRateAPIResponse {
   conversion_rates: Record<string, number>;
 }
 
+/**
+ * Every X→GHS rate from ONE USD-based table: USD→GHS directly, the rest as
+ * GHS-per-USD ÷ X-per-USD. The provider's own `latest/GBP` is the same cross
+ * computed on their side, so nothing is priced differently; it just costs one
+ * request per refresh instead of one per currency. The free plan is 1,500
+ * requests a month shared by dev and prod, and six currencies six times a day
+ * on two deployments spent it by mid-month.
+ */
+export function crossRatesToGhs(usdTable: Record<string, number>, baseCurrencies: string[]): Map<string, number> {
+  const ghsPerUsd = usdTable.GHS;
+  const rates = new Map<string, number>();
+  if (!(typeof ghsPerUsd === "number" && Number.isFinite(ghsPerUsd) && ghsPerUsd > 0)) return rates;
+  for (const currency of baseCurrencies) {
+    const code = currency.toUpperCase();
+    if (code === "USD") {
+      rates.set(code, ghsPerUsd);
+      continue;
+    }
+    const perUsd = usdTable[code];
+    if (typeof perUsd === "number" && Number.isFinite(perUsd) && perUsd > 0) rates.set(code, ghsPerUsd / perUsd);
+  }
+  return rates;
+}
+
 export class ExchangeRateApiProvider implements ExchangeRateProvider {
   public readonly name: string = "ExchangeRateApi";
 
-  public async getRate(baseCurrency: string): Promise<number> {
+  private async fetchTable(baseCurrency: string): Promise<Record<string, number>> {
     const apiKey = getApiKey("EXCHANGE_RATE_API_KEY");
 
     const res = await fetch(
@@ -37,7 +61,14 @@ export class ExchangeRateApiProvider implements ExchangeRateProvider {
     }
 
     const data: ExchangeRateAPIResponse = await res.json();
-    const rate = data.conversion_rates.GHS;
+    if (!data.conversion_rates || typeof data.conversion_rates !== "object") {
+      throw new Error(`${this.name}: no conversion table for ${baseCurrency}`);
+    }
+    return data.conversion_rates;
+  }
+
+  public async getRate(baseCurrency: string): Promise<number> {
+    const rate = (await this.fetchTable(baseCurrency)).GHS;
 
     if (!rate) {
       throw new Error(`${baseCurrency}→GHS rate not found in response`);
@@ -47,14 +78,11 @@ export class ExchangeRateApiProvider implements ExchangeRateProvider {
     return rate;
   }
 
+  /** One request for every currency: the USD table, crossed to GHS. */
   public async getRates(baseCurrencies: string[]): Promise<Map<string, number>> {
-    const rates = new Map<string, number>();
-
-    for (const currency of baseCurrencies) {
-      const rate = await this.getRate(currency);
-      rates.set(currency, rate);
-    }
-
+    const rates = crossRatesToGhs(await this.fetchTable("USD"), baseCurrencies);
+    if (rates.size === 0) throw new Error(`${this.name}: USD→GHS rate not found in response`);
+    logger.info(`${this.name} fetched rates`, { currencies: [...rates.keys()], requests: 1 });
     return rates;
   }
 }

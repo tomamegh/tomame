@@ -4,7 +4,8 @@ import { runCronJob } from "@/lib/auth/cron";
 
 /**
  * Cron endpoint to fetch and store exchange rates. Called by pg_cron via pg_net
- * every 4 hours (migration 026). Authorized and heartbeat-recorded by
+ * four times a day, every 6 hours (migration 092; was every 4 hours in 026).
+ * One provider request per run. Authorized and heartbeat-recorded by
  * `runCronJob`, like every other job.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {

@@ -1,4 +1,5 @@
 import { logger } from "@/lib/logger";
+import { crossRatesToGhs } from "./exchange-rate-api";
 import type { ExchangeRateProvider } from "./types";
 
 const FREECURRENCY_API_URL = "https://api.freecurrencyapi.com/v1/latest";
@@ -22,11 +23,11 @@ interface FreeCurrencyResponse {
 export class FreeCurrencyProvider implements ExchangeRateProvider {
   public readonly name = "FreeCurrencyAPI";
 
-  public async getRate(baseCurrency: string): Promise<number> {
+  private async fetchTable(baseCurrency: string, currencies: string[]): Promise<Record<string, number>> {
     const apiKey = getApiKey();
 
     const response = await fetch(
-      `${FREECURRENCY_API_URL}?apikey=${apiKey}&base_currency=${baseCurrency}&currencies=GHS`
+      `${FREECURRENCY_API_URL}?apikey=${apiKey}&base_currency=${baseCurrency}&currencies=${currencies.join(",")}`
     );
 
     if (!response.ok) {
@@ -40,7 +41,12 @@ export class FreeCurrencyProvider implements ExchangeRateProvider {
     }
 
     const data: FreeCurrencyResponse = await response.json();
-    const rate = data.data.GHS;
+    if (!data.data || typeof data.data !== "object") throw new Error(`${this.name}: no rates for ${baseCurrency}`);
+    return data.data;
+  }
+
+  public async getRate(baseCurrency: string): Promise<number> {
+    const rate = (await this.fetchTable(baseCurrency, ["GHS"])).GHS;
 
     if (!rate) {
       throw new Error(`${baseCurrency}→GHS rate not found in response`);
@@ -50,16 +56,15 @@ export class FreeCurrencyProvider implements ExchangeRateProvider {
     return rate;
   }
 
+  /**
+   * One request: the free tier allows a single base currency per call but any
+   * number of targets, so ask for GHS plus every base against USD and cross.
+   */
   public async getRates(baseCurrencies: string[]): Promise<Map<string, number>> {
-    const rates = new Map<string, number>();
-
-    // FreeCurrencyAPI free tier doesn't support multiple base currencies in one call
-    // So we fetch them sequentially
-    for (const currency of baseCurrencies) {
-      const rate = await this.getRate(currency);
-      rates.set(currency, rate);
-    }
-
+    const targets = Array.from(new Set(["GHS", ...baseCurrencies.map((c) => c.toUpperCase()).filter((c) => c !== "USD")]));
+    const rates = crossRatesToGhs(await this.fetchTable("USD", targets), baseCurrencies);
+    if (rates.size === 0) throw new Error(`${this.name}: USD→GHS rate not found in response`);
+    logger.info(`${this.name} fetched rates`, { currencies: [...rates.keys()], requests: 1 });
     return rates;
   }
 }

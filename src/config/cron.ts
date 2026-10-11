@@ -27,7 +27,7 @@ export const CRON_JOBS: readonly CronJobSpec[] = [
   { job: "catalog-cleanup", label: "Catalogue clean-up", route: "/api/cron/catalog-cleanup", everyMinutes: 1440, staleAfterMinutes: 1560, migration: "084" },
   { job: "ops-alerts", label: "Platform alerts", route: "/api/cron/ops-alerts", everyMinutes: 5, staleAfterMinutes: 20, migration: "083" },
   { job: "ops-daily-summary", label: "Daily health email", route: "/api/cron/ops-daily-summary", everyMinutes: 1440, staleAfterMinutes: 1560, migration: "083" },
-  { job: "fetch-exchange-rates", label: "Exchange rates", route: "/api/cron/exchange-rates", everyMinutes: 240, staleAfterMinutes: 540, migration: "026" },
+  { job: "fetch-exchange-rates", label: "Exchange rates", route: "/api/cron/exchange-rates", everyMinutes: 360, staleAfterMinutes: 780, migration: "092" },
 ] as const;
 
 /** pg_cron job name → the heartbeat name the route records. They are the same string on purpose. */
