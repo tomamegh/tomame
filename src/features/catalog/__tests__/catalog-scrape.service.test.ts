@@ -36,7 +36,7 @@ import {
 import { fetchCatalogSearch, isScraperApiConfigured } from "../services/scraperapi-search";
 import { fetchZyteCatalogSearch, isZyteConfigured } from "../services/zyte-search";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
-import { CATALOG_JOB } from "@/config/catalog";
+import { CATALOG_JOB, CATALOG_REQUERY_HOURS } from "@/config/catalog";
 import { budgetPeriodOf, runCatalogScrapeJob } from "../services/catalog-scrape.service";
 
 const NOW = new Date("2026-09-12T10:00:00Z");
@@ -127,7 +127,28 @@ describe("runCatalogScrapeJob", () => {
     vi.mocked(isZyteConfigured).mockReturnValue(true);
     vi.mocked(isScraperApiConfigured).mockReturnValue(false);
     await runCatalogScrapeJob(NOW);
-    expect(claimNextDueQuery).toHaveBeenLastCalledWith(NOW.toISOString(), CATALOG_JOB.requeryAfterHours, ["etsy", "nike"]);
+    expect(claimNextDueQuery).toHaveBeenLastCalledWith(NOW.toISOString(), CATALOG_REQUERY_HOURS.zyte, ["etsy", "nike"]);
+    vi.mocked(isZyteConfigured).mockReturnValue(false);
+  });
+
+  it("claims a paid-vendor query first and a weekly Zyte one only when none is due", async () => {
+    vi.mocked(isZyteConfigured).mockReturnValue(true);
+    vi.mocked(getOrCreateBudget).mockResolvedValue(budget(0));
+    vi.mocked(claimNextDueQuery).mockClear().mockResolvedValue(null);
+    const summary = await runCatalogScrapeJob(NOW);
+    expect(summary.skipped).toBe("no_due_query");
+    expect(vi.mocked(claimNextDueQuery).mock.calls).toEqual([
+      [NOW.toISOString(), CATALOG_REQUERY_HOURS.scraperapi, ["amazon", "ebay", "walmart"]],
+      [NOW.toISOString(), CATALOG_REQUERY_HOURS.zyte, ["etsy", "nike"]],
+    ]);
+    expect(CATALOG_REQUERY_HOURS.zyte).toBeGreaterThanOrEqual(CATALOG_REQUERY_HOURS.scraperapi * 7);
+
+    vi.mocked(claimNextDueQuery).mockClear().mockResolvedValueOnce(queryRow({ store: "amazon", query: "usb hub" }));
+    vi.mocked(fetchCatalogSearch).mockResolvedValue({ rawCount: 0, items: [] });
+    vi.mocked(incrementBudget).mockResolvedValue(budget(1));
+    vi.mocked(upsertCatalogProducts).mockResolvedValue(0);
+    await runCatalogScrapeJob(NOW);
+    expect(claimNextDueQuery).toHaveBeenCalledTimes(1);
     vi.mocked(isZyteConfigured).mockReturnValue(false);
   });
 

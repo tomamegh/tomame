@@ -1,4 +1,4 @@
-import { CATALOG_STORES, CATALOG_STORE_SEARCH, type CatalogSearchVendor, type CatalogStore } from "@/config/catalog";
+import { CATALOG_REQUERY_HOURS, CATALOG_STORES, CATALOG_STORE_SEARCH, type CatalogSearchVendor, type CatalogStore } from "@/config/catalog";
 import { fetchCatalogSearch, isScraperApiConfigured, type CatalogSearchFetch, type MapContext } from "./scraperapi-search";
 import { fetchZyteCatalogSearch, isZyteConfigured, isZyteSearchStore } from "./zyte-search";
 
@@ -13,6 +13,25 @@ import { fetchZyteCatalogSearch, isZyteConfigured, isZyteSearchStore } from "./z
  */
 export function searchableCatalogStores(configured: Record<CatalogSearchVendor, boolean>): CatalogStore[] {
   return CATALOG_STORES.filter((s) => CATALOG_STORE_SEARCH[s].enabled && configured[CATALOG_STORE_SEARCH[s].vendor]);
+}
+
+/**
+ * The searchable stores grouped by vendor, in the order the scrape claims
+ * them: paid vendors first, the free Zyte allowance last. Each group carries
+ * its own rest interval (`CATALOG_REQUERY_HOURS`). Pure.
+ */
+export function searchableStoresByVendor(
+  configured: Record<CatalogSearchVendor, boolean>,
+): Array<{ vendor: CatalogSearchVendor; stores: CatalogStore[]; requeryAfterHours: number }> {
+  const stores = searchableCatalogStores(configured);
+  const vendors: CatalogSearchVendor[] = ["scraperapi", "zyte"];
+  return vendors
+    .map((vendor) => ({
+      vendor,
+      stores: stores.filter((s) => CATALOG_STORE_SEARCH[s].vendor === vendor),
+      requeryAfterHours: CATALOG_REQUERY_HOURS[vendor],
+    }))
+    .filter((g) => g.stores.length > 0);
 }
 
 export function configuredSearchVendors(): Record<CatalogSearchVendor, boolean> {

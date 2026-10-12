@@ -50,8 +50,13 @@ export const EXTRACTION = {
   /** Upper bound on page text handed to the model (characters). */
   llmMaxInputChars: 120_000,
 
-  /** Cache TTL when the extraction is complete (title + price + currency). */
-  cacheTtlCompleteMs: 6 * 60 * 60 * 1000,
+  /**
+   * Cache TTL when the extraction is complete (title + price + currency). A
+   * second paste of the same product inside this window costs no vendor call.
+   * Must stay under `PRICE_WATCH_JOB.recheckAfterHours` (20 h): a watch reads
+   * through this cache, and a TTL past its own interval would freeze its price.
+   */
+  cacheTtlCompleteMs: 12 * 60 * 60 * 1000,
   /** Cache TTL when extraction is partial — retry sooner rather than pin a bad result. */
   cacheTtlPartialMs: 15 * 60 * 1000,
 } as const;

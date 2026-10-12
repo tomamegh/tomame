@@ -10,7 +10,7 @@ import {
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { budgetPeriodOf, readJobBudget, spendJobBudget } from "./catalog-budget";
-import { configuredSearchVendors, fetchCatalogStoreSearch, searchableCatalogStores } from "./catalog-vendors";
+import { configuredSearchVendors, fetchCatalogStoreSearch, searchableStoresByVendor } from "./catalog-vendors";
 
 export { budgetPeriodOf };
 
@@ -64,13 +64,18 @@ export async function runCatalogScrapeJob(now: Date = new Date()): Promise<Catal
     summary.skipped = "budget";
     return finish(summary);
   }
-  const stores = searchableCatalogStores(configuredSearchVendors());
-  if (stores.length === 0) {
+  const groups = searchableStoresByVendor(configuredSearchVendors());
+  if (groups.length === 0) {
     summary.skipped = "vendor_unconfigured";
     return finish(summary);
   }
 
-  const claimed = await claimNextDueQuery(now.toISOString(), CATALOG_JOB.requeryAfterHours, stores);
+  // Paid vendors first; the free Zyte allowance only when none of theirs is due.
+  let claimed: Awaited<ReturnType<typeof claimNextDueQuery>> = null;
+  for (const group of groups) {
+    claimed = await claimNextDueQuery(now.toISOString(), group.requeryAfterHours, group.stores);
+    if (claimed) break;
+  }
   if (!claimed) {
     summary.skipped = "no_due_query";
     return finish(summary);

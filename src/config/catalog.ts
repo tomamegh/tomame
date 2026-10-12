@@ -41,6 +41,19 @@ export const CATALOG_STORE_SEARCH: Record<CatalogStore, { vendor: CatalogSearchV
   nike: { vendor: "zyte", enabled: true },
 };
 
+/**
+ * How long a query rests before it is searched again, per vendor. ScraperAPI
+ * is a paid plan, so its stores refresh daily. Zyte is a free allowance since
+ * 2026-10-12 and the same key reads every customer paste from a store without
+ * its own scraper, so the catalogue must not spend it: Etsy and Nike refresh
+ * weekly. The scrape claims a paid-vendor query first and a Zyte one only when
+ * none of those is due.
+ */
+export const CATALOG_REQUERY_HOURS: Record<CatalogSearchVendor, number> = {
+  scraperapi: 24,
+  zyte: 24 * 7,
+};
+
 export function isCatalogStore(value: string | null | undefined): value is CatalogStore {
   return (CATALOG_STORES as readonly string[]).includes(value ?? "");
 }
@@ -94,7 +107,7 @@ export const CATALOG_JOB = {
   monthlyCaps: { production: 3000, other: 40 } satisfies MonthlyCaps,
   /** Deactivate a query after this many consecutive failed vendor calls. */
   maxConsecutiveFailures: 5,
-  /** A query is not re-run sooner than this after a claim. */
+  /** A query is not re-run sooner than this after a claim. Per vendor: `CATALOG_REQUERY_HOURS`. */
   requeryAfterHours: 24,
   /** eBay search measured at 25 s live, Etsy through Zyte 22 s; the route's maxDuration is 60 s. */
   vendorTimeoutMs: 45_000,

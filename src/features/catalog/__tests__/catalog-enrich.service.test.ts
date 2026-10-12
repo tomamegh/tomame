@@ -64,7 +64,10 @@ describe("enrichVendorFor", () => {
     expect(enrichVendorFor("amazon", 1, all)).toBe("scraperapi");
     expect(enrichVendorFor("amazon", 2, all)).toBe("oxylabs");
     expect(enrichVendorFor("walmart", 1, all)).toBe("oxylabs");
-    expect(enrichVendorFor("walmart", 2, all)).toBe("zyte");
+    // Zyte is a free allowance shared with customer pastes: never a fallback
+    // for a paid-vendor store. The plan repeats its last paid entry instead.
+    expect(enrichVendorFor("walmart", 2, all)).toBe("oxylabs");
+    expect(enrichVendorFor("ebay", 2, all)).toBe("scraperapi");
     expect(enrichVendorFor("etsy", 2, all)).toBe("zyte");
   });
 

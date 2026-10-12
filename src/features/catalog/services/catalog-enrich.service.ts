@@ -41,12 +41,16 @@ import { strikeLandedFigure } from "./catalog-search.service";
 
 export type EnrichVendor = "scraperapi" | "oxylabs" | "zyte";
 
-/** Cheapest, most weight-bearing source first. Every entry has a mapper that reads weight. */
+/**
+ * Cheapest, most weight-bearing source first. Every entry has a mapper that
+ * reads weight. Zyte is a free allowance shared with every customer paste
+ * (2026-10-12), so it is only used where no paid vendor reads the store.
+ */
 export const ENRICH_PLANS: Record<CatalogStore, readonly EnrichVendor[]> = {
   // ScraperAPI's product_information carries item_weight; Oxylabs carries it too.
-  amazon: ["scraperapi", "oxylabs", "zyte"],
-  ebay: ["scraperapi", "zyte"],
-  walmart: ["oxylabs", "zyte"],
+  amazon: ["scraperapi", "oxylabs"],
+  ebay: ["scraperapi"],
+  walmart: ["oxylabs"],
   etsy: ["zyte"],
   nike: ["zyte"],
 };
