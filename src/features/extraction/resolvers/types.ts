@@ -32,6 +32,13 @@ export interface ResolveContext {
   getHtml(): Promise<HtmlFetch | null>;
   /** Whether the page has been fetched yet — lets a tier choose a text-only mode instead of triggering a browser fetch. */
   htmlState(): "unfetched" | "none" | "ready";
+  /**
+   * A tier that received the page as a by-product (Zyte returns it with the
+   * product record) hands it over so the free parsers read it instead of
+   * waiting on, or paying for, a fetch of their own. Ignored once a page is
+   * already in hand.
+   */
+  offerHtml?(html: string, source: HtmlSource): void;
   /** What earlier resolvers already found; lets later tiers target the gaps. */
   current: ScrapedProduct;
 }

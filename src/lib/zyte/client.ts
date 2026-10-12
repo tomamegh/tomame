@@ -116,15 +116,23 @@ async function post(body: Record<string, unknown>, timeoutMs: number, label: str
  * Product record for a URL. `probability` is Zyte's own confidence that the
  * page is a product; anything under 0.5 is a category/search/error page.
  */
+/** The AI product record plus, when asked for, the page it was read from. */
+export type ZyteProductWithPage = ZyteProduct & { pageHtml?: string };
+
 export async function fetchZyteProduct(
   url: string,
-  opts: { extractFrom?: "httpResponseBody" | "browserHtml"; geolocation?: string; signal?: AbortSignal } = {},
-): Promise<ZyteProduct | null> {
+  opts: { extractFrom?: "httpResponseBody" | "browserHtml"; geolocation?: string; signal?: AbortSignal; withPage?: boolean } = {},
+): Promise<ZyteProductWithPage | null> {
+  const extractFrom = opts.extractFrom ?? "httpResponseBody";
   const data = await post(
     {
       url,
       product: true,
-      productOptions: { extractFrom: opts.extractFrom ?? "httpResponseBody" },
+      productOptions: { extractFrom },
+      // The page itself, in the same request: it is what the AI record was read
+      // from, so it costs nothing extra, and the page's own JSON-LD offer is a
+      // better price than the AI's pick when a page lists several variants.
+      ...(opts.withPage ? { [extractFrom]: true } : {}),
       ...(opts.geolocation ? { geolocation: opts.geolocation } : {}),
     },
     EXTRACTION.zyteProductTimeoutMs,
@@ -138,7 +146,11 @@ export async function fetchZyteProduct(
     logger.info("zyte: low product probability, ignoring", { url, probability });
     return null;
   }
-  return product;
+  if (!opts.withPage) return product;
+  const pageHtml = extractFrom === "browserHtml"
+    ? data?.browserHtml
+    : data?.httpResponseBody ? Buffer.from(data.httpResponseBody, "base64").toString("utf8") : undefined;
+  return pageHtml ? { ...product, pageHtml } : product;
 }
 
 /** Browser-rendered HTML — the JS-heavy-store HTML source for the free parsers. */

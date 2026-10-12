@@ -72,6 +72,14 @@ export function mergeResult(state: MergeState, source: ExtractionSource, result:
     }
   }
   if (incoming.metadata) {
+    // The strike-through price and the price's provenance follow the price:
+    // a vendor's listPrice must not sit beside the page's own offer.
+    if (state.sources.price === source && isPresent(incoming.price)) {
+      for (const k of ["listPrice", "priceSource"]) {
+        if (k in incoming.metadata) state.product.metadata[k] = incoming.metadata[k];
+        else delete state.product.metadata[k];
+      }
+    }
     for (const [k, v] of Object.entries(incoming.metadata)) {
       if (k && isPresent(v) && !(k in state.product.metadata)) state.product.metadata[k] = v;
     }

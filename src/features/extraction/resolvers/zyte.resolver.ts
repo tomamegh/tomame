@@ -5,6 +5,8 @@ import { dimensionsFromSpecs, weightFromSpecs } from "../weight";
 import { hasRequiredFields } from "./merge";
 import { addVariant, cleanTitle, normalizeImages, parseAggregateRating, parseSchemaAvailability, salePrice } from "../scrapers/parse";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
+import * as cheerio from "cheerio";
+import { PAGE_OFFER_CONFIDENCE, extractFromJsonLd, parseJsonLd } from "./structured-data.resolver";
 
 const SYMBOL_CURRENCY: Record<string, string> = { $: "USD", "£": "GBP", "€": "EUR", "¥": "CNY", "US$": "USD" };
 
@@ -19,6 +21,17 @@ function cleanBrand(raw: string | undefined): string | null {
   if (!raw) return null;
   const m = raw.match(/^(?:Visit the |Brand:\s*)(.+?)(?:\s+Store)?$/i);
   return (m?.[1] ?? raw).trim() || null;
+}
+
+/** The page's own JSON-LD offer for this url, or null when the page has none that belongs to it. */
+function pageOffer(html: string, url: string): PartialProduct | null {
+  try {
+    const ld = extractFromJsonLd(parseJsonLd(cheerio.load(html)), url);
+    return ld.metadata?.offerUrlMatched ? ld : null;
+  } catch (err) {
+    logger.warn("zyte: page offer parse failed", { url, error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
 }
 
 export function mapZyteProduct(item: ZyteProduct, fallbackCurrency: string): PartialProduct {
@@ -105,14 +118,34 @@ export const zyteResolver: ExtractionResolver = {
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {
     if (ctx.deadline - Date.now() < 3_000) return { product: {} };
     try {
-      const item = await fetchZyteProduct(ctx.url, { signal: ctx.signal, geolocation: ctx.region === "UK" ? "GB" : "US" });
+      const item = await fetchZyteProduct(ctx.url, { signal: ctx.signal, geolocation: ctx.region === "UK" ? "GB" : "US", withPage: true });
       if (!item) return { product: {} };
       const product = mapZyteProduct(item, ctx.scraper.defaultCurrency);
       const messages: string[] = [];
       if (product.price == null && item.availability && /outofstock|discontinued/i.test(item.availability)) {
         messages.push("The store lists this item as out of stock.");
       }
-      return { product, messages };
+      const confidence: ResolverResult["confidence"] = {};
+      if (item.pageHtml) {
+        // The page's own offer for THIS url beats the AI's pick: LG lists every
+        // size as a Product node and Zyte read the 85-inch price for the 43-inch
+        // page (2026-10-12).
+        const own = pageOffer(item.pageHtml, ctx.url);
+        if (own && own.price != null && (own.price !== product.price || (own.currency && own.currency !== product.currency))) {
+          logger.info("zyte: page offer overrides AI price", { url: ctx.url, ai: product.price, page: own.price, currency: own.currency ?? product.currency });
+          product.price = own.price;
+          if (own.currency) product.currency = own.currency;
+          product.metadata = { ...(product.metadata ?? {}), listPrice: own.metadata?.listPrice ?? null, priceSource: "page-offer" };
+        }
+        if (own?.price != null) {
+          confidence.price = PAGE_OFFER_CONFIDENCE;
+          confidence.currency = PAGE_OFFER_CONFIDENCE;
+        }
+        // The page is already in hand: the free parsers can read it now rather
+        // than wait on (or pay for) a second fetch.
+        if (ctx.offerHtml && ctx.scraper.looksLikeProductPage(item.pageHtml)) ctx.offerHtml(item.pageHtml, "zyte");
+      }
+      return { product, messages, confidence };
     } catch (err) {
       logger.warn("zyte resolver failed", { url: ctx.url, error: err instanceof Error ? err.message : String(err) });
       return { product: {} };

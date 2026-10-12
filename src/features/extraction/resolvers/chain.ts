@@ -16,6 +16,7 @@ import { zyteResolver } from "./zyte.resolver";
 import { categoryResolver } from "./category.resolver";
 import type { ChainOutcome, ExtractionResolver, HtmlFetch, ResolveContext } from "./types";
 import { WEIGHT_NOT_LISTED_MESSAGE } from "./messages";
+import { PAGE_OFFER_CONFIDENCE } from "./structured-data.resolver";
 
 /** Every resolver, by name. A store's `providers` list picks and orders them. */
 export const RESOLVERS: Record<ExtractionSource, ExtractionResolver> = {
@@ -122,8 +123,9 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
   const controller = new AbortController();
   let closed = false;
 
-  const html: { attempted: boolean; result: HtmlFetch | null; promise: Promise<HtmlFetch | null> | null } = {
+  const html: { attempted: boolean; offered: boolean; result: HtmlFetch | null; promise: Promise<HtmlFetch | null> | null } = {
     attempted: !!input.initialHtml,
+    offered: false,
     result: input.initialHtml ?? null,
     promise: input.initialHtml ? Promise.resolve(input.initialHtml) : null,
   };
@@ -131,16 +133,38 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     html.attempted = true;
     html.promise = fetcher(input.url, opts)
       .then((r) => {
-        html.result = r;
-        return r;
+        // A page offered meanwhile (Zyte's) is not replaced by a later or empty fetch.
+        if (!html.offered) html.result = r;
+        return html.result;
       })
       .catch((err) => {
         logger.warn("chain: html fetch threw", { url: input.url, error: err instanceof Error ? err.message : String(err) });
-        return null;
+        return html.offered ? html.result : null;
       });
     return html.promise;
   };
-  const getHtml = () => html.promise ?? startFetch();
+  // A page handed over by a tier that got it for free (Zyte returns the page
+  // with its product record). Whoever is waiting on the fetch gets it at once.
+  let resolveOffered: ((h: HtmlFetch) => void) | null = null;
+  const offered = new Promise<HtmlFetch>((resolve) => { resolveOffered = resolve; });
+  const getHtml = () => {
+    if (html.result) return Promise.resolve(html.result);
+    return Promise.race([html.promise ?? startFetch(), offered]);
+  };
+  const offerHtml = (page: string, source: HtmlFetch["source"]) => {
+    if (html.result || closed) return;
+    html.attempted = true;
+    html.offered = true;
+    html.result = { html: page, source };
+    resolveOffered?.(html.result);
+    // The free parsers may have already read a worse page, or none: one more pass
+    // on the page we were given, unless the price is already the page's own.
+    if (!priceVerified()) {
+      for (const parser of resolvers.filter((r) => FREE_PARSERS.has(r.name) && r.available(ctx) && !pending.has(r.name) && ran.includes(r.name))) {
+        void runResolver(parser);
+      }
+    }
+  };
 
   const ctx: ResolveContext = {
     url: input.url,
@@ -152,6 +176,7 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     signal: controller.signal,
     getHtml,
     htmlState: () => (!html.attempted ? "unfetched" : html.result ? "ready" : "none"),
+    offerHtml,
     current: state.product,
   };
 
@@ -197,9 +222,24 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     return !!state.product.title && state.product.price == null && !!phrase && /out ?of ?stock|unavailable|discontinued|sold out|no longer available/i.test(phrase);
   };
 
+  // The price is the page's own offer for this URL (confidence above any AI
+  // read) — nothing in flight can improve on it.
+  const priceVerified = () => (state.confidence.price ?? 0) >= PAGE_OFFER_CONFIDENCE;
+  // Zyte's AI read of a page may pick another variant's price (LG's 85-inch
+  // for the 43-inch page, 2026-10-12). While that is the price on the table
+  // and the page's own offer has not been read, the quote is not sealed: the
+  // structured-data tier runs first (on the page Zyte handed over, usually at
+  // no cost), bounded by the fetch timeouts and the chain deadline. Prices
+  // from per-item vendor endpoints (ScraperAPI, Oxylabs) are exact and are
+  // not held.
+  const priceCheckTier = () => resolvers.find((r) => r.name === "structured-data" && r.available(ctx));
+  const awaitingPriceCheck = () =>
+    state.sources.price === "zyte" && !priceVerified() && !ran.includes("structured-data") && !!priceCheckTier();
+
   const done = () =>
     unavailable() ||
     (hasRequiredFields(state.product) &&
+      !awaitingPriceCheck() &&
       (input.stopWhenRequired
         ? state.product.category != null || ran.includes("llm") || ran.includes("category-map")
         : hasWeight(state.product)));
@@ -240,8 +280,10 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     if (!resolver.shouldRun(ctx)) continue;
 
     // Fast mode: once the listing is known, do not launch a browser for the
-    // nice-to-haves — those tiers run in background enrichment instead.
-    if (input.stopWhenRequired && hasRequiredFields(state.product) && resolver.needsHtml && html.attempted === false) {
+    // nice-to-haves — those tiers run in background enrichment instead. The
+    // page's own offer is not a nice-to-have while an AI price is unverified.
+    const verifiesPrice = resolver.name === "structured-data" && awaitingPriceCheck();
+    if (input.stopWhenRequired && hasRequiredFields(state.product) && resolver.needsHtml && html.attempted === false && !verifiesPrice) {
       skipped.push(resolver.name);
       continue;
     }

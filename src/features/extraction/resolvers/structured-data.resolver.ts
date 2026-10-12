@@ -7,6 +7,9 @@ import type { PartialProduct, ExtractionResolver, ResolveContext, ResolverResult
 
 type Node = Record<string, unknown>;
 
+/** Confidence of a price read from the page's own JSON-LD offer for this URL. Above every vendor AI read. */
+export const PAGE_OFFER_CONFIDENCE = 0.95;
+
 const SYMBOL_CURRENCY: Record<string, string> = { $: "USD", "£": "GBP", "€": "EUR", "¥": "CNY", "US$": "USD" };
 
 function str(v: unknown): string | null {
@@ -36,7 +39,11 @@ function parsePriceText(text: string | null): { price: number | null; currency: 
   return { price: null, currency: null };
 }
 
-/** All JSON-LD nodes on the page, flattening @graph arrays. */
+/**
+ * All JSON-LD nodes on the page, flattening `@graph`, a `ProductGroup`'s
+ * `hasVariant` (LG lists every size of a series this way, 2026-10-12) and a
+ * WebPage's `mainEntity`, so a Product nested in any of them is found.
+ */
 export function parseJsonLd($: CheerioAPI): Node[] {
   const nodes: Node[] = [];
   const push = (v: unknown) => {
@@ -45,6 +52,8 @@ export function parseJsonLd($: CheerioAPI): Node[] {
       const n = v as Node;
       nodes.push(n);
       if (Array.isArray(n["@graph"])) n["@graph"].forEach(push);
+      if (Array.isArray(n.hasVariant)) n.hasVariant.forEach(push);
+      if (n.mainEntity && typeof n.mainEntity === "object") push(n.mainEntity);
     }
   };
   $("script[type='application/ld+json']").each((_, el) => {
@@ -68,10 +77,53 @@ function isType(n: Node, type: string): boolean {
   return t === type || (Array.isArray(t) && t.includes(type));
 }
 
-function firstOffer(product: Node): Node | null {
+/** Same product page: same host and path, ignoring scheme, "www.", query, hash and a trailing slash. */
+export function sameProductUrl(a: string | null | undefined, b: string | null | undefined, base?: string): boolean {
+  const key = (raw: string | null | undefined): string | null => {
+    if (!raw) return null;
+    try {
+      const u = new URL(raw, base);
+      return `${u.hostname.toLowerCase().replace(/^www\./, "")}${u.pathname.replace(/\/+$/, "").toLowerCase()}`;
+    } catch {
+      return null;
+    }
+  };
+  const ka = key(a);
+  const kb = key(b);
+  return ka != null && kb != null && ka === kb;
+}
+
+function offerList(product: Node): Node[] {
+  const offers = product.offers;
+  if (!offers || typeof offers !== "object") return [];
+  return (Array.isArray(offers) ? offers : [offers]).filter((o): o is Node => !!o && typeof o === "object");
+}
+
+/**
+ * The Product node for THIS page. A store that lists every variant's schema
+ * on one page (LG: 43", 50", 85" each as a Product with its own offer URL)
+ * made the first node win, and an 85-inch price was quoted for the 43-inch
+ * link (2026-10-12). A node whose url, @id or offer url is the page wins;
+ * otherwise the first product, as before.
+ */
+export function pickProductNode(nodes: Node[], pageUrl?: string): { product: Node | null; urlMatched: boolean } {
+  const products = nodes.filter((n) => isType(n, "Product") || isType(n, "IndividualProduct"));
+  if (pageUrl) {
+    const matched = products.find((p) =>
+      sameProductUrl(str(p.url), pageUrl, pageUrl)
+      || sameProductUrl(str(p["@id"]), pageUrl, pageUrl)
+      || offerList(p).some((o) => sameProductUrl(str(o.url), pageUrl, pageUrl)),
+    );
+    if (matched) return { product: matched, urlMatched: true };
+  }
+  return { product: products[0] ?? null, urlMatched: false };
+}
+
+function firstOffer(product: Node, pageUrl?: string): Node | null {
   const offers = product.offers;
   if (!offers || typeof offers !== "object") return null;
-  const node = (Array.isArray(offers) ? offers[0] : offers) as Node | undefined;
+  const list = offerList(product);
+  const node = (pageUrl ? list.find((o) => sameProductUrl(str(o.url), pageUrl, pageUrl)) : undefined) ?? list[0];
   if (!node) return null;
   // AggregateOffer nests offers again
   if (isType(node, "AggregateOffer") && node.offers) {
@@ -82,9 +134,13 @@ function firstOffer(product: Node): Node | null {
   return node;
 }
 
-/** Product schema.org → partial product. */
-export function extractFromJsonLd(nodes: Node[]): PartialProduct {
-  const product = nodes.find((n) => isType(n, "Product") || isType(n, "IndividualProduct")) ?? null;
+/**
+ * Product schema.org → partial product. With `pageUrl`, the node and offer
+ * that belong to this page are preferred, and `metadata.offerUrlMatched`
+ * records that the price is the page's own offer for this URL.
+ */
+export function extractFromJsonLd(nodes: Node[], pageUrl?: string): PartialProduct {
+  const { product, urlMatched } = pickProductNode(nodes, pageUrl);
   if (!product) return {};
 
   const out: PartialProduct = {};
@@ -106,7 +162,7 @@ export function extractFromJsonLd(nodes: Node[]): PartialProduct {
   const brand = product.brand;
   out.brand = typeof brand === "string" ? brand : str((brand as Node | undefined)?.name);
 
-  const offer = firstOffer(product);
+  const offer = firstOffer(product, pageUrl);
   if (offer) {
     let current = num(offer.price ?? offer.lowPrice);
     let original: number | null = null;
@@ -126,6 +182,7 @@ export function extractFromJsonLd(nodes: Node[]): PartialProduct {
     const sale = salePrice(current, original);
     out.price = sale.price;
     if (sale.listPrice != null) out.metadata = { ...(out.metadata ?? {}), listPrice: sale.listPrice };
+    if (urlMatched && sale.price != null) out.metadata = { ...(out.metadata ?? {}), offerUrlMatched: true, priceSource: "page-offer" };
     const condition = parseSchemaCondition(offer.itemCondition);
     if (condition) out.condition = condition;
     const availability = parseSchemaAvailability(offer.availability);
@@ -240,7 +297,7 @@ export const structuredDataResolver: ExtractionResolver = {
     if (!page) return { product: {} };
     try {
       const $ = cheerio.load(page.html);
-      const ld = extractFromJsonLd(parseJsonLd($));
+      const ld = extractFromJsonLd(parseJsonLd($), ctx.url);
       const og = extractFromMeta($);
       // JSON-LD outranks OG; OG fills gaps.
       const product: PartialProduct = { ...og, ...Object.fromEntries(Object.entries(ld).filter(([, v]) => v != null && !(Array.isArray(v) && v.length === 0))) };
@@ -248,6 +305,12 @@ export const structuredDataResolver: ExtractionResolver = {
       const confidence: ResolverResult["confidence"] = {};
       for (const k of Object.keys(product) as (keyof PartialProduct)[]) {
         if (ld[k] == null && og[k] != null) confidence[k] = 0.7;
+      }
+      // The page's own offer for this URL is the store's word on the price: it
+      // outranks a vendor's AI read of the same page (Zyte, 0.85).
+      if (ld.metadata?.offerUrlMatched && ld.price != null) {
+        confidence.price = PAGE_OFFER_CONFIDENCE;
+        if (ld.currency) confidence.currency = PAGE_OFFER_CONFIDENCE;
       }
       return { product, confidence };
     } catch (err) {

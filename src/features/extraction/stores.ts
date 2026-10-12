@@ -46,7 +46,14 @@ export const GENERIC_STORE_SLUG = "generic";
 
 /** Plans shared by several stores. */
 const AMAZON_PLAN: ProviderPlanEntry[] = ["scraperapi", "oxylabs", "zyte", "rainforest", "category-map", "platform-html", "structured-data", "llm"];
-const GENERIC_PLAN: ProviderPlanEntry[] = ["zyte", "category-map", "structured-data", "llm"];
+/**
+ * Stores without their own scraper. Zyte's AI product read starts first; the
+ * page's own JSON-LD/OpenGraph is read in parallel (hedged 2 s behind, through
+ * the store's page sources) and its offer for this URL outranks the AI price
+ * (chain.ts `awaitingPriceCheck`). Zyte hands its page over when it lands, so
+ * the parallel read usually costs no second fetch.
+ */
+const GENERIC_PLAN: ProviderPlanEntry[] = ["zyte", { name: "structured-data", startAfterMs: 2_000 }, "category-map", "llm"];
 /**
  * Page sources for every store without its own scraper. ScraperAPI's
  * residential fetch first (2-9 s, 10 credits on the paid plan since
