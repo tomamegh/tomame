@@ -15,6 +15,7 @@ import { oxylabsResolver } from "./oxylabs.resolver";
 import { zyteResolver } from "./zyte.resolver";
 import { categoryResolver } from "./category.resolver";
 import type { ChainOutcome, ExtractionResolver, HtmlFetch, ResolveContext } from "./types";
+import { WEIGHT_NOT_LISTED_MESSAGE } from "./messages";
 
 /** Every resolver, by name. A store's `providers` list picks and orders them. */
 export const RESOLVERS: Record<ExtractionSource, ExtractionResolver> = {
@@ -296,7 +297,7 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     else if (state.product.price == null) messages.push("Price could not be read from the page. Enter it below and our team will verify it.");
   }
   if (hasRequiredFields(state.product) && !hasWeight(state.product) && skipped.length === 0) {
-    messages.push("Weight not listed by the store. Shipping will be confirmed when we receive your item.");
+    messages.push(WEIGHT_NOT_LISTED_MESSAGE);
   }
 
   const primarySource = state.sources.title ?? (ran[0] ?? null);

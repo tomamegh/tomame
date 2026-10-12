@@ -2,6 +2,8 @@ import { loadPricingCalculator } from "@/features/pricing/services/pricing.servi
 import { logger } from "@/lib/logger";
 import { REGION_TO_PRICING } from "@/features/extraction/url";
 import { storeShippingCurrencyOf } from "./store-shipping";
+import { estimateWeightLbs } from "@/lib/pricing/weight-estimate";
+import { WEIGHT_NOT_LISTED_MESSAGE } from "./resolvers/messages";
 import type { FxOverride, PricingBreakdown, PricingCalculator } from "@/lib/pricing";
 import { freightCorrectionPatch } from "@/features/pricing/freight-inspection";
 import { reviveRegion } from "./region-revive";
@@ -68,13 +70,21 @@ export async function priceExtractionWith(
     ? freightCorrectionPatch(extraction.freight_inspection, product, calculator.activeFixedFreightItems.map((i) => i.id))
     : null;
 
+  // No listed weight: a size-based estimate (a TV's screen diagonal) beats the
+  // category default. The inspector's own weight, when it gave one, overrides
+  // it through `correction` below; both are labelled "estimated".
+  const estimate = product.weight_lbs == null
+    ? estimateWeightLbs({ title: product.title, category: correction?.category ?? product.category })
+    : null;
+
   try {
     const pricing = await calculator.calculate({
       itemPrice: price,
       itemCurrency: currency,
       quantity,
       category: product.category ?? null,
-      weightLbs: product.weight_lbs ?? undefined,
+      weightLbs: product.weight_lbs ?? estimate?.lbs ?? undefined,
+      weightEstimated: product.weight_lbs == null && estimate != null,
       productTitle: product.title ?? undefined,
       region: REGION_TO_PRICING[country],
       // The store's own shipping to our warehouse, from the server snapshot.
@@ -117,11 +127,33 @@ export function customerExtraction<T extends ExtractionResult>(extraction: T): O
   return copy;
 }
 
+/**
+ * The customer's notes, reconciled with the price they are looking at. The
+ * chain writes "weight not listed" the moment it finds none; by the time the
+ * quote renders, the inspector or a size estimate may have supplied one, and a
+ * confident "85 lb" next to "weight not listed" reads as a contradiction
+ * (2026-10-12). So the weight note is re-derived from the breakdown: estimated
+ * says so and promises the hub's scale; a category placeholder keeps the
+ * original warning; a listed weight needs no note; a flat-rate group never
+ * charged by weight, so the note is dropped.
+ */
+export function customerMessages(messages: readonly string[], pricing: PricingBreakdown | null): string[] {
+  const rest = messages.filter((m) => m !== WEIGHT_NOT_LISTED_MESSAGE);
+  if (!pricing) return messages.includes(WEIGHT_NOT_LISTED_MESSAGE) ? [...rest, WEIGHT_NOT_LISTED_MESSAGE] : rest;
+  if (pricing.pricing_method !== "weight_expression") return rest;
+  if (pricing.weight_source === "estimated" && pricing.weight_lbs != null) {
+    return [...rest, `Weight estimated at ${pricing.weight_lbs} lb from the product details. We confirm it on the scale when your item reaches our hub.`];
+  }
+  if (pricing.weight_source === "default") return [...rest, WEIGHT_NOT_LISTED_MESSAGE];
+  return rest;
+}
+
 /** A live-rate quote with no lock. The customer-facing routes use `quoteForViewer` instead. */
 export async function buildQuote(
   extraction: ExtractionResult & { extraction_cache_id: string | null },
   quantity = 1,
 ): Promise<Quote> {
   const { pricing, reason } = await priceExtraction(extraction, quantity, null, null);
-  return { ...customerExtraction(extraction), pricing, pricing_unavailable_reason: reason };
+  const customer = customerExtraction(extraction);
+  return { ...customer, messages: customerMessages(customer.messages, pricing), pricing, pricing_unavailable_reason: reason };
 }

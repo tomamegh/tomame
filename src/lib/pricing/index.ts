@@ -6,4 +6,6 @@ export type { PricingInput, PricingBreakdown, PricingConstants, PricingMethod, P
 export { REQUIRED_PRICING_CONSTANT_KEYS, collectMissingConstants } from "./required-constants";
 export type { RequiredPricingConstantKey } from "./required-constants";
 export { matchFixedFreightItem, fixedFreightCategoryAllows } from "./fixed-freight-match";
+export { estimateWeightLbs, screenDiagonalInches } from "./weight-estimate";
+export type { WeightEstimate } from "./weight-estimate";
 export type { FixedFreightMatch } from "./fixed-freight-match";

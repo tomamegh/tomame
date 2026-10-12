@@ -10,6 +10,7 @@ import { storeForUrl, type StoreDefinition } from "./stores";
 import { resolveProduct, continueResolve, type ChainOutcome } from "./resolvers";
 import { hasRequiredFields, hasWeight } from "./resolvers/merge";
 import { classifyCategory } from "./category.service";
+import { FREIGHT_INSPECTOR } from "@/config/freight-inspector";
 import { inspectFreight } from "@/features/pricing/services/freight-inspector.service";
 import type { FreightInspection } from "@/features/pricing/freight-inspection";
 import { hashUrl, inferRegion, isShortUrl, parseUrl, regionForUrl, resolveShortUrl, usEbayItemUrl, type Region } from "./url";
@@ -196,9 +197,9 @@ function toResult(prepared: PreparedUrl, outcome: ChainOutcome, sourcesRan: Chai
  * and attach its verdict. Never throws: the inspector fails open itself, and
  * anything that escapes it just means this product prices deterministically.
  */
-async function withFreightInspection(result: ExtractionResult, url: string): Promise<ExtractionResult> {
+async function withFreightInspection(result: ExtractionResult, url: string, timeoutMs?: number): Promise<ExtractionResult> {
   try {
-    const inspection = await inspectFreight(result, { url });
+    const inspection = await inspectFreight(result, { url, timeoutMs });
     return inspection ? { ...result, freight_inspection: inspection } : result;
   } catch (err) {
     logger.warn("extraction: freight inspection threw", { url, error: err instanceof Error ? err.message : String(err) });
@@ -211,14 +212,21 @@ function sameFreightFacts(a: ExtractionResult["product"], b: ExtractionResult["p
   return a.title === b.title && a.category === b.category && a.weight_lbs === b.weight_lbs && a.price === b.price && a.currency === b.currency;
 }
 
+/** A verdict the model never gave: a timeout or an error. Worth one more try off the request path. */
+function inspectionNeedsRetry(inspection: FreightInspection | undefined): boolean {
+  return inspection?.status === "skipped" || inspection?.status === "failed";
+}
+
 async function reinspectAfterEnrichment(
   previous: FreightInspection | undefined,
   before: ExtractionResult["product"],
   updated: ExtractionResult,
   url: string,
 ): Promise<ExtractionResult> {
-  if (previous && sameFreightFacts(before, updated.product)) return { ...updated, freight_inspection: previous };
-  return withFreightInspection(updated, url);
+  if (previous && !inspectionNeedsRetry(previous) && sameFreightFacts(before, updated.product)) {
+    return { ...updated, freight_inspection: previous };
+  }
+  return withFreightInspection(updated, url, FREIGHT_INSPECTOR.retryTimeoutMs);
 }
 
 /**
@@ -293,8 +301,19 @@ async function performExtraction(prepared: PreparedUrl, userId: string | null): 
     expiresAt,
   });
 
+  const needsEnrichment = complete && outcome.skipped.length > 0 && !hasWeight(outcome.product) && (await weightMattersFor(outcome.product.category));
+  // Nothing left to scrape, but the inspector never answered: re-run it alone
+  // with the longer deadline and store its verdict on the same row.
+  const reinspectOnly = complete && !needsEnrichment && inspectionNeedsRetry(result.freight_inspection)
+    ? async () => {
+        const updated = await withFreightInspection(result, canonicalUrl, FREIGHT_INSPECTOR.retryTimeoutMs);
+        if (updated.freight_inspection === result.freight_inspection) return;
+        await upsertExtractionCache({ urlHash, productUrl: canonicalUrl, result: updated, complete: true, source: outcome.primarySource, requestedBy: userId, expiresAt });
+      }
+    : undefined;
+
   const enrich =
-    complete && outcome.skipped.length > 0 && !hasWeight(outcome.product) && (await weightMattersFor(outcome.product.category))
+    needsEnrichment
       ? async () => {
           const t0 = Date.now();
           const enriched = await continueResolve(chainInput, outcome);
@@ -317,7 +336,7 @@ async function performExtraction(prepared: PreparedUrl, userId: string | null): 
             expiresAt,
           });
         }
-      : undefined;
+      : reinspectOnly;
 
   return { ...result, extraction_cache_id: cacheId, cached: false, enrich };
 }

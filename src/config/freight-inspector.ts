@@ -10,6 +10,12 @@ export const FREIGHT_INSPECTOR = {
   /** Hard deadline on the model call. On timeout the product prices deterministically. */
   timeoutMs: 3_500,
   /**
+   * The background retry's deadline. A timed-out or failed inspection used to
+   * stand forever; the enrichment pass now re-runs it off the request path,
+   * where a slow answer costs the customer nothing.
+   */
+  retryTimeoutMs: 10_000,
+  /**
    * Only a decision with a risk signal costs a model call (see `riskSignals`).
    * Freight above this multiple of the item's GHS value is one of them.
    */

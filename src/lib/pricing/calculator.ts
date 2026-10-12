@@ -37,6 +37,12 @@ export interface PricingInput {
   category?: string | null;
   weightLbs?: number | null;
   /**
+   * `weightLbs` is an estimate (the freight inspector's, or a size-based one),
+   * not a weight the store listed. Labelled "estimated" on the breakdown so
+   * the customer is told the hub will confirm it.
+   */
+  weightEstimated?: boolean;
+  /**
    * Used to match pre-negotiated fixed-freight items: whole-word keywords, gated
    * by `category` (see `src/config/fixed-freight-categories.ts`), skipping
    * accessories ("laptop stand", "case for iPhone 15").
@@ -129,7 +135,7 @@ export interface PricingBreakdown {
   freight_rate_per_lb?: number;
   handling_fee_usd?: number;
   weight_lbs?: number;
-  weight_source?: "listed" | "default" | "minimum";
+  weight_source?: "listed" | "estimated" | "default" | "minimum";
   fixed_freight_item?: string;
   /** Id of the `fixed_freight_items` row behind `fixed_freight_item`. */
   fixed_freight_item_id?: string;
@@ -471,7 +477,7 @@ export class PricingCalculator {
 
       if (input.weightLbs != null && input.weightLbs > 0) {
         weight = input.weightLbs;
-        weightSource = "listed";
+        weightSource = input.weightEstimated ? "estimated" : "listed";
         if (weight < minWeight) {
           weight = minWeight;
           weightSource = "minimum";
@@ -492,7 +498,7 @@ export class PricingCalculator {
       // Weight is per item, so freight scales with quantity; handling is once per line.
       const chargeableLbs = r2(weight * quantity);
       const freightUsd = r2(chargeableLbs * ratePerLb + handlingUsd);
-      const sourceNote = weightSource === "listed" ? "" : ` (${weightSource})`;
+      const sourceNote = weightSource === "listed" ? "" : weightSource === "default" ? " (typical for the category)" : ` (${weightSource})`;
       const qtyNote = quantity > 1 ? ` × ${quantity}` : "";
       return finish(
         "weight_expression",

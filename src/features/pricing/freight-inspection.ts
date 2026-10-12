@@ -78,13 +78,17 @@ export function freightCorrectionPatch(
   inspection: FreightInspection | null | undefined,
   facts: FreightFacts,
   activeFixedItemIds: readonly string[],
-): Pick<PricingInput, "category" | "weightLbs" | "fixedFreightItemId"> | null {
+): Pick<PricingInput, "category" | "weightLbs" | "weightEstimated" | "fixedFreightItemId"> | null {
   if (!inspection || inspection.status !== "corrected") return null;
   if (inspection.input_key !== freightInspectionKey(facts, activeFixedItemIds)) return null;
   const c = inspection.corrections ?? {};
-  const patch: Pick<PricingInput, "category" | "weightLbs" | "fixedFreightItemId"> = {};
+  const patch: Pick<PricingInput, "category" | "weightLbs" | "weightEstimated" | "fixedFreightItemId"> = {};
   if (typeof c.category === "string") patch.category = c.category;
-  if (typeof c.weight_lbs === "number" && Number.isFinite(c.weight_lbs) && c.weight_lbs > 0) patch.weightLbs = c.weight_lbs;
+  // The inspector's weight is its estimate, never a listed weight: labelled so.
+  if (typeof c.weight_lbs === "number" && Number.isFinite(c.weight_lbs) && c.weight_lbs > 0) {
+    patch.weightLbs = c.weight_lbs;
+    patch.weightEstimated = true;
+  }
   if (c.fixed_freight_item_id === null || typeof c.fixed_freight_item_id === "string") {
     // A named item that has since been deactivated falls back to keyword matching.
     if (c.fixed_freight_item_id === null || activeFixedItemIds.includes(c.fixed_freight_item_id)) {

@@ -52,6 +52,10 @@ const SYSTEM =
   "or a pre-negotiated fixed-freight item (e.g. a laptop or phone). Mistakes to catch: a fixed-freight item for a product " +
   "that is not that item (a hoodie priced as a gaming laptop, an accessory priced as the device), a clearly wrong category, " +
   "and a missing or implausible weight (unit mix-ups: ounces or grams read as pounds, a bare number with no unit). " +
+  "When the store listed no weight, the calculator falls back to a category placeholder or a size-based estimate; the weight " +
+  "source line says which. A placeholder is not evidence: if it is clearly off for this specific item (a 65-inch TV at 15 lb, " +
+  "a treadmill at 10 lb), answer \"correct\" with your best estimate of the BOXED shipping weight of one unit in weight_lbs. " +
+  "A size-based estimate is usually close; correct it only when you are confident it is wrong by a wide margin. " +
   'If the decision is reasonable, answer verdict "ok" with every correction null. Otherwise answer "correct" and set only the ' +
   "fields that must change. You never set prices. Be conservative: correct only obvious mistakes.";
 
@@ -70,6 +74,16 @@ export interface InspectFreightOptions {
   calculator?: PricingCalculator;
   /** Override of `FREIGHT_INSPECTOR.timeoutMs` (tests). */
   timeoutMs?: number;
+}
+
+function weightSourceLabel(source: PricingBreakdown["weight_source"]): string {
+  switch (source) {
+    case "listed": return "listed by the store";
+    case "minimum": return "listed by the store, raised to the minimum chargeable weight";
+    case "estimated": return "estimated from the product's size in the title (no weight listed)";
+    case "default": return "the category's placeholder weight (no weight listed; not evidence)";
+    default: return "unknown";
+  }
 }
 
 function decisionOf(p: PricingBreakdown): FreightDecision {
@@ -179,6 +193,7 @@ export async function inspectFreight(extraction: ExtractionResult, opts: Inspect
       `- freight: GH₵${before.freight_ghs}`,
       `- fixed-freight item: ${before.fixed_freight_item ? `${currentFixed ?? "?"} ${before.fixed_freight_item}` : "none"}`,
       before.weight_lbs != null ? `- weight used: ${before.weight_lbs} lb` : "",
+      before.weight_lbs != null ? `- weight source: ${weightSourceLabel(beforePriced.pricing.weight_source)}` : "",
       beforePriced.pricing.review_reason ? `- could not price: ${beforePriced.pricing.review_reason}` : "",
       "",
       "Fixed-freight items (code | name | shelf | freight GH₵):",

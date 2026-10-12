@@ -92,6 +92,7 @@ const NAMED_STORES: Array<[slug: string, name: string, domains: string[], region
   ["skims", "SKIMS", ["skims.com"], "USA", "USD"],
   ["fentybeauty", "Fenty Beauty", ["fentybeauty.com"], "USA", "USD"],
   ["costco", "Costco", ["costco.com"], "USA", "USD"],
+  ["samsclub", "Sam's Club", ["samsclub.com"], "USA", "USD"],
   ["newegg", "Newegg", ["newegg.com"], "USA", "USD"],
   ["bhphoto", "B&H Photo", ["bhphotovideo.com"], "USA", "USD"],
   ["zappos", "Zappos", ["zappos.com"], "USA", "USD"],

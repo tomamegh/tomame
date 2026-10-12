@@ -159,7 +159,7 @@ describe("inspectFreight", () => {
     expect(inspection?.corrections).toEqual({ weight_lbs: 4.7 });
 
     const priced = await priceExtractionWith(calc, { ...MACBOOK, freight_inspection: inspection! }, 1, null, null);
-    expect(priced.pricing).toMatchObject({ pricing_method: "weight_expression", weight_lbs: 4.7, weight_source: "listed" });
+    expect(priced.pricing).toMatchObject({ pricing_method: "weight_expression", weight_lbs: 4.7, weight_source: "estimated" });
   });
 
   it("keeps a listed weight unless the model calls it implausible", async () => {
