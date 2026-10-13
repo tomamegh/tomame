@@ -270,6 +270,13 @@ variable "optional_third_party_secrets" {
                              Walmart and a second Amazon source (2–6 s).
       ZYTE_API_KEY         — Zyte API: AI product extraction for any other
                              store, plus browser-rendered HTML.
+      EBAY_CLIENT_ID /
+      EBAY_CLIENT_SECRET   — eBay developer keyset: Browse API (listing, price,
+                             shipping options to the hub) and the Notification
+                             API's signing keys.
+      EBAY_ENV             — "production" (default) or "sandbox".
+      EBAY_VERIFY_TOKEN    — shared secret for eBay's account-deletion
+                             challenge (32–80 chars of A-Z a-z 0-9 _ -).
 
     Kept separate from third_party_secrets so the distinction is visible. A key
     missing from that map is an outage; a key missing from this one is a
@@ -290,8 +297,12 @@ variable "optional_third_party_secrets" {
       "OXYLABS_USERNAME",
       "OXYLABS_PASSWORD",
       "ZYTE_API_KEY",
+      "EBAY_CLIENT_ID",
+      "EBAY_CLIENT_SECRET",
+      "EBAY_ENV",
+      "EBAY_VERIFY_TOKEN",
     ])) == 0
-    error_message = "optional_third_party_secrets accepts only SCRAPERAPI_API_KEY, RAINFOREST_API_KEY, APIFY_API_TOKEN, FREECURRENCY_API_KEY, OXYLABS_USERNAME, OXYLABS_PASSWORD and ZYTE_API_KEY. Anything else the app cannot run without belongs in third_party_secrets."
+    error_message = "optional_third_party_secrets accepts only SCRAPERAPI_API_KEY, RAINFOREST_API_KEY, APIFY_API_TOKEN, FREECURRENCY_API_KEY, OXYLABS_USERNAME, OXYLABS_PASSWORD, ZYTE_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV and EBAY_VERIFY_TOKEN. Anything else the app cannot run without belongs in third_party_secrets."
   }
 }
 

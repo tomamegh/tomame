@@ -51,6 +51,19 @@ export const env = {
     zyteApiKey: optional("ZYTE_API_KEY"),
   },
   /**
+   * eBay developer keyset (Browse API: listing, price, shipping options to the
+   * hub; Notification API: signing keys). Optional: the eBay tier is skipped
+   * without it. Getters, so a value set after boot (Vercel env) is read live.
+   */
+  ebay: {
+    get clientId() { return optional("EBAY_CLIENT_ID"); },
+    get clientSecret() { return optional("EBAY_CLIENT_SECRET"); },
+    /** "production" (default) or "sandbox"; the keyset must match. */
+    get environment() { return optional("EBAY_ENV"); },
+    /** Shared secret for the account-deletion challenge handshake. */
+    get verifyToken() { return optional("EBAY_VERIFY_TOKEN"); },
+  },
+  /**
    * Google Maps Geocoding, for "Use my current location" (088). Optional: the
    * admin can paste the key into `site_settings.google_maps_api_key` instead;
    * this env var wins when both are set. A getter, read at call time.
