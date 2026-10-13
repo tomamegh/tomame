@@ -65,7 +65,7 @@ export async function getOpsOverview(now: Date = new Date()): Promise<OpsOvervie
     degrade(readErrorHealth(now), null, "errors"),
   ]);
 
-  const jobs = mergeJobs(CRON_JOBS, heartbeats ?? [], schedule ?? [], now);
+  const jobs = mergeJobs(CRON_JOBS, heartbeats, schedule, now);
   const view: OpsOverview = {
     generatedAt: now.toISOString(),
     timeouts,
@@ -83,23 +83,27 @@ export async function getOpsOverview(now: Date = new Date()): Promise<OpsOvervie
   return view;
 }
 
-/** One line per registered job: what pg_cron says next to what the app recorded. */
+/**
+ * One line per registered job: what pg_cron says next to what the app recorded.
+ * A null list is a failed read, and the fields it drives come back null
+ * (unknown) rather than as "no row", which would read as "not scheduled".
+ */
 export function mergeJobs(
   specs: readonly CronJobSpec[],
-  heartbeats: JobHeartbeatRow[],
-  schedule: CronScheduleRow[],
+  heartbeats: JobHeartbeatRow[] | null,
+  schedule: CronScheduleRow[] | null,
   now: Date,
 ): JobHealth[] {
   return specs.map((spec) => {
-    const hb = heartbeats.find((h) => h.job === spec.job) ?? null;
-    const cron = schedule.find((s) => s.jobname === spec.job) ?? null;
+    const hb = heartbeats?.find((h) => h.job === spec.job) ?? null;
+    const cron = schedule?.find((s) => s.jobname === spec.job) ?? null;
     const lastSuccess = hb?.last_success_at ?? null;
     const minutesSinceSuccess = lastSuccess ? (now.getTime() - new Date(lastSuccess).getTime()) / 60_000 : null;
     const minutesSinceCron = cron?.last_start ? (now.getTime() - new Date(cron.last_start).getTime()) / 60_000 : null;
     return {
       ...spec,
-      scheduled: cron !== null,
-      active: cron?.active ?? false,
+      scheduled: schedule === null ? null : cron !== null,
+      active: schedule === null ? null : (cron?.active ?? false),
       liveSchedule: cron?.schedule ?? null,
       cronLastStart: cron?.last_start ?? null,
       cronLastStatus: cron?.last_status ?? null,
@@ -109,9 +113,10 @@ export function mergeJobs(
       lastDurationMs: hb?.last_duration_ms ?? null,
       consecutiveFailures: hb?.consecutive_failures ?? 0,
       lastSummary: hb?.last_summary ?? null,
-      stale: minutesSinceSuccess === null || minutesSinceSuccess > spec.staleAfterMinutes,
+      stale: heartbeats === null ? null : minutesSinceSuccess === null || minutesSinceSuccess > spec.staleAfterMinutes,
       /** pg_cron fired recently and the app never saw it: pg_net is not reaching the app. */
       unreached:
+        heartbeats === null ? null :
         minutesSinceCron !== null &&
         minutesSinceCron <= spec.staleAfterMinutes &&
         (hb === null || now.getTime() - new Date(hb.last_run_at).getTime() > spec.staleAfterMinutes * 60_000),

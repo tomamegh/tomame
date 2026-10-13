@@ -142,7 +142,9 @@ export function OpsOverviewView({ view }: { view: OpsOverview }) {
                   <td className={ADMIN_TD}>{ago(j.appLastRun, now)}{j.lastDurationMs !== null ? ` · ${(j.lastDurationMs / 1000).toFixed(1)}s` : ""}</td>
                   <td className={ADMIN_TD}>{ago(j.appLastSuccess, now)}</td>
                   <td className={ADMIN_TD}>
-                    {!j.scheduled ? (
+                    {j.scheduled === null || j.stale === null ? (
+                      <AdminBadge tone="amber">Unknown</AdminBadge>
+                    ) : !j.scheduled ? (
                       <AdminBadge tone="coral">Not scheduled</AdminBadge>
                     ) : !j.active ? (
                       <AdminBadge tone="coral">Off</AdminBadge>

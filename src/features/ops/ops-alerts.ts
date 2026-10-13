@@ -28,8 +28,9 @@ export interface OpsAlert {
 }
 
 export interface JobHealth extends CronJobSpec {
-  scheduled: boolean;
-  active: boolean;
+  /** null: `ops_cron_schedule()` could not be read, so pg_cron's view is unknown. */
+  scheduled: boolean | null;
+  active: boolean | null;
   liveSchedule: string | null;
   cronLastStart: string | null;
   cronLastStatus: string | null;
@@ -39,8 +40,9 @@ export interface JobHealth extends CronJobSpec {
   lastDurationMs: number | null;
   consecutiveFailures: number;
   lastSummary: Record<string, unknown> | null;
-  stale: boolean;
-  unreached: boolean;
+  /** null: `job_heartbeats` could not be read, so the app's view is unknown. */
+  stale: boolean | null;
+  unreached: boolean | null;
 }
 
 export interface OpsSnapshot {
@@ -94,12 +96,21 @@ export function deriveOpsAlerts(view: OpsSnapshot, now: Date): OpsAlert[] {
   }
 
   // ── Jobs ────────────────────────────────────────────────────────────────────
+  // A failed read is one alarm, not one per job: on 2026-10-13 a single failed
+  // ops_cron_schedule() call reported all ten jobs as unscheduled while every
+  // one of them was running. The checks below skip whatever was not read.
+  if (view.jobs.some((j) => j.scheduled === null)) {
+    alerts.push({ key: "cron-schedule-unreadable", level: "warning", title: "Cron schedule unreadable", detail: "ops_cron_schedule() failed, so whether each job is scheduled is unknown this run. The heartbeat checks still say whether jobs are running." });
+  }
+  if (view.jobs.some((j) => j.stale === null)) {
+    alerts.push({ key: "job-heartbeats-unreadable", level: "warning", title: "Job heartbeats unreadable", detail: "job_heartbeats could not be read, so whether each job is running is unknown this run." });
+  }
   for (const job of view.jobs) {
-    if (!job.scheduled) {
+    if (job.scheduled === false) {
       alerts.push({ key: `job-unscheduled:${job.job}`, level: "critical", title: `${job.label} is not scheduled`, detail: `pg_cron has no job named ${job.job}. Migration ${job.migration} has not been applied to this database.` });
       continue;
     }
-    if (!job.active) {
+    if (job.active === false) {
       alerts.push({ key: `job-off:${job.job}`, level: "critical", title: `${job.label} is switched off`, detail: `cron.job ${job.job} has active = false.` });
       continue;
     }

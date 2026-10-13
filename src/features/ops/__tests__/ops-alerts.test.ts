@@ -73,6 +73,22 @@ describe("deriveOpsAlerts", () => {
     expect(alerts[0]!.detail).toContain("Migration 059");
   });
 
+  it("raises one warning, not one per job, when the cron schedule could not be read", () => {
+    const jobs = [job({ scheduled: null, active: null }), job({ job: "ops-alerts", scheduled: null, active: null })];
+    const alerts = deriveOpsAlerts(snapshot({ jobs }), NOW);
+    expect(alerts).toEqual([expect.objectContaining({ key: "cron-schedule-unreadable", level: "warning" })]);
+  });
+
+  it("still reports a stale job when only the cron schedule is unreadable", () => {
+    const alerts = deriveOpsAlerts(snapshot({ jobs: [job({ scheduled: null, active: null, stale: true, appLastSuccess: iso(90) })] }), NOW);
+    expect(alerts.map((a) => a.key)).toEqual(["job-stale:reconcile-payments", "cron-schedule-unreadable"]);
+  });
+
+  it("raises one warning when heartbeats could not be read, and no stale alarms", () => {
+    const jobs = [job({ stale: null, unreached: null, appLastSuccess: null, appLastRun: null }), job({ job: "ops-alerts", stale: null, unreached: null })];
+    expect(deriveOpsAlerts(snapshot({ jobs }), NOW)).toEqual([expect.objectContaining({ key: "job-heartbeats-unreadable", level: "warning" })]);
+  });
+
   it("is only a warning when a job has never run yet, and critical once it has gone quiet", () => {
     expect(deriveOpsAlerts(snapshot({ jobs: [job({ stale: true, appLastSuccess: null, appLastRun: null, cronLastStart: null })] }), NOW)[0]!.level).toBe("warning");
     expect(deriveOpsAlerts(snapshot({ jobs: [job({ stale: true, appLastSuccess: iso(90), cronLastStart: null })] }), NOW)[0]!.level).toBe("critical");

@@ -132,7 +132,7 @@ export function buildDailySummary(input: DailySummaryInput): DailySummary {
   }
 
   const stale = input.jobs.filter((j) => j.scheduled && j.stale && j.appLastSuccess !== null).map((j) => j.label);
-  const failing = input.jobs.filter((j) => j.consecutiveFailures > 0 || j.unreached || !j.scheduled).map((j) => j.label);
+  const failing = input.jobs.filter((j) => j.consecutiveFailures > 0 || j.unreached || j.scheduled === false).map((j) => j.label);
   const unhealthy = new Set([...stale, ...failing]);
 
   const attention = input.alerts
