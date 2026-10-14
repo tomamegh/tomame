@@ -14,12 +14,14 @@ import { scraperApiResolver } from "./scraperapi.resolver";
 import { oxylabsResolver } from "./oxylabs.resolver";
 import { zyteResolver } from "./zyte.resolver";
 import { categoryResolver } from "./category.resolver";
+import { ebayResolver } from "./ebay.resolver";
 import type { ChainOutcome, ExtractionResolver, HtmlFetch, ResolveContext } from "./types";
 import { WEIGHT_NOT_LISTED_MESSAGE } from "./messages";
 import { PAGE_OFFER_CONFIDENCE } from "./structured-data.resolver";
 
 /** Every resolver, by name. A store's `providers` list picks and orders them. */
 export const RESOLVERS: Record<ExtractionSource, ExtractionResolver> = {
+  ebay: ebayResolver,
   scraperapi: scraperApiResolver,
   oxylabs: oxylabsResolver,
   zyte: zyteResolver,
@@ -33,6 +35,7 @@ export const RESOLVERS: Record<ExtractionSource, ExtractionResolver> = {
 
 /** Cheapest → costliest, when no store plan applies. */
 export const DEFAULT_RESOLVERS: ExtractionResolver[] = [
+  ebayResolver,
   scraperApiResolver,
   oxylabsResolver,
   zyteResolver,

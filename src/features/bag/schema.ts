@@ -20,6 +20,8 @@ export const addToBagSchema = z
     special_instructions: z.string().trim().max(1000).optional(),
     estimated_price_usd: z.number().positive().max(1_000_000).optional(),
     origin_country: z.enum(["USA", "UK", "CHINA"]).optional(),
+    /** The store shipping service chosen on the quote, by the snapshot's own code. Null = cheapest. */
+    store_shipping_code: z.string().trim().min(1).max(80).nullable().optional(),
   })
   .refine((v) => !!v.extraction_cache_id !== !!v.extraction_request_id, {
     message: "Name either a quote or a pasted link",
@@ -30,8 +32,9 @@ export const updateBagLineSchema = z
   .object({
     quantity: z.number().int().min(1).max(100).optional(),
     special_instructions: z.string().trim().max(1000).nullable().optional(),
+    store_shipping_code: z.string().trim().min(1).max(80).nullable().optional(),
   })
-  .refine((v) => v.quantity != null || v.special_instructions !== undefined, { message: "Nothing to update" });
+  .refine((v) => v.quantity != null || v.special_instructions !== undefined || v.store_shipping_code !== undefined, { message: "Nothing to update" });
 export type UpdateBagLineInput = z.infer<typeof updateBagLineSchema>;
 
 export const bagLineIdSchema = z.uuid("Unknown bag line");

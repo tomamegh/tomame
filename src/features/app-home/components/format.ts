@@ -264,7 +264,8 @@ export function buildReceiptRows(pricing: PricingBreakdown): ReceiptRow[] {
     rows.push({
       key: "shipping",
       icon: "shipping",
-      label: "Store shipping",
+      // Named after the service the customer chose (eBay: "USPS Ground Advantage").
+      label: pricing.store_shipping_option?.label ? `Store shipping · ${pricing.store_shipping_option.label}` : "Store shipping",
       value: formatUsd(storeShippingUsd),
     });
   }

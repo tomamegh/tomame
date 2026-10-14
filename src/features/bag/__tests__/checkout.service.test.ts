@@ -37,7 +37,7 @@ const pricing = (total_ghs: number): PricingBreakdown =>
 const line = (id: string, total_ghs: number, over: Partial<BagLine> = {}): BagLine => ({
   id, extraction_cache_id: `cache-${id}`, pending: null, quantity: 1, special_instructions: null,
   product: { title: `Item ${id}`, image: "https://x/1.jpg", url: `https://www.amazon.com/dp/${id}`, store: "Amazon", variant: null, weight_lbs: 1, country: "USA" },
-  pricing: pricing(total_ghs), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null, sourced_price_usd: null, sourcing: null, ...over,
+  pricing: pricing(total_ghs), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null, sourced_price_usd: null, store_shipping_code: null, sourcing: null, ...over,
 });
 
 const bag = (over: Partial<BagView> = {}): BagView => ({

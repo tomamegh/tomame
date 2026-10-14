@@ -1,7 +1,7 @@
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { getExtractionSnapshot } from "@/features/extraction/extraction.service";
-import { gapFillOverrides, priceExtractionWith } from "@/features/extraction/quote.service";
+import { gapFillOverrides, priceExtractionWith, type PriceOverrides } from "@/features/extraction/quote.service";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
 import { hashUrl, regionForUrl } from "@/features/extraction/url";
@@ -182,10 +182,14 @@ export async function buildOrderIntake(
 
   // `gapFillOverrides` would drop a buyer's price whenever the snapshot has one
   // of its own, which is exactly the case it exists for; built directly here.
-  const overrides =
+  const priceOverrides: PriceOverrides | null =
     sourcedPriceUsd != null && sourcedPriceUsd > 0
       ? { itemPriceUsd: sourcedPriceUsd }
       : gapFillOverrides(pricingBase, priceOverrideUsd);
+  // The chosen store shipping service: a code the snapshot must offer.
+  const overrides: PriceOverrides | null = input.store_shipping_code
+    ? { ...(priceOverrides ?? {}), storeShippingCode: input.store_shipping_code }
+    : priceOverrides;
   const calculator = await loadPricingCalculator();
   const live = await priceExtractionWith(calculator, pricingBase, input.quantity, overrides, null);
   if (!live.pricing) {
@@ -203,7 +207,7 @@ export async function buildOrderIntake(
       const lock = await resolveLockForOrder(viewer, snapshot.id);
       if (lock) {
         // A lock quoted without store shipping keeps it out (see extractionUnderLock).
-        const underLock = extractionUnderLock(pricingBase, lock);
+        const underLock = extractionUnderLock(pricingBase, lock, overrides);
         const liveUnderLock = underLock === pricingBase
           ? live.pricing
           : (await priceExtractionWith(calculator, underLock, input.quantity, overrides, null)).pricing;

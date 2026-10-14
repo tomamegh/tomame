@@ -73,6 +73,8 @@ export interface BagLine {
    * ORDER is struck on the same number the bag showed.
    */
   sourced_price_usd: number | null;
+  /** The store shipping service the customer chose on the quote; null = the cheapest offered. */
+  store_shipping_code: string | null;
   /** Non-null when a buyer is (or was) answering this line by hand. */
   sourcing: BagLineSourcing | null;
 }

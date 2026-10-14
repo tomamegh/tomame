@@ -8,7 +8,7 @@ import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
 // so reaching for its wrapper would close an import cycle.
 import { getSourcingByCartItems } from "@/db/queries/price-watches";
 import { getExtractionSnapshot } from "@/features/extraction/extraction.service";
-import { gapFillOverrides } from "@/features/extraction/quote.service";
+import { type PriceOverrides, gapFillOverrides } from "@/features/extraction/quote.service";
 import { isPayablePricing } from "@/lib/pricing/payable";
 import { applyRateLock } from "@/features/quotes/services/quote-lock.service";
 import { pickProductColour } from "@/features/quotes/components/format";
@@ -109,10 +109,12 @@ export async function addToBag(viewer: Viewer, input: AddToBagInput): Promise<Ad
   // The buyer's price carries over from the existing line: re-adding an item a
   // buyer already answered must not silently fall back to the snapshot's figure.
   const sourcedPrice = existing?.sourced_price_usd ?? null;
-  const priced = await priceSnapshot(viewer, snapshot.result, input.extraction_cache_id!, quantity, gapPrice, gapCountry, sourcedPrice);
+  // A choice made on this add wins; otherwise the line keeps the one it had.
+  const shippingCode = input.store_shipping_code === undefined ? existing?.store_shipping_code ?? null : input.store_shipping_code;
+  const priced = await priceSnapshot(viewer, snapshot.result, input.extraction_cache_id!, quantity, gapPrice, gapCountry, sourcedPrice, shippingCode);
 
   const row = existing
-    ? await updateLineRow(existing.id, { quantity, special_instructions: note, gap_price_usd: gapPrice, gap_origin_country: gapCountry, pricing: priced.pricing, quote_lock_id: priced.pricing?.rate_lock_id ?? existing.quote_lock_id })
+    ? await updateLineRow(existing.id, { quantity, special_instructions: note, gap_price_usd: gapPrice, gap_origin_country: gapCountry, store_shipping_code: shippingCode, pricing: priced.pricing, quote_lock_id: priced.pricing?.rate_lock_id ?? existing.quote_lock_id })
     : await insertCartItem({
         cart_id: cart.id,
         extraction_cache_id: input.extraction_cache_id!,
@@ -121,6 +123,7 @@ export async function addToBag(viewer: Viewer, input: AddToBagInput): Promise<Ad
         special_instructions: note,
         gap_price_usd: gapPrice,
         gap_origin_country: gapCountry,
+        store_shipping_code: shippingCode,
         pricing: priced.pricing,
         quote_lock_id: priced.pricing?.rate_lock_id ?? null,
       });
@@ -206,8 +209,9 @@ export async function updateBagLine(viewer: Viewer, lineId: string, input: Updat
 
   const quantity = input.quantity ?? row.quantity;
   const note = input.special_instructions === undefined ? row.special_instructions : input.special_instructions;
-  const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, quantity, row.gap_price_usd, row.gap_origin_country, row.sourced_price_usd);
-  const updated = await updateLineRow(row.id, { quantity, special_instructions: note, pricing: priced.pricing, quote_lock_id: priced.pricing?.rate_lock_id ?? row.quote_lock_id });
+  const shippingCode = input.store_shipping_code === undefined ? row.store_shipping_code : input.store_shipping_code;
+  const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, quantity, row.gap_price_usd, row.gap_origin_country, row.sourced_price_usd, shippingCode);
+  const updated = await updateLineRow(row.id, { quantity, special_instructions: note, store_shipping_code: shippingCode, pricing: priced.pricing, quote_lock_id: priced.pricing?.rate_lock_id ?? row.quote_lock_id });
   await touchCart(row.cart_id);
   return toLine(updated, snapshot, priced);
 }
@@ -343,6 +347,12 @@ interface Priced {
   reason: string | null;
 }
 
+/** The customer's chosen store shipping service, added to the price overrides; null stays null when there is nothing to override. */
+function withStoreShippingCode(overrides: PriceOverrides | null, storeShippingCode: string | null): PriceOverrides | null {
+  if (!storeShippingCode) return overrides;
+  return { ...(overrides ?? {}), storeShippingCode };
+}
+
 /**
  * Price one line the way the quote screen does: the live snapshot, the
  * customer's gap-fillers only where the extraction left a gap, the viewer's
@@ -357,6 +367,7 @@ async function priceSnapshot(
   gapPriceUsd: number | null,
   gapCountry: OriginCountry | null,
   sourcedPriceUsd: number | null = null,
+  storeShippingCode: string | null = null,
 ): Promise<Priced> {
   const extraction: ExtractionResult = { ...result, country: result.country ?? gapCountry };
   try {
@@ -380,10 +391,12 @@ async function priceSnapshot(
         (`overrides?.itemPriceUsd ?? product.price`), so passing one straight
         through is all that is needed.
       */
-      overrides:
+      overrides: withStoreShippingCode(
         sourcedPriceUsd != null
           ? { itemPriceUsd: sourcedPriceUsd }
           : gapFillOverrides(extraction, gapPriceUsd ?? undefined),
+        storeShippingCode,
+      ),
     });
 
     /*
@@ -431,7 +444,7 @@ async function priceLine(viewer: Viewer, row: CartItemRow): Promise<BagLine> {
   if (!snapshot) {
     return toLine(row, null, { pricing: null, reason: "This quote has expired. Remove the line and paste the link again." });
   }
-  const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, row.quantity, row.gap_price_usd, row.gap_origin_country, row.sourced_price_usd);
+  const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, row.quantity, row.gap_price_usd, row.gap_origin_country, row.sourced_price_usd, row.store_shipping_code);
   return toLine(row, snapshot, priced);
 }
 
@@ -707,6 +720,7 @@ function pendingLine(row: CartItemRow, pending: BagLinePending, productUrl: stri
     gap_price_usd: row.gap_price_usd,
     gap_origin_country: row.gap_origin_country,
     sourced_price_usd: row.sourced_price_usd,
+    store_shipping_code: row.store_shipping_code,
     sourcing: null,
   };
 }
@@ -738,6 +752,7 @@ function toLine(row: CartItemRow, snapshot: Snapshot, priced: Priced): BagLine {
     gap_price_usd: row.gap_price_usd,
     gap_origin_country: row.gap_origin_country,
     sourced_price_usd: row.sourced_price_usd,
+    store_shipping_code: row.store_shipping_code,
     // Attached by `getBag` in one query for the whole bag, never per line.
     sourcing: null,
   };

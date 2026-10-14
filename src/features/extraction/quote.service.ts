@@ -1,7 +1,7 @@
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { logger } from "@/lib/logger";
 import { REGION_TO_PRICING } from "@/features/extraction/url";
-import { storeShippingCurrencyOf } from "./store-shipping";
+import { pickStoreShippingOption, storeShippingCurrencyOf, storeShippingOptionsOf } from "./store-shipping";
 import { estimateWeightLbs } from "@/lib/pricing/weight-estimate";
 import { WEIGHT_NOT_LISTED_MESSAGE } from "./resolvers/messages";
 import type { FxOverride, PricingBreakdown, PricingCalculator } from "@/lib/pricing";
@@ -14,6 +14,13 @@ export { storeShippingCurrencyOf };
 export interface PriceOverrides {
   /** Customer-supplied gap-filler, honoured only when the snapshot has no price. */
   itemPriceUsd?: number;
+  /**
+   * The store shipping service the customer chose, by code. Resolved against
+   * the snapshot's own option list — a code the snapshot does not offer is
+   * ignored and the cheapest service is charged, so the browser can only ever
+   * choose among the store's prices, never name one.
+   */
+  storeShippingCode?: string | null;
 }
 
 export interface PricedExtraction {
@@ -77,6 +84,13 @@ export async function priceExtractionWith(
     ? estimateWeightLbs({ title: product.title, category: correction?.category ?? product.category })
     : null;
 
+  // The store's own shipping to our warehouse, from the server snapshot: the
+  // service the customer chose when the store offers several, else the
+  // cheapest (`store_shipping`). Amazon always prices it as 0.
+  const chosen = pickStoreShippingOption(product, overrides?.storeShippingCode);
+  const namedOption = chosen ?? storeShippingOptionsOf(product).find((o) => o.cost === product.store_shipping) ?? null;
+  const storeShipping = extraction.platform === "amazon" ? null : chosen ? chosen.cost : product.store_shipping ?? null;
+
   try {
     const pricing = await calculator.calculate({
       itemPrice: price,
@@ -87,11 +101,10 @@ export async function priceExtractionWith(
       weightEstimated: product.weight_lbs == null && estimate != null,
       productTitle: product.title ?? undefined,
       region: REGION_TO_PRICING[country],
-      // The store's own shipping to our warehouse, from the server snapshot.
-      // Listed in the product's currency even when the customer filled the price;
-      // Amazon always prices it as 0.
-      storeShipping: extraction.platform === "amazon" ? null : product.store_shipping ?? null,
-      storeShippingCurrency: storeShippingCurrencyOf(extraction, country),
+      // Listed in the product's currency even when the customer filled the price.
+      storeShipping,
+      storeShippingCurrency: chosen?.currency ?? storeShippingCurrencyOf(extraction, country),
+      storeShippingOption: storeShipping != null && namedOption ? { code: namedOption.code, label: namedOption.label } : null,
       ...correction,
     }, fx);
     return { pricing, reason: null };

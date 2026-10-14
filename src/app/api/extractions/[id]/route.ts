@@ -24,6 +24,9 @@ export async function GET(
 
     const qtyRaw = request.nextUrl.searchParams.get("quantity");
     const quantity = qtyRaw ? Math.min(100, Math.max(1, parseInt(qtyRaw, 10) || 1)) : 1;
+    // The store shipping service to price with: a code the snapshot must offer.
+    const shippingRaw = request.nextUrl.searchParams.get("shipping")?.trim() ?? "";
+    const storeShippingCode = shippingRaw && shippingRaw.length <= 80 ? shippingRaw : null;
 
     const row = await getValidExtractionById(id);
     if (!row) throw new APIError(404, "Extraction not found or expired");
@@ -36,7 +39,7 @@ export async function GET(
     }
 
     const [quote, watching] = await Promise.all([
-      quoteForViewer({ ...row.result, extraction_cache_id: row.id, cached: true }, quantity, viewer),
+      quoteForViewer({ ...row.result, extraction_cache_id: row.id, cached: true }, quantity, viewer, storeShippingCode ? { storeShippingCode } : null),
       isWatching(user?.id ?? null, row.url_hash),
     ]);
 

@@ -62,6 +62,8 @@ export const EXTRACTION = {
 } as const;
 
 export type ExtractionSource =
+  /** eBay's own Browse API: the listing, and its shipping services to the hub. */
+  | "ebay"
   | "scraperapi"
   | "oxylabs"
   | "zyte"

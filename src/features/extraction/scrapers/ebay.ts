@@ -268,7 +268,9 @@ export class EbayScraper implements PlatformScraper {
     try {
       const u = new URL(raw);
       const id = ebayItemIdOf(raw);
-      if (id) return `${u.origin}/itm/${id}`;
+      // A multi-variation listing's chosen variant (`var=`) is part of the product.
+      const variant = u.searchParams.get("var")?.trim();
+      if (id) return variant && /^\d{6,}$/.test(variant) ? `${u.origin}/itm/${id}?var=${variant}` : `${u.origin}/itm/${id}`;
       return `${u.origin}${u.pathname}`;
     } catch {
       return raw;

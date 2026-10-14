@@ -204,3 +204,10 @@ export function ebayItemIdOf(url: string): string | null {
   if (!u) return null;
   return u.pathname.match(/\/itm\/(?:[^/]+\/)?(\d{9,})/)?.[1] ?? null;
 }
+
+/** A multi-variation listing's chosen variant: `?var=` on the item URL. */
+export function ebayVariantIdOf(url: string): string | null {
+  const u = parseUrl(url);
+  const v = u?.searchParams.get("var")?.trim();
+  return v && /^\d{6,}$/.test(v) ? v : null;
+}

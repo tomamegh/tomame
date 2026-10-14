@@ -91,7 +91,7 @@ const cart = (over: Partial<carts.CartRow> = {}): carts.CartRow => ({
 });
 const item = (over: Partial<carts.CartItemRow> = {}): carts.CartItemRow => ({
   id: "i1", cart_id: "c1", extraction_cache_id: CACHE_ID, extraction_request_id: null, quantity: 1, special_instructions: null, gap_price_usd: null,
-  gap_origin_country: null, sourced_price_usd: null, pricing: null, quote_lock_id: null, consolidation_box_id: null, created_at: "", updated_at: "", ...over,
+  gap_origin_country: null, sourced_price_usd: null, store_shipping_code: null, pricing: null, quote_lock_id: null, consolidation_box_id: null, created_at: "", updated_at: "", ...over,
 });
 const address = (over: Partial<DeliveryAddress> = {}): DeliveryAddress => ({
   id: "a1", user_id: "u1", label: "Home", kind: "door", recipient_name: "K", phone: "0", line1: "1 St", line2: null, area: "East Legon",
@@ -323,7 +323,7 @@ describe("line ownership", () => {
 
 describe("summarize", () => {
   it("sums only priced lines and counts every quantity", () => {
-    const priced: BagLine = { id: "a", extraction_cache_id: "x", pending: null, quantity: 2, special_instructions: null, product: { title: null, image: null, url: "", store: null, variant: null, weight_lbs: null, country: null }, pricing: breakdown({ subtotal_usd: 10, tax_usd: 1, value_fee_usd: 0.5, flat_rate_ghs: 20, total_ghs: 200, total_usd: 13 }), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null, sourced_price_usd: null, sourcing: null };
+    const priced: BagLine = { id: "a", extraction_cache_id: "x", pending: null, quantity: 2, special_instructions: null, product: { title: null, image: null, url: "", store: null, variant: null, weight_lbs: null, country: null }, pricing: breakdown({ subtotal_usd: 10, tax_usd: 1, value_fee_usd: 0.5, flat_rate_ghs: 20, total_ghs: 200, total_usd: 13 }), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null, sourced_price_usd: null, store_shipping_code: null, sourcing: null };
     const unpriced: BagLine = { ...priced, id: "b", quantity: 1, pricing: null, pricing_unavailable_reason: "x" };
     expect(summarize("c", [priced, unpriced])).toMatchObject({ item_count: 3, subtotal_usd: 10, tax_usd: 1, fee_usd: 0.5, freight_ghs: 20, total_ghs: 200, total_usd: 13, has_unpriced_lines: true });
   });

@@ -72,13 +72,14 @@ export async function quoteForViewer(
   extraction: ExtractionResult & { extraction_cache_id: string | null },
   quantity: number,
   viewer: Viewer,
+  overrides: PriceOverrides | null = null,
 ): Promise<Quote> {
   const { pricing, reason } = await applyRateLock({
     viewer,
     extraction,
     extractionCacheId: extraction.extraction_cache_id,
     quantity,
-    overrides: null,
+    overrides,
   });
   const customer = customerExtraction(extraction);
   return { ...customer, messages: customerMessages(customer.messages, pricing), pricing, pricing_unavailable_reason: reason };
@@ -158,8 +159,10 @@ export function extractionPricer(
  * that finds seller shipping never moves a price the customer already holds.
  * Returns the same object when nothing needs stripping.
  */
-export function extractionUnderLock(extraction: ExtractionResult, lock: QuoteLockRow): ExtractionResult {
+export function extractionUnderLock(extraction: ExtractionResult, lock: QuoteLockRow, overrides: PriceOverrides | null = null): ExtractionResult {
   const lockedShipping = lock.pricing?.store_shipping_usd ?? 0;
+  // A service the customer chose is theirs to pay for, whatever the lock was minted on.
+  if (overrides?.storeShippingCode) return extraction;
   if (lockedShipping > 0 || extraction.product.store_shipping == null) return extraction;
   return { ...extraction, product: { ...extraction.product, store_shipping: null } };
 }
@@ -269,7 +272,7 @@ async function priceForViewer(input: ApplyRateLockInput, opts: PriceForViewerOpt
     try {
       if (!lookup.ok) throw lookup.error;
       if (lookup.lock) {
-        const underLock = extractionUnderLock(extraction, lookup.lock);
+        const underLock = extractionUnderLock(extraction, lookup.lock, overrides);
         const liveUnderLock = underLock === extraction
           ? live.pricing
           : (await priceExtractionWith(calculator, underLock, quantity, overrides, null)).pricing;

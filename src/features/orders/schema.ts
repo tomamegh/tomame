@@ -39,6 +39,12 @@ export const createOrderSchema = z.object({
     .trim()
     .optional(),
   extraction_cache_id: z.string().uuid().optional(),
+  /**
+   * The store shipping service the customer chose, by the snapshot's own code.
+   * Not money: the server resolves it against the snapshot's option list and
+   * charges that service's stated cost; an unknown code means the cheapest.
+   */
+  store_shipping_code: z.string().trim().min(1).max(80).nullable().optional(),
 });
 
 export const reviewOrderSchema = z.object({

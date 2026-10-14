@@ -13,6 +13,7 @@ import { SimilarProductsRail } from "@/features/catalog/components/similar-produ
 import { useAddToBag } from "@/features/bag/hooks/useAddToBag";
 import { useRequestSourcing } from "@/features/sourcing/hooks/useRequestSourcing";
 import { apiFetch, ApiFetchError } from "@/lib/api-client";
+import { storeShippingOptionsOf } from "@/features/extraction/store-shipping";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";
@@ -103,6 +104,9 @@ export function QuoteView({
   // honours them only then.
   const [gapPriceUsd, setGapPriceUsd] = useState("");
   const [gapCountry, setGapCountry] = useState<OriginCountry | null>(null);
+  // The store shipping service the customer chose; null = the cheapest. A code
+  // only: the server resolves it against its own snapshot and prices it.
+  const [shippingCode, setShippingCode] = useState<string | null>(null);
 
   const { mutate: addToBag, isPending: addingToBag } = useAddToBag();
   const { mutate: requestSourcing, isPending: requestingSourcing } = useRequestSourcing();
@@ -129,7 +133,7 @@ export function QuoteView({
     setRepricing(true);
 
     apiFetch<ApiSuccessResponse<QuoteResponse>>(
-      `/api/extractions/${extractionId}?quantity=${quantity}`,
+      `/api/extractions/${extractionId}?quantity=${quantity}${shippingCode ? `&shipping=${encodeURIComponent(shippingCode)}` : ""}`,
       { signal: controller.signal },
     )
       .then((response) => {
@@ -164,7 +168,7 @@ export function QuoteView({
       });
 
     return () => controller.abort();
-  }, [extractionId, quantity]);
+  }, [extractionId, quantity, shippingCode]);
 
   const toggleWatch = useCallback(() => {
     // There is no unwatch endpoint yet, so this adds only. The buttons are
@@ -228,6 +232,7 @@ export function QuoteView({
         ...(instructions.trim() ? { special_instructions: instructions.trim() } : {}),
         ...(priceMissing && gapPriceValue != null ? { estimated_price_usd: gapPriceValue } : {}),
         ...(countryMissing && gapCountry ? { origin_country: gapCountry } : {}),
+        ...(shippingCode ? { store_shipping_code: shippingCode } : {}),
       },
       {
         onSuccess: (result) => {
@@ -251,7 +256,7 @@ export function QuoteView({
     // below the early returns, so they cannot be listed themselves). Without
     // it a customer who typed a missing price and pressed Add sent the value
     // from an earlier render: the line went into the bag unpriced.
-  }, [addToBag, instructions, quantity, quote, router, gapPriceUsd, gapCountry]);
+  }, [addToBag, instructions, quantity, quote, router, gapPriceUsd, gapCountry, shippingCode]);
 
   /**
    * "Ask us to source this" — the CTA an unpriceable item gets instead of a
@@ -441,6 +446,8 @@ export function QuoteView({
             minQuantity={QUANTITY_MIN}
             maxQuantity={QUANTITY_MAX}
             onQuantityChange={setQuantity}
+            shippingOptions={storeShippingOptionsOf(quote.product)}
+            onShippingChange={setShippingCode}
             repricing={repricing}
             onContinue={addLineToBag}
             canContinue={canContinue && !!quote.extraction_cache_id}

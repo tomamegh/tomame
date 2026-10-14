@@ -74,7 +74,14 @@ export function formatLockCountdown(iso: string | null, now: Date): string | nul
 
 /** "Amazon · Black · 0.6 lb" — only the facts the line actually has. */
 export function formatLineMeta(line: BagLine): string {
-  const parts = [line.product.store, line.product.variant, line.product.weight_lbs != null ? formatLbs(line.product.weight_lbs) : null];
+  const service = line.pricing?.store_shipping_option?.label;
+  const parts = [
+    line.product.store,
+    line.product.variant,
+    line.product.weight_lbs != null ? formatLbs(line.product.weight_lbs) : null,
+    // The store shipping service chosen on the quote, so the bag shows what is being paid for.
+    service ? `ships via ${service}` : null,
+  ];
   return parts.filter((p): p is string => !!p).join(" · ");
 }
 

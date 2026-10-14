@@ -54,6 +54,7 @@ const AMAZON_PLAN: ProviderPlanEntry[] = ["scraperapi", "oxylabs", "zyte", "rain
  * the parallel read usually costs no second fetch.
  */
 const GENERIC_PLAN: ProviderPlanEntry[] = ["zyte", { name: "structured-data", startAfterMs: 2_000 }, "category-map", "llm"];
+const EBAY_PLAN: ProviderPlanEntry[] = ["ebay", { name: "scraperapi", startAfterMs: 2_000 }, "category-map", "platform-html", "structured-data", "llm"];
 /**
  * Page sources for every store without its own scraper. ScraperAPI's
  * residential fetch first (2-9 s, 10 credits on the paid plan since
@@ -122,13 +123,15 @@ const NAMED_STORES: Array<[slug: string, name: string, domains: string[], region
 export const STORES: StoreDefinition[] = [
   { slug: "amazon", name: "Amazon", domains: ["amazon.com", "a.co", "amzn.to"], region: "USA", currency: "USD", providers: AMAZON_PLAN, status: "live" },
   { slug: "amazon", name: "Amazon UK", domains: ["amazon.co.uk", "amzn.eu"], region: "UK", currency: "GBP", providers: AMAZON_PLAN, status: "live" },
+  // eBay's own API first (free, ~0.5 s, exact price + shipping services to the
+  // hub); ScraperAPI's page read hedges 2 s behind it and fills what it lacks.
   {
     slug: "ebay", name: "eBay", domains: ["ebay.com", "ebay.us", "ebay.to", "ebay.io"], region: "USA", currency: "USD",
-    providers: ["scraperapi", "category-map", "platform-html", "structured-data", "llm"], status: "live",
+    providers: EBAY_PLAN, status: "live",
   },
   {
     slug: "ebay", name: "eBay UK", domains: ["ebay.co.uk"], region: "UK", currency: "GBP",
-    providers: ["scraperapi", "category-map", "platform-html", "structured-data", "llm"], status: "live",
+    providers: EBAY_PLAN, status: "live",
   },
   {
     slug: "walmart", name: "Walmart", domains: ["walmart.com"], region: "USA", currency: "USD",

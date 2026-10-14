@@ -68,6 +68,8 @@ export interface PricingInput {
   storeShipping?: number | null;
   /** Currency of `storeShipping`. Defaults to `itemCurrency` (USD when only `itemPriceUsd` is given). */
   storeShippingCurrency?: string;
+  /** The shipping service `storeShipping` is for, when the customer chose one. Carried onto the breakdown, never priced here. */
+  storeShippingOption?: { code: string; label: string } | null;
 }
 
 export type PricingMethod = "flat_rate" | "weight_expression" | "fixed_freight" | "needs_review";
@@ -136,6 +138,8 @@ export interface PricingBreakdown {
   handling_fee_usd?: number;
   weight_lbs?: number;
   weight_source?: "listed" | "estimated" | "default" | "minimum";
+  /** The store's shipping service the line is priced with, when one was chosen or named. */
+  store_shipping_option?: { code: string; label: string };
   fixed_freight_item?: string;
   /** Id of the `fixed_freight_items` row behind `fixed_freight_item`. */
   fixed_freight_item_id?: string;
@@ -402,6 +406,7 @@ export class PricingCalculator {
             store_shipping_ghs: r2(storeShippingUsd * fxRate),
           }
         : {}),
+      ...(input.storeShippingOption ? { store_shipping_option: { code: input.storeShippingOption.code, label: input.storeShippingOption.label } } : {}),
     };
     const shippingNote = storeShippingUsd > 0
       ? ` + store shipping $${perUnitShippingUsd.toFixed(2)}${quantity > 1 ? ` × ${quantity}` : ""}`

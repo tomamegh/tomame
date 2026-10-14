@@ -20,7 +20,9 @@ import {
 import { RECEIPT_ROW_ICONS } from "@/features/app-home/components/receipt-icons";
 import { formatGhsCompact, formatUsd } from "@/features/marketing/format";
 import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
+import type { StoreShippingOption } from "@/features/extraction/store-shipping";
 import type { PricingBreakdown } from "@/lib/pricing";
+import { formatEtaRange } from "./format";
 import { cn } from "@/lib/utils";
 import { formatDoorDeliveryLabel, formatRateLockDeadline } from "./format";
 
@@ -37,6 +39,13 @@ export interface QuoteReceiptCardProps {
   minQuantity: number;
   maxQuantity: number;
   onQuantityChange: (quantity: number) => void;
+  /**
+   * The shipping services the store offers to our hub, when it offers more
+   * than one (eBay). The breakdown's `store_shipping_option` says which is
+   * priced; choosing another re-prices on the server.
+   */
+  shippingOptions?: StoreShippingOption[];
+  onShippingChange?: (code: string) => void;
   /** True while a quantity change is being re-priced by the server. */
   repricing: boolean;
   onContinue: () => void;
@@ -79,6 +88,8 @@ export function QuoteReceiptCard({
   minQuantity,
   maxQuantity,
   onQuantityChange,
+  shippingOptions = [],
+  onShippingChange,
   repricing,
   onContinue,
   addedCount,
@@ -221,6 +232,15 @@ export function QuoteReceiptCard({
       </div>
 
       <div className="flex flex-col gap-3 px-4 pt-1.5 pb-4 lg:px-[22px] lg:pb-[22px]">
+        {shippingOptions.length > 1 && pricing && onShippingChange && (
+          <ShippingOptionPicker
+            options={shippingOptions}
+            selectedCode={pricing.store_shipping_option?.code ?? shippingOptions[0]!.code}
+            disabled={repricing}
+            onChange={onShippingChange}
+          />
+        )}
+
         <div className="flex items-center justify-between gap-3">
           <span id="quote-quantity-label" className="text-sm leading-none font-semibold">
             Quantity
@@ -377,5 +397,65 @@ function StepperButton({
     >
       {children}
     </button>
+  );
+}
+
+/** "$14.20" in the listing currency, "Free" for a free service. Display only: the server priced it. */
+function formatOptionCost(option: StoreShippingOption): string {
+  if (option.cost <= 0) return "Free";
+  const symbol = option.currency === "USD" ? "$" : option.currency === "GBP" ? "£" : option.currency === "EUR" ? "€" : `${option.currency} `;
+  return `${symbol}${option.cost.toFixed(2)}`;
+}
+
+/**
+ * The store's shipping services to our hub, one of which is priced. A radio
+ * group: the choice is a code the server resolves against its own snapshot,
+ * so nothing here is money the browser could set.
+ */
+function ShippingOptionPicker({
+  options,
+  selectedCode,
+  disabled,
+  onChange,
+}: {
+  options: StoreShippingOption[];
+  selectedCode: string;
+  disabled: boolean;
+  onChange: (code: string) => void;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2" disabled={disabled}>
+      <legend className="mb-2 text-sm leading-none font-semibold">Store shipping to our hub</legend>
+      {options.map((option) => {
+        const selected = option.code === selectedCode;
+        const eta = option.eta_min && option.eta_max ? formatEtaRange(option.eta_min, option.eta_max) : null;
+        return (
+          <label
+            key={option.code}
+            className={cn(
+              "flex cursor-pointer items-center justify-between gap-3 rounded-[14px] border px-3.5 py-2.5 text-[13px] leading-none transition-colors",
+              selected ? "border-tm-coral bg-tm-coral/5" : "border-tm-border hover:border-tm-text-3",
+              disabled && "cursor-default opacity-70",
+            )}
+          >
+            <span className="flex items-center gap-2.5">
+              <input
+                type="radio"
+                name="store-shipping-option"
+                value={option.code}
+                checked={selected}
+                onChange={() => onChange(option.code)}
+                className="size-4 accent-tm-coral"
+              />
+              <span className="flex flex-col gap-1">
+                <span className="font-semibold text-tm-ink">{option.label}</span>
+                {eta && <span className="text-[11px] text-tm-text-3">at our hub {eta}</span>}
+              </span>
+            </span>
+            <span className={cn("tm-nums font-semibold", option.cost <= 0 ? "text-tm-green" : "text-tm-ink")}>{formatOptionCost(option)}</span>
+          </label>
+        );
+      })}
+    </fieldset>
   );
 }

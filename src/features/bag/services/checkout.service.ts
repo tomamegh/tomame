@@ -181,6 +181,7 @@ function orderInputFor(line: BagLine): Parameters<typeof createOrder>[2] {
     extraction_cache_id: line.extraction_cache_id ?? undefined,
     ...(line.gap_price_usd != null && { estimated_price_usd: line.gap_price_usd }),
     ...(line.gap_origin_country && { origin_country: line.gap_origin_country }),
+    ...(line.store_shipping_code && { store_shipping_code: line.store_shipping_code }),
   };
 }
 
