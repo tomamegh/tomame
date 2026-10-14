@@ -15,7 +15,12 @@ import type { HtmlAttemptName } from "./scrapers/types";
 export type StoreStatus = "live" | "beta" | "blocked";
 
 /** A plan entry: a resolver name, or a name with a per-store start policy override. */
-export type ProviderPlanEntry = ExtractionSource | { name: ExtractionSource; startAfterMs?: number };
+/**
+ * `startAfterMs`: hedge — start that long after the loop reaches it, or sooner
+ * when earlier tiers answer. `startWhen: "html-ready"`: start only once a page
+ * is already in hand (a vendor handed it over); never triggers a fetch.
+ */
+export type ProviderPlanEntry = ExtractionSource | { name: ExtractionSource; startAfterMs?: number; startWhen?: "html-ready" };
 
 export interface StoreDefinition {
   /** Stable id; also `ExtractionResult.platform`. */
@@ -53,7 +58,27 @@ const AMAZON_PLAN: ProviderPlanEntry[] = ["scraperapi", "oxylabs", "zyte", "rain
  * (chain.ts `awaitingPriceCheck`). Zyte hands its page over when it lands, so
  * the parallel read usually costs no second fetch.
  */
-const GENERIC_PLAN: ProviderPlanEntry[] = ["zyte", { name: "structured-data", startAfterMs: 2_000 }, "category-map", "llm"];
+const GENERIC_PLAN: ProviderPlanEntry[] = [
+  // A Shopify shop's own product JSON answers in ~300 ms (exact price, currency,
+  // variant, weight in grams); any other store answers "not Shopify" as fast,
+  // and Zyte starts the moment it does.
+  "shopify",
+  { name: "zyte", startAfterMs: 1_500 },
+  { name: "structured-data", startAfterMs: 2_000 },
+  "category-map",
+  "llm",
+];
+/**
+ * Etsy: Zyte's US read gives the price; its page (handed over, no second
+ * fetch) carries the seller's US shipping, which only the Etsy parser reads.
+ */
+const ETSY_PLAN: ProviderPlanEntry[] = [
+  "zyte",
+  { name: "platform-html", startWhen: "html-ready" },
+  { name: "structured-data", startWhen: "html-ready" },
+  "category-map",
+  "llm",
+];
 const EBAY_PLAN: ProviderPlanEntry[] = ["ebay", { name: "scraperapi", startAfterMs: 2_000 }, "category-map", "platform-html", "structured-data", "llm"];
 /**
  * Page sources for every store without its own scraper. ScraperAPI's
@@ -140,7 +165,7 @@ export const STORES: StoreDefinition[] = [
   },
   {
     slug: "etsy", name: "Etsy", domains: ["etsy.com"], region: "USA", currency: "USD",
-    providers: GENERIC_PLAN, htmlAttempts: ["zyte-browser"], status: "live", productPath: /\/listing\/\d+/,
+    providers: ETSY_PLAN, htmlAttempts: ["zyte-browser"], status: "live", productPath: /\/listing\/\d+/,
   },
   {
     slug: "nike", name: "Nike", domains: ["nike.com"], region: "USA", currency: "USD",

@@ -1,6 +1,7 @@
 import type { PlatformScraper } from "./types";
 import { amazonScraper } from "./amazon";
 import { ebayScraper } from "./ebay";
+import { etsyScraper } from "./etsy";
 import { microcenterScraper } from "./microcenter";
 import { sheinScraper } from "./shein";
 import { GenericScraper } from "./generic";
@@ -10,6 +11,7 @@ import { GENERIC_STORE, STORES, liveStoreNames, storeForUrl, type StoreDefinitio
 export enum SupportedPlatform {
   AMAZON = "amazon",
   EBAY = "ebay",
+  ETSY = "etsy",
   MICROCENTER = "microcenter",
   SHEIN = "shein",
 }
@@ -17,6 +19,7 @@ export enum SupportedPlatform {
 const platformScrapers: Record<SupportedPlatform, PlatformScraper> = {
   [SupportedPlatform.AMAZON]: amazonScraper,
   [SupportedPlatform.EBAY]: ebayScraper,
+  [SupportedPlatform.ETSY]: etsyScraper,
   [SupportedPlatform.MICROCENTER]: microcenterScraper,
   [SupportedPlatform.SHEIN]: sheinScraper,
 };

@@ -64,6 +64,8 @@ export const EXTRACTION = {
 export type ExtractionSource =
   /** eBay's own Browse API: the listing, and its shipping services to the hub. */
   | "ebay"
+  /** A Shopify storefront's own product JSON. */
+  | "shopify"
   | "scraperapi"
   | "oxylabs"
   | "zyte"

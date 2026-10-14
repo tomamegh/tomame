@@ -15,6 +15,7 @@ import { oxylabsResolver } from "./oxylabs.resolver";
 import { zyteResolver } from "./zyte.resolver";
 import { categoryResolver } from "./category.resolver";
 import { ebayResolver } from "./ebay.resolver";
+import { shopifyResolver } from "./shopify.resolver";
 import type { ChainOutcome, ExtractionResolver, HtmlFetch, ResolveContext } from "./types";
 import { WEIGHT_NOT_LISTED_MESSAGE } from "./messages";
 import { PAGE_OFFER_CONFIDENCE } from "./structured-data.resolver";
@@ -22,6 +23,7 @@ import { PAGE_OFFER_CONFIDENCE } from "./structured-data.resolver";
 /** Every resolver, by name. A store's `providers` list picks and orders them. */
 export const RESOLVERS: Record<ExtractionSource, ExtractionResolver> = {
   ebay: ebayResolver,
+  shopify: shopifyResolver,
   scraperapi: scraperApiResolver,
   oxylabs: oxylabsResolver,
   zyte: zyteResolver,
@@ -50,6 +52,11 @@ export function resolversForStore(store: StoreDefinition): ExtractionResolver[] 
   return store.providers.map((entry) => {
     if (typeof entry === "string") return RESOLVERS[entry];
     const base = RESOLVERS[entry.name];
+    if (entry.startWhen === "html-ready") {
+      // Runs only on a page already in hand (one a vendor handed over), never
+      // paying for a fetch of its own: the Etsy shipping read off Zyte's page.
+      return { ...base, startWhen: (ctx) => ctx.htmlState() === "ready", resolve: base.resolve.bind(base) };
+    }
     return entry.startAfterMs == null ? base : { ...base, startAfterMs: entry.startAfterMs, resolve: base.resolve.bind(base) };
   });
 }

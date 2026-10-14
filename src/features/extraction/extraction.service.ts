@@ -175,7 +175,9 @@ function toResult(prepared: PreparedUrl, outcome: ChainOutcome, sourcesRan: Chai
   if (!region) messages.push("We'll confirm which country this store ships from and price it for you before we buy.");
   // eBay sellers set their own shipping to our warehouse; priced as 0 when we
   // could not read it, so the customer is told it may still be added.
-  if (prepared.platform === "ebay" && complete && outcome.product.store_shipping == null) messages.push(STORE_SHIPPING_UNKNOWN_MESSAGE);
+  // eBay and Etsy sellers set their own shipping to our hub; priced as 0 when
+  // we could not read it, so the customer is told it may be added at review.
+  if ((prepared.platform === "ebay" || prepared.platform === "etsy") && complete && outcome.product.store_shipping == null) messages.push(STORE_SHIPPING_UNKNOWN_MESSAGE);
   if (prepared.store.status === "blocked" && !complete) messages.push(`${prepared.store.name} blocks automated reading right now. Enter the price and our team will verify it.`);
   return {
     extraction_attempted: true,
