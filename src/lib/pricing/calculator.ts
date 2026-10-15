@@ -503,7 +503,9 @@ export class PricingCalculator {
       // Weight is per item, so freight scales with quantity; handling is once per line.
       const chargeableLbs = r2(weight * quantity);
       const freightUsd = r2(chargeableLbs * ratePerLb + handlingUsd);
-      const sourceNote = weightSource === "listed" ? "" : weightSource === "default" ? " (typical for the category)" : ` (${weightSource})`;
+      // Customer-facing. A weight we looked up (`estimated`) is stated plainly,
+      // like a listed one; `weight_source` still tells admins where it came from.
+      const sourceNote = weightSource === "default" ? " (typical for the category)" : weightSource === "minimum" ? " (minimum)" : "";
       const qtyNote = quantity > 1 ? ` × ${quantity}` : "";
       return finish(
         "weight_expression",

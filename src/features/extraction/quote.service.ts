@@ -155,10 +155,11 @@ export function freightCheckOf(extraction: ExtractionResult, now = Date.now()): 
  * chain writes "weight not listed" the moment it finds none; by the time the
  * quote renders, the inspector or a size estimate may have supplied one, and a
  * confident "85 lb" next to "weight not listed" reads as a contradiction
- * (2026-10-12). So the weight note is re-derived from the breakdown: estimated
- * says so and promises the hub's scale; a category placeholder keeps the
- * original warning; a listed weight needs no note; a flat-rate group never
- * charged by weight, so the note is dropped.
+ * (2026-10-12). So the weight note is re-derived from the breakdown: a weight
+ * we looked up is stated plainly like a listed one, with no note (customers
+ * read "estimated" as "made up", 2026-10-15); a category placeholder keeps the
+ * original warning; a flat-rate group never charged by weight, so the note is
+ * dropped.
  */
 export function customerMessages(messages: readonly string[], pricing: PricingBreakdown | null, checking = false): string[] {
   const rest = messages.filter((m) => m !== WEIGHT_NOT_LISTED_MESSAGE);
@@ -166,9 +167,6 @@ export function customerMessages(messages: readonly string[], pricing: PricingBr
   if (checking) return rest;
   if (!pricing) return messages.includes(WEIGHT_NOT_LISTED_MESSAGE) ? [...rest, WEIGHT_NOT_LISTED_MESSAGE] : rest;
   if (pricing.pricing_method !== "weight_expression") return rest;
-  if (pricing.weight_source === "estimated" && pricing.weight_lbs != null) {
-    return [...rest, `Weight estimated at ${pricing.weight_lbs} lb from the product details. We confirm it on the scale when your item reaches our hub.`];
-  }
   if (pricing.weight_source === "default") return [...rest, WEIGHT_NOT_LISTED_MESSAGE];
   return rest;
 }

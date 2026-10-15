@@ -92,7 +92,7 @@ describe("pricing a TV with no listed weight", () => {
   it("charges the size estimate and labels it, instead of the 15 lb placeholder", async () => {
     const priced = await priceExtractionWith(calculator(), SAMSUNG, 1, null, null);
     expect(priced.pricing).toMatchObject({ pricing_method: "weight_expression", weight_lbs: 67.6, weight_source: "estimated" });
-    expect(priced.pricing?.fee_calculation_note).toContain("67.6 lb (estimated)");
+    expect(priced.pricing?.fee_calculation_note).toMatch(/^67\.6 lb ×/);
   });
 
   it("keeps the category placeholder, named as such, when the title has no size", async () => {
@@ -122,7 +122,7 @@ describe("pricing a TV with no listed weight", () => {
 
     const priced = await priceExtractionWith(calc, { ...LG, freight_inspection: inspection! }, 1, null, null);
     expect(priced.pricing).toMatchObject({ weight_lbs: 100, weight_source: "estimated" });
-    expect(priced.pricing?.fee_calculation_note).toContain("100 lb (estimated)");
+    expect(priced.pricing?.fee_calculation_note).toMatch(/^100 lb ×/);
   });
 
   it("tells the inspector a placeholder is not evidence", async () => {
@@ -137,9 +137,8 @@ describe("pricing a TV with no listed weight", () => {
 describe("customerMessages", () => {
   const weightPricing = (o: Partial<PricingBreakdown>) => ({ pricing_method: "weight_expression", ...o }) as PricingBreakdown;
 
-  it("replaces the chain's warning with the estimate and the hub promise", () => {
-    expect(customerMessages([WEIGHT_NOT_LISTED_MESSAGE], weightPricing({ weight_source: "estimated", weight_lbs: 67.6 })))
-      .toEqual(["Weight estimated at 67.6 lb from the product details. We confirm it on the scale when your item reaches our hub."]);
+  it("drops the chain's warning once a weight was looked up, and never calls it an estimate", () => {
+    expect(customerMessages([WEIGHT_NOT_LISTED_MESSAGE], weightPricing({ weight_source: "estimated", weight_lbs: 67.6 }))).toEqual([]);
   });
 
   it("keeps the warning for a placeholder, drops it for a listed weight or a flat rate, keeps it when nothing priced", () => {
