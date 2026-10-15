@@ -52,6 +52,18 @@ export interface Quote extends ExtractionResult {
   pricing: PricingBreakdown | null;
   /** Why pricing is null (e.g. price missing, region unsupported). */
   pricing_unavailable_reason: string | null;
+  /**
+   * Non-null while the freight weight is being checked in the background. The
+   * price shown meanwhile may still move, so nothing can be added to the bag
+   * or paid until it clears; the quote screen polls until it does.
+   */
+  freight_check: FreightCheck | null;
+}
+
+export interface FreightCheck {
+  status: "checking";
+  /** When the check started, ISO; the screen says "taking longer" from this. */
+  started_at: string;
 }
 
 export interface CachedExtraction {

@@ -43,6 +43,8 @@ export const env = {
     /** Amazon structured product data (Rainforest API). Optional second source. */
     rainforestApiKey: optional("RAINFOREST_API_KEY"),
     anthropicApiKey: optional("ANTHROPIC_API_KEY"),
+    /** OpenRouter: the freight inspector's model + web search. Haiku (no search) stands in without it. */
+    openRouterApiKey: optional("OPENROUTER_API_KEY"),
     apifyApiToken: optional("APIFY_API_TOKEN"),
     /** Oxylabs Web Scraper API (realtime, parsed e-commerce targets: Amazon, Walmart, …). */
     oxylabsUsername: optional("OXYLABS_USERNAME"),

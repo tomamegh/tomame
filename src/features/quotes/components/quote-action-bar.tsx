@@ -11,6 +11,8 @@ export interface QuoteActionBarProps {
   continuePending: boolean;
   /** True while a quantity change is being re-priced by the server. */
   repricing: boolean;
+  /** True while the freight weight is being checked; the CTA waits for it. */
+  freightChecking?: boolean;
   onContinue: () => void;
   /** Bag count once THIS screen added the line; the CTA then hands off to the bag. */
   addedCount: number | null;
@@ -40,6 +42,7 @@ export function QuoteActionBar({
   canContinue,
   continuePending,
   repricing,
+  freightChecking = false,
   onContinue,
   addedCount,
   watching,
@@ -139,7 +142,7 @@ export function QuoteActionBar({
           <button
             type="button"
             onClick={onContinue}
-            disabled={!canContinue || continuePending || repricing}
+            disabled={!canContinue || continuePending || repricing || freightChecking}
             className={cn(
               "tm-cta-gradient flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
               "transition-[filter,opacity] hover:brightness-105",
@@ -148,7 +151,7 @@ export function QuoteActionBar({
             )}
           >
             <Tote weight="bold" className="size-[18px]" aria-hidden />
-            {continuePending ? "Adding to your bag…" : "Add to bag"}
+            {continuePending ? "Adding to your bag…" : freightChecking ? "Checking freight…" : "Add to bag"}
           </button>
         )}
       </div>

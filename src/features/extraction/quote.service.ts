@@ -5,9 +5,9 @@ import { pickStoreShippingOption, storeShippingCurrencyOf, storeShippingOptionsO
 import { estimateWeightLbs } from "@/lib/pricing/weight-estimate";
 import { WEIGHT_NOT_LISTED_MESSAGE } from "./resolvers/messages";
 import type { FxOverride, PricingBreakdown, PricingCalculator } from "@/lib/pricing";
-import { freightCorrectionPatch } from "@/features/pricing/freight-inspection";
+import { freightCheckPending, freightCorrectionPatch } from "@/features/pricing/freight-inspection";
 import { reviveRegion } from "./region-revive";
-import type { ExtractionResult, Quote } from "./types";
+import type { ExtractionResult, FreightCheck, Quote } from "./types";
 
 export { storeShippingCurrencyOf };
 
@@ -141,6 +141,16 @@ export function customerExtraction<T extends ExtractionResult>(extraction: T): O
 }
 
 /**
+ * What the customer is told about the freight check: non-null only while a
+ * background check is running and has not gone stale. The verdict itself stays
+ * internal (`customerExtraction`).
+ */
+export function freightCheckOf(extraction: ExtractionResult, now = Date.now()): FreightCheck | null {
+  const inspection = extraction.freight_inspection;
+  return inspection && freightCheckPending(inspection, now) ? { status: "checking", started_at: inspection.inspected_at } : null;
+}
+
+/**
  * The customer's notes, reconciled with the price they are looking at. The
  * chain writes "weight not listed" the moment it finds none; by the time the
  * quote renders, the inspector or a size estimate may have supplied one, and a
@@ -150,8 +160,10 @@ export function customerExtraction<T extends ExtractionResult>(extraction: T): O
  * original warning; a listed weight needs no note; a flat-rate group never
  * charged by weight, so the note is dropped.
  */
-export function customerMessages(messages: readonly string[], pricing: PricingBreakdown | null): string[] {
+export function customerMessages(messages: readonly string[], pricing: PricingBreakdown | null, checking = false): string[] {
   const rest = messages.filter((m) => m !== WEIGHT_NOT_LISTED_MESSAGE);
+  // The receipt says the weight is being checked; a weight note now would be stale in seconds.
+  if (checking) return rest;
   if (!pricing) return messages.includes(WEIGHT_NOT_LISTED_MESSAGE) ? [...rest, WEIGHT_NOT_LISTED_MESSAGE] : rest;
   if (pricing.pricing_method !== "weight_expression") return rest;
   if (pricing.weight_source === "estimated" && pricing.weight_lbs != null) {
@@ -168,5 +180,6 @@ export async function buildQuote(
 ): Promise<Quote> {
   const { pricing, reason } = await priceExtraction(extraction, quantity, null, null);
   const customer = customerExtraction(extraction);
-  return { ...customer, messages: customerMessages(customer.messages, pricing), pricing, pricing_unavailable_reason: reason };
+  const freightCheck = freightCheckOf(extraction);
+  return { ...customer, messages: customerMessages(customer.messages, pricing, freightCheck != null), pricing, pricing_unavailable_reason: reason, freight_check: freightCheck };
 }

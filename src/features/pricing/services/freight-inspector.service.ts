@@ -11,6 +11,7 @@ import type { ExtractionResult } from "@/features/extraction/types";
 import { loadPricingCalculator } from "./pricing.service";
 import {
   freightInspectionKey,
+  NO_MODEL_REASON,
   type FreightCorrections,
   type FreightDecision,
   type FreightInspection,
@@ -20,12 +21,20 @@ import {
 /**
  * FREIGHT INSPECTOR — a pricing-accuracy guard.
  *
- * Once per product, at extraction time, Haiku looks at the calculator's freight
- * decision next to the product facts and says whether it is plausible. When it
- * is not, it may correct the calculator's INPUTS only — category, weight_lbs,
- * fixed-freight item — each checked against the set we offered. It never
- * outputs money: the normal calculator prices the corrected inputs, and
- * `priceExtractionWith` applies them on every later pricing of the product.
+ * Once per product, in the background after the quote is shown, a model looks
+ * at the calculator's freight decision next to the product facts and says
+ * whether it is plausible. When the store listed no weight it searches the web
+ * for this exact item first (Gemini Flash-Lite + Exa through OpenRouter): an
+ * eBay car part priced at the 1 lb category placeholder was the case that
+ * prompted it (2026-10-15). When it is not plausible, it may correct the
+ * calculator's INPUTS only — category, weight_lbs, fixed-freight item — each
+ * checked against the set we offered. It never outputs money: the normal
+ * calculator prices the corrected inputs, and `priceExtractionWith` applies
+ * them on every later pricing of the product.
+ *
+ * Two steps, so the quote never waits on a model: `planFreightInspection`
+ * decides (no model call) whether a check is needed and returns a `pending`
+ * marker to store with the quote; `inspectFreight` runs the whole check.
  *
  * Fails open. A missing key, a timeout or any error stores "skipped"/"failed"
  * and the product prices deterministically. Never throws.
@@ -34,37 +43,73 @@ import {
 const CATEGORY_VALUES = Object.values(TomameCategory) as [string, ...string[]];
 const CATEGORY_SET = new Set<string>(CATEGORY_VALUES);
 const NONE = "none";
+const KEEP = "keep";
 
+/**
+ * No nullable fields: Gemini's structured output through OpenRouter handled a
+ * flat schema reliably in the probe, so "keep" / 0 stand for "no change".
+ */
 const VerdictSchema = z.object({
   verdict: z.enum(["ok", "correct"]),
-  category: z.enum(CATEGORY_VALUES).nullable().describe("Corrected Tomame category, or null to keep the current one."),
-  weight_lbs: z.number().nullable().describe("Shipping weight of ONE unit in pounds, or null to keep the current weight."),
-  weight_implausible: z.boolean().describe("True only if the extracted weight is clearly wrong for this item."),
-  fixed_freight_item: z.string().nullable().describe('A fixed-freight code from the list, "none" for no fixed freight, or null to keep the current choice.'),
-  confidence: z.number().min(0).max(1),
-  reason: z.string().describe("One short sentence."),
+  category: z.enum([...CATEGORY_VALUES, KEEP]).describe('Corrected Tomame category, or "keep".'),
+  weight_lbs: z.number().describe("Boxed shipping weight of ONE unit in pounds, or 0 to keep the current weight."),
+  weight_implausible: z.boolean().describe("True only if a weight the store LISTED is clearly wrong for this item."),
+  fixed_freight_item: z.string().describe('A fixed-freight code from the list, "none" for no fixed freight, or "keep".'),
+  basis: z.enum(["found_listed", "found_similar", "estimated", "not_applicable"])
+    .describe("found_listed: a listing of this exact item states its weight. found_similar: listings of near-identical items. estimated: no page states it. not_applicable: weight not at issue."),
+  sources: z.array(z.string()).describe("URLs of the pages the weight came from; empty when estimated."),
+  confidence: z.number().describe("0 to 1."),
+  reason: z.string().describe("One or two short sentences; name the source of the weight."),
 });
 type Verdict = z.infer<typeof VerdictSchema>;
 
-const SYSTEM =
-  "You audit the shipping-fee decision for one product bought abroad and shipped by air to Ghana. " +
-  "A fee calculator chose how to price freight: a pricing group from the product category, a per-lb weight rate, " +
-  "or a pre-negotiated fixed-freight item (e.g. a laptop or phone). Mistakes to catch: a fixed-freight item for a product " +
-  "that is not that item (a hoodie priced as a gaming laptop, an accessory priced as the device), a clearly wrong category, " +
-  "and a missing or implausible weight (unit mix-ups: ounces or grams read as pounds, a bare number with no unit). " +
-  "When the store listed no weight, the calculator falls back to a category placeholder or a size-based estimate; the weight " +
-  "source line says which. A placeholder is not evidence: if it is clearly off for this specific item (a 65-inch TV at 15 lb, " +
-  "a treadmill at 10 lb), answer \"correct\" with your best estimate of the BOXED shipping weight of one unit in weight_lbs. " +
-  "A size-based estimate is usually close; correct it only when you are confident it is wrong by a wide margin. " +
-  'If the decision is reasonable, answer verdict "ok" with every correction null. Otherwise answer "correct" and set only the ' +
-  "fields that must change. You never set prices. Be conservative: correct only obvious mistakes.";
+const VERDICT_JSON_SCHEMA = (() => {
+  const schema = z.toJSONSchema(VerdictSchema) as Record<string, unknown>;
+  delete schema.$schema;
+  return schema;
+})();
 
-let client: Anthropic | null = null;
-function getClient(): Anthropic | null {
+const SYSTEM = [
+  "You audit the shipping-fee decision for one product bought abroad and shipped by air to Ghana. Freight is charged per pound of",
+  "BOXED weight, so an underestimate loses us money on every unit and an overestimate overcharges the customer.",
+  "A fee calculator chose how to price freight: a pricing group from the product category, a per-lb weight rate, or a pre-negotiated",
+  "fixed-freight item (e.g. a laptop or phone).",
+  "",
+  "Mistakes to catch:",
+  "- a fixed-freight item for a product that is not that item (a hoodie priced as a gaming laptop, an accessory priced as the device);",
+  "- a clearly wrong category;",
+  "- a missing or wrong weight: unit mix-ups (ounces or grams read as pounds, a bare number with no unit), and placeholders.",
+  "",
+  "When the store listed no weight, the calculator used a category placeholder or a size-based estimate; the weight source line says",
+  "which. A placeholder is NOT evidence. Find the real weight:",
+  "1. If you can search the web, search for the exact part number, model number or MPN in the title first (OEM parts catalogues, parts",
+  "   retailers, Amazon, Ubuy, eBay listings of the same item). Look for 'shipping weight', 'package weight', then 'item weight'.",
+  "2. Otherwise use near-identical items (same part for the same vehicle, same model in another colour).",
+  "3. Only then estimate from what the item is, its size and materials.",
+  "Convert carefully: 1 kg = 2.2046 lb, 1 lb = 16 oz = 453.6 g. A bare item weight needs packaging added (about 15%, at least 0.3 lb;",
+  "more for fragile or bulky items). Large car body parts (grilles, bumpers, ducts, shutters, trim panels, dash assemblies) and anything",
+  "with glass, metal or a motor ship heavier than they look.",
+  "",
+  'If the decision is reasonable, answer verdict "ok" with category "keep", weight_lbs 0 and fixed_freight_item "keep". Otherwise answer',
+  '"correct" and change only the fields that must change. When the store listed no weight and you found or estimated a materially',
+  "different one (off by more than about 20%), that is a correction: give it in weight_lbs. A listed weight is evidence: replace it only",
+  "when it is clearly a unit mix-up or impossible for the item, and then set weight_implausible true.",
+  "List the URLs your weight came from in sources and say in reason where it came from. You never set prices. Answer with JSON only.",
+].join("\n");
+
+let anthropic: Anthropic | null = null;
+function getAnthropic(): Anthropic | null {
   const key = env.extraction.anthropicApiKey;
   if (!key) return null;
-  if (!client) client = new Anthropic({ apiKey: key, timeout: FREIGHT_INSPECTOR.timeoutMs, maxRetries: 0 });
-  return client;
+  if (!anthropic) anthropic = new Anthropic({ apiKey: key, maxRetries: 0 });
+  return anthropic;
+}
+
+/** Which model answers, or null when none is configured. */
+function provider(): "openrouter" | "anthropic" | null {
+  if (env.extraction.openRouterApiKey) return "openrouter";
+  if (env.extraction.anthropicApiKey) return "anthropic";
+  return null;
 }
 
 export interface InspectFreightOptions {
@@ -103,22 +148,38 @@ function sameDecision(a: FreightDecision, b: FreightDecision): boolean {
 }
 
 /**
- * Why this decision is worth a model call. Empty means it is priced the boring
- * way (a category flat rate, or a listed weight in a plausible range) and the
- * inspector stays out of the way: most quotes pay no latency and no tokens.
+ * Why this decision is worth a model call. Every weight-priced decision is
+ * checked (a listed weight cheaply, without a search); a flat-rate one only
+ * with a risk signal. Empty means it is priced the boring way and the
+ * inspector stays out of the way.
  */
 export function riskSignals(product: ExtractionResult["product"], pricing: PricingBreakdown): string[] {
   const signals: string[] = [];
   if (pricing.fixed_freight_item_id) signals.push("fixed freight matched");
   if (pricing.pricing_method === "needs_review") signals.push("could not price");
   if (!product.category || product.category === TomameCategory.OTHER) signals.push("no category");
-  if (pricing.pricing_method === "weight_expression" && pricing.weight_source !== "listed") signals.push("weight not listed");
+  if (pricing.pricing_method === "weight_expression" && pricing.weight_source !== "listed" && pricing.weight_source !== "minimum") signals.push("weight not listed");
   const w = product.weight_lbs;
   const { min, max } = FREIGHT_INSPECTOR.plausibleWeightLbs;
   if (w != null && (w < min || w > max)) signals.push("weight out of range");
   const itemGhs = pricing.item_price_usd * pricing.exchange_rate;
   if (itemGhs > 0 && pricing.flat_rate_ghs > itemGhs * FREIGHT_INSPECTOR.maxFreightToItemRatio) signals.push("freight dwarfs item");
+  if (signals.length === 0 && pricing.pricing_method === "weight_expression") signals.push("priced by weight");
   return signals;
+}
+
+/** Item specifics worth a search or a sanity check: part numbers, model, weight, size. */
+const USEFUL_SPEC = /part|mpn|model|oem|weight|dimension|size|material|placement|fitment/i;
+function specLines(specs: Record<string, string> | null | undefined): string[] {
+  return Object.entries(specs ?? {})
+    .filter(([k, v]) => USEFUL_SPEC.test(k) && typeof v === "string" && v.trim() && v.length <= 200)
+    .slice(0, 8)
+    .map(([k, v]) => `Spec ${k}: ${v.trim()}`);
+}
+
+/** A web search pays off only when the weight itself is in doubt. */
+function wantsWebSearch(signals: readonly string[]): boolean {
+  return signals.some((s) => s === "weight not listed" || s === "weight out of range" || s === "could not price");
 }
 
 function isTimeout(err: unknown, signal: AbortSignal): boolean {
@@ -127,17 +188,18 @@ function isTimeout(err: unknown, signal: AbortSignal): boolean {
   return /timeout|timed out|abort/i.test(`${e?.name ?? ""} ${e?.message ?? ""}`);
 }
 
-/**
- * Inspect one extraction's freight decision. Returns null when there is
- * nothing to inspect (no price or unsupported region — the product does not
- * price at all); otherwise a stored-ready inspection. Never throws.
- */
-export async function inspectFreight(extraction: ExtractionResult, opts: InspectFreightOptions): Promise<FreightInspection | null> {
-  const { product, country } = extraction;
-  if (!country || product.price == null || !(product.price > 0)) return null;
+interface Prepared {
+  calculator: PricingCalculator;
+  key: string;
+  before: FreightDecision;
+  beforePricing: PricingBreakdown;
+  signals: string[];
+}
 
-  const t0 = Date.now();
-  const base = (status: FreightInspectionStatus, key: string, rest: Partial<FreightInspection> = {}): FreightInspection => ({
+type Stamp = (status: FreightInspectionStatus, key: string, rest?: Partial<FreightInspection>) => FreightInspection;
+
+function stamper(t0: number): Stamp {
+  return (status, key, rest = {}) => ({
     status,
     model: null,
     inspected_at: new Date().toISOString(),
@@ -150,28 +212,69 @@ export async function inspectFreight(extraction: ExtractionResult, opts: Inspect
     ms: Date.now() - t0,
     ...rest,
   });
+}
+
+/**
+ * Price the product as it stands and decide whether it needs a check. Returns
+ * either a finished inspection (nothing to check, or nothing to check with) or
+ * the inputs for a model call.
+ */
+async function prepare(extraction: ExtractionResult, opts: InspectFreightOptions, stamp: Stamp): Promise<FreightInspection | Prepared | null> {
+  const { product, country } = extraction;
+  if (!country || product.price == null || !(product.price > 0)) return null;
+
+  const calculator = opts.calculator ?? (await loadPricingCalculator());
+  const key = freightInspectionKey(product, calculator.activeFixedFreightItems.map((i) => i.id));
+  const plain: ExtractionResult = { ...extraction, freight_inspection: undefined };
+
+  const beforePriced = await priceExtractionWith(calculator, plain, 1, null, null);
+  if (!beforePriced.pricing) return stamp("failed", key, { reason: `could not price: ${beforePriced.reason ?? "unknown"}` });
+  const before = decisionOf(beforePriced.pricing);
+
+  const signals = riskSignals(product, beforePriced.pricing);
+  if (signals.length === 0) return stamp("clear", key, { before, after: before, reason: "no risk signal" });
+  if (!provider()) return stamp("skipped", key, { before, reason: NO_MODEL_REASON });
+  return { calculator, key, before, beforePricing: beforePriced.pricing, signals };
+}
+
+/**
+ * The quote-time half: no model call. Null when there is nothing to inspect (no
+ * price or no region — the product does not price at all); a finished
+ * inspection when no check is needed; otherwise a `pending` marker, and the
+ * caller runs `inspectFreight` in the background. Never throws.
+ */
+export async function planFreightInspection(extraction: ExtractionResult, opts: InspectFreightOptions): Promise<FreightInspection | null> {
+  const stamp = stamper(Date.now());
+  try {
+    const prepared = await prepare(extraction, opts, stamp);
+    if (prepared == null || "status" in prepared) return prepared;
+    return stamp("pending", prepared.key, { before: prepared.before, reason: prepared.signals.join(", "), ms: null });
+  } catch (err) {
+    logger.warn("freight inspector: plan failed", { url: opts.url, error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
+/**
+ * Inspect one extraction's freight decision. Returns null when there is
+ * nothing to inspect; otherwise a stored-ready inspection. Never throws.
+ */
+export async function inspectFreight(extraction: ExtractionResult, opts: InspectFreightOptions): Promise<FreightInspection | null> {
+  const { product, country } = extraction;
+  const t0 = Date.now();
+  const base = stamper(t0);
 
   let key = "";
   try {
-    const calculator = opts.calculator ?? (await loadPricingCalculator());
-    const items = calculator.activeFixedFreightItems;
-    key = freightInspectionKey(product, items.map((i) => i.id));
-    const plain: ExtractionResult = { ...extraction, freight_inspection: undefined };
-
-    const beforePriced = await priceExtractionWith(calculator, plain, 1, null, null);
-    if (!beforePriced.pricing) return base("failed", key, { reason: `could not price: ${beforePriced.reason ?? "unknown"}` });
-    const before = decisionOf(beforePriced.pricing);
-
-    const signals = riskSignals(product, beforePriced.pricing);
-    if (signals.length === 0) return base("clear", key, { before, after: before, reason: "no risk signal" });
-
-    const anthropic = getClient();
-    if (!anthropic) return base("skipped", key, { before, reason: "no ANTHROPIC_API_KEY" });
+    const prepared = await prepare(extraction, opts, base);
+    if (prepared == null || "status" in prepared) return prepared;
+    const { calculator, before, beforePricing, signals } = prepared;
+    key = prepared.key;
 
     // The fixed items this product could plausibly be: those whose shelf allows
     // its category (all of them when the category is unknown), plus the current
     // one. Short codes instead of uuids keep the prompt small and unguessable.
-    const offered = items
+    const offered = calculator.activeFixedFreightItems
       .filter((i) => i.id === before.fixed_freight_item_id || fixedFreightCategoryAllows(i.category, product.category))
       .slice(0, FREIGHT_INSPECTOR.maxFixedItemsInPrompt);
     const codes = new Map(offered.map((i, n) => [`F${n + 1}`, i]));
@@ -182,65 +285,65 @@ export async function inspectFreight(extraction: ExtractionResult, opts: Inspect
       `Store: ${extraction.platform ?? "unknown"} (${country})`,
       `Title: ${product.title ?? "unknown"}`,
       product.brand ? `Brand: ${product.brand}` : "",
+      ...specLines(product.specifications),
       breadcrumbs.length ? `Store category path: ${breadcrumbs.join(" › ")}` : "",
       `Category: ${product.category ?? "unknown"}`,
       `Listed weight: ${product.weight ?? "none"} → parsed ${product.weight_lbs ?? "none"} lb`,
       product.dimensions ? `Dimensions: ${product.dimensions}` : "",
       `Item price: ${product.price} ${product.currency ?? "USD"}`,
+      `Product page: ${opts.url}`,
       "",
       "Calculator decision:",
       `- method: ${before.pricing_method}${before.pricing_group ? `, pricing group: ${before.pricing_group}` : ""}`,
       `- freight: GH₵${before.freight_ghs}`,
       `- fixed-freight item: ${before.fixed_freight_item ? `${currentFixed ?? "?"} ${before.fixed_freight_item}` : "none"}`,
       before.weight_lbs != null ? `- weight used: ${before.weight_lbs} lb` : "",
-      before.weight_lbs != null ? `- weight source: ${weightSourceLabel(beforePriced.pricing.weight_source)}` : "",
-      beforePriced.pricing.review_reason ? `- could not price: ${beforePriced.pricing.review_reason}` : "",
+      before.weight_lbs != null ? `- weight source: ${weightSourceLabel(beforePricing.weight_source)}` : "",
+      beforePricing.review_reason ? `- could not price: ${beforePricing.review_reason}` : "",
+      `- why this is being checked: ${signals.join(", ")}`,
       "",
       "Fixed-freight items (code | name | shelf | freight GH₵):",
       ...[...codes].map(([code, i]) => `${code} | ${i.product_name} | ${i.category} | ${i.freight_rate_ghs}`),
       `${NONE} | no fixed freight, price by category`,
     ].filter((l) => l !== "").join("\n");
 
+    const web = wantsWebSearch(signals);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? FREIGHT_INSPECTOR.timeoutMs);
-    let verdict: Verdict | null;
+    let answer: ModelAnswer | null;
     try {
-      const response = await anthropic.messages.parse(
-        {
-          model: FREIGHT_INSPECTOR.model,
-          max_tokens: FREIGHT_INSPECTOR.maxOutputTokens,
-          output_config: { format: zodOutputFormat(VerdictSchema) },
-          system: SYSTEM,
-          messages: [{ role: "user", content: facts }],
-        },
-        { signal: controller.signal },
-      );
-      verdict = response.stop_reason === "refusal" ? null : (response.parsed_output ?? null);
+      answer = provider() === "openrouter"
+        ? await askOpenRouter(facts, web, controller.signal)
+        : await askAnthropic(facts, controller.signal);
     } catch (err) {
       const timedOut = isTimeout(err, controller.signal);
-      logger.warn("freight inspector: model call failed", { url: opts.url, timedOut, error: err instanceof Error ? err.message : String(err), ms: Date.now() - t0 });
-      return base(timedOut ? "skipped" : "failed", key, { before, model: FREIGHT_INSPECTOR.model, reason: timedOut ? "timeout" : "model error" });
+      logger.warn("freight inspector: model call failed", { url: opts.url, timedOut, web, error: err instanceof Error ? err.message : String(err), ms: Date.now() - t0 });
+      return base(timedOut ? "skipped" : "failed", key, { before, reason: timedOut ? "timeout" : "model error" });
     } finally {
       clearTimeout(timer);
     }
-    if (!verdict) return base("failed", key, { before, model: FREIGHT_INSPECTOR.model, reason: "no verdict" });
+    if (!answer) return base("failed", key, { before, reason: "no verdict" });
+    const { verdict, model } = answer;
+    const sources = answer.sources.slice(0, FREIGHT_INSPECTOR.maxSources);
+    const basis = verdict.basis === "not_applicable" ? null : verdict.basis;
+    const confidence = Math.min(1, Math.max(0, verdict.confidence));
 
     const approved = (reason: string) =>
-      base("approved", key, { before, after: before, model: FREIGHT_INSPECTOR.model, confidence: verdict.confidence, reason });
+      base("approved", key, { before, after: before, model, confidence, reason, basis, sources });
 
     if (verdict.verdict === "ok") return approved(verdict.reason);
-    if (!(verdict.confidence >= FREIGHT_INSPECTOR.minConfidence)) return approved(`ignored low-confidence correction: ${verdict.reason}`);
+    if (!(confidence >= FREIGHT_INSPECTOR.minConfidence)) return approved(`ignored low-confidence correction: ${verdict.reason}`);
 
     // ── Validate each correction against what we offered ──────────────────
     const corrections: FreightCorrections = {};
-    if (verdict.category && CATEGORY_SET.has(verdict.category) && verdict.category !== product.category) {
+    if (verdict.category !== KEEP && CATEGORY_SET.has(verdict.category) && verdict.category !== product.category) {
       corrections.category = verdict.category;
     }
     const finalCategory = corrections.category ?? product.category;
-    const code = verdict.fixed_freight_item?.trim();
-    if (code && code.toLowerCase() === NONE) {
+    const code = verdict.fixed_freight_item.trim();
+    if (code.toLowerCase() === NONE) {
       if (before.fixed_freight_item_id) corrections.fixed_freight_item_id = null;
-    } else if (code) {
+    } else if (code && code.toLowerCase() !== KEEP) {
       const chosen = codes.get(code.toUpperCase());
       if (chosen && chosen.id !== before.fixed_freight_item_id && fixedFreightCategoryAllows(chosen.category, finalCategory)) {
         corrections.fixed_freight_item_id = chosen.id;
@@ -248,7 +351,7 @@ export async function inspectFreight(extraction: ExtractionResult, opts: Inspect
     }
     const w = verdict.weight_lbs;
     if (
-      w != null && Number.isFinite(w) && w >= FREIGHT_INSPECTOR.minWeightLbs && w <= FREIGHT_INSPECTOR.maxWeightLbs
+      w > 0 && Number.isFinite(w) && w >= FREIGHT_INSPECTOR.minWeightLbs && w <= FREIGHT_INSPECTOR.maxWeightLbs
       && w !== product.weight_lbs
       && (product.weight_lbs == null || (verdict.weight_implausible && verdict.reason.trim().length > 0))
     ) {
@@ -257,7 +360,7 @@ export async function inspectFreight(extraction: ExtractionResult, opts: Inspect
     if (Object.keys(corrections).length === 0) return approved(`no valid correction: ${verdict.reason}`);
 
     // ── Reprice the corrected inputs through the normal path ──────────────
-    const candidate = base("corrected", key, { corrections, before, model: FREIGHT_INSPECTOR.model, confidence: verdict.confidence, reason: verdict.reason });
+    const candidate = base("corrected", key, { corrections, before, model, confidence, reason: verdict.reason, basis, sources });
     const afterPriced = await priceExtractionWith(calculator, { ...extraction, freight_inspection: candidate }, 1, null, null);
     if (!afterPriced.pricing) return approved(`correction did not price: ${verdict.reason}`);
     const after = decisionOf(afterPriced.pricing);
@@ -275,7 +378,11 @@ export async function inspectFreight(extraction: ExtractionResult, opts: Inspect
       corrections,
       before,
       after,
-      confidence: verdict.confidence,
+      model,
+      web,
+      basis,
+      sources,
+      confidence,
       reason: verdict.reason,
       ms: result.ms,
     });
@@ -284,4 +391,95 @@ export async function inspectFreight(extraction: ExtractionResult, opts: Inspect
     logger.warn("freight inspector: failed", { url: opts.url, error: err instanceof Error ? err.message : String(err) });
     return base("failed", key, { reason: "inspector error" });
   }
+}
+
+interface ModelAnswer {
+  verdict: Verdict;
+  /** The model that actually answered (OpenRouter may fall back). */
+  model: string;
+  sources: string[];
+}
+
+interface OpenRouterResponse {
+  model?: string;
+  choices?: { message?: { content?: string | null; annotations?: { type?: string; url_citation?: { url?: string } }[] } }[];
+  usage?: { cost?: number };
+  error?: { message?: string; code?: number };
+}
+
+/**
+ * Gemini through OpenRouter, with OpenRouter's web plugin when `web`. Sources
+ * are the pages the search really returned (`url_citation` annotations), never
+ * URLs the model wrote itself: without a search Gemini invented listing URLs in
+ * the probe, so a URL only counts when the search produced it.
+ */
+async function askOpenRouter(facts: string, web: boolean, signal: AbortSignal): Promise<ModelAnswer | null> {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    signal,
+    headers: {
+      Authorization: `Bearer ${env.extraction.openRouterApiKey}`,
+      "Content-Type": "application/json",
+      "X-Title": "Tomame freight inspector",
+    },
+    body: JSON.stringify({
+      models: FREIGHT_INSPECTOR.openRouterModels,
+      max_tokens: FREIGHT_INSPECTOR.maxOutputTokens,
+      messages: [
+        { role: "system", content: SYSTEM },
+        { role: "user", content: web ? facts : `${facts}\n\n(No web search for this check: judge from what you know.)` },
+      ],
+      response_format: { type: "json_schema", json_schema: { name: "freight_verdict", strict: true, schema: VERDICT_JSON_SCHEMA } },
+      usage: { include: true },
+      ...(web
+        ? { plugins: [{ id: "web", engine: FREIGHT_INSPECTOR.webSearch.engine, max_results: FREIGHT_INSPECTOR.webSearch.maxResults }] }
+        : {}),
+    }),
+  });
+  const json = (await res.json().catch(() => ({}))) as OpenRouterResponse;
+  if (!res.ok || json.error) throw new Error(`openrouter ${res.status}: ${json.error?.message ?? "no body"}`);
+
+  const message = json.choices?.[0]?.message;
+  const content = message?.content?.trim();
+  if (!content) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
+  } catch {
+    return null;
+  }
+  const parsed = VerdictSchema.safeParse(raw);
+  if (!parsed.success) return null;
+
+  const cited = (message?.annotations ?? [])
+    .map((a) => (a.type === "url_citation" ? a.url_citation?.url : undefined))
+    .filter((u): u is string => typeof u === "string" && /^https?:\/\//.test(u));
+  const verdict = parsed.data;
+  // A "found" basis with nothing the search returned behind it is an estimate.
+  if (web && cited.length === 0 && verdict.basis !== "not_applicable") verdict.basis = "estimated";
+  if (!web && verdict.basis === "found_listed") verdict.basis = "estimated";
+
+  logger.info("freight inspector: model answered", { model: json.model, web, cost: json.usage?.cost, basis: verdict.basis, weight_lbs: verdict.weight_lbs, sources: cited.length });
+  return { verdict, model: json.model ?? FREIGHT_INSPECTOR.openRouterModels[0], sources: [...new Set(cited)] };
+}
+
+/** Haiku, without a search: the stand-in when OpenRouter is not configured. */
+async function askAnthropic(facts: string, signal: AbortSignal): Promise<ModelAnswer | null> {
+  const client = getAnthropic();
+  if (!client) return null;
+  const response = await client.messages.parse(
+    {
+      model: FREIGHT_INSPECTOR.fallbackModel,
+      max_tokens: FREIGHT_INSPECTOR.maxOutputTokens,
+      output_config: { format: zodOutputFormat(VerdictSchema) },
+      system: SYSTEM,
+      messages: [{ role: "user", content: `${facts}\n\n(No web search for this check: judge from what you know.)` }],
+    },
+    { signal },
+  );
+  const verdict = response.stop_reason === "refusal" ? null : (response.parsed_output ?? null);
+  if (!verdict) return null;
+  // Haiku cannot browse, so it cannot have read a listing.
+  if (verdict.basis === "found_listed") verdict.basis = "estimated";
+  return { verdict, model: FREIGHT_INSPECTOR.fallbackModel, sources: [] };
 }

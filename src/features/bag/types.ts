@@ -77,6 +77,12 @@ export interface BagLine {
   store_shipping_code: string | null;
   /** Non-null when a buyer is (or was) answering this line by hand. */
   sourcing: BagLineSourcing | null;
+  /**
+   * True while the line's freight weight is being checked in the background.
+   * It is unpriced meanwhile (`pricing_unavailable_reason` says why), so it
+   * cannot be paid for, and the bag polls until the check clears.
+   */
+  freight_checking: boolean;
 }
 
 /** One consolidation box in the bag, as the customer sees it. All derived server-side. */
@@ -169,6 +175,8 @@ export interface BagView {
   has_unpriced_lines: boolean;
   /** True while any line is still being read. Checkout is refused until it clears. */
   has_pending_lines: boolean;
+  /** True while any line's freight is being checked. Checkout is refused until it clears. */
+  has_freight_checks: boolean;
   /**
    * True while a line is waiting on a buyer, or a buyer has said we cannot get
    * it. Checkout is refused either way, and separately from `has_unpriced_lines`

@@ -1,12 +1,16 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { getValidExtractionById } from "@/db/queries/extraction-cache";
+import { startFreightRecheck } from "@/features/extraction/extraction.service";
 import { quoteForViewer } from "@/features/quotes/services/quote-lock.service";
 import { isWatching } from "@/features/watches/services/watches.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
 import { checkRateLimit, rateLimitSubject } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
+
+// Room for a restarted freight check (`after()`; one model call with a web search).
+export const maxDuration = 60;
 
 /**
  * GET /api/extractions/:id?quantity=N
@@ -38,8 +42,14 @@ export async function GET(
       throw new APIError(429, "Too many requests");
     }
 
+    // A freight check that timed out, errored or was lost starts again here;
+    // the quote then says it is checking and the screen keeps polling.
+    const recheck = await startFreightRecheck(row.id, row.result, row.product_url);
+    if (recheck) after(recheck.run);
+    const result = recheck?.result ?? row.result;
+
     const [quote, watching] = await Promise.all([
-      quoteForViewer({ ...row.result, extraction_cache_id: row.id, cached: true }, quantity, viewer, storeShippingCode ? { storeShippingCode } : null),
+      quoteForViewer({ ...result, extraction_cache_id: row.id, cached: true }, quantity, viewer, storeShippingCode ? { storeShippingCode } : null),
       isWatching(user?.id ?? null, row.url_hash),
     ]);
 

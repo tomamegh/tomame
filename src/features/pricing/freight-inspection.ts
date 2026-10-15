@@ -8,8 +8,12 @@ import type { PricingInput, PricingMethod } from "@/lib/pricing";
  * `before` / `after` are a record of what the calculator said with and without
  * them, for the log and for admins.
  */
-/** `clear`: no risk signal, so no model call was made and the decision stands. */
-export type FreightInspectionStatus = "clear" | "approved" | "corrected" | "skipped" | "failed";
+/**
+ * `clear`: no risk signal, so no model call was made and the decision stands.
+ * `pending`: the check is running in the background. The deterministic price
+ * shows meanwhile, but nothing may be paid against it (`freightCheckPending`).
+ */
+export type FreightInspectionStatus = "clear" | "pending" | "approved" | "corrected" | "skipped" | "failed";
 
 export interface FreightCorrections {
   /** A `TomameCategory` value. */
@@ -40,7 +44,43 @@ export interface FreightInspection {
   confidence: number | null;
   reason: string | null;
   ms: number | null;
+  /**
+   * How the model got its weight: read off a listing of this exact item, off
+   * similar items, or estimated. Absent on inspections made before web search.
+   */
+  basis?: "found_listed" | "found_similar" | "estimated" | null;
+  /** Pages the web search actually returned that the verdict rests on, for admins. */
+  sources?: string[];
 }
+
+/**
+ * How long a `pending` check may hold up payment. Past this the background run
+ * is presumed lost (a killed function), the deterministic price stands, and the
+ * next read of the product starts a fresh check.
+ */
+export const FREIGHT_CHECK_MAX_PENDING_MS = 75_000;
+
+/** True while a background freight check is running and the price must not be paid. */
+export function freightCheckPending(inspection: FreightInspection | null | undefined, now = Date.now()): boolean {
+  if (inspection?.status !== "pending") return false;
+  const started = Date.parse(inspection.inspected_at);
+  return Number.isFinite(started) && now - started < FREIGHT_CHECK_MAX_PENDING_MS;
+}
+
+/**
+ * A check worth running again: the model never answered (timeout, error) or a
+ * pending run was lost. A check skipped because no model is configured is not:
+ * it would only be skipped again.
+ */
+export function freightCheckDue(inspection: FreightInspection | null | undefined, now = Date.now()): boolean {
+  if (!inspection) return false;
+  if (inspection.status === "pending") return !freightCheckPending(inspection, now);
+  if (inspection.status === "failed") return true;
+  return inspection.status === "skipped" && inspection.reason !== NO_MODEL_REASON;
+}
+
+/** The `reason` on an inspection skipped because no model key is configured. */
+export const NO_MODEL_REASON = "no model configured";
 
 /** The product facts an inspection is valid for. */
 export interface FreightFacts {

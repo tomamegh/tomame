@@ -15,6 +15,7 @@ import { useRequestSourcing } from "@/features/sourcing/hooks/useRequestSourcing
 import { apiFetch, ApiFetchError } from "@/lib/api-client";
 import { storeShippingOptionsOf } from "@/features/extraction/store-shipping";
 import { toast } from "@/lib/sonner";
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { QuoteAssurance } from "../types";
@@ -32,6 +33,12 @@ import { QuoteSkeleton } from "./quote-skeleton";
 /** Mirrors `createOrderSchema` in `src/features/orders/schema.ts`. */
 const QUANTITY_MIN = 1;
 const QUANTITY_MAX = 100;
+/**
+ * How often the screen asks again while the freight is being checked. A check
+ * is a few seconds of model time plus a web search; each poll is one
+ * re-price of one line.
+ */
+const FREIGHT_POLL_MS = 2_500;
 /** Mirrors `addToBagSchema.special_instructions` (src/features/bag/schema.ts), which the bag route enforces. It was 2000 here, so 1001 to 2000 characters were refused with a 400. */
 const INSTRUCTIONS_MAX = 1000;
 
@@ -54,6 +61,12 @@ export interface QuoteViewProps {
    * public paste screen instead; a signed-in customer goes Home.
    */
   isAuthenticated: boolean;
+}
+
+/** The quote for this screen's quantity and chosen store shipping service. */
+function quoteUrl(extractionId: string, quantity: number, shippingCode: string | null): string {
+  const shipping = shippingCode ? `&shipping=${encodeURIComponent(shippingCode)}` : "";
+  return `/api/extractions/${extractionId}?quantity=${quantity}${shipping}`;
 }
 
 /** Where the review screen's back controls lead, by viewer. */
@@ -122,6 +135,46 @@ export function QuoteView({
   // changes; a ref keeps the effect's dependency list honest.
   const quoteRef = useRef<QuoteResponse | null>(null);
 
+  // When this screen first saw the freight check running (browser clock), so
+  // the notice can say "taking longer" without trusting the device's clock
+  // against the server's. Null when no check is running.
+  const [freightCheckSeenAt, setFreightCheckSeenAt] = useState<number | null>(null);
+  const checkingFreight = quote?.freight_check != null;
+  useEffect(() => {
+    setFreightCheckSeenAt((seen) => (checkingFreight ? (seen ?? Date.now()) : null));
+  }, [checkingFreight]);
+
+  // Silent re-reads while the check runs: no `repricing` flash, and a reply
+  // that lands after a quantity or shipping change is dropped by the same
+  // monotonic guard the main fetch uses.
+  const pollFreight = useCallback(() => {
+    const id = requestId.current;
+    apiFetch<ApiSuccessResponse<QuoteResponse>>(
+      quoteUrl(extractionId, quantity, shippingCode),
+    )
+      .then((response) => {
+        if (id !== requestId.current) return;
+        const previous = quoteRef.current;
+        quoteRef.current = response.data;
+        setQuote(response.data);
+        // Say so when the check moved the freight; a silent jump in the total
+        // is the thing a customer would rightly distrust.
+        const before = previous?.pricing?.flat_rate_ghs;
+        const after = response.data.pricing?.flat_rate_ghs;
+        if (previous?.freight_check && !response.data.freight_check && before != null && after != null && before !== after) {
+          const weight = response.data.pricing?.weight_lbs;
+          toast.success({
+            title: "Freight checked",
+            description: weight != null ? `Updated for a ${weight} lb shipping weight.` : "The freight has been updated.",
+          });
+        }
+      })
+      .catch(() => {
+        // The next tick asks again; the CTA stays shut until one answers.
+      });
+  }, [extractionId, quantity, shippingCode]);
+  useVisibleInterval(pollFreight, FREIGHT_POLL_MS, checkingFreight);
+
   const signIn = useCallback(() => {
     const next = `/app/orders/review/${extractionId}`;
     router.push(`/auth/login?next=${encodeURIComponent(next)}`);
@@ -133,7 +186,7 @@ export function QuoteView({
     setRepricing(true);
 
     apiFetch<ApiSuccessResponse<QuoteResponse>>(
-      `/api/extractions/${extractionId}?quantity=${quantity}${shippingCode ? `&shipping=${encodeURIComponent(shippingCode)}` : ""}`,
+      quoteUrl(extractionId, quantity, shippingCode),
       { signal: controller.signal },
     )
       .then((response) => {
@@ -352,7 +405,7 @@ export function QuoteView({
     // The last fetch failed, so what is on screen is the PREVIOUS quantity's
     // price.
     repriceFailed: loadError != null,
-  });
+  }) && !checkingFreight;
 
   const gallery = quote.product.images.length
     ? quote.product.images
@@ -449,6 +502,7 @@ export function QuoteView({
             shippingOptions={storeShippingOptionsOf(quote.product)}
             onShippingChange={setShippingCode}
             repricing={repricing}
+            freightCheckSeenAt={checkingFreight ? (freightCheckSeenAt ?? receivedAt.getTime()) : null}
             onContinue={addLineToBag}
             canContinue={canContinue && !!quote.extraction_cache_id}
             continuePending={addingToBag}
@@ -504,6 +558,7 @@ export function QuoteView({
         continuePending={addingToBag}
         addedCount={addedCount}
         repricing={repricing}
+        freightChecking={checkingFreight}
         onContinue={addLineToBag}
         needsSourcing={sourcingNeeded}
         onAskToSource={askToSource}

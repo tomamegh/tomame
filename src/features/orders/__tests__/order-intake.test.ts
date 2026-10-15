@@ -184,6 +184,19 @@ describe("buildOrderIntake — rate lock", () => {
   });
 });
 
+describe("buildOrderIntake — freight check", () => {
+  it("refuses an order while the snapshot's freight weight is still being checked", async () => {
+    const pending = snapshot();
+    pending.result.freight_inspection = {
+      status: "pending", model: null, inspected_at: new Date().toISOString(), input_key: "k", corrections: {},
+      before: null, after: null, confidence: null, reason: null, ms: null,
+    };
+    vi.mocked(getExtractionSnapshot).mockResolvedValue(pending);
+    await expect(buildOrderIntake(input, viewer)).rejects.toMatchObject({ statusCode: 409 });
+    expect(priceExtractionWith).not.toHaveBeenCalled();
+  });
+});
+
 describe("buildOrderIntake — the lock is never a price source", () => {
   it("ignores the client's estimate when the snapshot has a price (the gap-filler cannot bypass review)", async () => {
     vi.mocked(findActiveLock).mockResolvedValue(lock());

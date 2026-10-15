@@ -50,7 +50,7 @@ BROWSERLESS_API_KEY        # extraction: headless Chrome tier
 ANTHROPIC_API_KEY          # extraction: Claude structured-extraction tier
 EXCHANGE_RATE_API_KEY      # currency: primary provider
 ```
-Optional (tier skipped when absent): `SCRAPERAPI_API_KEY` (Amazon + eBay), `OXYLABS_USERNAME` + `OXYLABS_PASSWORD` (Amazon weight, Walmart), `ZYTE_API_KEY` (any other store — recommended), `RAINFOREST_API_KEY`, `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY`.
+Optional (tier skipped when absent): `OPENROUTER_API_KEY` (freight inspector: Gemini Flash-Lite + Exa web search; Haiku without search stands in when unset), `SCRAPERAPI_API_KEY` (Amazon + eBay), `OXYLABS_USERNAME` + `OXYLABS_PASSWORD` (Amazon weight, Walmart), `ZYTE_API_KEY` (any other store — recommended), `RAINFOREST_API_KEY`, `APIFY_API_TOKEN`, `FREECURRENCY_API_KEY`.
 WhatsApp (Meta Cloud API, channel OFF until the first two are set): `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET` (webhook signature), `WHATSAPP_VERIFY_TOKEN` (webhook handshake), `WHATSAPP_API_VERSION` (default `v24.0`), `WHATSAPP_API_BASE_URL` (local mock only). Templates to submit: `docs/whatsapp-templates.md`.
 
 The quote flow (`/app/orders/new`, `/app/orders/review/[id]`, `/api/products/extract`, `/api/extractions/[id]`, `/api/pricing/preview`) is public; sign-in is required at order submission (`/api/orders/new`) and beyond.

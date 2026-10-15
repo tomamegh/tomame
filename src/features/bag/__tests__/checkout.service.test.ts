@@ -37,7 +37,7 @@ const pricing = (total_ghs: number): PricingBreakdown =>
 const line = (id: string, total_ghs: number, over: Partial<BagLine> = {}): BagLine => ({
   id, extraction_cache_id: `cache-${id}`, pending: null, quantity: 1, special_instructions: null,
   product: { title: `Item ${id}`, image: "https://x/1.jpg", url: `https://www.amazon.com/dp/${id}`, store: "Amazon", variant: null, weight_lbs: 1, country: "USA" },
-  pricing: pricing(total_ghs), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null, sourced_price_usd: null, store_shipping_code: null, sourcing: null, ...over,
+  pricing: pricing(total_ghs), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null, sourced_price_usd: null, store_shipping_code: null, sourcing: null, freight_checking: false, ...over,
 });
 
 const bag = (over: Partial<BagView> = {}): BagView => ({
@@ -54,7 +54,7 @@ const bag = (over: Partial<BagView> = {}): BagView => ({
   total_ghs: 160, // 150 − 10 + 20
   total_usd: 10,
   rate_locked_until: null,
-  has_unpriced_lines: false, has_pending_lines: false, has_sourcing_lines: false,
+  has_unpriced_lines: false, has_pending_lines: false, has_freight_checks: false, has_sourcing_lines: false,
   ...over,
 });
 
@@ -145,6 +145,15 @@ describe("checkoutBag", () => {
 
     vi.mocked(getBag).mockResolvedValue(bag({ has_unpriced_lines: true }));
     await expect(checkoutBag(user, viewer, {})).rejects.toMatchObject({ statusCode: 409 });
+    expect(groups.insertOrderGroup).not.toHaveBeenCalled();
+  });
+
+  it("refuses while a line's freight is being checked, before the generic unpriced message", async () => {
+    vi.mocked(getBag).mockResolvedValue(bag({ has_freight_checks: true, has_unpriced_lines: true }));
+    await expect(checkoutBag(user, viewer, {})).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining("checking the freight"),
+    });
     expect(groups.insertOrderGroup).not.toHaveBeenCalled();
   });
 

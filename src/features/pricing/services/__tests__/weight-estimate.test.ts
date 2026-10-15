@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/exchange-rates/service", () => ({ getGhsRate: vi.fn(async (cur: string) => (cur === "USD" ? 12 : null)) }));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 const envState = { key: "k" as string | null };
-vi.mock("@/lib/env", () => ({ env: { extraction: { get anthropicApiKey() { return envState.key; } } } }));
+vi.mock("@/lib/env", () => ({ env: { extraction: { get anthropicApiKey() { return envState.key; }, openRouterApiKey: null } } }));
 vi.mock("@/features/pricing/services/pricing.service", () => ({ loadPricingCalculator: vi.fn() }));
 const parse = vi.fn();
 vi.mock("@anthropic-ai/sdk", () => {
@@ -111,7 +111,7 @@ describe("pricing a TV with no listed weight", () => {
     const calc = calculator();
     parse.mockResolvedValue({
       stop_reason: "end_turn",
-      parsed_output: { verdict: "correct", category: null, weight_lbs: 100, weight_implausible: false, fixed_freight_item: null, confidence: 0.9, reason: "An 85-inch TV ships at about 100 lb." },
+      parsed_output: { verdict: "correct", category: "keep", weight_lbs: 100, weight_implausible: false, fixed_freight_item: "keep", basis: "estimated", sources: [], confidence: 0.9, reason: "An 85-inch TV ships at about 100 lb." },
     });
     const inspection = await inspectFreight(LG, { url, calculator: calc });
     const prompt = parse.mock.calls[0]?.[0].messages[0].content as string;
@@ -126,11 +126,11 @@ describe("pricing a TV with no listed weight", () => {
   });
 
   it("tells the inspector a placeholder is not evidence", async () => {
-    parse.mockResolvedValue({ stop_reason: "end_turn", parsed_output: { verdict: "ok", category: null, weight_lbs: null, weight_implausible: false, fixed_freight_item: null, confidence: 0.9, reason: "fine" } });
+    parse.mockResolvedValue({ stop_reason: "end_turn", parsed_output: { verdict: "ok", category: "keep", weight_lbs: 0, weight_implausible: false, fixed_freight_item: "keep", basis: "not_applicable", sources: [], confidence: 0.9, reason: "fine" } });
     await inspectFreight(NO_SIZE, { url, calculator: calculator() });
     const call = parse.mock.calls[0]?.[0];
     expect(call.messages[0].content).toContain("weight source: the category's placeholder weight (no weight listed; not evidence)");
-    expect(call.system).toContain("A placeholder is not evidence");
+    expect(call.system).toContain("A placeholder is NOT evidence");
   });
 });
 

@@ -3,8 +3,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/exchange-rates/service", () => ({ getGhsRate: vi.fn(async (cur: string) => (cur === "USD" ? 15 : null)) }));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
-const envState = { key: "k" as string | undefined };
-vi.mock("@/lib/env", () => ({ env: { extraction: { get anthropicApiKey() { return envState.key; } } } }));
+const envState = { key: "k" as string | undefined, openRouter: undefined as string | undefined };
+vi.mock("@/lib/env", () => ({
+  env: { extraction: { get anthropicApiKey() { return envState.key; }, get openRouterApiKey() { return envState.openRouter; } } },
+}));
 vi.mock("@/features/pricing/services/pricing.service", () => ({ loadPricingCalculator: vi.fn() }));
 
 const parse = vi.fn();
@@ -16,8 +18,9 @@ vi.mock("@anthropic-ai/sdk", () => {
 });
 
 import { PricingCalculator } from "@/lib/pricing";
-import { inspectFreight, riskSignals } from "../freight-inspector.service";
-import { freightInspectionKey } from "../../freight-inspection";
+import { inspectFreight, planFreightInspection, riskSignals } from "../freight-inspector.service";
+import { FREIGHT_CHECK_MAX_PENDING_MS, freightCheckDue, freightCheckPending, freightInspectionKey, type FreightInspection } from "../../freight-inspection";
+import { freightCheckOf } from "@/features/extraction/quote.service";
 import { customerExtraction, priceExtractionWith } from "@/features/extraction/quote.service";
 import { withProductDefaults, type ExtractionResult, type ScrapedProduct } from "@/features/extraction/types";
 import type { PricingGroupRow } from "@/db/queries/pricing-groups";
@@ -64,7 +67,7 @@ function extraction(product: Partial<ScrapedProduct>): ExtractionResult {
 
 const verdict = (v: Record<string, unknown>) => ({
   stop_reason: "end_turn",
-  parsed_output: { verdict: "correct", category: null, weight_lbs: null, weight_implausible: false, fixed_freight_item: null, confidence: 0.9, reason: "r", ...v },
+  parsed_output: { verdict: "correct", category: "keep", weight_lbs: 0, weight_implausible: false, fixed_freight_item: "keep", basis: "not_applicable", sources: [], confidence: 0.9, reason: "r", ...v },
 });
 
 /** An OMEN-branded hoodie with no category: the keyword alone picks Laptop Gaming. */
@@ -76,6 +79,8 @@ beforeEach(() => {
   parse.mockReset();
   vi.mocked(logger.info).mockClear();
   envState.key = "k";
+  envState.openRouter = undefined;
+  vi.unstubAllGlobals();
 });
 
 describe("inspectFreight", () => {
@@ -163,11 +168,12 @@ describe("inspectFreight", () => {
   });
 
   it("keeps a listed weight unless the model calls it implausible", async () => {
-    // A plausible listed weight on a weight-priced category is no risk: no model call at all.
+    // A plausible listed weight is still checked (weight is money), and a correction without "implausible" is refused.
     const listed = extraction({ ...MACBOOK.product, weight_lbs: 4 });
-    parse.mockClear();
-    expect((await inspectFreight(listed, { url, calculator: calculator() }))?.status).toBe("clear");
-    expect(parse).not.toHaveBeenCalled();
+    parse.mockResolvedValue(verdict({ weight_lbs: 6 }));
+    const kept = await inspectFreight(listed, { url, calculator: calculator() });
+    expect(parse).toHaveBeenCalledTimes(1);
+    expect(kept?.status).toBe("approved");
 
     // Grams read as pounds trips "weight out of range", so the model is asked and may fix it.
     parse.mockResolvedValue(verdict({ weight_lbs: 0.88, weight_implausible: true, reason: "400 g, not 400 lb" }));
@@ -180,6 +186,7 @@ describe("inspectFreight", () => {
     expect((await inspectFreight(MACBOOK, { url, calculator: calculator() }))?.status).toBe("approved");
 
     parse.mockResolvedValue(verdict({ category: C.COMPUTERS, fixed_freight_item: "none" }));
+    // (category COMPUTERS on a hoodie with no weight would need review)
     const r = await inspectFreight(HOODIE, { url, calculator: calculator() });
     expect(r?.status).toBe("approved");
     expect(r?.reason).toMatch(/review/);
@@ -202,6 +209,11 @@ describe("riskSignals", () => {
     expect(riskSignals(clothing, breakdown({ pricing_method: "weight_expression", weight_source: "default" }))).toContain("weight not listed");
     expect(riskSignals({ ...clothing, weight_lbs: 400 }, breakdown({}))).toContain("weight out of range");
     expect(riskSignals(clothing, breakdown({ flat_rate_ghs: 1500 }))).toContain("freight dwarfs item");
+  });
+
+  it("checks every weight-priced decision, a listed weight included", () => {
+    expect(riskSignals(clothing, breakdown({ pricing_method: "weight_expression", weight_source: "listed" }))).toEqual(["priced by weight"]);
+    expect(riskSignals(clothing, breakdown({ pricing_method: "weight_expression", weight_source: "minimum" }))).toEqual(["priced by weight"]);
   });
 
   it("does not flag a clearly-priced product through the inspector", async () => {
@@ -241,5 +253,155 @@ describe("priceExtractionWith and a stored inspection", () => {
   it("never hands the inspection to a customer", async () => {
     const inspection = await corrected();
     expect("freight_inspection" in customerExtraction({ ...HOODIE, freight_inspection: inspection })).toBe(false);
+  });
+});
+
+// ── OpenRouter (Gemini + web search) ────────────────────────────────────────
+
+/** A chat-completions reply carrying `body` as the model's JSON and `cites` as search annotations. */
+function openRouterReply(body: Record<string, unknown>, cites: string[] = [], model = "google/gemini-3.1-flash-lite") {
+  const content = JSON.stringify({
+    verdict: "correct", category: "keep", weight_lbs: 0, weight_implausible: false, fixed_freight_item: "keep",
+    basis: "estimated", sources: [], confidence: 0.9, reason: "r", ...body,
+  });
+  return new Response(JSON.stringify({
+    model,
+    choices: [{ message: { content, annotations: cites.map((u) => ({ type: "url_citation", url_citation: { url: u } })) } }],
+    usage: { cost: 0.008 },
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+}
+
+/** An eBay car part with no listed weight: the 1 lb placeholder Haiku used to approve (2026-10-15). */
+function carPartCalculator(): PricingCalculator {
+  const calc = calculator();
+  calc.setCategoryPricing(new Map([
+    [C.AUTOMOTIVE, group({ slug: "car_parts", name: "Car parts", flat_rate_ghs: null, flat_rate_expression: "weight", requires_weight: true, default_weight_lbs: 1 })],
+  ]));
+  return calc;
+}
+const AIR_FLAP = extraction({ title: "86960P6000 OEM Active Air Flap Duct Assy for Hyundai Santa Fe MX5 2024-2026", price: 171, category: C.AUTOMOTIVE, weight_lbs: null });
+AIR_FLAP.platform = "ebay";
+
+describe("inspectFreight through OpenRouter", () => {
+  beforeEach(() => {
+    envState.openRouter = "or-key";
+  });
+
+  it("searches the web for an unlisted weight and corrects the placeholder, keeping only cited sources", async () => {
+    const fetchMock = vi.fn(async () => openRouterReply(
+      { weight_lbs: 3.5, basis: "found_listed", sources: ["https://invented.example/x"], reason: "eBay listings of 86960-P6000 give 3–4 lb boxed." },
+      ["https://www.ebay.com/itm/1", "https://www.ebay.com/itm/1", "https://parts.example/86960P6000"],
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    const calc = carPartCalculator();
+
+    const inspection = await inspectFreight(AIR_FLAP, { url, calculator: calc });
+
+    expect(inspection?.status).toBe("corrected");
+    expect(inspection?.corrections).toEqual({ weight_lbs: 3.5 });
+    expect(inspection?.before?.weight_lbs).toBe(1);
+    expect(inspection?.after?.weight_lbs).toBe(3.5);
+    expect(inspection?.model).toBe("google/gemini-3.1-flash-lite");
+    expect(inspection?.basis).toBe("found_listed");
+    expect(inspection?.sources).toEqual(["https://www.ebay.com/itm/1", "https://parts.example/86960P6000"]);
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.plugins).toEqual([{ id: "web", engine: "exa", max_results: 3 }]);
+    expect(body.models[0]).toBe("google/gemini-3.1-flash-lite");
+    expect(body.response_format.type).toBe("json_schema");
+    expect(body.messages[1].content).toContain("weight source: the category's placeholder weight");
+    expect(parse).not.toHaveBeenCalled();
+
+    const priced = await priceExtractionWith(calc, { ...AIR_FLAP, freight_inspection: inspection! }, 1, null, null);
+    expect(priced.pricing).toMatchObject({ weight_lbs: 3.5, weight_source: "estimated" });
+  });
+
+  it("calls a found weight an estimate when the search returned nothing behind it", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => openRouterReply({ weight_lbs: 4, basis: "found_listed" })));
+    const inspection = await inspectFreight(AIR_FLAP, { url, calculator: carPartCalculator() });
+    expect(inspection?.basis).toBe("estimated");
+    expect(inspection?.sources).toEqual([]);
+  });
+
+  it("checks a listed, plausible weight without a search", async () => {
+    const fetchMock = vi.fn(async () => openRouterReply({ verdict: "ok", basis: "not_applicable" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const listed = extraction({ ...AIR_FLAP.product, weight_lbs: 4 });
+    const inspection = await inspectFreight(listed, { url, calculator: carPartCalculator() });
+    expect(inspection?.status).toBe("approved");
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.plugins).toBeUndefined();
+  });
+
+  it("fails open on an OpenRouter error and a reply that is not JSON", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: { message: "rate limited", code: 429 } }), { status: 429 })));
+    expect((await inspectFreight(AIR_FLAP, { url, calculator: carPartCalculator() }))?.status).toBe("failed");
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: "about 3 lb" } }] }), { status: 200 })));
+    const r = await inspectFreight(AIR_FLAP, { url, calculator: carPartCalculator() });
+    expect(r?.status).toBe("failed");
+    expect(r?.reason).toBe("no verdict");
+  });
+
+  it("times out to skipped", async () => {
+    vi.stubGlobal("fetch", vi.fn((_u: string, init: RequestInit) =>
+      new Promise((_, reject) => init.signal!.addEventListener("abort", () => reject(new Error("This operation was aborted"))))));
+    const r = await inspectFreight(AIR_FLAP, { url, calculator: carPartCalculator(), timeoutMs: 10 });
+    expect(r?.status).toBe("skipped");
+    expect(r?.reason).toBe("timeout");
+  });
+});
+
+describe("planFreightInspection", () => {
+  it("marks a risky decision pending without calling a model, and leaves a quiet one clear", async () => {
+    envState.openRouter = "or-key";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = await planFreightInspection(AIR_FLAP, { url, calculator: carPartCalculator() });
+    expect(pending?.status).toBe("pending");
+    expect(pending?.before?.weight_lbs).toBe(1);
+    expect(pending?.input_key).toBe(freightInspectionKey(AIR_FLAP.product, ITEMS.map((i) => i.id)));
+
+    const clothing = extraction({ title: "Hoodie", price: 13.98, category: C.CLOTHING_MEN, weight_lbs: 1.49 });
+    expect((await planFreightInspection(clothing, { url, calculator: calculator() }))?.status).toBe("clear");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("skips (never pending) when no model is configured", async () => {
+    envState.key = undefined;
+    const r = await planFreightInspection(AIR_FLAP, { url, calculator: carPartCalculator() });
+    expect(r?.status).toBe("skipped");
+    expect(freightCheckDue(r)).toBe(false);
+  });
+});
+
+describe("freight check state", () => {
+  const at = (status: FreightInspection["status"], ageMs: number, reason: string | null = null): FreightInspection => ({
+    status, model: null, inspected_at: new Date(Date.now() - ageMs).toISOString(), input_key: "k", corrections: {},
+    before: null, after: null, confidence: null, reason, ms: null,
+  });
+
+  it("holds payment only while a pending check is fresh", () => {
+    expect(freightCheckPending(at("pending", 1_000))).toBe(true);
+    expect(freightCheckPending(at("pending", FREIGHT_CHECK_MAX_PENDING_MS + 1))).toBe(false);
+    expect(freightCheckPending(at("approved", 0))).toBe(false);
+    expect(freightCheckPending(undefined)).toBe(false);
+  });
+
+  it("re-runs lost, failed and timed-out checks, not finished ones", () => {
+    expect(freightCheckDue(at("pending", FREIGHT_CHECK_MAX_PENDING_MS + 1))).toBe(true);
+    expect(freightCheckDue(at("pending", 1_000))).toBe(false);
+    expect(freightCheckDue(at("failed", 0))).toBe(true);
+    expect(freightCheckDue(at("skipped", 0, "timeout"))).toBe(true);
+    expect(freightCheckDue(at("approved", 0))).toBe(false);
+    expect(freightCheckDue(at("corrected", 0))).toBe(false);
+  });
+
+  it("tells the customer only that a check is running", () => {
+    const pending = at("pending", 1_000);
+    expect(freightCheckOf({ ...AIR_FLAP, freight_inspection: pending })).toEqual({ status: "checking", started_at: pending.inspected_at });
+    expect(freightCheckOf({ ...AIR_FLAP, freight_inspection: at("corrected", 0) })).toBeNull();
+    expect(freightCheckOf(AIR_FLAP)).toBeNull();
   });
 });

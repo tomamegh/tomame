@@ -2,7 +2,7 @@ import "server-only";
 import { logger } from "@/lib/logger";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
-import { customerExtraction, customerMessages, priceExtractionWith, type PriceOverrides } from "@/features/extraction/quote.service";
+import { customerExtraction, customerMessages, freightCheckOf, priceExtractionWith, type PriceOverrides } from "@/features/extraction/quote.service";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { listGhsRates } from "@/lib/exchange-rates/service";
 import type { ExtractionResult, Quote } from "@/features/extraction/types";
@@ -82,7 +82,8 @@ export async function quoteForViewer(
     overrides,
   });
   const customer = customerExtraction(extraction);
-  return { ...customer, messages: customerMessages(customer.messages, pricing), pricing, pricing_unavailable_reason: reason };
+  const freightCheck = freightCheckOf(extraction);
+  return { ...customer, messages: customerMessages(customer.messages, pricing, freightCheck != null), pricing, pricing_unavailable_reason: reason, freight_check: freightCheck };
 }
 
 /**

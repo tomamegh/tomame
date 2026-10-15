@@ -23,6 +23,7 @@ import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { StoreShippingOption } from "@/features/extraction/store-shipping";
 import type { PricingBreakdown } from "@/lib/pricing";
 import { formatEtaRange } from "./format";
+import { FreightCheckNotice } from "./freight-check-notice";
 import { cn } from "@/lib/utils";
 import { formatDoorDeliveryLabel, formatRateLockDeadline } from "./format";
 
@@ -48,6 +49,12 @@ export interface QuoteReceiptCardProps {
   onShippingChange?: (code: string) => void;
   /** True while a quantity change is being re-priced by the server. */
   repricing: boolean;
+  /**
+   * Non-null while the freight weight is being checked in the background: when
+   * this screen first saw it, in the browser's clock. The freight row and the
+   * total are provisional meanwhile and the CTA waits.
+   */
+  freightCheckSeenAt?: number | null;
   onContinue: () => void;
   /** Bag count once THIS screen added the line; the CTA then hands off to the bag. */
   addedCount: number | null;
@@ -91,6 +98,7 @@ export function QuoteReceiptCard({
   shippingOptions = [],
   onShippingChange,
   repricing,
+  freightCheckSeenAt = null,
   onContinue,
   addedCount,
   canContinue,
@@ -103,6 +111,7 @@ export function QuoteReceiptCard({
   onToggleWatch,
 }: QuoteReceiptCardProps) {
   const rows = pricing ? buildReceiptRows(pricing) : [];
+  const checking = freightCheckSeenAt != null;
   // A needs_review breakdown carries total_ghs 0 — not a price (the bag treats it the same way).
   const needsReview = pricing?.pricing_method === "needs_review";
   const total =
@@ -117,7 +126,7 @@ export function QuoteReceiptCard({
   return (
     <section
       aria-label="Landed price"
-      aria-busy={repricing}
+      aria-busy={repricing || checking}
       className="overflow-hidden rounded-[20px] border border-tm-border bg-card lg:rounded-[24px]"
     >
       <header className="flex flex-col gap-1.5 bg-[linear-gradient(160deg,#FFF1EC,#FFF7EA)] px-4 py-3.5 lg:px-[22px] lg:pt-[22px] lg:pb-4">
@@ -134,7 +143,13 @@ export function QuoteReceiptCard({
             the moment the two used different rates. Older stored breakdowns do
             not carry the field, so the echo is simply omitted for them.
           */
-          <div className="flex flex-wrap items-baseline gap-2.5">
+          <div
+            className={cn(
+              "flex flex-wrap items-baseline gap-2.5 transition-opacity duration-300",
+              // Provisional while the freight is checked: it may still move.
+              checking && "opacity-55",
+            )}
+          >
             <p className="tm-pop tm-nums text-[28px] leading-none font-bold tracking-[-0.03em] sm:text-[34px] sm:leading-none lg:text-[40px] lg:leading-none [animation-delay:1.2s] [animation-duration:0.6s]">
               {total.whole}
               {total.fraction && (
@@ -185,13 +200,22 @@ export function QuoteReceiptCard({
                       />
                       {row.label}
                     </dt>
-                    <dd className="text-tm-ink">{row.value}</dd>
+                    {checking && row.key === "freight" ? (
+                      <dd className="flex items-center gap-1.5 text-tm-text-3">
+                        <span className="tm-pulse-dot size-1.5 rounded-full bg-tm-coral" aria-hidden />
+                        Checking…
+                      </dd>
+                    ) : (
+                      <dd className="text-tm-ink">{row.value}</dd>
+                    )}
                   </div>
                 );
               })}
             </dl>
 
-            {needsReview ? (
+            {checking ? (
+              <FreightCheckNotice seenAt={freightCheckSeenAt} className="mt-1" />
+            ) : needsReview ? (
               <p className="text-[11px] leading-[1.4] font-medium text-tm-text-3">
                 Our team will price the freight for this item before you pay.
               </p>
@@ -329,7 +353,7 @@ export function QuoteReceiptCard({
           <button
             type="button"
             onClick={onContinue}
-            disabled={!canContinue || continuePending || repricing}
+            disabled={!canContinue || continuePending || repricing || checking}
             className={cn(
               "tm-cta-gradient hidden h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold lg:flex",
               "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
@@ -338,7 +362,7 @@ export function QuoteReceiptCard({
             )}
           >
             <Tote weight="bold" className="size-[18px]" aria-hidden />
-            {continuePending ? "Adding to your bag…" : "Add to bag"}
+            {continuePending ? "Adding to your bag…" : checking ? "Checking freight…" : "Add to bag"}
           </button>
         )}
 

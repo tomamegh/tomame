@@ -2,6 +2,8 @@ import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { getExtractionSnapshot } from "@/features/extraction/extraction.service";
 import { gapFillOverrides, priceExtractionWith, type PriceOverrides } from "@/features/extraction/quote.service";
+import { FREIGHT_CHECKING_MESSAGE } from "@/features/extraction/resolvers/messages";
+import { freightCheckPending } from "@/features/pricing/freight-inspection";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
 import { hashUrl, regionForUrl } from "@/features/extraction/url";
@@ -74,6 +76,10 @@ export async function buildOrderIntake(
   }
   const extraction = snapshot?.result ?? null;
   const product = extraction?.product ?? null;
+  // The freight weight is still being checked; the price may move in seconds.
+  if (freightCheckPending(extraction?.freight_inspection)) {
+    throw new APIError(409, FREIGHT_CHECKING_MESSAGE);
+  }
 
   const reasons: string[] = [];
 

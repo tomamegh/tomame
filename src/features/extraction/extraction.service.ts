@@ -1,7 +1,7 @@
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { EXTRACTION } from "@/config/extraction";
-import { getCachedExtractionByHash, getExtractionById, upsertExtractionCache } from "@/db/queries/extraction-cache";
+import { getCachedExtractionByHash, getExtractionById, updateExtractionResultIfInspection, upsertExtractionCache } from "@/db/queries/extraction-cache";
 import { enqueueExtractionRequest, type RequestViewer } from "@/db/queries/extraction-requests";
 import { getCategoryPricingMap } from "@/db/queries/pricing-groups";
 import { getScraperForStore, SUPPORTED_STORE_NAMES } from "./scrapers";
@@ -10,9 +10,8 @@ import { storeForUrl, type StoreDefinition } from "./stores";
 import { resolveProduct, continueResolve, type ChainOutcome } from "./resolvers";
 import { hasRequiredFields, hasWeight } from "./resolvers/merge";
 import { classifyCategory } from "./category.service";
-import { FREIGHT_INSPECTOR } from "@/config/freight-inspector";
-import { inspectFreight } from "@/features/pricing/services/freight-inspector.service";
-import type { FreightInspection } from "@/features/pricing/freight-inspection";
+import { inspectFreight, planFreightInspection } from "@/features/pricing/services/freight-inspector.service";
+import { freightCheckDue } from "@/features/pricing/freight-inspection";
 import { hashUrl, inferRegion, isShortUrl, parseUrl, regionForUrl, resolveShortUrl, usEbayItemUrl, type Region } from "./url";
 import type { ExtractionResult } from "./types";
 
@@ -22,11 +21,15 @@ export interface ExtractionResponse extends ExtractionResult {
 
 /**
  * A fresh extraction may come back before the slow tiers (Claude weight lookup)
- * have run. `enrich` finishes them and updates the cache row; the route
- * schedules it with `after()` so the customer is not kept waiting on it.
+ * and the freight check have run. `enrich` finishes both and updates the cache
+ * row; the route schedules it with `after()` so the customer is not kept
+ * waiting on it. `checkFreight` is the freight check alone, for callers that
+ * never ran the slow tiers (the paste queue). Either is absent when there is
+ * nothing to do.
  */
 export interface FreshExtraction extends ExtractionResponse {
   enrich?: () => Promise<void>;
+  checkFreight?: () => Promise<void>;
 }
 
 /**
@@ -129,13 +132,17 @@ async function resolveExtraction(prepared: PreparedUrl, userId: string | null): 
   if (cached) {
     logger.info("extraction: cache hit", { url: prepared.canonicalUrl });
     // The cache query fills legacy rows to the current product shape.
-    return { ...reviveRegion(cached.result, prepared.canonicalUrl), extraction_cache_id: cached.id, cached: true };
+    const revived = reviveRegion(cached.result, prepared.canonicalUrl);
+    const recheck = await startFreightRecheck(cached.id, revived, prepared.canonicalUrl);
+    return { ...(recheck?.result ?? revived), extraction_cache_id: cached.id, cached: true, enrich: recheck?.run, checkFreight: recheck?.run };
   }
 
   const existing = inflight.get(prepared.urlHash);
   if (existing) {
     logger.info("extraction: coalesced with in-flight request", { url: prepared.canonicalUrl });
-    return existing;
+    // The first caller schedules the background work; a second would run it twice.
+    const { enrich: _enrich, checkFreight: _check, ...shared } = await existing;
+    return shared;
   }
 
   const run = performExtraction(prepared, userId);
@@ -195,18 +202,31 @@ function toResult(prepared: PreparedUrl, outcome: ChainOutcome, sourcesRan: Chai
 }
 
 /**
- * Run the freight inspector (once per product, before the first cache write)
- * and attach its verdict. Never throws: the inspector fails open itself, and
- * anything that escapes it just means this product prices deterministically.
+ * Decide the freight check for a result, without a model call: a `pending`
+ * marker when the background check must run, a finished inspection when none
+ * is needed. The quote is priced and cached with it straight away. Never throws.
  */
-async function withFreightInspection(result: ExtractionResult, url: string, timeoutMs?: number): Promise<ExtractionResult> {
+async function withFreightPlan(result: ExtractionResult, url: string): Promise<ExtractionResult> {
+  const plan = await planFreightInspection(result, { url });
+  return plan ? { ...result, freight_inspection: plan } : result;
+}
+
+/**
+ * Run a planned check to its verdict. A result that is not pending comes back
+ * unchanged; one whose check produced nothing loses its marker, so no row is
+ * ever left pending by a finished run. Never throws.
+ */
+async function runFreightCheck(result: ExtractionResult, url: string): Promise<ExtractionResult> {
+  if (result.freight_inspection?.status !== "pending") return result;
   try {
-    const inspection = await inspectFreight(result, { url, timeoutMs });
-    return inspection ? { ...result, freight_inspection: inspection } : result;
+    const inspection = await inspectFreight(result, { url });
+    if (inspection) return { ...result, freight_inspection: inspection };
   } catch (err) {
     logger.warn("extraction: freight inspection threw", { url, error: err instanceof Error ? err.message : String(err) });
-    return result;
   }
+  const rest = { ...result };
+  delete rest.freight_inspection;
+  return rest;
 }
 
 /** True when enrichment left every fact the inspector looked at unchanged. */
@@ -214,21 +234,39 @@ function sameFreightFacts(a: ExtractionResult["product"], b: ExtractionResult["p
   return a.title === b.title && a.category === b.category && a.weight_lbs === b.weight_lbs && a.price === b.price && a.currency === b.currency;
 }
 
-/** A verdict the model never gave: a timeout or an error. Worth one more try off the request path. */
-function inspectionNeedsRetry(inspection: FreightInspection | undefined): boolean {
-  return inspection?.status === "skipped" || inspection?.status === "failed";
-}
+/** Cache rows whose freight check is running in this instance, so two reads do not start it twice. */
+const rechecking = new Set<string>();
 
-async function reinspectAfterEnrichment(
-  previous: FreightInspection | undefined,
-  before: ExtractionResult["product"],
-  updated: ExtractionResult,
+/**
+ * A cached product whose freight check never finished — the model timed out
+ * or errored, or the background run was lost and its `pending` went stale —
+ * gets a fresh check. The new `pending` marker is written first, guarded on
+ * the old inspection, so only one reader wins the claim; the winner gets the
+ * pending result to show and `run` to schedule after its response.
+ */
+export async function startFreightRecheck(
+  id: string,
+  result: ExtractionResult,
   url: string,
-): Promise<ExtractionResult> {
-  if (previous && !inspectionNeedsRetry(previous) && sameFreightFacts(before, updated.product)) {
-    return { ...updated, freight_inspection: previous };
-  }
-  return withFreightInspection(updated, url, FREIGHT_INSPECTOR.retryTimeoutMs);
+): Promise<{ result: ExtractionResult; run: () => Promise<void> } | null> {
+  if (!freightCheckDue(result.freight_inspection) || rechecking.has(id)) return null;
+  const plan = await planFreightInspection(result, { url });
+  if (plan?.status !== "pending") return null;
+  const pending: ExtractionResult = { ...result, freight_inspection: plan };
+  if (!(await updateExtractionResultIfInspection(id, pending, result.freight_inspection?.inspected_at ?? null))) return null;
+  logger.info("extraction: freight re-check started", { url, previous: result.freight_inspection?.status });
+  rechecking.add(id);
+  return {
+    result: pending,
+    run: async () => {
+      try {
+        const checked = await runFreightCheck(pending, url);
+        await updateExtractionResultIfInspection(id, checked, plan.inspected_at);
+      } finally {
+        rechecking.delete(id);
+      }
+    },
+  };
 }
 
 /**
@@ -274,9 +312,10 @@ async function performExtraction(prepared: PreparedUrl, userId: string | null): 
   // Fast mode: answer as soon as title + price + currency are known. Weight
   // (and anything else the paid tiers add) is filled in by `enrich` below.
   const outcome = await withLateCategory(await resolveProduct({ ...chainInput, stopWhenRequired: true }), platform);
-  // Inspected before the first cache write, so the review page never renders an
-  // uninspected freight decision for a fresh product.
-  const result = await withFreightInspection(toResult(prepared, outcome, outcome.ran), canonicalUrl);
+  // The freight check is planned before the first cache write (so the review
+  // page never renders an unchecked weight as final) but runs after the
+  // response: the quote shows at once and says the freight is being checked.
+  const result = await withFreightPlan(toResult(prepared, outcome, outcome.ran), canonicalUrl);
   const complete = result.extraction_success;
 
   logger.info("extraction: done", {
@@ -289,28 +328,21 @@ async function performExtraction(prepared: PreparedUrl, userId: string | null): 
     htmlSource: outcome.htmlSource,
     ms: outcome.durationMs,
     timings: outcome.timings,
+    freightCheck: result.freight_inspection?.status ?? null,
   });
 
   const ttl = complete ? EXTRACTION.cacheTtlCompleteMs : EXTRACTION.cacheTtlPartialMs;
   const expiresAt = new Date(Date.now() + ttl).toISOString();
-  const cacheId = await upsertExtractionCache({
-    urlHash,
-    productUrl: canonicalUrl,
-    result,
-    complete,
-    source: outcome.primarySource,
-    requestedBy: userId,
-    expiresAt,
-  });
+  const write = (r: ExtractionResult, source: ChainOutcome["primarySource"], isComplete: boolean) =>
+    upsertExtractionCache({ urlHash, productUrl: canonicalUrl, result: r, complete: isComplete, source, requestedBy: userId, expiresAt });
+  const cacheId = await write(result, outcome.primarySource, complete);
 
   const needsEnrichment = complete && outcome.skipped.length > 0 && !hasWeight(outcome.product) && (await weightMattersFor(outcome.product.category));
-  // Nothing left to scrape, but the inspector never answered: re-run it alone
-  // with the longer deadline and store its verdict on the same row.
-  const reinspectOnly = complete && !needsEnrichment && inspectionNeedsRetry(result.freight_inspection)
+  const checking = result.freight_inspection?.status === "pending";
+
+  const checkFreight = checking
     ? async () => {
-        const updated = await withFreightInspection(result, canonicalUrl, FREIGHT_INSPECTOR.retryTimeoutMs);
-        if (updated.freight_inspection === result.freight_inspection) return;
-        await upsertExtractionCache({ urlHash, productUrl: canonicalUrl, result: updated, complete: true, source: outcome.primarySource, requestedBy: userId, expiresAt });
+        await write(await runFreightCheck(result, canonicalUrl), outcome.primarySource, complete);
       }
     : undefined;
 
@@ -318,29 +350,41 @@ async function performExtraction(prepared: PreparedUrl, userId: string | null): 
     needsEnrichment
       ? async () => {
           const t0 = Date.now();
-          const enriched = await continueResolve(chainInput, outcome);
+          // Started together: the freight check does not wait on the slow tiers,
+          // so the customer can pay as soon as it answers.
+          const enrichment = continueResolve(chainInput, outcome).then(
+            (enriched) => enriched,
+            (err: unknown) => {
+              logger.warn("extraction: enrichment failed", { url: canonicalUrl, error: err instanceof Error ? err.message : String(err) });
+              return null;
+            },
+          );
+          let current = result;
+          if (checking) {
+            current = await runFreightCheck(result, canonicalUrl);
+            await write(current, outcome.primarySource, complete);
+          }
+          const enriched = await enrichment;
+          if (!enriched) return;
           const gained = (Object.keys(enriched.fieldSources) as (keyof typeof enriched.fieldSources)[])
             .filter((k) => enriched.fieldSources[k] !== outcome.fieldSources[k]);
           logger.info("extraction: enrichment done", { url: canonicalUrl, ran: enriched.ran, gained, ms: Date.now() - t0 });
-          const updated = await reinspectAfterEnrichment(
-            result.freight_inspection,
-            outcome.product,
-            toResult(prepared, enriched, [...outcome.ran, ...enriched.ran]),
-            canonicalUrl,
-          );
-          await upsertExtractionCache({
-            urlHash,
-            productUrl: canonicalUrl,
-            result: updated,
-            complete: true,
-            source: enriched.primarySource,
-            requestedBy: userId,
-            expiresAt,
-          });
+          let updated = toResult(prepared, enriched, [...outcome.ran, ...enriched.ran]);
+          if (sameFreightFacts(outcome.product, updated.product)) {
+            updated = current.freight_inspection ? { ...updated, freight_inspection: current.freight_inspection } : updated;
+          } else {
+            // A weight (or category) arrived: the earlier verdict was about other facts.
+            updated = await withFreightPlan(updated, canonicalUrl);
+            if (updated.freight_inspection?.status === "pending") {
+              await write(updated, enriched.primarySource, true);
+              updated = await runFreightCheck(updated, canonicalUrl);
+            }
+          }
+          await write(updated, enriched.primarySource, true);
         }
-      : reinspectOnly;
+      : checkFreight;
 
-  return { ...result, extraction_cache_id: cacheId, cached: false, enrich };
+  return { ...result, extraction_cache_id: cacheId, cached: false, enrich, checkFreight };
 }
 
 /**

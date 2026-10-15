@@ -257,6 +257,20 @@ describe("getBag", () => {
     await expect(getBag(USER)).rejects.toThrow(/consolidation_saving_pct/);
   });
 
+  it("holds a line unpriced while its freight is checked, and keeps the bag polling", async () => {
+    vi.mocked(carts.findOpenCart).mockResolvedValue(cart());
+    vi.mocked(carts.listCartItems).mockResolvedValue([item()]);
+    const pending = { status: "pending" as const, model: null, inspected_at: new Date().toISOString(), input_key: "k", corrections: {}, before: null, after: null, confidence: null, reason: null, ms: null };
+    vi.mocked(getExtractionSnapshot).mockResolvedValue({ id: CACHE_ID, productUrl: "https://www.amazon.com/dp/X", result: { ...extraction, freight_inspection: pending } });
+    const bag = await getBag(USER);
+    expect(bag.lines[0]!.pricing).toBeNull();
+    expect(bag.lines[0]!.freight_checking).toBe(true);
+    expect(bag.lines[0]!.pricing_unavailable_reason).toMatch(/checking the freight/);
+    expect(bag.has_freight_checks).toBe(true);
+    expect(bag.has_unpriced_lines).toBe(true);
+    expect(applyRateLock).not.toHaveBeenCalled();
+  });
+
   it("a line whose snapshot is gone stays in the bag without a price", async () => {
     vi.mocked(carts.findOpenCart).mockResolvedValue(cart());
     vi.mocked(carts.listCartItems).mockResolvedValue([item()]);
@@ -323,7 +337,7 @@ describe("line ownership", () => {
 
 describe("summarize", () => {
   it("sums only priced lines and counts every quantity", () => {
-    const priced: BagLine = { id: "a", extraction_cache_id: "x", pending: null, quantity: 2, special_instructions: null, product: { title: null, image: null, url: "", store: null, variant: null, weight_lbs: null, country: null }, pricing: breakdown({ subtotal_usd: 10, tax_usd: 1, value_fee_usd: 0.5, flat_rate_ghs: 20, total_ghs: 200, total_usd: 13 }), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null, sourced_price_usd: null, store_shipping_code: null, sourcing: null };
+    const priced: BagLine = { id: "a", extraction_cache_id: "x", pending: null, quantity: 2, special_instructions: null, product: { title: null, image: null, url: "", store: null, variant: null, weight_lbs: null, country: null }, pricing: breakdown({ subtotal_usd: 10, tax_usd: 1, value_fee_usd: 0.5, flat_rate_ghs: 20, total_ghs: 200, total_usd: 13 }), pricing_unavailable_reason: null, gap_price_usd: null, gap_origin_country: null, sourced_price_usd: null, store_shipping_code: null, sourcing: null, freight_checking: false };
     const unpriced: BagLine = { ...priced, id: "b", quantity: 1, pricing: null, pricing_unavailable_reason: "x" };
     expect(summarize("c", [priced, unpriced])).toMatchObject({ item_count: 3, subtotal_usd: 10, tax_usd: 1, fee_usd: 0.5, freight_ghs: 20, total_ghs: 200, total_usd: 13, has_unpriced_lines: true });
   });

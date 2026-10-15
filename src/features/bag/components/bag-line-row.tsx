@@ -177,6 +177,12 @@ export function BagLineRow({
               </span>
             )}
           </>
+        ) : line.freight_checking ? (
+          // A wait of seconds, not a failure: the bag polls and the price lands here.
+          <span role="status" className="flex max-w-[180px] items-center gap-1.5 text-[12px] leading-[1.4] font-medium text-tm-text-2">
+            <span className="tm-pulse-dot size-1.5 shrink-0 rounded-full bg-tm-coral" aria-hidden />
+            Checking freight…
+          </span>
         ) : (
           <span className="max-w-[180px] text-[12px] leading-[1.4] font-medium text-tm-amber">
             {line.pricing_unavailable_reason ?? "Not priced"}

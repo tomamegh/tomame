@@ -28,7 +28,8 @@ export function useBag(initialData: BagView) {
   // measured not to re-arm when a bag with nothing pending gains its first
   // pending line — which is exactly what adding a still-reading link does, so
   // the line would never have priced itself without a reload.
-  const pending = query.data.has_pending_lines;
+  // A freight check is a wait too: it clears in seconds and the line prices itself.
+  const pending = query.data.has_pending_lines || query.data.has_freight_checks;
   const { refetch } = query;
   useVisibleInterval(() => void refetch(), BAG_POLL_MS, pending);
 

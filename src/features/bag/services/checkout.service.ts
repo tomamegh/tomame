@@ -64,6 +64,11 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
   if (bag.has_pending_lines) {
     throw new APIError(409, "We are still reading one of your links. Give it a moment and try again.");
   }
+  // A line whose freight weight is still being checked is unpriced for a few
+  // seconds on purpose: what it would have charged may still move. Also a wait.
+  if (bag.has_freight_checks) {
+    throw new APIError(409, "We are still checking the freight on one of your items. Give it a few seconds and try again.");
+  }
   // Checked BEFORE the generic unpriced guard, for the same reason the pending
   // one is: a line a buyer is looking up is not a failure the customer can fix
   // by pasting the link again, and telling them to would be sending them round a

@@ -86,7 +86,12 @@ export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, pa
         "could not be priced" reads as something the customer should go and fix,
         which would send them round a loop that ends back here.
       */}
-      {view.has_sourcing_lines ? (
+      {view.has_freight_checks ? (
+        <p role="status" className="text-xs leading-[1.5] font-medium text-tm-text-2">
+          We are checking the freight weight on one of your items. You can pay
+          as soon as it is done, usually in a few seconds.
+        </p>
+      ) : view.has_sourcing_lines ? (
         <p className="text-xs leading-[1.5] font-medium text-tm-amber">
           One of your items is with our team. We are pricing it by hand, and you
           can pay for everything together as soon as it is done.

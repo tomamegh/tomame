@@ -149,6 +149,38 @@ export async function upsertExtractionCache(input: {
   }
 }
 
+/**
+ * Replace a row's result only while its freight inspection is still the one
+ * the caller started from (matched on `inspected_at`; null = none stored). A
+ * background freight check uses it so a re-read of the product that landed
+ * meanwhile is never overwritten with the older product. True when written.
+ */
+export async function updateExtractionResultIfInspection(
+  id: string,
+  result: ExtractionResult,
+  expectedInspectedAt: string | null,
+): Promise<boolean> {
+  try {
+    const db = createAdminClient();
+    let query = db
+      .from("extraction_cache")
+      .update({ result, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    query = expectedInspectedAt == null
+      ? query.is("result->freight_inspection", null)
+      : query.eq("result->freight_inspection->>inspected_at", expectedInspectedAt);
+    const { data, error } = await query.select("id");
+    if (error) {
+      logger.warn("extraction cache guarded write failed", { id, code: error.code, message: error.message });
+      return false;
+    }
+    return (data?.length ?? 0) > 0;
+  } catch (err) {
+    logger.warn("extraction cache guarded write exception", { id, error: err instanceof Error ? err.message : String(err) });
+    return false;
+  }
+}
+
 /** What a paste can honestly promise about the quote behind it. */
 export interface QuoteFacts {
   /** The extraction still resolves — exactly `getValidExtractionById`'s rule. */

@@ -9,6 +9,8 @@ import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
 import { getSourcingByCartItems } from "@/db/queries/price-watches";
 import { getExtractionSnapshot } from "@/features/extraction/extraction.service";
 import { type PriceOverrides, gapFillOverrides } from "@/features/extraction/quote.service";
+import { FREIGHT_CHECKING_MESSAGE } from "@/features/extraction/resolvers/messages";
+import { freightCheckPending } from "@/features/pricing/freight-inspection";
 import { isPayablePricing } from "@/lib/pricing/payable";
 import { applyRateLock } from "@/features/quotes/services/quote-lock.service";
 import { pickProductColour } from "@/features/quotes/components/format";
@@ -345,6 +347,8 @@ function pickupDelivery(zone: DeliveryZoneRow): BagDelivery {
 interface Priced {
   pricing: BagLine["pricing"];
   reason: string | null;
+  /** True when the line is unpriced only because its freight is still being checked. */
+  freightChecking?: boolean;
 }
 
 /** The customer's chosen store shipping service, added to the price overrides; null stays null when there is nothing to override. */
@@ -369,6 +373,11 @@ async function priceSnapshot(
   sourcedPriceUsd: number | null = null,
   storeShippingCode: string | null = null,
 ): Promise<Priced> {
+  // The freight weight is still being checked: whatever the snapshot prices at
+  // now may move in seconds, so the line holds no price and cannot be paid for.
+  if (freightCheckPending(result.freight_inspection)) {
+    return { pricing: null, reason: FREIGHT_CHECKING_MESSAGE, freightChecking: true };
+  }
   const extraction: ExtractionResult = { ...result, country: result.country ?? gapCountry };
   try {
     const priced = await applyRateLock({
@@ -722,6 +731,7 @@ function pendingLine(row: CartItemRow, pending: BagLinePending, productUrl: stri
     sourced_price_usd: row.sourced_price_usd,
     store_shipping_code: row.store_shipping_code,
     sourcing: null,
+    freight_checking: false,
   };
 }
 
@@ -755,6 +765,7 @@ function toLine(row: CartItemRow, snapshot: Snapshot, priced: Priced): BagLine {
     store_shipping_code: row.store_shipping_code,
     // Attached by `getBag` in one query for the whole bag, never per line.
     sourcing: null,
+    freight_checking: priced.freightChecking === true,
   };
 }
 
@@ -793,6 +804,7 @@ export function summarize(cartId: string | null, lines: BagLine[], packed: Packe
     rate_locked_until: locks[0] ?? null,
     has_unpriced_lines: priced.length < lines.length,
     has_pending_lines: lines.some((l) => l.pending != null),
+    has_freight_checks: lines.some((l) => l.freight_checking),
     // `unavailable` counts too: a buyer has said we cannot get it, so the line
     // is not merely unpriced — it is not coming, and the bag must say so rather
     // than leaving it looking like something that might still resolve.

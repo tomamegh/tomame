@@ -100,6 +100,8 @@ export async function runExtractionJob(requestId: string): Promise<"ran" | "skip
   // there is nothing to report yet.
   let finished: PasteFinishedResult | null = null;
   let outcome: "ran" | "failed";
+  // The freight check the extraction left pending, run once the job has settled.
+  let checkFreight: (() => Promise<void>) | undefined;
 
   try {
     const prepared = await prepareProductUrl(claimed.product_url);
@@ -123,6 +125,7 @@ export async function runExtractionJob(requestId: string): Promise<"ran" | "skip
       });
       finished = { status: "ready", extractionCacheId: extraction.extraction_cache_id };
       outcome = "ran";
+      checkFreight = extraction.checkFreight;
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -179,6 +182,18 @@ export async function runExtractionJob(requestId: string): Promise<"ran" | "skip
     // job has settled may change its outcome, and that rule should not depend
     // on a service in another feature keeping its promise.
     if (finished.status === "ready") {
+      // The quote is already ready and says its freight is being checked; the
+      // check settles it here (the queue never runs the slow tiers). It holds
+      // payment only until it answers, and a lost run goes stale and is retried
+      // on the next read, so a failure here changes nothing about the job.
+      try {
+        await checkFreight?.();
+      } catch (error) {
+        logger.error("freight check threw after the job had already settled", {
+          id: claimed.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       try {
         await enqueueCatalogQueryFromPaste(finished.extractionCacheId);
       } catch (error) {
