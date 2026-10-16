@@ -10,8 +10,9 @@ import {
   type CatalogStore,
 } from "@/db/queries/catalog";
 import { CATALOG_DEALS } from "@/config/catalog";
-import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
+import { loadDisplayPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { isPayablePricing } from "@/lib/pricing/payable";
+import { CACHE_TAGS, sharedCache } from "@/lib/shared-cache";
 import type { PricingBreakdown, PricingCalculator } from "@/lib/pricing/calculator";
 
 export interface CatalogSearchResult {
@@ -75,7 +76,7 @@ export async function searchCatalog(
   // total equal to the page, which is the honest reading of "we cannot tell".
   const total = hits[0]?.total_count ?? hits.length;
 
-  const calculator = await loadPricingCalculator();
+  const calculator = await loadDisplayPricingCalculator();
   const results: CatalogSearchResult[] = [];
   // Sequential on purpose: the first `calculate` lazily loads the FX rate and
   // caches it on the instance; a parallel burst would race that load.
@@ -259,7 +260,7 @@ export async function browseCatalogCategory(
   // holds from `listBrowsableCategories`; this figure is only ever the page.
   if (hits.length === 0) return { query: category, count: 0, total: 0, results: [] };
 
-  const calculator = await loadPricingCalculator();
+  const calculator = await loadDisplayPricingCalculator();
   const results: CatalogSearchResult[] = [];
   // Sequential, for the reason `searchCatalog` gives: the first `calculate`
   // lazily loads the FX rate onto the instance and a parallel burst races it.
@@ -348,7 +349,7 @@ export async function listCatalogDeals(options: { limit: number }): Promise<Cata
   });
   if (pool.length === 0) return empty;
 
-  const calculator = await loadPricingCalculator();
+  const calculator = await loadDisplayPricingCalculator();
   const results: CatalogSearchResult[] = [];
   // Sequential, for the reason `searchCatalog` gives: the first `calculate`
   // lazily loads the FX rate onto the instance and a parallel burst races it.
@@ -409,7 +410,18 @@ export function spreadAcrossCategories<T extends { category: string | null }>(
   return [...head, ...tail];
 }
 
-/** What the browse screen offers, largest category first. Never throws upward. */
+/** How long a catalogue read is shared. The cron re-prices every 15 minutes and expires the tag. */
+export const CATALOG_CACHE_SECONDS = 300;
+
+const readCatalogCategories = sharedCache(() => listCatalogCategories(), ["catalog-categories"], {
+  tags: [CACHE_TAGS.catalog],
+  revalidateSeconds: CATALOG_CACHE_SECONDS,
+});
+
+/**
+ * What the browse screen offers, largest category first. Shared across viewers:
+ * it is read on every Buy-for-me render, signed in or not.
+ */
 export async function listBrowsableCategories(): Promise<CatalogCategoryCount[]> {
-  return listCatalogCategories();
+  return readCatalogCategories();
 }

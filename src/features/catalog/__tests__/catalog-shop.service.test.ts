@@ -8,27 +8,23 @@ vi.mock("@/db/queries/catalog", () => ({
   listCatalogShopFacets: vi.fn(),
   listCatalogDepartmentTops: vi.fn(),
   listCatalogRowsNeedingLandedPrice: vi.fn(),
-  readOldestLandedPriceStamp: vi.fn(),
   writeCatalogLandedPrices: vi.fn(),
 }));
 
 const calculate = vi.fn();
 vi.mock("@/features/pricing/services/pricing.service", () => ({
   loadPricingCalculator: vi.fn(async () => ({ calculate })),
+  loadDisplayPricingCalculator: vi.fn(async () => ({ calculate })),
 }));
 
 import {
   browseCatalogProducts,
   listCatalogRowsNeedingLandedPrice,
   listCatalogShopFacets,
-  readOldestLandedPriceStamp,
   writeCatalogLandedPrices,
   type CatalogShopHit,
 } from "@/db/queries/catalog";
-import {
-  readLandedPriceFreshness,
-  refreshCatalogLandedPrices,
-} from "../services/catalog-landed-price.service";
+import { refreshCatalogLandedPrices } from "../services/catalog-landed-price.service";
 import { getShopPage, toShopFacets, toShopQuery } from "../services/catalog-shop.service";
 import { EMPTY_SHOP_STATE, SHOP_PAGE_SIZE, SHOP_PRICE_EDGES } from "../shop-params";
 
@@ -160,18 +156,6 @@ describe("getShopPage", () => {
 });
 
 describe("stored landed prices", () => {
-  it("reads freshness from the oldest stamp", async () => {
-    const now = new Date("2026-09-30T12:00:00Z");
-    vi.mocked(readOldestLandedPriceStamp).mockResolvedValueOnce(undefined);
-    expect(await readLandedPriceFreshness(now)).toBe("empty");
-    vi.mocked(readOldestLandedPriceStamp).mockResolvedValueOnce(null);
-    expect(await readLandedPriceFreshness(now)).toBe("missing");
-    vi.mocked(readOldestLandedPriceStamp).mockResolvedValueOnce("2026-09-30T11:30:00Z");
-    expect(await readLandedPriceFreshness(now)).toBe("fresh");
-    vi.mocked(readOldestLandedPriceStamp).mockResolvedValueOnce("2026-09-30T10:00:00Z");
-    expect(await readLandedPriceFreshness(now)).toBe("stale");
-  });
-
   it("strikes every due row through the calculator and stamps declined rows with no figure and a reason", async () => {
     vi.mocked(listCatalogRowsNeedingLandedPrice).mockResolvedValue([
       { id: "a", title: "A", price_usd: 10, currency: "USD", category: "Headphones", weight_lbs: null },

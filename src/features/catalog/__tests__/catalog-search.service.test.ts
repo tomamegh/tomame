@@ -17,7 +17,7 @@ vi.mock("@/db/queries/catalog", () => ({
 
 const calculate = vi.fn();
 vi.mock("@/features/pricing/services/pricing.service", () => ({
-  loadPricingCalculator: vi.fn(async () => ({ calculate })),
+  loadDisplayPricingCalculator: vi.fn(async () => ({ calculate })),
 }));
 
 import {
@@ -28,7 +28,7 @@ import {
   type CatalogSearchHit,
 } from "@/db/queries/catalog";
 import { CATALOG_DEALS } from "@/config/catalog";
-import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
+import { loadDisplayPricingCalculator } from "@/features/pricing/services/pricing.service";
 import {
   DEALS_MAX_PER_CATEGORY,
   DEALS_POOL_SIZE,
@@ -73,7 +73,7 @@ describe("searchCatalog", () => {
     vi.mocked(searchCatalogProducts).mockResolvedValue([]);
     const out = await searchCatalog("  nothing ", { limit: 12 });
     expect(out).toEqual({ query: "nothing", count: 0, total: 0, results: [] });
-    expect(loadPricingCalculator).not.toHaveBeenCalled();
+    expect(loadDisplayPricingCalculator).not.toHaveBeenCalled();
   });
 
   it("loads the calculator once, prices every hit, sorts by landed total and marks the cheapest per store", async () => {
@@ -86,7 +86,7 @@ describe("searchCatalog", () => {
 
     const out = await searchCatalog("earbuds", { limit: 12 });
 
-    expect(loadPricingCalculator).toHaveBeenCalledTimes(1);
+    expect(loadDisplayPricingCalculator).toHaveBeenCalledTimes(1);
     expect(calculate).toHaveBeenCalledTimes(4);
     expect(calculate).toHaveBeenCalledWith(
       { itemPriceUsd: 30, quantity: 1, category: "Headphones", productTitle: "Thing", region: "usa" },
@@ -256,7 +256,7 @@ describe("browseCatalogCategory", () => {
 
     const out = await browseCatalogCategory("Nothing Here", { limit: 12 });
     expect(out).toEqual({ query: "Nothing Here", count: 0, total: 0, results: [] });
-    expect(loadPricingCalculator).not.toHaveBeenCalled();
+    expect(loadDisplayPricingCalculator).not.toHaveBeenCalled();
   });
 });
 
@@ -321,7 +321,7 @@ describe("listCatalogDeals", () => {
       results: [],
     });
     expect(listHotCatalogProducts).not.toHaveBeenCalled();
-    expect(loadPricingCalculator).not.toHaveBeenCalled();
+    expect(loadDisplayPricingCalculator).not.toHaveBeenCalled();
   });
 
   it("reads a pool far larger than the shelf, so the spread has every shelf to choose from", async () => {
@@ -333,7 +333,7 @@ describe("listCatalogDeals", () => {
       // malformed eBay row put GH₵1,995,202,244,743,568,400,000,… on Home.
       maxPriceUsd: CATALOG_DEALS.maxPlausiblePriceUsd,
     });
-    expect(loadPricingCalculator).not.toHaveBeenCalled();
+    expect(loadDisplayPricingCalculator).not.toHaveBeenCalled();
   });
 
   it("takes the spread, not the cheapest of the pool, and then sorts it on landed cedis", async () => {
@@ -352,7 +352,7 @@ describe("listCatalogDeals", () => {
 
     const out = await listCatalogDeals({ limit: 4 });
 
-    expect(loadPricingCalculator).toHaveBeenCalledTimes(1);
+    expect(loadDisplayPricingCalculator).toHaveBeenCalledTimes(1);
     // Only the four it shows were priced — p3 and p4 never reach the engine.
     expect(calculate).toHaveBeenCalledTimes(4);
     expect(out.results.map((r) => r.id)).toEqual(["p2", "c2", "c1", "p1"]);

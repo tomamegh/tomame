@@ -5,7 +5,7 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { countUnreadNotifications } from "@/features/notifications/services/notifications.service";
-import { getFxRateQuote } from "@/features/pricing/services/fx-rate.service";
+import { getDisplayFxRateQuote } from "@/features/pricing/services/fx-rate.service";
 import { getBagCount } from "@/features/bag/services/bag.service";
 import { hasPublishedCars } from "@/features/cars/services/cars-availability.service";
 import { readQuoteSessionFromCookies } from "@/lib/quote-session";
@@ -44,7 +44,7 @@ export async function getAppChrome(): Promise<AppChromeData> {
       : Promise.resolve(0),
     // The rate loads for everyone: it is public data, and the quote flow is the
     // one place a signed-out visitor most needs to see what a dollar costs.
-    getFxRateQuote("USD")
+    getDisplayFxRateQuote()
       .then((quote) => ({
         base: quote.base,
         appliedRate: quote.applied_rate,

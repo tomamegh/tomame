@@ -3,7 +3,9 @@ import type { PricingInput, PricingBreakdown, PricingConstants, FxOverride } fro
 import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
 import { getCategoryPricingMap } from "@/db/queries/pricing-groups";
 import { getActiveFixedFreightItems } from "@/db/queries/fixed-freight-items";
+import { getAllRates } from "@/lib/exchange-rates/service";
 import { logger } from "@/lib/logger";
+import { CACHE_TAGS, sharedCache } from "@/lib/shared-cache";
 
 export type { PricingInput as CalculatePricingInput };
 
@@ -57,6 +59,68 @@ export async function loadPricingCalculator(): Promise<PricingCalculator> {
     logger.warn("Failed to load fixed freight items from DB", { error: String(fixedRes.reason) });
   }
 
+  return calculator;
+}
+
+/** How long display totals may trail an admin pricing change. Charges never do. */
+export const DISPLAY_PRICING_CACHE_SECONDS = 60;
+
+/**
+ * Every input a display calculator needs, in one shared read. JSON-shaped
+ * because the data cache serialises: the category map travels as entries and
+ * the rates as a plain record.
+ */
+const readDisplayPricingInputs = sharedCache(
+  async () => {
+    const [constants, categories, fixedFreight, rates] = await Promise.all([
+      getPricingConstantsMap(),
+      getCategoryPricingMap(),
+      getActiveFixedFreightItems(),
+      getAllRates(),
+    ]);
+    // `getAllRates` answers [] on a failed read. Keeping that for a minute would
+    // send every display calculator to a live rate read per render, so it is
+    // thrown instead: nothing is cached and the fresh loader takes over.
+    if (rates.length === 0) throw new Error("No exchange rates read");
+    return {
+      constants,
+      categories: [...categories.entries()],
+      fixedFreight,
+      rates: Object.fromEntries(rates.map((r) => [r.base_currency.toUpperCase(), Number(r.rate)])),
+    };
+  },
+  ["pricing-display-inputs"],
+  { tags: [CACHE_TAGS.pricingDisplay], revalidateSeconds: DISPLAY_PRICING_CACHE_SECONDS },
+);
+
+/**
+ * A calculator for totals that are SHOWN, not charged: catalogue cards and
+ * shop shelves, which every visitor renders with identical inputs. Built from a
+ * read shared for `DISPLAY_PRICING_CACHE_SECONDS`, so a page of cards costs no
+ * database call at all while the read is warm.
+ *
+ * Never for a charge. Order intake, quote locks, the quote screen and the
+ * landed-price refresh keep `loadPricingCalculator`, which reads fresh.
+ *
+ * If the shared read fails it falls back to the fresh loader, which degrades
+ * input by input exactly as it always has.
+ */
+export async function loadDisplayPricingCalculator(): Promise<PricingCalculator> {
+  let inputs: Awaited<ReturnType<typeof readDisplayPricingInputs>>;
+  try {
+    inputs = await readDisplayPricingInputs();
+  } catch (error) {
+    logger.warn("Display pricing inputs unavailable, loading them fresh", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return loadPricingCalculator();
+  }
+
+  const calculator = new PricingCalculator();
+  calculator.setConstants(inputs.constants as Partial<PricingConstants>);
+  calculator.setCategoryPricing(new Map(inputs.categories));
+  calculator.setFixedFreightItems(inputs.fixedFreight);
+  calculator.useGhsRates(inputs.rates);
   return calculator;
 }
 

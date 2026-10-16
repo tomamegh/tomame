@@ -6,7 +6,7 @@ import {
   applyImageOverride,
   imagePosition,
 } from "@/config/marketing-images";
-import { getMediaOverrides } from "@/db/queries/media-overrides";
+import { getSharedMediaOverrides } from "@/features/marketing/services/media-overrides.service";
 
 import type { SiteContentRow } from "@/db/queries/site-content";
 import { getPublishedContent, getPublishedContentBySlug } from "@/features/marketing/services";
@@ -28,7 +28,7 @@ const PHOTO_KEYS = ["mk-about-1", "mk-about-2", "mk-about-3"] as const;
 const STORY_SLUG = "about-story";
 
 export default async function AboutPage() {
-  const mediaOverrides = await getMediaOverrides();
+  const mediaOverrides = await getSharedMediaOverrides();
   const PHOTOS = PHOTO_KEYS.map((key) =>
     applyImageOverride(MARKETING_IMAGES[key], mediaOverrides[key]),
   );

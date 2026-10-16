@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { after } from "next/server";
 import { Suspense } from "react";
 
 import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
@@ -14,10 +13,6 @@ import {
 import { resolveCatalogQuery } from "@/features/catalog/components/format";
 import { ShopSkeleton } from "@/features/catalog/components/shop/shop-skeleton";
 import { ShopView } from "@/features/catalog/components/shop/shop-view";
-import {
-  readLandedPriceFreshness,
-  refreshCatalogLandedPrices,
-} from "@/features/catalog/services/catalog-landed-price.service";
 import { listBrowsableCategories } from "@/features/catalog/services/catalog-search.service";
 import {
   isGroupedView,
@@ -183,11 +178,13 @@ async function readCatalogueShape(): Promise<CatalogueShape> {
  * the proxy's public carve-out, the nav already highlights it, and the paste
  * rows that are still reading stay on screen while the customer shops.
  *
- * LANDED PRICES FIRST. The shop filters and sorts on the calculator's stored
- * figure (migration 080). Rows never priced — a fresh deploy, a listing the
- * scraper just re-read — are priced before the read, so the first page is not
- * ordered on nothing; a stored set that is merely old is refreshed after the
- * response, so no visitor waits on it.
+ * A RENDER NEVER WRITES. The shop filters and sorts on the calculator's stored
+ * figure (migration 080), and the catalogue cron re-prices it every 15 minutes
+ * (`/api/cron/catalog-scrape`). Renders used to check the figures' age and
+ * schedule a 1,000-row refresh when they were old; on 2026-10-16 a scraper made
+ * that ~1,000 refreshes in a night on top of its reads, and it helped take the
+ * database down. A row the cron has not reached yet sorts on its old figure,
+ * and its card is still priced live.
  *
  * THE SUSPENSE BOUNDARY IS KEYED BY THE ADDRESS, so every filter, sort and
  * page shows the skeleton instead of leaving the old grid up under a new chip.
@@ -204,27 +201,6 @@ async function renderShop(catalogue: CatalogueShape, params: ShopSearchParams) {
 
   const departments = catalogue.categories.map((entry) => entry.category);
   const state = { ...parseShopParams(params, departments), q };
-
-  try {
-    const freshness = await readLandedPriceFreshness();
-    if (freshness === "missing") await refreshCatalogLandedPrices();
-    else if (freshness === "stale") {
-      after(() =>
-        refreshCatalogLandedPrices().then(
-          () => undefined,
-          (error: unknown) =>
-            logger.error("buy-for-me: background landed-price refresh failed", {
-              error: error instanceof Error ? error.message : String(error),
-            }),
-        ),
-      );
-    }
-  } catch (error) {
-    // Stale ordering beats no shop: the cards are priced live either way.
-    logger.error("buy-for-me: could not refresh catalogue landed prices", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
 
   return (
     <Suspense key={shopHref(state)} fallback={<ShopSkeleton grouped={isGroupedView(state)} />}>

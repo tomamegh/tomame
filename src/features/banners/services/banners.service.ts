@@ -5,6 +5,7 @@ import { deleteBanner, getBannerById, insertBanner, listLiveBanners, updateBanne
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
+import { CACHE_TAGS, expireCacheTag, sharedCache } from "@/lib/shared-cache";
 import type { CreateBannerInput, UpdateBannerInput } from "../schema";
 import type { BannerPlacement, LiveBanner, SiteBanner } from "../types";
 
@@ -20,12 +21,21 @@ export interface BannerActor {
 }
 
 /**
+ * Shared across viewers for two minutes and expired by every admin write, so
+ * the TTL only bounds how late a scheduled start or end shows.
+ */
+const readLiveBanners = sharedCache(listLiveBanners, ["live-banners"], {
+  tags: [CACHE_TAGS.banners],
+  revalidateSeconds: 120,
+});
+
+/**
  * The live banners for one slot. Never throws: a banner is an extra on a page
  * that works without it, and a failed read must not take checkout down.
  */
 export async function getLiveBanners(placement: BannerPlacement): Promise<LiveBanner[]> {
   try {
-    return await listLiveBanners(placement);
+    return await readLiveBanners(placement);
   } catch (error) {
     logger.warn("banners: live read failed; rendering none", {
       placement,
@@ -37,6 +47,7 @@ export async function getLiveBanners(placement: BannerPlacement): Promise<LiveBa
 
 export async function createBanner(actor: BannerActor, input: CreateBannerInput): Promise<SiteBanner> {
   const row = await insertBanner(input, actor.id);
+  expireCacheTag(CACHE_TAGS.banners);
   await audit(actor, "banner_created", row, { placement: row.placement, title: row.title, is_active: row.is_active });
   return row;
 }
@@ -55,6 +66,7 @@ export async function editBanner(actor: BannerActor, id: string, patch: UpdateBa
 
   const row = await updateBanner(id, patch, actor.id);
   if (!row) throw new APIError(404, "That banner no longer exists");
+  expireCacheTag(CACHE_TAGS.banners);
   await audit(actor, "banner_updated", row, {
     fields: Object.keys(patch).filter((k) => patch[k as keyof UpdateBannerInput] !== undefined),
     // Switching a banner on or off is the change an investigation looks for.
@@ -66,6 +78,7 @@ export async function editBanner(actor: BannerActor, id: string, patch: UpdateBa
 export async function removeBanner(actor: BannerActor, id: string): Promise<void> {
   const current = await getBannerById(id);
   if (!current || !(await deleteBanner(id))) throw new APIError(404, "That banner no longer exists");
+  expireCacheTag(CACHE_TAGS.banners);
   await audit(actor, "banner_deleted", current, { placement: current.placement, title: current.title, was_active: current.is_active });
 }
 

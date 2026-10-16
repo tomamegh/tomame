@@ -19,7 +19,7 @@ import { LaneMap } from "./_components/lane-map";
 import { RegionCard } from "./_components/region-card";
 import { buildHeroCopy, laneNames } from "./_lib/copy";
 import { buildLaneMapNodes, GHANA_FLAG } from "./_lib/lane-map-nodes";
-import { getMediaOverrides } from "@/db/queries/media-overrides";
+import { getSharedMediaOverrides } from "@/features/marketing/services/media-overrides.service";
 import { imagePosition, resolveMarketingImage } from "@/config/marketing-images";
 
 export const metadata: Metadata = {
@@ -35,7 +35,7 @@ export default async function WhereWeBuyPage() {
   const [{ regions, deliveryZones }, figures, mediaOverrides] = await Promise.all([
     getRegionsContent(),
     resolveMarketingFigures(),
-      getMediaOverrides(),
+      getSharedMediaOverrides(),
   ]);
 
   const visibleRegions = regions.filter((region) => region.status !== "off");

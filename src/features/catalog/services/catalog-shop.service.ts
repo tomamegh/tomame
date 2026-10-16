@@ -9,7 +9,6 @@ import {
   type CatalogStore,
 } from "@/db/queries/catalog";
 import { CATALOG_CORE_STORES } from "@/config/catalog";
-import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import type { PricingCalculator } from "@/lib/pricing/calculator";
 import {
   SHOP_CONDITIONS,
@@ -24,7 +23,9 @@ import {
   type ShopRating,
   type ShopState,
 } from "../shop-params";
-import { priceHit, type CatalogSearchResult } from "./catalog-search.service";
+import { CACHE_TAGS, sharedCache } from "@/lib/shared-cache";
+import { loadDisplayPricingCalculator } from "@/features/pricing/services/pricing.service";
+import { CATALOG_CACHE_SECONDS, priceHit, type CatalogSearchResult } from "./catalog-search.service";
 
 /**
  * The shop: the priced catalogue, filtered, sorted and paged in Postgres.
@@ -35,7 +36,18 @@ import { priceHit, type CatalogSearchResult } from "./catalog-search.service";
  * loaded calculator — so what a customer reads is never older than the render.
  * The two agree unless FX or a pricing constant moved inside the refresh
  * window, and then only the ordering lags.
+ *
+ * SHARED READS (2026-10-16). Rows, facets and shelves are the same for every
+ * viewer of the same address, so each is held in the data cache for
+ * `CATALOG_CACHE_SECONDS`, keyed by the query. The cards are struck on the
+ * display calculator, whose inputs are shared for a minute; the bag and
+ * checkout price from the snapshot with fresh inputs, so a cached card can
+ * never become a charge.
  */
+const catalogCache = { tags: [CACHE_TAGS.catalog], revalidateSeconds: CATALOG_CACHE_SECONDS };
+const readShopRows = sharedCache(browseCatalogProducts, ["catalog-shop-rows"], catalogCache);
+const readShopFacets = sharedCache(listCatalogShopFacets, ["catalog-shop-facets"], catalogCache);
+const readDepartmentTops = sharedCache(listCatalogDepartmentTops, ["catalog-department-tops"], catalogCache);
 
 export interface ShopProduct extends CatalogSearchResult {
   condition_group: ShopCondition | null;
@@ -83,12 +95,12 @@ export function toShopQuery(state: ShopState): CatalogShopQuery {
 export async function getShopPage(state: ShopState): Promise<ShopPageResult> {
   const query = toShopQuery(state);
   const [{ rows, total: pageTotal }, facetRows] = await Promise.all([
-    browseCatalogProducts(query, {
+    readShopRows(query, {
       sort: state.sort,
       limit: SHOP_PAGE_SIZE,
       offset: (state.page - 1) * SHOP_PAGE_SIZE,
     }),
-    listCatalogShopFacets(query, SHOP_PRICE_EDGES),
+    readShopFacets(query, SHOP_PRICE_EDGES),
   ]);
   const facets = toShopFacets(facetRows);
 
@@ -113,7 +125,7 @@ export async function getShopPage(state: ShopState): Promise<ShopPageResult> {
 
 /** The sidebar's counts alone, for the grouped front page (which has no page of rows). */
 export async function getShopFacets(state: ShopState): Promise<ShopFacets> {
-  return toShopFacets(await listCatalogShopFacets(toShopQuery(state), SHOP_PRICE_EDGES));
+  return toShopFacets(await readShopFacets(toShopQuery(state), SHOP_PRICE_EDGES));
 }
 
 /** How many rows the filtered set holds, from its facets (every row has exactly one store). */
@@ -132,7 +144,7 @@ export interface ShopDepartmentGroup {
 
 /** The grouped front page: every department's first few, priced on one calculator. */
 export async function getShopDepartmentGroups(): Promise<ShopDepartmentGroup[]> {
-  const rows = await listCatalogDepartmentTops(SHOP_GROUP_SIZE);
+  const rows = await readDepartmentTops(SHOP_GROUP_SIZE);
   if (rows.length === 0) return [];
   const priced = await priceRows(rows);
 
@@ -148,7 +160,7 @@ export async function getShopDepartmentGroups(): Promise<ShopDepartmentGroup[]> 
 
 async function priceRows(rows: readonly CatalogShopHit[]): Promise<ShopProduct[]> {
   if (rows.length === 0) return [];
-  const calculator: PricingCalculator = await loadPricingCalculator();
+  const calculator: PricingCalculator = await loadDisplayPricingCalculator();
   const out: ShopProduct[] = [];
   // Sequential: the first `calculate` loads FX onto the instance; a parallel
   // burst races that load. The database's order is kept as it came — it is the

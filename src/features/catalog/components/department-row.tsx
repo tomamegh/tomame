@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { imagePosition, type MarketingImage } from "@/config/marketing-images";
-import { getMediaOverrides } from "@/db/queries/media-overrides";
+import { getSharedMediaOverrides } from "@/features/marketing/services/media-overrides.service";
 import { cn } from "@/lib/utils";
 import { departmentIcon } from "./department-icons";
 import { departmentImage } from "./department-images";
@@ -97,7 +97,7 @@ export async function DepartmentRow({
 
   // Never throws: a failed read is an empty map and every tile keeps its
   // built-in photo.
-  const overrides = await getMediaOverrides();
+  const overrides = await getSharedMediaOverrides();
   // A short row stays one line on desktop instead of splitting four cells
   // across two rows of two.
   const twoRows = departments.length > 8;

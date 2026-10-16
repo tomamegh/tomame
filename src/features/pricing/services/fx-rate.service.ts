@@ -9,6 +9,7 @@ import { DEFAULT_FX_BUFFER_PCT } from "@/config/pricing";
 // eventually, not in the marketing feature.
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { logger } from "@/lib/logger";
+import { CACHE_TAGS, sharedCache } from "@/lib/shared-cache";
 
 /** Every stored rate is quoted against GHS. */
 export const FX_TARGET_CURRENCY = "GHS";
@@ -138,3 +139,13 @@ export async function getFxRateQuote(baseInput?: string | null): Promise<FxRateQ
     fetched_at: rateRow.fetched_at ?? rateRow.updated_at,
   };
 }
+
+/**
+ * The USD quote behind the nav pill, shared across viewers for a minute: the
+ * pill renders on every /app page, signed in or not. Expired when the rate
+ * cron stores new rates. A display, never a charge.
+ */
+export const getDisplayFxRateQuote = sharedCache(() => getFxRateQuote("USD"), ["fx-quote-usd"], {
+  tags: [CACHE_TAGS.pricingDisplay],
+  revalidateSeconds: 60,
+});

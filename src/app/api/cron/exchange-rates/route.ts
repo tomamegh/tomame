@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAndStoreRates } from "@/lib/exchange-rates";
 import { runCronJob } from "@/lib/auth/cron";
+import { CACHE_TAGS, expireCacheTag } from "@/lib/shared-cache";
 
 /**
  * Cron endpoint to fetch and store exchange rates. Called by pg_cron via pg_net
@@ -11,6 +12,8 @@ import { runCronJob } from "@/lib/auth/cron";
 export async function GET(request: NextRequest): Promise<NextResponse> {
   return runCronJob(request, "fetch-exchange-rates", async () => {
     const result = await fetchAndStoreRates();
+    // Shop cards and the nav pill read rates through the shared display cache.
+    if (result.updated.length > 0) expireCacheTag(CACHE_TAGS.pricingDisplay);
     // `success: false` is answered 207 and recorded as a failed run by runCronJob.
     return result.success
       ? { message: "Exchange rates updated", updated: result.updated }

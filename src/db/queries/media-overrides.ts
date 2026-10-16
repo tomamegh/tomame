@@ -29,17 +29,23 @@ export type MediaOverrideMap = Record<string, MediaOverrideRow>;
  * built-in default. A read failure logs and yields an empty map.
  */
 export async function getMediaOverrides(): Promise<MediaOverrideMap> {
+  try {
+    return await listMediaOverrides();
+  } catch (error) {
+    logger.warn("media overrides unavailable, using manifest defaults", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {};
+  }
+}
+
+/** The same map, throwing on a failed read — for callers that must not keep a failure (a shared cache). */
+export async function listMediaOverrides(): Promise<MediaOverrideMap> {
   const client = createPublicClient();
   const { data, error } = await client
     .from("media_overrides")
     .select("key, src, alt, position, width, height, storage_path");
-
-  if (error) {
-    logger.warn("media overrides unavailable, using manifest defaults", {
-      error: error.message,
-    });
-    return {};
-  }
+  if (error) throw new Error(`Failed to load media overrides: ${error.message}`);
 
   const map: MediaOverrideMap = {};
   for (const row of data ?? []) {

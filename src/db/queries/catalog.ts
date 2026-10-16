@@ -422,23 +422,6 @@ export async function listCatalogRowsNeedingLandedPrice(input: {
 }
 
 /**
- * The oldest landed-price stamp in the catalogue: `null` stamp = some row has
- * never been priced; `undefined` = the catalogue is empty.
- */
-export async function readOldestLandedPriceStamp(): Promise<string | null | undefined> {
-  const client = createAdminClient();
-  const { data, error } = await client
-    .from("catalog_products")
-    .select("landed_priced_at")
-    .order("landed_priced_at", { ascending: true, nullsFirst: true })
-    .limit(1);
-
-  if (error) throw new Error(`Failed to read catalog pricing age: ${error.message}`);
-  const row = (data ?? [])[0] as { landed_priced_at: string | null } | undefined;
-  return row ? row.landed_priced_at : undefined;
-}
-
-/**
  * Write a batch of calculator figures back in one statement. `decline` is why
  * a row has no figure (084); ignored when it has one.
  */

@@ -22,7 +22,7 @@ import {
 } from "@/features/marketing/services";
 import { DEFAULT_FX_BUFFER_PCT } from "@/config/pricing";
 import { getGhsRate } from "@/lib/exchange-rates/service";
-import { getMediaOverrides } from "@/db/queries/media-overrides";
+import { getSharedMediaOverrides } from "@/features/marketing/services/media-overrides.service";
 import { isAuthenticated } from "@/lib/supabase/current-user";
 import { StandaloneHomeRedirect } from "@/features/pwa/components";
 
@@ -83,7 +83,7 @@ export default async function HomePage() {
       getMarketingSettings(),
       getGhsRate("USD"),
       isAuthenticated(),
-      getMediaOverrides(),
+      getSharedMediaOverrides(),
     ]);
 
   // Depends on the seeded card rows, so it runs after the content query.

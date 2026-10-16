@@ -1,0 +1,53 @@
+# Prod uptime check, run from outside our own stack.
+#
+# Why (2026-10-16): the prod database stopped answering for ~3 hours. `/api/health`
+# kept returning 200 because it never touches the database, and the ops alerts
+# run on that same database, so nothing told anyone. This job calls
+# `/api/health/ready` (one real database read with a 5 s timeout) and the home
+# page every 5 minutes; a failed run is GitHub's failed-workflow notification
+# to whoever last changed this schedule.
+#
+# GitHub may start a scheduled run a few minutes late, so treat this as
+# "within ~15 minutes", not to the second.
+name: Uptime
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check prod
+        env:
+          BASE_URL: https://tomame.ca
+        run: |
+          set -u
+          check() {
+            local path="$1" code
+            for attempt in 1 2; do
+              # curl prints 000 itself when it cannot connect or times out.
+              code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$BASE_URL$path") || true
+              if [ "$code" = "200" ]; then
+                echo "ok   $path ($code)"
+                return 0
+              fi
+              echo "try $attempt: $path answered $code"
+              [ "$attempt" = 1 ] && sleep 20
+            done
+            echo "::error title=Prod check failed::$BASE_URL$path answered $code twice"
+            return 1
+          }
+          failed=0
+          check /api/health/ready || failed=1
+          check / || failed=1
+          exit $failed

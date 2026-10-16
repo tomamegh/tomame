@@ -21,6 +21,7 @@ import {
   getMediaOverride,
   upsertMediaOverride,
 } from "@/db/queries/media-overrides";
+import { expireMediaOverrides } from "@/features/marketing/services/media-overrides.service";
 
 /**
  * Builder write endpoints: replace an image, re-crop it, or reset it.
@@ -108,6 +109,7 @@ export async function POST(
       await deleteStoredImage(stored.storagePath);
       throw error;
     }
+    expireMediaOverrides();
 
     // Only after the row points at the new object — otherwise a failure here
     // would leave the page referencing bytes we already deleted.
@@ -176,6 +178,7 @@ export async function PATCH(
       ...(parsed.data.alt !== undefined ? { alt: parsed.data.alt } : {}),
       updated_by: user.id,
     });
+    expireMediaOverrides();
 
     await logAuditEvent({
       actorId: user.id,
@@ -203,6 +206,7 @@ export async function DELETE(
 
     const previous = await getMediaOverride(imageKey);
     await deleteMediaOverride(imageKey);
+    expireMediaOverrides();
     if (previous?.storage_path) {
       await deleteStoredImage(previous.storage_path);
     }

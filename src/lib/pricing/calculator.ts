@@ -240,6 +240,25 @@ export class PricingCalculator {
     if (midMarket == null) {
       throw new APIError(503, "Exchange rate for USD/GHS not available. Please try again later.");
     }
+    this.applyMidMarketRate(midMarket);
+  }
+
+  /**
+   * Price from X→GHS mid-market rates read elsewhere (a shared display read)
+   * instead of fetching them on first use. Same buffer arithmetic as
+   * `loadFxRate`. Call after `setConstants`: the buffer is a constant, and
+   * without a complete set the USD rate is left for `calculate` to refuse.
+   * A currency missing from the table is still fetched live when it is needed.
+   */
+  useGhsRates(rates: Readonly<Record<string, number>>): void {
+    for (const [currency, rate] of Object.entries(rates)) {
+      if (currency !== "USD" && rate > 0) this.crossRates.set(currency.toUpperCase(), rate);
+    }
+    const usd = rates.USD;
+    if (usd != null && usd > 0 && this.constants) this.applyMidMarketRate(usd);
+  }
+
+  private applyMidMarketRate(midMarket: number): void {
     this.midMarketRate = midMarket;
     this.appliedRate = PricingCalculator.roundTo2(midMarket * (1 + this.fxBufferPct));
   }

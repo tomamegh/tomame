@@ -1,8 +1,8 @@
 import "server-only";
 import { logger } from "@/lib/logger";
+import { CACHE_TAGS, expireCacheTag } from "@/lib/shared-cache";
 import {
   listCatalogRowsNeedingLandedPrice,
-  readOldestLandedPriceStamp,
   writeCatalogLandedPrices,
 } from "@/db/queries/catalog";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
@@ -25,27 +25,18 @@ import { strikeLandedFigure, type LandedDecline } from "./catalog-search.service
  *
  * HOW FRESH. A row is re-priced when it has never been (`landed_priced_at` is
  * null — new rows, and every row the scraper re-reads) or when its figure is
- * older than `CATALOG_LANDED_PRICE.maxAgeMinutes`. FX and the admin's pricing
- * constants can move inside that window, so for up to that long the ORDER can
- * lag the live figure; the cards themselves are always priced live at render.
+ * older than `CATALOG_LANDED_PRICE.maxAgeMinutes`. Only the catalogue cron
+ * runs the refresh, every 15 minutes; a render never does (see the shop page).
+ * FX and the admin's pricing constants can move inside that window, so for up
+ * to that long the ORDER can lag the live figure; the cards themselves are
+ * always priced live at render.
  */
 export const CATALOG_LANDED_PRICE = {
-  /** A stored figure older than this is refreshed on the next shop render (after the response). */
+  /** A stored figure older than this is refreshed by the next cron run. */
   maxAgeMinutes: 60,
   /** Rows per refresh: PostgREST's max-rows, and seconds of arithmetic at most. */
   batchSize: 1000,
 } as const;
-
-export type LandedPriceFreshness = "fresh" | "stale" | "missing" | "empty";
-
-/** Whether the stored figures can be trusted for this render. One indexed read. */
-export async function readLandedPriceFreshness(now: Date = new Date()): Promise<LandedPriceFreshness> {
-  const oldest = await readOldestLandedPriceStamp();
-  if (oldest === undefined) return "empty";
-  if (oldest === null) return "missing";
-  const ageMs = now.getTime() - new Date(oldest).getTime();
-  return ageMs > CATALOG_LANDED_PRICE.maxAgeMinutes * 60_000 ? "stale" : "fresh";
-}
 
 export interface LandedPriceRefreshSummary {
   considered: number;
@@ -64,9 +55,8 @@ export interface LandedPriceRefreshSummary {
 let inflight: Promise<LandedPriceRefreshSummary> | null = null;
 
 /**
- * One refresh per instance at a time: every shop render that finds the prices
- * stale schedules one, and concurrent runs over the same rows waited on each
- * other's locks until the statement timeout.
+ * One refresh per instance at a time: concurrent runs over the same rows wait
+ * on each other's locks until the statement timeout.
  */
 export function refreshCatalogLandedPrices(now: Date = new Date()): Promise<LandedPriceRefreshSummary> {
   inflight ??= runLandedPriceRefresh(now).finally(() => {
@@ -101,6 +91,8 @@ async function runLandedPriceRefresh(now: Date): Promise<LandedPriceRefreshSumma
   }
 
   summary.written = await writeCatalogLandedPrices(figures);
+  // The shop's shared reads filter and sort on these figures.
+  if (summary.written > 0) expireCacheTag(CACHE_TAGS.catalog);
   logger.info("catalog-landed-price: refreshed", { ...summary });
   return summary;
 }
