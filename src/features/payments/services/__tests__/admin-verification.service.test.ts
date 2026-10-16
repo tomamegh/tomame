@@ -96,6 +96,15 @@ describe("lookupPaystackReference", () => {
     expect((await lookupPaystackReference(REFERENCE)).blockedReason).toBe("Already paid. Nothing to do.");
   });
 
+  it("refuses a duplicate charge for orders another payment already paid", async () => {
+    seed();
+    db.orders![0]!.status = "paid";
+    paystack("success");
+    const lookup = await lookupPaystackReference(REFERENCE);
+    expect(lookup.canSettle).toBe(false);
+    expect(lookup.blockedReason).toContain("duplicate");
+  });
+
   it("says plainly when Paystack does not know the reference", async () => {
     vi.mocked(verifyTransaction).mockRejectedValue(new Error("Paystack API error: 400"));
     await expect(lookupPaystackReference(REFERENCE)).rejects.toMatchObject({ statusCode: 404 });

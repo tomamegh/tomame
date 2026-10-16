@@ -206,17 +206,23 @@ export async function lookupPaystackReference(rawReference: string): Promise<Ref
 
   const amountMatches = payment != null && data.amount === Number(payment.amount);
   const currencyMatches = payment != null && data.currency === payment.currency;
+  // Every order already past `pending` (and none cancelled) means another
+  // charge paid for them: this one is a duplicate and owed back, not settled.
+  const paidElsewhere =
+    orders.length > 0 && orders.every((o) => o.status !== "pending" && o.status !== "cancelled");
   const blockedReason = !payment
     ? "This reference is on Paystack but not in Tomame, so there is no order to mark paid."
     : payment.status === "success"
       ? "Already paid. Nothing to do."
-      : data.status !== "success"
-        ? `Paystack says "${data.status}": no money has arrived on this reference.`
-        : !amountMatches
-          ? "Paystack's amount differs from what we charged. This needs a decision, not a settle."
-          : !currencyMatches
-            ? "Paystack's currency differs from what we charged. This needs a decision, not a settle."
-            : null;
+      : paidElsewhere && data.status === "success"
+        ? "These orders were already paid by another charge. This one is a duplicate and needs a refund, not a settle."
+        : data.status !== "success"
+          ? `Paystack says "${data.status}": no money has arrived on this reference.`
+          : !amountMatches
+            ? "Paystack's amount differs from what we charged. This needs a decision, not a settle."
+            : !currencyMatches
+              ? "Paystack's currency differs from what we charged. This needs a decision, not a settle."
+              : null;
 
   const meta = (data as unknown as { gateway_response?: string | null; customer?: { email?: string | null } | null });
   return {
