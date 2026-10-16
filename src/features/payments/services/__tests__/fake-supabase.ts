@@ -97,6 +97,14 @@ class FakeQuery implements PromiseLike<Result> {
     return this;
   }
 
+  gt(column: string, value: unknown): this {
+    this.predicates.push((row) => {
+      const v = readColumn(row, column);
+      return v != null && (v as string | number) > (value as string | number);
+    });
+    return this;
+  }
+
   is(column: string, value: null | boolean): this {
     this.predicates.push((row) => (readColumn(row, column) ?? null) === value);
     return this;

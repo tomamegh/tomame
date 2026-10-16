@@ -48,7 +48,7 @@ export interface PaymentsHealth {
   pendingTotal: number;
   success24h: number;
   failed24h: number;
-  /** Audit rows of `payment_recovered_after_expiry` flagged for refund review, 30 days. */
+  /** Audit rows of a settle or late recovery flagged for refund review, 30 days. */
   refundReviews: { paymentId: string; at: string }[];
   /** Audit action counts over 7 days: how payments have been resolving. */
   resolved7d: { successful: number; failed: number; expired: number; recovered: number };
@@ -73,7 +73,7 @@ export async function readPaymentsHealth(now: Date): Promise<PaymentsHealth> {
     client
       .from("audit_logs")
       .select("entity_id, created_at")
-      .in("action", ["payment_successful", "payment_recovered_after_expiry"])
+      .in("action", ["payment_successful", "payment_recovered_after_expiry", "payment_recovered_after_failure"])
       .eq("metadata->>needsRefundReview", "true")
       .gte("created_at", monthAgo)
       .order("created_at", { ascending: false })
@@ -81,7 +81,7 @@ export async function readPaymentsHealth(now: Date): Promise<PaymentsHealth> {
     count("audit_logs", (q) => q.eq("action", "payment_successful").gte("created_at", weekAgo)),
     count("audit_logs", (q) => q.eq("action", "payment_failed").gte("created_at", weekAgo)),
     count("audit_logs", (q) => q.eq("action", "payment_expired").gte("created_at", weekAgo)),
-    count("audit_logs", (q) => q.eq("action", "payment_recovered_after_expiry").gte("created_at", weekAgo)),
+    count("audit_logs", (q) => q.in("action", ["payment_recovered_after_expiry", "payment_recovered_after_failure"]).gte("created_at", weekAgo)),
   ]);
   if (pendingRes.error) throw new Error(`ops pending payments failed: ${pendingRes.error.message}`);
   if (refundRes.error) throw new Error(`ops refund reviews failed: ${refundRes.error.message}`);

@@ -49,7 +49,8 @@ export interface AdminTransactionVerifyProps {
  * **Settle** runs the repair — `/sync`, which re-runs the payment callback and
  * therefore links orders, sends mail and writes audit rows. It only appears
  * while the payment is unsettled, because that is the only state it can
- * repair, and it asks first: re-running the callback is a customer-visible
+ * repair (pending, or failed: a retry on the same Paystack checkout can still
+ * pay a declined reference), and it asks first: re-running the callback is a customer-visible
  * event, not a refresh.
  */
 export function AdminTransactionVerify({ paymentId, status }: AdminTransactionVerifyProps) {
@@ -110,7 +111,7 @@ export function AdminTransactionVerify({ paymentId, status }: AdminTransactionVe
           <ArrowsClockwise size={14} weight="bold" />
           Check with Paystack
         </AdminButton>
-        {status === "pending" ? (
+        {status !== "success" ? (
           <AdminButton variant="primary" onClick={() => setConfirmOpen(true)}>
             Settle from Paystack
           </AdminButton>
@@ -119,7 +120,7 @@ export function AdminTransactionVerify({ paymentId, status }: AdminTransactionVe
 
       <p className="text-[12px] leading-[1.5] font-medium text-tm-text-3">
         Checking reads Paystack and changes nothing.
-        {status === "pending"
+        {status !== "success"
           ? " Settling re-runs the payment callback: it links the orders, emails the customer and writes an audit entry."
           : null}
       </p>
@@ -130,7 +131,7 @@ export function AdminTransactionVerify({ paymentId, status }: AdminTransactionVe
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="Settle this transaction from Paystack?"
-        consequence="If Paystack reports the charge succeeded, the orders behind it move to paid, the customer is emailed, and the change is written to the audit log. Nothing happens if Paystack still shows it pending."
+        consequence="If Paystack reports the charge succeeded, the orders behind it move to paid, the customer is emailed, and the change is written to the audit log. Nothing happens unless Paystack shows the charge as paid. A failed charge can still be paid when the customer retries on the same Paystack checkout."
         confirmLabel="Settle from Paystack"
         onConfirm={runSync}
         busy={syncing}

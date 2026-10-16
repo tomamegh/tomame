@@ -30,6 +30,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const summary = await reconcilePendingPayments();
     if (
       summary.checked ||
+      summary.recovered ||
       summary.ordersCancelled ||
       summary.groupsCancelled ||
       summary.carOrdersCancelled

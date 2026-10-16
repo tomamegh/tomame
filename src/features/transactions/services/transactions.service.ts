@@ -195,8 +195,9 @@ export async function syncTransactionStatus(
 
   const dbStatus = payment.status as string;
 
-  // 2. Already finalized — no Paystack call needed
-  if (dbStatus === "success" || dbStatus === "failed") {
+  // 2. Already paid — no Paystack call needed. A `failed` row is NOT final:
+  //    a retry on the same Paystack checkout can still pay it (TM-00010).
+  if (dbStatus === "success") {
     return {
       updated: false,
       paystackStatus: dbStatus,
@@ -249,10 +250,13 @@ export async function syncTransactionStatus(
 
   const finalStatus = (refreshed?.status as string | undefined) ?? paystackStatus;
 
+  const updated = finalStatus !== dbStatus;
   return {
-    updated: true,
+    updated,
     paystackStatus,
     dbStatus: finalStatus,
-    message: `Transaction synced. Status updated to "${finalStatus}".`,
+    message: updated
+      ? `Transaction synced. Status updated to "${finalStatus}".`
+      : `Paystack shows "${paystackStatus}". Nothing changed.`,
   };
 }

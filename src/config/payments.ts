@@ -20,6 +20,14 @@ export const PAYMENT_RECONCILIATION = {
   defaultExpiryMinutes: 60,
   /** Fallback for `site_settings.unpaid_order_ttl_hours`. */
   defaultUnpaidOrderTtlHours: 48,
+  /**
+   * How long a `failed` payment keeps being re-verified. Paystack's checkout
+   * stays open after a declined attempt and a "try again" on the same
+   * reference can still be paid, so `failed` is not final on their side.
+   * Inside the unpaid-order lifetime on purpose: a late success settles the bag
+   * before the sweep can close it.
+   */
+  failedRecheckHours: 24,
   /** Orders and groups cancelled per run. */
   orderBatchSize: 50,
 } as const;

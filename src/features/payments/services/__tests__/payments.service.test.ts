@@ -816,12 +816,44 @@ describe("handlePaymentCallback — late payment after expiry (059)", () => {
     expect(logAuditEvent).not.toHaveBeenCalled();
   });
 
-  it("never re-verifies a payment Paystack itself declared failed", async () => {
+  it("settles a payment Paystack declined once the customer's retry on the same reference is paid", async () => {
+    // TM-00010: the first MoMo attempt failed, the sweep wrote `failed`, the
+    // retry on the still-open checkout succeeded and the webhook arrived after.
+    seedPayment({ status: "failed", metadata: { order_id: ORDER_ID, paystack_verification: { status: "failed" } } });
+    vi.mocked(verifyTransaction).mockResolvedValue(verification());
+    vi.mocked(linkOrderToPayment).mockResolvedValue(makeOrder({ status: "paid" }) as never);
+
+    const { redirectUrl } = await handlePaymentCallback(REFERENCE);
+
+    expect(redirectUrl).toContain("payment=success");
+    expect(db.payments[0]!.status).toBe("success");
+    const metadata = db.payments[0]!.metadata as Record<string, unknown>;
+    expect(metadata.recovered_after_failure_at).toBeTypeOf("string");
+    expect(metadata.recovered_after_expiry_at).toBeUndefined();
+    expect(linkOrderToPayment).toHaveBeenCalledTimes(1);
+    const actions = vi.mocked(logAuditEvent).mock.calls.map(([e]) => e.action);
+    expect(actions).toContain("payment_recovered_after_failure");
+    expect(actions).not.toContain("payment_successful");
+  });
+
+  it("leaves a declined payment failed, with no new audit row, while Paystack still reports it failed", async () => {
     seedPayment({ status: "failed", metadata: { order_id: ORDER_ID } });
+    vi.mocked(verifyTransaction).mockResolvedValue(verification({ status: "failed" }));
 
     const { redirectUrl } = await handlePaymentCallback(REFERENCE);
 
     expect(redirectUrl).toContain("payment=failed");
-    expect(verifyTransaction).not.toHaveBeenCalled();
+    expect(db.payments[0]!.status).toBe("failed");
+    expect(logAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("does not settle a declined payment when the retry's amount does not match", async () => {
+    seedPayment({ status: "failed", metadata: { order_id: ORDER_ID } });
+    vi.mocked(verifyTransaction).mockResolvedValue(verification({ amount: 1 }));
+
+    await handlePaymentCallback(REFERENCE);
+
+    expect(db.payments[0]!.status).toBe("failed");
+    expect(linkOrderToPayment).not.toHaveBeenCalled();
   });
 });

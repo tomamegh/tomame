@@ -595,3 +595,66 @@ describe("reconcilePendingPayments — abandoned car checkouts", () => {
     );
   });
 });
+
+// ── Failed is not final: a retry on the same reference can still be paid ─────
+
+describe("reconcilePendingPayments — recently failed payments", () => {
+  it("settles a payment Paystack declined and then reports paid, before the unpaid sweep", async () => {
+    // TM-00010: declined at the first MoMo attempt, paid on "try again".
+    const p = seedPayment({ status: "failed", created_at: minutesAgo(20 * 60) });
+    paystack("success");
+    vi.mocked(handlePaymentCallback).mockImplementation(async () => {
+      p.status = "success";
+      return { redirectUrl: "x" };
+    });
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(handlePaymentCallback).toHaveBeenCalledWith(p.reference);
+    expect(summary).toMatchObject({ checked: 0, failedRechecked: 1, recovered: 1 });
+  });
+
+  it("leaves a failed payment alone while Paystack still has no money for it", async () => {
+    seedPayment({ status: "failed", created_at: minutesAgo(60) });
+    paystack("failed");
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(handlePaymentCallback).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ failedRechecked: 1, recovered: 0 });
+  });
+
+  it("stops re-verifying a failed payment once it is older than the recheck window", async () => {
+    seedPayment({ status: "failed", created_at: minutesAgo(25 * 60) });
+    paystack("success");
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(verifyTransaction).not.toHaveBeenCalled();
+    expect(summary.failedRechecked).toBe(0);
+  });
+
+  it("does not ask Paystack twice about a payment this run has just failed", async () => {
+    const p = seedPayment({ created_at: minutesAgo(30) });
+    paystack("failed");
+    vi.mocked(handlePaymentCallback).mockImplementation(async () => {
+      p.status = "failed";
+      return { redirectUrl: "x" };
+    });
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(verifyTransaction).toHaveBeenCalledTimes(1);
+    expect(summary).toMatchObject({ checked: 1, failed: 1, failedRechecked: 0 });
+  });
+
+  it("keeps going when Paystack does not answer for one failed payment", async () => {
+    seedPayment({ status: "failed", created_at: minutesAgo(60) });
+    vi.mocked(verifyTransaction).mockRejectedValue(new Error("timeout"));
+
+    const summary = await reconcilePendingPayments(NOW);
+
+    expect(summary).toMatchObject({ failedRechecked: 1, recovered: 0 });
+    expect(handlePaymentCallback).not.toHaveBeenCalled();
+  });
+});

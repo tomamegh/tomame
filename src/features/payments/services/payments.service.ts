@@ -702,17 +702,19 @@ export async function handlePaymentCallback(
   if (payment.status === PAYMENT_STATUSES.SUCCESS) {
     return { redirectUrl: successUrl(target) };
   }
-  // A payment WE released for inactivity (059) is the one kind of `failed` that
-  // can still turn into money: the customer may reopen the Paystack link and
-  // pay. So it goes on to verification, and a success below moves it
-  // `failed → success`. A payment Paystack itself declared failed is final.
-  const recoveringExpired = payment.status === PAYMENT_STATUSES.FAILED && wasExpiredByUs(payment);
-  if (payment.status === PAYMENT_STATUSES.FAILED && !recoveringExpired) {
-    return { redirectUrl: failureUrl(target) };
-  }
+  // A `failed` row is never final on Paystack's side. A payment WE released for
+  // inactivity (059) can be paid when the customer reopens the link, and one
+  // PAYSTACK declined can be paid too: the checkout stays open and offers "try
+  // again" on the same reference, which flips that transaction to success
+  // (TM-00010, 2026-10-14: MoMo declined at 22:30, our sweep wrote `failed` at
+  // 22:37, the retry was paid afterwards and this function used to answer it
+  // with the failure page). So every `failed` row goes on to verification, and
+  // a success below moves it `failed → success`.
+  const recovering = payment.status === PAYMENT_STATUSES.FAILED;
+  const recoveringExpired = recovering && wasExpiredByUs(payment);
   // Fixed HERE, before the verify call, so the guarded update below always
   // names the status this caller READ. The whole race depends on that.
-  const fromStatus = recoveringExpired ? PAYMENT_STATUSES.FAILED : PAYMENT_STATUSES.PENDING;
+  const fromStatus = recovering ? PAYMENT_STATUSES.FAILED : PAYMENT_STATUSES.PENDING;
 
   let verification: Awaited<ReturnType<typeof verifyTransaction>>;
   try {
@@ -760,6 +762,7 @@ export async function handlePaymentCallback(
         ...baseMetadata,
         paystack_verification: verifyData,
         ...(recoveringExpired && { recovered_after_expiry_at: new Date().toISOString() }),
+        ...(recovering && !recoveringExpired && { recovered_after_failure_at: new Date().toISOString() }),
       },
       verification.data.channel,
     );
@@ -801,7 +804,11 @@ export async function handlePaymentCallback(
     await logAuditEvent({
       actorId: payment.user_id,
       actorRole: "system",
-      action: recoveringExpired ? "payment_recovered_after_expiry" : "payment_successful",
+      action: recoveringExpired
+        ? "payment_recovered_after_expiry"
+        : recovering
+          ? "payment_recovered_after_failure"
+          : "payment_successful",
       entityType: "payment",
       entityId: payment.id,
       metadata: { reference, ...target, ordersSettled, needsRefundReview },
@@ -811,9 +818,9 @@ export async function handlePaymentCallback(
     return { redirectUrl: successUrl(target) };
   }
 
-  // An expired payment that still is not paid is already `failed`; there is
+  // A failed payment that still is not paid is already `failed`; there is
   // nothing to move and nothing new to audit.
-  if (recoveringExpired) {
+  if (recovering) {
     return { redirectUrl: failureUrl(target) };
   }
 

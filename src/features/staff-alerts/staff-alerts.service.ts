@@ -349,6 +349,7 @@ export async function buildAlert(t: StaffAlertTrigger, environment: string | nul
       const ok = t.kind === "payment_succeeded";
       const expired = t.kind === "payment_failed" && t.reason === "expired";
       const recovered = ok && typeof payment.metadata?.recovered_after_expiry_at === "string";
+      const recoveredAfterDecline = ok && typeof payment.metadata?.recovered_after_failure_at === "string";
       const label = ok ? "Payment received" : expired ? "Payment abandoned" : "Payment failed";
       return {
         ...base(target, payment, customer),
@@ -362,7 +363,11 @@ export async function buildAlert(t: StaffAlertTrigger, environment: string | nul
           : expired
             ? `${customer.name ?? customer.email ?? "A customer"} started paying for ${target.reference} and did not finish. The payment was released; the order stays unpaid.`
             : `Paystack did not confirm the charge for ${target.reference}. The order stays unpaid and the customer can retry.`,
-        facts: recovered ? [["Note", "Paid after the payment had been released for inactivity"]] : [],
+        facts: recovered
+          ? [["Note", "Paid after the payment had been released for inactivity"]]
+          : recoveredAfterDecline
+            ? [["Note", "Paid on a retry after Paystack had declined the first attempt"]]
+            : [],
       };
     }
     case "order_status":

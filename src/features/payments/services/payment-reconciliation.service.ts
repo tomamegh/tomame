@@ -73,11 +73,20 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * ever does it without a human. See `releaseStaleCarOrders` for the three
  * guards that stand between it and a paid car.
  *
- * LATE MONEY. A customer can reopen an expired Paystack link and pay. That case
- * is handled in `handlePaymentCallback`, which allows a payment WE expired to
- * move `failed → success` and settles it; if its order was already cancelled by
- * the second half of this job, the audit row says so and the admin owes a
- * refund. See `payments.service.ts`.
+ * LATE MONEY. A customer can reopen an expired Paystack link and pay, and a
+ * customer whose first attempt Paystack DECLINED can press "try again" on the
+ * same checkout and pay that same reference. `handlePaymentCallback` lets any
+ * `failed` payment move `failed → success` and settles it; if its order was
+ * already cancelled by the second half of this job, the audit row says so and
+ * the admin owes a refund. See `payments.service.ts`.
+ *
+ * That only helps if somebody calls it. The webhook and the browser return are
+ * the usual callers, and neither is guaranteed: a MoMo customer approves on the
+ * phone and shuts the tab. So this job also re-verifies `failed` payments from
+ * the last `failedRecheckHours` (`recheckRecentFailures`), BEFORE the unpaid
+ * sweep, so a bag with late money is settled rather than closed. TM-00010
+ * (2026-10-14) was paid on a retry after this job had written `failed`, and
+ * nothing ever looked at the row again.
  */
 
 export interface ReconcileSummary {
@@ -99,6 +108,10 @@ export interface ReconcileSummary {
   groupsCancelled: number;
   /** Abandoned car checkouts released, each putting one vehicle back on sale. */
   carOrdersCancelled: number;
+  /** Recently failed payments re-verified against Paystack this run. */
+  failedRechecked: number;
+  /** Of those, paid after all (a retry on the same reference) and settled. */
+  recovered: number;
 }
 
 export interface PaymentTimeouts {
@@ -141,6 +154,7 @@ export async function reconcilePendingPayments(now: Date = new Date()): Promise<
   const summary: ReconcileSummary = {
     checked: 0, settled: 0, failed: 0, expired: 0, unreachable: 0, leftPending: 0,
     ordersCancelled: 0, groupsCancelled: 0, carOrdersCancelled: 0,
+    failedRechecked: 0, recovered: 0,
   };
 
   const graceCutoff = minutesBefore(now, PAYMENT_RECONCILIATION.graceMinutes);
@@ -153,11 +167,17 @@ export async function reconcilePendingPayments(now: Date = new Date()): Promise<
     .limit(PAYMENT_RECONCILIATION.batchSize);
   if (error) throw new Error(`reconcile-payments: could not list pending payments: ${error.message}`);
 
+  const seen = new Set<string>();
   for (const payment of (data ?? []) as Payment[]) {
     summary.checked += 1;
+    seen.add(payment.id);
     const outcome = await reconcileOne(admin, payment, timeouts, now);
     summary[outcome] += 1;
   }
+
+  const rechecked = await recheckRecentFailures(admin, now, seen);
+  summary.failedRechecked = rechecked.checked;
+  summary.recovered = rechecked.recovered;
 
   const cancelled = await cancelStaleUnpaid(admin, timeouts, now);
   summary.ordersCancelled = cancelled.orders;
@@ -199,6 +219,58 @@ async function reconcileOne(
   if (ageMinutes < timeouts.expiryMinutes) return "leftPending";
 
   return (await expirePayment(admin, payment, paystackStatus, timeouts, now)) ? "expired" : "leftPending";
+}
+
+/**
+ * Re-verify `failed` payments from the last `failedRecheckHours`, newest first,
+ * and settle any Paystack now reports as paid. `seen` holds the rows this run
+ * already verified, so a payment it has just failed or expired is not asked
+ * about twice in one run. The settle is `handlePaymentCallback`'s, with its
+ * amount and currency check and its guarded `failed → success` update.
+ */
+async function recheckRecentFailures(
+  admin: SupabaseClient,
+  now: Date,
+  seen: Set<string>,
+): Promise<{ checked: number; recovered: number }> {
+  const since = minutesBefore(now, PAYMENT_RECONCILIATION.failedRecheckHours * 60);
+  const { data, error } = await admin
+    .from("payments")
+    .select("*")
+    .eq("status", PAYMENT_STATUSES.FAILED)
+    .gt("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(PAYMENT_RECONCILIATION.batchSize);
+  if (error) throw new Error(`reconcile-payments: could not list failed payments: ${error.message}`);
+
+  let checked = 0;
+  let recovered = 0;
+  for (const payment of (data ?? []) as Payment[]) {
+    if (seen.has(payment.id)) continue;
+    checked += 1;
+    let paystackStatus: string;
+    try {
+      paystackStatus = (await verifyTransaction(payment.reference)).data.status;
+    } catch (error) {
+      logger.warn("reconcile-payments: Paystack verify unreachable for a failed payment", {
+        paymentId: payment.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      continue;
+    }
+    if (paystackStatus !== "success") continue;
+
+    await handlePaymentCallback(payment.reference);
+    const { data: row } = await admin.from("payments").select("status").eq("id", payment.id).maybeSingle();
+    if ((row as { status?: string } | null)?.status === PAYMENT_STATUSES.SUCCESS) {
+      recovered += 1;
+      logger.warn("reconcile-payments: a failed payment was paid after all; settled", {
+        paymentId: payment.id,
+        reference: payment.reference,
+      });
+    }
+  }
+  return { checked, recovered };
 }
 
 /**

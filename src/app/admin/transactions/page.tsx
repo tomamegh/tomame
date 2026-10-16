@@ -6,6 +6,7 @@ import {
   formatPesewas,
   summariseTransactions,
 } from "@/features/payments/components/admin-money-format";
+import { AdminReferenceSettle } from "@/features/payments/components/admin-reference-settle";
 import { AdminTransactionsView } from "@/features/payments/components/admin-transactions-view";
 
 /**
@@ -88,6 +89,14 @@ export default async function AdminTransactionsPage() {
           </p>
         </AdminCard>
       ) : null}
+
+      <AdminCard
+        title="Customer says they paid?"
+        blurb="Paste the Paystack reference from the customer's receipt or the Paystack dashboard. Checking asks Paystack and changes nothing; if Paystack has the full amount, you can mark the order paid."
+        index={3}
+      >
+        <AdminReferenceSettle />
+      </AdminCard>
 
       <AdminTransactionsView rows={rows} limit={LEDGER_WINDOW} renderedAt={renderedAt} />
     </AdminPage>
