@@ -128,7 +128,10 @@ export function QuoteView({
   const { mutate: addToBag, isPending: addingToBag } = useAddToBag();
   const { mutate: requestSourcing, isPending: requestingSourcing } = useRequestSourcing();
   // "Who should our buyer call?" sits between the CTA and the request (097).
+  // Mounted only once asked for: it reads `/api/app/me` for the prefill, and
+  // most quotes never need it.
   const [contactOpen, setContactOpen] = useState(false);
+  const [contactMounted, setContactMounted] = useState(false);
   // Count in the bag after this screen added the line, so the CTA can hand off
   // to the bag instead of adding the same product a second time by accident.
   const [addedCount, setAddedCount] = useState<number | null>(null);
@@ -384,6 +387,7 @@ export function QuoteView({
       signIn();
       return;
     }
+    setContactMounted(true);
     setContactOpen(true);
   }, [quote, isAuthenticated, signIn]);
 
@@ -591,12 +595,14 @@ export function QuoteView({
         onToggleWatch={toggleWatch}
       />
 
-      <SourcingContactDialog
-        open={contactOpen}
-        onOpenChange={setContactOpen}
-        pending={requestingSourcing}
-        onSubmit={sendSourcingRequest}
-      />
+      {contactMounted && (
+        <SourcingContactDialog
+          open={contactOpen}
+          onOpenChange={setContactOpen}
+          pending={requestingSourcing}
+          onSubmit={sendSourcingRequest}
+        />
+      )}
     </div>
   );
 }
