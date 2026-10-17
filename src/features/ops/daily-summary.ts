@@ -62,6 +62,13 @@ export function accraDate(now: Date): string {
   return now.toISOString().slice(0, 10);
 }
 
+/** 07:00 in Accra (GMT). The job is called hourly; it sends on the first healthy call from here on. */
+export const DAILY_SUMMARY_HOUR_UTC = 7;
+
+export function dailySummaryDue(now: Date): boolean {
+  return now.getUTCHours() >= DAILY_SUMMARY_HOUR_UTC;
+}
+
 export function buildDailySummary(input: DailySummaryInput): DailySummary {
   const { now } = input;
   const windowStart = new Date(now.getTime() - 24 * 3600_000);

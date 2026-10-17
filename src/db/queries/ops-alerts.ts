@@ -128,6 +128,17 @@ export async function countAlertSendsSince(kind: "alert" | "daily_summary", sinc
   return count ?? 0;
 }
 
+/** Whether `summaryDate`'s summary has been claimed (sent, or being sent right now). */
+export async function dailySummarySent(summaryDate: string): Promise<boolean> {
+  const { count, error } = await createAdminClient()
+    .from("ops_alert_sends")
+    .select("id", { count: "exact", head: true })
+    .eq("kind", "daily_summary")
+    .eq("summary_date", summaryDate);
+  if (error) throw new Error(`ops alerts: reading today's summary failed: ${error.message}`);
+  return (count ?? 0) > 0;
+}
+
 /**
  * Claim today's summary. False when a row for `summaryDate` already exists,
  * which the unique index (083) decides, so two overlapping runs cannot both

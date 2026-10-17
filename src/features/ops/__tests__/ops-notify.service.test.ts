@@ -7,6 +7,7 @@ vi.mock("@/features/ops/ops.service", () => ({ getOpsOverview: vi.fn() }));
 vi.mock("@/db/queries/ops-alerts", () => ({
   claimDailySummary: vi.fn(),
   countAlertSendsSince: vi.fn(),
+  dailySummarySent: vi.fn(),
   listAlertLog: vi.fn(),
   listErrorEventsByFingerprint: vi.fn(),
   listErrorEventsSeenSince: vi.fn(),
@@ -51,6 +52,7 @@ beforeEach(() => {
   vi.mocked(q.readDayActivity).mockResolvedValue({ orders: [], payments: [], notifications: [], warehouseActions: [] });
   vi.mocked(q.listErrorEventsByFingerprint).mockResolvedValue([]);
   vi.mocked(q.claimDailySummary).mockResolvedValue(11);
+  vi.mocked(q.dailySummarySent).mockResolvedValue(false);
 });
 
 describe("runOpsAlerts", () => {
@@ -113,7 +115,28 @@ describe("runDailySummary", () => {
     expect(d.send).not.toHaveBeenCalled();
   });
 
-  it("gives the day back when every send failed, so a later call in the hour can retry", async () => {
+  it("does not build the summary again once today's has gone out", async () => {
+    vi.mocked(q.dailySummarySent).mockResolvedValue(true);
+    const d = { ...deps(), now: new Date("2026-10-01T15:04:00Z") };
+    expect(await runDailySummary(d)).toEqual({ skipped: "already sent", date: "2026-10-01" });
+    expect(getOpsOverview).not.toHaveBeenCalled();
+    expect(q.claimDailySummary).not.toHaveBeenCalled();
+  });
+
+  it("is not due before 07:00, so the hourly calls overnight are no-ops", async () => {
+    const d = { ...deps(), now: new Date("2026-10-01T06:04:00Z") };
+    expect(await runDailySummary(d)).toEqual({ skipped: "not due yet", date: "2026-10-01" });
+    expect(q.dailySummarySent).not.toHaveBeenCalled();
+    expect(d.send).not.toHaveBeenCalled();
+  });
+
+  it("catches up a missed morning on the next healthy hour", async () => {
+    const d = { ...deps(), now: new Date("2026-10-01T10:04:00Z") };
+    expect(await runDailySummary(d)).toMatchObject({ sent: true, date: "2026-10-01" });
+    expect(d.send).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives the day back when every send failed, so the next hourly call can retry", async () => {
     const d = deps(PROD, vi.fn().mockRejectedValue(new Error("down")));
     await expect(runDailySummary(d)).rejects.toThrow();
     expect(q.releaseDailySummary).toHaveBeenCalledWith(11);

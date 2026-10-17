@@ -3,6 +3,7 @@ import "server-only";
 import {
   claimDailySummary,
   countAlertSendsSince,
+  dailySummarySent,
   listAlertLog,
   listErrorEventsByFingerprint,
   listErrorEventsSeenSince,
@@ -30,12 +31,13 @@ import {
   type AlertCandidate,
 } from "./alert-rules";
 import { alertsEnabled, environmentLabel, resolveRecipients } from "./alert-recipients";
-import { accraDate, buildDailySummary, dailySummarySubject, type DailySummary } from "./daily-summary";
+import { accraDate, buildDailySummary, dailySummaryDue, dailySummarySubject, type DailySummary } from "./daily-summary";
 import { getOpsOverview, type OpsOverview } from "./ops.service";
 
 /**
  * The two jobs that email a person (083): alerts every five minutes, the
- * health summary at 07:00. Both run as pg_cron → pg_net → a Vercel route.
+ * health summary from 07:00 (called hourly since 095, so a missed morning is
+ * caught up by the next healthy hour instead of alarming until tomorrow). Both run as pg_cron → pg_net → a Vercel route.
  *
  * TESTABLE SEND. `send` and `env` are injected; the routes pass the real
  * Resend transport and `process.env`, tests pass a mock. Nothing here decides
@@ -179,16 +181,22 @@ export async function collectDailySummary(now: Date, known?: OpsOverview): Promi
 
 export async function runDailySummary(deps: NotifyDeps = defaultNotifyDeps()): Promise<Record<string, unknown>> {
   const { now, env } = deps;
+  const date = accraDate(now);
+  if (!dailySummaryDue(now)) return { skipped: "not due yet", date };
+
+  const enabled = alertsEnabled(env);
+  // Hourly calls after the send are a cheap read, not a full summary build.
+  if (enabled && (await dailySummarySent(date))) return { skipped: "already sent", date };
+
   const summary = await collectDailySummary(now);
   const environment = environmentLabel(env);
   const subject = dailySummarySubject(summary, environment);
 
-  if (!alertsEnabled(env)) {
+  if (!enabled) {
     logger.info("ops daily summary: would send (disabled on this deployment)", { subject });
     return { dryRun: true, subject, status: summary.status };
   }
 
-  const date = accraDate(now);
   const claim = await claimDailySummary(date, subject);
   if (claim === null) return { skipped: "already sent", date };
 
@@ -196,7 +204,7 @@ export async function runDailySummary(deps: NotifyDeps = defaultNotifyDeps()): P
   const mail = opsDailySummaryTemplate(summary, subject, environment);
   const failed = await deliver(deps.send, recipients, mail);
   if (failed === recipients.length) {
-    // Give the day back so the next call in the 07:00 hour can try again.
+    // Give the day back so the next hourly call can try again.
     await degrade(releaseDailySummary(claim), undefined, "release claim");
     throw new Error(`daily summary reached none of ${recipients.length} recipient${recipients.length === 1 ? "" : "s"}`);
   }
