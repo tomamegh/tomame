@@ -108,6 +108,13 @@ export const WHATSAPP_TEMPLATES = {
     samples: ["Kwame", "1,845.20", "TM-8F3K2L"],
     button: { text: "Try again", sampleSuffix: "app/bag" },
   },
+  order_repriced: {
+    name: "tomame_order_repriced",
+    category: "UTILITY",
+    body: "Hi {{1}}, we updated our shipping rates before you paid, so the total for {{2}} changed from GH₵ {{3}} to GH₵ {{4}}. Nothing has been charged. Tap below to review it.",
+    samples: ["Ama", "your bag of 3 items", "880.34", "930.34"],
+    button: { text: "Review and pay", sampleSuffix: "app/bag" },
+  },
   unpaid_cancelled: {
     name: "tomame_unpaid_cancelled",
     category: "UTILITY",
@@ -241,6 +248,10 @@ export const whatsappMessages = {
 
   paymentExpired(d: { amountGhs: number; reference: string; retryPath: string }): WhatsAppMessage {
     return { template: "payment_expired", params: [formatGhsAmount(d.amountGhs), d.reference], buttonPath: d.retryPath };
+  },
+
+  orderRepriced(d: { what: string; fromGhs: number; toGhs: number; payPath: string }): WhatsAppMessage {
+    return { template: "order_repriced", params: [d.what, formatGhsAmount(d.fromGhs), formatGhsAmount(d.toGhs)], buttonPath: d.payPath };
   },
 
   unpaidCancelled(d: { what: string; ttlHours: number }): WhatsAppMessage {

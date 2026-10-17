@@ -59,6 +59,7 @@ describe("builders fill every placeholder", () => {
     ["photo", whatsappMessages.parcelPhoto({ orderId: "o1", orderNo: "TM-1", productName: "Shoes" })],
     ["expired", whatsappMessages.paymentExpired({ amountGhs: 12, reference: "R1", retryPath: "/app/bag" })],
     ["unpaid", whatsappMessages.unpaidCancelled({ what: "your bag of 2 items", ttlHours: 48 })],
+    ["repriced", whatsappMessages.orderRepriced({ what: "your bag of 2 items", fromGhs: 880.34, toGhs: 930.34, payPath: "/app/bag" })],
     ["drop", whatsappMessages.priceDrop({ productName: "Shoes", dropPct: 14.6, totalGhs: 999, productUrl: "https://x.test/p" })],
     ["found", whatsappMessages.sourcingAnswered({ productName: "Shoes", available: true })],
     ["not found", whatsappMessages.sourcingAnswered({ productName: "Shoes", available: false })],

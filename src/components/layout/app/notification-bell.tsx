@@ -168,6 +168,7 @@ function notificationTitle(event: string, payload: Record<string, unknown>): str
     paste_unreadable: host ? `We couldn't read your ${host} link` : "We couldn't read your link",
     payment_expired: "Your payment did not go through",
     order_expired_unpaid: "We closed an unpaid order",
+    order_repriced: "The total of your unpaid order changed",
     // 075: a payload `is_update` means new rider details replaced the first ones.
     courier_dispatched:
       payload.is_update === true ? "Your rider's details changed" : "A rider has your package",

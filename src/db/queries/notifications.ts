@@ -99,3 +99,28 @@ export async function getRecipientEmail(userId: string): Promise<string | null> 
   if (error) throw new Error(`Failed to load notification recipient: ${error.message}`);
   return data?.user?.email ?? null;
 }
+
+/**
+ * The newest notification of `event` whose payload names `targetId` under
+ * `targetKey`, any channel or status. Used to read back what a customer was
+ * last told (the re-price notice compares against it).
+ */
+export async function findLatestNotificationFor(
+  userId: string,
+  event: string,
+  targetKey: string,
+  targetId: string,
+): Promise<NotificationRow | null> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("notifications")
+    .select(NOTIFICATION_COLUMNS)
+    .eq("user_id", userId)
+    .eq("event", event)
+    .filter(`payload->>${targetKey}`, "eq", targetId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to read notifications: ${error.message}`);
+  return (data as unknown as NotificationRow | null) ?? null;
+}

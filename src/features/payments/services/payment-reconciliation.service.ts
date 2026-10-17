@@ -5,7 +5,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { PAYMENT_RECONCILIATION, PAYMENT_EXPIRY_MINUTES_KEY, UNPAID_ORDER_TTL_HOURS_KEY } from "@/config/payments";
 import { PAYMENT_STATUSES } from "@/config/constants";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
-import { getRecipientEmail, insertNotification, markNotificationDelivered } from "@/db/queries/notifications";
 import { listOrdersByGroup } from "@/db/queries/orders";
 import { updateOrderGroupStatus, type OrderGroupRow } from "@/db/queries/order-groups";
 import { listStalePendingCarOrders } from "@/db/queries/car-orders";
@@ -22,11 +21,9 @@ import {
   transitionPaymentStatus,
 } from "@/features/payments/services/payments.service";
 import type { Payment } from "@/features/payments/types";
-import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
+import { notifyCustomer } from "@/features/notifications/services/customer-notify.service";
 import { whatsappMessages, type WhatsAppMessage } from "@/lib/whatsapp/templates";
-import { mayEmailUser } from "@/lib/email/notify-preference";
 import { paymentExpiredTemplate, unpaidOrderCancelledTemplate } from "@/lib/email/templates/payment-expiry";
-import { sendEmail } from "@/lib/email/transport";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { verifyTransaction } from "@/lib/paystack/client";
@@ -639,7 +636,7 @@ async function releaseStaleCarOrders(
  * it is a second fact. Never throws for a delivery problem, because a mailbox
  * must not stop a money reconciliation. A missing table still propagates.
  */
-async function notify(
+function notify(
   userId: string,
   event: "payment_expired" | "order_expired_unpaid",
   payload: Record<string, unknown>,
@@ -647,35 +644,7 @@ async function notify(
   now: Date,
   whatsapp: { message: WhatsAppMessage; dedupeKey: string },
 ): Promise<void> {
-  let notificationId: string | null = null;
-  try {
-    // Its own channel and opt-in; queued whatever the email preference says.
-    await queueWhatsApp({ userId, event, message: whatsapp.message, dedupeKey: whatsapp.dedupeKey });
-    notificationId = (await insertNotification({ user_id: userId, channel: "email", event, payload })).id;
-    // The in-app notification (the bell) exists regardless of the email
-    // preference; "sent" here means the customer has been told through the
-    // channel they allow, and the row is not left pending for a mail that will
-    // never be attempted.
-    if (!(await mayEmailUser(userId))) {
-      await markNotificationDelivered(notificationId, { status: "sent", sent_at: now.toISOString() });
-      return;
-    }
-    const email = await getRecipientEmail(userId);
-    if (!email) {
-      await markNotificationDelivered(notificationId, { status: "failed" });
-      return;
-    }
-    await sendEmail({ to: email, subject: template.subject, html: template.html });
-    await markNotificationDelivered(notificationId, { status: "sent", sent_at: now.toISOString() });
-  } catch (error: unknown) {
-    if (isSchemaMissingError(error)) throw error;
-    logger.error("reconcile-payments: notification failed", {
-      userId, event, notificationId, error: error instanceof Error ? error.message : String(error),
-    });
-    if (notificationId) {
-      await markNotificationDelivered(notificationId, { status: "failed" }).catch(() => undefined);
-    }
-  }
+  return notifyCustomer({ userId, event, payload, template, now, whatsapp, source: "reconcile-payments" });
 }
 
 // ── Small helpers ───────────────────────────────────────────────────────────

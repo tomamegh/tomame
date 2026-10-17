@@ -55,6 +55,7 @@ const EVENT_LABELS: Record<string, string> = {
   order_rejected: "Review rejected",
   payment_expired: "Payment expired",
   order_expired_unpaid: "Unpaid order closed",
+  order_repriced: "Unpaid total changed",
   sourcing_available: "Buyer found it",
   sourcing_unavailable: "Buyer could not source it",
 };

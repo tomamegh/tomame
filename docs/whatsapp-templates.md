@@ -1,7 +1,7 @@
 # WhatsApp templates (Meta Cloud API)
 
 WhatsApp only delivers messages a business starts (every Tomame update) as
-**pre-approved templates**. The 17 below are the whole set; the code that fills
+**pre-approved templates**. The 18 below are the whole set; the code that fills
 them is `src/lib/whatsapp/templates.ts`. The body text here and in that file
 must match character for character — if one changes, change the other and
 resubmit the template in Meta, or sends fail with 132000/132001.
@@ -498,3 +498,29 @@ Sample values:
 
 Preview: _Hi Kojo, your quote for KitchenAid Artisan stand mixer is ready, priced in cedis with shipping included. Tap below to see it._
 
+### 18. `tomame_order_repriced` — Unpaid order / bag total changed
+
+| Field | Value |
+|---|---|
+| Name | `tomame_order_repriced` |
+| Category | UTILITY |
+| Language | English (`en`) |
+| Header | none |
+| Footer | none |
+| Button | Visit website — text **Review and pay**, URL type **Dynamic**, URL `https://<production domain>/{{1}}` |
+
+Body (paste exactly):
+
+```
+Hi {{1}}, we updated our shipping rates before you paid, so the total for {{2}} changed from GH₵ {{3}} to GH₵ {{4}}. Nothing has been charged. Tap below to review it.
+```
+
+Sample values:
+
+- `{{1}}` → Ama
+- `{{2}}` → your bag of 3 items
+- `{{3}}` → 880.34
+- `{{4}}` → 930.34
+- Button URL `{{1}}` → `app/bag`
+
+Preview: _Hi Ama, we updated our shipping rates before you paid, so the total for your bag of 3 items changed from GH₵ 880.34 to GH₵ 930.34. Nothing has been charged. Tap below to review it._
