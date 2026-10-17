@@ -150,3 +150,39 @@ export async function listOrdersByGroup(client: SupabaseClient, groupId: string)
 
   return (data ?? []) as Order[];
 }
+
+/**
+ * Unpaid orders whose total is the calculator's: `pending`, not waiting for
+ * review, no admin-set price. Oldest first; capped because an unpaid order is
+ * cancelled after 48 h, so the set is small.
+ */
+export async function listUnpaidCalculatedOrders(client: SupabaseClient, limit = 500): Promise<Order[]> {
+  const { data, error } = await client
+    .from("orders")
+    .select("*")
+    .eq("status", "pending")
+    .eq("needs_review", false)
+    .is("admin_total_ghs", null)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error) throw new Error(`Failed to list unpaid orders: ${error.message}`);
+  return (data ?? []) as Order[];
+}
+
+/** Write a re-priced breakdown, only while the order is still unpaid and calculator-priced. */
+export async function updateUnpaidOrderPricing(
+  client: SupabaseClient,
+  orderId: string,
+  pricing: OrderPricingBreakdown,
+): Promise<boolean> {
+  const { data, error } = await client
+    .from("orders")
+    .update({ pricing, updated_at: new Date().toISOString() })
+    .eq("id", orderId)
+    .eq("status", "pending")
+    .eq("needs_review", false)
+    .is("admin_total_ghs", null)
+    .select("id");
+  if (error) throw new Error(`Failed to update order pricing: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}

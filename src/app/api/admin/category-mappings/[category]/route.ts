@@ -1,4 +1,5 @@
-import { NextRequest } from "next/server";
+import { after, NextRequest } from "next/server";
+import { pricingChanged } from "@/features/pricing/services/pricing-change.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
@@ -70,6 +71,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       },
     });
 
+    after(pricingChanged({ actorId: admin.id, reason: "category_mapping_updated" }));
     return successResponse({ message: `Mapping updated for "${decodedCategory}"` });
   } catch (error) {
     return errorResponse(error);
@@ -119,6 +121,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       },
     });
 
+    after(pricingChanged({ actorId: admin.id, reason: "category_mapping_removed" }));
     return successResponse({ message: `Mapping removed for "${decodedCategory}"` });
   } catch (error) {
     return errorResponse(error);

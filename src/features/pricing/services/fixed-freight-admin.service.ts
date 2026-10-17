@@ -29,8 +29,9 @@ import type {
  *
  * Rows are never deleted: `extraction_cache` snapshots carry the
  * `fixed_freight_item_id` that priced them, so an item is retired with
- * `is_active = false`. A write changes the next quote only; a price a customer
- * already holds lives in its snapshot and does not move.
+ * `is_active = false`. A write changes every quote from the next read on, and
+ * the route re-prices checked-out, unpaid orders (pricing-change.service.ts).
+ * A paid order never moves.
  */
 
 export const FIXED_FREIGHT_AUDIT_ACTIONS = {

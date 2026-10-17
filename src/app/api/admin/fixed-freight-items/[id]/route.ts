@@ -1,4 +1,5 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
+import { pricingChanged } from "@/features/pricing/services/pricing-change.service";
 import { z } from "zod";
 
 import { RATE_LIMIT } from "@/config/security";
@@ -41,9 +42,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         parsed.error.issues[0]?.message ?? "Invalid input",
       );
 
-    return successResponse(
-      await updateFixedFreightItem(admin, id, parsed.data),
-    );
+    const updated = await updateFixedFreightItem(admin, id, parsed.data);
+    after(pricingChanged({ actorId: admin.id, reason: "fixed_freight_item_updated" }));
+    return successResponse(updated);
   } catch (error) {
     return errorResponse(error);
   }

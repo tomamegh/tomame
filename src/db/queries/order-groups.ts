@@ -34,7 +34,7 @@ export type OrderGroupInsert = Omit<OrderGroupRow, "id" | "payment_id" | "create
 
 /** The money columns checkout may correct once the orders exist (see checkout.service.ts). */
 export type OrderGroupMoneyPatch = Partial<
-  Pick<OrderGroupRow, "subtotal_usd" | "tax_usd" | "fee_usd" | "store_shipping_usd" | "freight_ghs" | "total_ghs" | "total_pesewas">
+  Pick<OrderGroupRow, "subtotal_usd" | "tax_usd" | "fee_usd" | "store_shipping_usd" | "freight_ghs" | "consolidation_saving_ghs" | "total_ghs" | "total_pesewas">
 >;
 
 const COLUMNS =

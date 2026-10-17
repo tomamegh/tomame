@@ -22,6 +22,7 @@ import type { Viewer } from "@/features/quotes/types";
 import type { CheckoutInput } from "../schema";
 import type { BagLine, BagView, CheckoutResult } from "../types";
 import { getBag, resolveCart, setBagDelivery } from "./bag.service";
+import { orderGroupTotals } from "./group-totals";
 
 /**
  * Checkout: the bag becomes an order group — N one-product orders created
@@ -214,25 +215,16 @@ async function deliverySnapshot(bag: BagView): Promise<Record<string, unknown>> 
  * saving and delivery are the group's own and stay.
  */
 async function reconcileTotals(group: OrderGroupRow, bag: BagView, orders: Order[]): Promise<OrderGroupRow> {
-  const sumOf = (pick: (o: Order) => number) => r2(orders.reduce((acc, o) => acc + (pick(o) ?? 0), 0));
-  const gross = sumOf((o) => o.pricing.total_ghs);
+  const gross = r2(orders.reduce((acc, o) => acc + (o.pricing.total_ghs ?? 0), 0));
   const bagGross = r2(bag.total_ghs - bag.delivery_fee_ghs + bag.consolidation_saving_ghs);
   if (Math.abs(gross - bagGross) <= 0.005) return group;
 
-  const total_ghs = r2(gross - group.consolidation_saving_ghs + group.delivery_fee_ghs);
-  const patch = {
-    subtotal_usd: sumOf((o) => o.pricing.subtotal_usd),
-    tax_usd: sumOf((o) => o.pricing.tax_usd),
-    fee_usd: sumOf((o) => o.pricing.value_fee_usd),
-    store_shipping_usd: sumOf((o) => o.pricing.store_shipping_usd ?? 0),
-    freight_ghs: sumOf((o) => o.pricing.flat_rate_ghs),
-    total_ghs,
-    total_pesewas: Math.round(total_ghs * 100),
-  };
-  logger.info("checkout: group total corrected from its orders", { orderGroupId: group.id, bagGross, ordersGross: gross, total_ghs });
+  const patch = orderGroupTotals(orders, group.consolidation_saving_ghs, group.delivery_fee_ghs);
+  logger.info("checkout: group total corrected from its orders", { orderGroupId: group.id, bagGross, ordersGross: gross, total_ghs: patch.total_ghs });
   await updateOrderGroupTotals(group.id, patch);
   return { ...group, ...patch };
 }
+
 
 function toCheckoutResult(group: OrderGroupRow, orders: Order[]): CheckoutResult {
   return {

@@ -1,4 +1,5 @@
-import { NextRequest } from "next/server";
+import { after, NextRequest } from "next/server";
+import { pricingChanged } from "@/features/pricing/services/pricing-change.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { requireAuth, requireAdmin } from "@/lib/auth/guards";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
 
     if (mode === "confirm") {
       const result = await applyPricingImport(buffer, admin.id);
+      after(pricingChanged({ actorId: admin.id, reason: "pricing_import_applied" }));
       return successResponse(result);
     }
 

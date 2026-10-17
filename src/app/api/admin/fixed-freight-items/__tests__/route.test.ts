@@ -11,6 +11,13 @@ vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: vi.fn(() => ({ allowed: true })),
   getClientIp: () => "127.0.0.1",
 }));
+vi.mock("@/features/pricing/services/pricing-change.service", () => ({
+  pricingChanged: vi.fn(() => async () => undefined),
+}));
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: vi.fn(),
+}));
 vi.mock("@/db/queries/fixed-freight-items", () => ({
   getActiveFixedFreightItems: vi.fn(),
   getFixedFreightItemById: vi.fn(),
@@ -28,6 +35,7 @@ import {
 } from "@/db/queries/fixed-freight-items";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { pricingChanged } from "@/features/pricing/services/pricing-change.service";
 import { PATCH } from "../[id]/route";
 import { POST as MATCH } from "../match/route";
 import { GET, POST } from "../route";
@@ -101,6 +109,7 @@ describe("POST", () => {
       }),
     );
     expect(res.status).toBe(201);
+    expect(pricingChanged).toHaveBeenCalledWith({ actorId: "admin-1", reason: "fixed_freight_item_created" });
     expect(insertFixedFreightItem).toHaveBeenCalledWith({
       category: "IPHONE",
       product_name: "iPhone 13 & Mini",
@@ -139,6 +148,8 @@ describe("PATCH", () => {
 
     const res = await PATCH(req("PATCH", { freight_rate_ghs: 550 }), ctx());
     expect(res.status).toBe(200);
+    // A rate change re-prices unpaid orders and expires the display caches.
+    expect(pricingChanged).toHaveBeenCalledWith({ actorId: "admin-1", reason: "fixed_freight_item_updated" });
     expect(updateFixedFreightItem).toHaveBeenCalledWith(
       ID,
       { freight_rate_ghs: 550 },

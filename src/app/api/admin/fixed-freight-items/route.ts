@@ -1,4 +1,5 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
+import { pricingChanged } from "@/features/pricing/services/pricing-change.service";
 
 import { RATE_LIMIT } from "@/config/security";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
@@ -53,10 +54,9 @@ export async function POST(request: NextRequest) {
         400,
         parsed.error.issues[0]?.message ?? "Invalid input",
       );
-    return successResponse(
-      await createFixedFreightItem(admin, parsed.data),
-      201,
-    );
+    const created = await createFixedFreightItem(admin, parsed.data);
+    after(pricingChanged({ actorId: admin.id, reason: "fixed_freight_item_created" }));
+    return successResponse(created, 201);
   } catch (error) {
     return errorResponse(error);
   }
