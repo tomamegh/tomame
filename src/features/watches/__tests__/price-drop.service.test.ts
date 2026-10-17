@@ -86,6 +86,8 @@ function watchRow(overrides: Partial<PriceWatchRow> = {}): PriceWatchRow {
     sourced_note: null,
     customer_price_hint_usd: null,
     customer_origin_hint: null,
+    contact_name: null,
+    contact_phone: null,
     reviewed_by: null,
     reviewed_at: null,
     created_at: "2026-09-01T06:00:00.000Z",

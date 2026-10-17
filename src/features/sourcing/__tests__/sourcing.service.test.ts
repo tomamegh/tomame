@@ -35,6 +35,7 @@ import { insertNotification, markNotificationDelivered } from "@/db/queries/noti
 import { sendEmail } from "@/lib/email/transport";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 import { answerSourcingRequest, upsertSourcingRequest } from "@/db/queries/price-watches";
+import { logAuditEvent } from "@/features/audit/services/audit.service";
 import type { PriceWatchRow } from "@/db/queries/price-watches";
 import type { ExtractionResult } from "@/features/extraction/types";
 import type { PlatformUser } from "@/features/users/types";
@@ -43,6 +44,8 @@ import { answerSourcing, requestSourcing } from "../services/sourcing.service";
 const USER = { id: "u1" } as unknown as PlatformUser;
 const VIEWER = { userId: "u1", sessionId: null };
 const CACHE_ID = "11111111-1111-1111-1111-111111111111";
+/** As the schema hands it over: name tidied, phone already E.164. */
+const CONTACT = { contact_name: "Kwame Mensah", contact_phone: "+233244123456" };
 
 /** An unknown store: what the feature exists for. */
 function snapshot(over: Partial<ExtractionResult["product"]> = {}, platform = "generic", country: ExtractionResult["country"] = null) {
@@ -74,7 +77,8 @@ function watchRow(over: Partial<PriceWatchRow> = {}): PriceWatchRow {
     notified_at: null, notified_price_usd: null, is_active: true, kind: "sourcing",
     sourcing_status: "available", sourcing_cart_item_id: "line-1", sourced_price_usd: 34.5,
     sourced_origin_country: "USA", sourced_note: "In stock, ships from NJ.",
-    customer_price_hint_usd: null, customer_origin_hint: null, reviewed_by: "admin-1",
+    customer_price_hint_usd: null, customer_origin_hint: null,
+    contact_name: "Kwame Mensah", contact_phone: "+233244123456", reviewed_by: "admin-1",
     reviewed_at: "2026-09-14T00:00:00Z", created_at: "", updated_at: "",
     ...over,
   };
@@ -90,7 +94,7 @@ beforeEach(() => {
 
 describe("requestSourcing — the gate", () => {
   it("accepts an item from a store we do not know", async () => {
-    const out = await requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1 });
+    const out = await requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1, ...CONTACT });
     expect(out.status).toBe("requested");
     expect(addToBag).toHaveBeenCalled();
   });
@@ -108,7 +112,7 @@ describe("requestSourcing — the gate", () => {
     });
 
     await expect(
-      requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1 }),
+      requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1, ...CONTACT }),
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(addToBag).not.toHaveBeenCalled();
   });
@@ -124,7 +128,7 @@ describe("requestSourcing — the gate", () => {
       reason: null,
     });
 
-    const out = await requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1 });
+    const out = await requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1, ...CONTACT });
     expect(out.status).toBe("requested");
   });
 
@@ -140,7 +144,7 @@ describe("requestSourcing — the gate", () => {
     );
     vi.mocked(getCartItemById).mockResolvedValue({ id: "line-new" } as never);
 
-    const out = await requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1 });
+    const out = await requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1, ...CONTACT });
 
     expect(out.status).toBe("available");
     expect(updateCartItem).toHaveBeenCalledWith(
@@ -153,6 +157,7 @@ describe("requestSourcing — the gate", () => {
     await requestSourcing(USER, VIEWER, {
       extraction_cache_id: CACHE_ID,
       quantity: 1,
+      ...CONTACT,
       estimated_price_usd: 20,
       origin_country: "UK",
     });
@@ -162,6 +167,23 @@ describe("requestSourcing — the gate", () => {
     );
     // And never onto the line itself.
     expect(addToBag).toHaveBeenCalledWith(VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1 });
+  });
+});
+
+describe("requestSourcing — who to call (097)", () => {
+  it("stores the confirmed name and E.164 phone on the request", async () => {
+    await requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1, ...CONTACT });
+    expect(upsertSourcingRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ contact_name: "Kwame Mensah", contact_phone: "+233244123456" }),
+    );
+  });
+
+  it("audits the request with the phone masked, never the dialable number", async () => {
+    await requestSourcing(USER, VIEWER, { extraction_cache_id: CACHE_ID, quantity: 1, ...CONTACT });
+    const event = vi.mocked(logAuditEvent).mock.calls[0]![0];
+    expect(event.action).toBe("sourcing_requested");
+    expect(event.metadata).toMatchObject({ contact_phone: "+233 24 *** 3456" });
+    expect(JSON.stringify(event)).not.toContain("244123456");
   });
 });
 

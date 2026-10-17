@@ -12,6 +12,10 @@ import { storeForUrl } from "@/features/extraction/stores";
 import { SimilarProductsRail } from "@/features/catalog/components/similar-products-rail";
 import { useAddToBag } from "@/features/bag/hooks/useAddToBag";
 import { useRequestSourcing } from "@/features/sourcing/hooks/useRequestSourcing";
+import {
+  SourcingContactDialog,
+  type SourcingContact,
+} from "@/features/sourcing/components/sourcing-contact-dialog";
 import { apiFetch, ApiFetchError } from "@/lib/api-client";
 import { storeShippingOptionsOf } from "@/features/extraction/store-shipping";
 import { toast } from "@/lib/sonner";
@@ -123,6 +127,8 @@ export function QuoteView({
 
   const { mutate: addToBag, isPending: addingToBag } = useAddToBag();
   const { mutate: requestSourcing, isPending: requestingSourcing } = useRequestSourcing();
+  // "Who should our buyer call?" sits between the CTA and the request (097).
+  const [contactOpen, setContactOpen] = useState(false);
   // Count in the bag after this screen added the line, so the CTA can hand off
   // to the bag instead of adding the same product a second time by accident.
   const [addedCount, setAddedCount] = useState<number | null>(null);
@@ -324,7 +330,7 @@ export function QuoteView({
    * account to come back to — and the session cookie travels with the request,
    * so the bag they built signed-out is already theirs when they land back.
    */
-  const askToSource = useCallback(() => {
+  const sendSourcingRequest = useCallback((contact: SourcingContact) => {
     if (!quote?.extraction_cache_id) return;
     // Parsed here rather than read from the render-scope `gapPriceValue`: this
     // is a hook, so it is declared above the early returns that guard that
@@ -334,6 +340,7 @@ export function QuoteView({
       {
         extraction_cache_id: quote.extraction_cache_id,
         quantity,
+        ...contact,
         // Whatever the customer typed into the gap-fillers goes along as a HINT
         // for the buyer. It is stored apart from the price the line is finally
         // charged against, and it can never become that price.
@@ -342,6 +349,7 @@ export function QuoteView({
       },
       {
         onSuccess: (result) => {
+          setContactOpen(false);
           setAddedCount(result.item_count);
           toast.success({
             title: "We are on it",
@@ -352,6 +360,7 @@ export function QuoteView({
         },
         onError: (error) => {
           if (error instanceof ApiFetchError && error.status === 401) {
+            setContactOpen(false);
             signIn();
             return;
           }
@@ -363,6 +372,20 @@ export function QuoteView({
       },
     );
   }, [quote, quantity, gapPriceUsd, gapCountry, requestSourcing, router, signIn]);
+
+  /**
+   * The CTA itself. Signed out goes straight to sign-in: the request needs an
+   * account, and a name and number typed before that redirect would be lost to
+   * it. Back on this quote, pressing it again opens the dialog prefilled.
+   */
+  const askToSource = useCallback(() => {
+    if (!quote?.extraction_cache_id) return;
+    if (!isAuthenticated) {
+      signIn();
+      return;
+    }
+    setContactOpen(true);
+  }, [quote, isAuthenticated, signIn]);
 
   if (loadError && !quote) return <QuoteLoadError message={loadError} />;
   if (!quote || !receivedAt) return <QuoteSkeleton />;
@@ -566,6 +589,13 @@ export function QuoteView({
         watching={watching}
         watchPending={watchPending}
         onToggleWatch={toggleWatch}
+      />
+
+      <SourcingContactDialog
+        open={contactOpen}
+        onOpenChange={setContactOpen}
+        pending={requestingSourcing}
+        onSubmit={sendSourcingRequest}
       />
     </div>
   );

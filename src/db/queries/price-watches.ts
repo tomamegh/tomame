@@ -74,6 +74,9 @@ export interface PriceWatchRow {
   /** What the customer offered when they raised it. A hint, not a price. */
   customer_price_hint_usd: number | null;
   customer_origin_hint: OriginCountry | null;
+  /** Sourcing rows (097): who the buyer calls. Phone is E.164 `+233…`; NULL on older rows. */
+  contact_name: string | null;
+  contact_phone: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
   created_at: string;
@@ -116,7 +119,7 @@ const WATCH_COLUMNS =
   "consecutive_failures, last_error, notify_on_drop, notified_at, notified_price_usd, " +
   "is_active, kind, sourcing_status, sourcing_cart_item_id, sourced_price_usd, " +
   "sourced_origin_country, sourced_note, customer_price_hint_usd, customer_origin_hint, " +
-  "reviewed_by, reviewed_at, created_at, updated_at";
+  "contact_name, contact_phone, reviewed_by, reviewed_at, created_at, updated_at";
 
 const OBSERVATION_COLUMNS = "id, watch_id, price_usd, total_ghs, exchange_rate, observed_at";
 
@@ -461,6 +464,9 @@ export interface SourcingRequestUpsert {
   /** What the customer guessed, if they filled the quote screen's gap-fillers. */
   customer_price_hint_usd: number | null;
   customer_origin_hint: OriginCountry | null;
+  /** Who to call about it, as the customer confirmed it on this request (097). */
+  contact_name: string;
+  contact_phone: string;
 }
 
 /**
@@ -503,6 +509,8 @@ export async function upsertSourcingRequest(input: SourcingRequestUpsert): Promi
         sourcing_cart_item_id: input.sourcing_cart_item_id,
         customer_price_hint_usd: input.customer_price_hint_usd,
         customer_origin_hint: input.customer_origin_hint,
+        contact_name: input.contact_name,
+        contact_phone: input.contact_phone,
         is_active: true,
         updated_at: now,
       })

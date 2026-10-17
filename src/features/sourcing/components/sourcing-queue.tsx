@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { CheckIcon, ExternalLinkIcon, Loader2Icon, XIcon } from "lucide-react";
+import { CheckIcon, ExternalLinkIcon, Loader2Icon, MessageCircleIcon, PhoneIcon, XIcon } from "lucide-react";
 
 import { AdminBadge, AdminCard, AdminEmpty } from "@/components/layout/admin";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { PriceWatchRow, SourcingStatus } from "@/db/queries/price-watches";
 import { hostOf } from "@/features/bag/components/format";
 import { ApiFetchError } from "@/lib/api-client";
+import { formatGhanaPhone } from "@/features/order-delivery/schema";
 import type { OriginCountry } from "@/features/orders/types";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
@@ -230,6 +231,8 @@ function SourcingRow({
             </div>
           </div>
 
+          <SourcingContactLine name={row.contact_name} phone={row.contact_phone} />
+
           {/*
             The customer's own guess. Labelled as a guess, and never used as the
             price: it lives in `customer_price_hint_usd`, not `sourced_price_usd`.
@@ -333,6 +336,39 @@ function SourcingRow({
 }
 
 /** How long this customer has been waiting. The first thing a row should say. */
+/**
+ * Who to call (097): the name and number the customer confirmed on THIS request.
+ * The phone is stored E.164, so `tel:` and `wa.me` take it as it is. Rows raised
+ * before 097 have neither, and say so rather than showing an empty line.
+ */
+function SourcingContactLine({ name, phone }: { name: string | null; phone: string | null }) {
+  if (!name && !phone) {
+    return <p className="text-xs font-medium text-tm-text-3">No contact details on this request (raised before we asked).</p>;
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-tm-text-2">
+      {name && <span className="font-semibold text-tm-ink">{name}</span>}
+      {phone && (
+        <>
+          <a href={`tel:${phone}`} className="inline-flex items-center gap-1 text-tm-coral hover:underline">
+            <PhoneIcon className="size-3" aria-hidden />
+            {formatGhanaPhone(phone)}
+          </a>
+          <a
+            href={`https://wa.me/${phone.replace(/^\+/, "")}`}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 text-tm-coral hover:underline"
+          >
+            <MessageCircleIcon className="size-3" aria-hidden />
+            WhatsApp
+          </a>
+        </>
+      )}
+    </div>
+  );
+}
+
 function waitedFor(createdAt: string, now: Date): string {
   const ms = now.getTime() - new Date(createdAt).getTime();
   if (!Number.isFinite(ms) || ms < 0) return "just now";

@@ -34,6 +34,7 @@ import {
   type PriceWatchRow,
   type SourcingStatus,
 } from "@/db/queries/price-watches";
+import { maskPhone } from "@/features/order-delivery/schema";
 import type { OriginCountry } from "@/features/orders/types";
 import type { Viewer } from "@/features/quotes/types";
 import type { PlatformUser } from "@/features/users/types";
@@ -68,6 +69,9 @@ export interface SourcingRequestInput {
   /** The customer's own guesses from the quote screen's gap-fillers, if any. */
   estimated_price_usd?: number;
   origin_country?: OriginCountry;
+  /** Who the buyer calls (097), already normalised by the schema: phone is E.164. */
+  contact_name: string;
+  contact_phone: string;
 }
 
 export interface SourcingRequestResult {
@@ -157,6 +161,8 @@ export async function requestSourcing(
     sourcing_cart_item_id: added.line.id,
     customer_price_hint_usd: input.estimated_price_usd ?? null,
     customer_origin_hint: input.origin_country ?? null,
+    contact_name: input.contact_name,
+    contact_phone: input.contact_phone,
   });
 
   /*
@@ -183,6 +189,9 @@ export async function requestSourcing(
       product_url: canonical,
       platform: result.platform,
       country: result.country,
+      // Masked: the audit trail records that contact details came with the
+      // request, not a number anyone reading the log can ring.
+      contact_phone: maskPhone(input.contact_phone),
     },
   });
 
