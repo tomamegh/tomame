@@ -94,6 +94,12 @@ export async function repriceUnpaidOrders(ctx: RepriceContext): Promise<RepriceS
     const outcome = await repriceOrder(calculator, order);
     tally(summary, outcome);
     if (outcome.kind !== "changed") continue;
+    // Checked again just before the write: a checkout opened while this order
+    // was being priced must be charged what it was shown.
+    if (await findActivePayment(admin, { orderId: order.id })) {
+      summary.skippedPaymentOpen += 1;
+      continue;
+    }
     if (await updateUnpaidOrderPricing(admin, order.id, outcome.pricing)) {
       summary.ordersRepriced += 1;
       await auditOrder(order, outcome.pricing, ctx);
@@ -143,6 +149,13 @@ async function repriceGroup(
   const patch = orderGroupTotals(repriced, saving, group.delivery_fee_ghs);
   const linesChanged = outcomes.some((o) => o.kind === "changed");
   if (!linesChanged && sameMoney(patch.total_ghs, group.total_ghs)) return;
+  // Again just before the writes, as for a single order. A line write that
+  // misses (paid or cancelled meanwhile) stops here; the next pass re-strikes
+  // the group from whatever its lines then say.
+  if (await findActivePayment(admin, { groupId })) {
+    summary.skippedPaymentOpen += orders.length;
+    return;
+  }
 
   for (let i = 0; i < orders.length; i++) {
     const outcome = outcomes[i]!;
@@ -178,7 +191,13 @@ export async function repriceOrder(calculator: PricingCalculator, order: Order):
   const snapshot = order.extraction_metadata;
   if (!snapshot?.product || !old || old.pricing_method === "needs_review" || !(old.total_ghs > 0)) return { kind: "unpriced" };
 
-  const lock = old.rate_lock_id ? await getQuoteLockById(old.rate_lock_id).catch(() => null) : null;
+  const lock = old.rate_lock_id
+    ? await getQuoteLockById(old.rate_lock_id).catch((error: unknown) => {
+        // Without the lock the FX is read off the breakdown; the reproduce check below still guards it.
+        logger.warn("order re-price: rate lock read failed", { orderId: order.id, error: error instanceof Error ? error.message : String(error) });
+        return null;
+      })
+    : null;
   const base: ExtractionResult = { ...snapshot, country: order.origin_country };
 
   const listed = snapshot.product.price;

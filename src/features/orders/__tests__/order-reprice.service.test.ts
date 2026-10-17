@@ -147,6 +147,16 @@ describe("repriceUnpaidOrders", () => {
     expect(orders.updateUnpaidOrderPricing).not.toHaveBeenCalled();
   });
 
+  it("does not write when a payment opens while the order is being priced", async () => {
+    const order = await placed("o1", snapshot({}), calculator(100));
+    vi.mocked(orders.listUnpaidCalculatedOrders).mockResolvedValue([order]);
+    vi.mocked(loadPricingCalculator).mockResolvedValue(calculator(160));
+    vi.mocked(findActivePayment).mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "p1", status: "pending" } as never);
+
+    expect(await repriceUnpaidOrders(ctx)).toMatchObject({ ordersRepriced: 0, skippedPaymentOpen: 1 });
+    expect(orders.updateUnpaidOrderPricing).not.toHaveBeenCalled();
+  });
+
   it("skips an order whose snapshot no longer gives its item price", async () => {
     const order = await placed("o1", snapshot({}), calculator(100));
     const drifted = { ...order, pricing: { ...order.pricing, subtotal_usd: 480 } } as Order;
