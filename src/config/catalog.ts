@@ -197,11 +197,13 @@ export const CATALOG_DEALS = {
 export const CATALOG_ENRICH = {
   jobName: "catalog-enrich",
   /**
-   * Product calls a month. pg_cron fires every 10 minutes (about 4,300 runs);
-   * 4,000 calls is at most 20,000 ScraperAPI credits when every one is Amazon
-   * or eBay, fewer when Walmart goes to Oxylabs and Etsy/Nike to Zyte.
+   * Product calls a month. pg_cron fires every 10 minutes: 4,464 runs in a
+   * 31-day month, so the cap sits above that and trips only when something
+   * spends faster than the schedule. 4,500 calls is at most 22,500 ScraperAPI
+   * credits when every one is Amazon or eBay, fewer when Walmart goes to
+   * Oxylabs and Etsy/Nike to Zyte.
    */
-  monthlyCaps: { production: 4000, other: 40 } satisfies MonthlyCaps,
+  monthlyCaps: { production: 4500, other: 40 } satisfies MonthlyCaps,
   /** A product with no weight anywhere is fetched at most this many times. */
   maxAttempts: 2,
   /** A failed or weightless attempt waits this long before the second one. */
