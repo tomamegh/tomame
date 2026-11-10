@@ -1,0 +1,24 @@
+{
+  "id": "/warehouse",
+  "name": "Tomame Warehouse",
+  "short_name": "Tomame Hub",
+  "description": "Receive, box and ship Tomame orders.",
+  "start_url": "/warehouse",
+  "scope": "/warehouse",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fdf0e0",
+  "theme_color": "#fdf9f6",
+  "lang": "en-GH",
+  "icons": [
+    { "src": "/icons/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/pwa/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/pwa/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Scan a label", "short_name": "Scan", "url": "/warehouse/scan", "icons": [{ "src": "/icons/pwa/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Boxes", "short_name": "Boxes", "url": "/warehouse/packages", "icons": [{ "src": "/icons/pwa/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Shipments", "short_name": "Shipments", "url": "/warehouse/shipments", "icons": [{ "src": "/icons/pwa/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

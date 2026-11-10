@@ -64,7 +64,7 @@ export const ROLES = [
     id: "operator",
     name: "Warehouse operator",
     badge: "Your role",
-    summary: "The packaging platform and nothing else. Sign in and you land on Overview.",
+    summary: "The packaging platform and nothing else. Sign in and you land on Orders.",
     can: [
       "Log parcels in and weigh them",
       "Photograph parcels for the customer",
@@ -95,7 +95,7 @@ export const ROLES = [
 export const YOU_SEE = [
   { label: "The item", detail: "Name, picture, store, quantity and its listed weight" },
   { label: "Who it is for", detail: "Name, delivery address or pickup point, and phone, for the label" },
-  { label: "Where it is", detail: "Expected, On the shelf, Packed or Shipped, and which box" },
+  { label: "Where it is", detail: "Expected, At hub, Packed or Shipped, and which box" },
   { label: "What they said", detail: "Customer instructions and their replies to your photos" },
 ];
 
@@ -126,11 +126,12 @@ export const FLOW: FlowStep[] = [
     title: "Receive",
     verb: "Log it in",
     icon: InboxIcon,
-    where: { href: "/warehouse/receive", label: "Receive" },
+    where: { href: "/warehouse?tab=expected", label: "Orders → Expected" },
     doing: [
       "Scan or type the parcel's TM-number into the search box and press Enter. The log-in window opens by itself.",
       "Check it matches the listing, put it on the scale and type the weight in pounds. The weight box is already focused.",
-      "Press Log it in (or Enter). It moves from Expected to On the shelf.",
+      "Press Log it in (or Enter). It moves from Expected to At hub.",
+      "A whole truckload? Tap each row to tick it and press Mark received. Weigh them later from At hub.",
     ],
     customer: "Their tracking shows “Arrived at our US hub”, with the weight you typed.",
     rule: "Weight is optional in the app, but it is what the box is charged on. If you skip it, use Re-weigh later.",
@@ -141,7 +142,7 @@ export const FLOW: FlowStep[] = [
     title: "Photograph",
     verb: "Show the customer",
     icon: CameraIcon,
-    where: { href: "/warehouse/receive?stage=received", label: "the item page" },
+    where: { href: "/warehouse?tab=hub", label: "the item page" },
     doing: [
       "Open the item (tap its name anywhere) and go to Photos.",
       "On a phone, Take a photo opens the camera. On a computer, Choose photos. Up to ten at a time.",
@@ -156,10 +157,10 @@ export const FLOW: FlowStep[] = [
     title: "Pack",
     verb: "Box it by customer",
     icon: BoxesIcon,
-    where: { href: "/warehouse/receive?stage=received", label: "Receive → On the shelf" },
+    where: { href: "/warehouse?tab=hub", label: "Orders → At hub" },
     doing: [
-      "Tick one customer's items. The box beside their name ticks all of them.",
-      "New package starts a box. Add to open puts them in a box already on the bench.",
+      "Tick one customer's items: tap a row, or the customer's name to tick all of theirs.",
+      "Pack into one box starts a box and opens it. Add to box puts them in a box already on the bench.",
       "Or, from a package, Add items: tick from the shelf, scan a TM-number, or describe something by hand.",
     ],
     customer: "Nothing yet. Packing is internal.",
@@ -206,7 +207,7 @@ export const FLOW: FlowStep[] = [
       "Type the carrier and the waybill or tracking number. Customers see both.",
       "Press Ship it.",
     ],
-    customer: "Every order in the box moves to in transit, and each customer gets their shipping update with the carrier and waybill.",
+    customer: "Every order in the box moves to in transit, and each customer gets ONE email listing what of theirs is in the box. They only ever see the Tomame number, never the carrier or waybill.",
     rule: "This cannot be undone from any screen: order statuses only move forward. Not sure? Press Not yet.",
     clip: "ship",
   },
@@ -228,37 +229,23 @@ export interface ScreenInfo {
 export const SCREENS: ScreenInfo[] = [
   {
     id: "overview",
-    name: "Overview",
+    name: "Orders",
     href: "/warehouse",
     path: "/warehouse",
-    purpose: "The hub at a glance, laid out the way parcels move through the building.",
+    purpose: "Where you land: the orders the hub has to act on, in the order the work happens.",
     points: [
-      "Five counts across the top: Expected, On the shelf, Packing, Sealed, and Shipped in the last 7 days. Each opens the screen where that work is done.",
+      "Three tabs. Expected: purchased orders on their way to us. At hub: logged in, not boxed yet. Boxes: boxes on the bench.",
+      "Tap a row to tick it. The customer's name ticks all of theirs. A dark bar rises above the tab bar with the next step: Mark received on Expected, Pack into one box on At hub.",
+      "Each row shows two different things: the order's status (Order: Purchased) and where the parcel is (On its way to the hub, At our US hub).",
+      "The search box is also the scanner input. Scan a TM-number and press Enter: an expected parcel opens its log-in window, one at the hub gets ticked, anything else opens its page.",
       "An amber bar appears when customer issues are open or items are on hold. Check it before you seal anything.",
-      "On the bench lists every open and sealed box. Ready to pack groups shelf items by customer, each with a one-tap Pack.",
-      "Recently shipped shows what left this week, with its waybill.",
     ],
     tip: "Start every shift here. If the amber bar is showing, go to Issues first.",
   },
   {
-    id: "receive",
-    name: "Receive",
-    href: "/warehouse/receive",
-    path: "/warehouse/receive",
-    purpose: "Inbound: log parcels in, weigh them, and pick what goes in a box.",
-    points: [
-      "Filters: Everything, Expected, On the shelf, Packed, each with a count.",
-      "The search box is also a scanner input. Scan a TM-number and press Enter: an expected or shelf parcel opens its log-in window, a packed one opens its page.",
-      "Rows are grouped by customer. Expected rows have Log in; shelf rows have a scale button to re-weigh.",
-      "Tick rows and a dark tray rises from the bottom: New package, or Add to open when a box is already on the bench.",
-    ],
-    tip: "Keep the cursor in the search box and keep scanning: it clears itself after each hit.",
-    clip: "receive",
-  },
-  {
     id: "item",
     name: "Item page",
-    href: "/warehouse/receive?stage=received",
+    href: "/warehouse?tab=hub",
     path: "/warehouse/items/…",
     purpose: "One parcel: what it is, who it is for, and what the customer has said about it.",
     points: [
@@ -272,7 +259,7 @@ export const SCREENS: ScreenInfo[] = [
   },
   {
     id: "packages",
-    name: "Packages",
+    name: "Boxes",
     href: "/warehouse/packages",
     path: "/warehouse/packages",
     purpose: "Every box, by where it is in its life.",
@@ -513,7 +500,7 @@ export const SCAN_WAYS = [
   {
     id: "handheld",
     title: "Handheld scanner",
-    body: "It behaves like a keyboard: it types the code and presses Enter. The Scan field is ready when you arrive and after every scan, so just keep pulling the trigger. It also works in the Receive search box and the Add items window.",
+    body: "It behaves like a keyboard: it types the code and presses Enter. The Scan field is ready when you arrive and after every scan, so just keep pulling the trigger. It also works in the Orders search box and the Add items window.",
     reads: "Barcode (Code 128) and QR",
   },
   {
@@ -577,8 +564,8 @@ export const MISTAKES: Array<{ id: string; problem: string; fix: string; where: 
   {
     id: "weight",
     problem: "I typed the wrong weight when logging it in",
-    fix: "Re-weigh it: the scale button on its Receive row, or Re-weigh on the item page. The customer's timeline shows “Re-weighed at our US hub”. Logging it again with the same weight changes nothing.",
-    where: "Receive · Item page",
+    fix: "Re-weigh it: the scale button on its At hub row, or Re-weigh on the item page. The customer's timeline shows “Re-weighed at our US hub”. Logging it again with the same weight changes nothing.",
+    where: "Orders → At hub · Item page",
     level: "easy",
   },
   {
@@ -671,7 +658,7 @@ export const QUIZ: QuizQuestion[] = [
     prompt: "A parcel comes off the truck. What do you do first?",
     options: [
       { id: "a", text: "Put it straight in a box for its customer" },
-      { id: "b", text: "Log it in on Receive and type its weight" },
+      { id: "b", text: "Log it in on Orders → Expected and type its weight" },
       { id: "c", text: "Print its label" },
     ],
     answer: "b",
@@ -776,7 +763,7 @@ export const FAQ: Array<Searchable & { section?: string }> = [
   },
   {
     id: "not-listed",
-    q: "A parcel arrived but I cannot find it on Receive.",
+    q: "A parcel arrived but I cannot find it on Orders.",
     a: "Search its TM-number, the customer's name or the store. Only paid orders appear. If it is still missing, the order may not be paid yet. Keep the parcel aside and tell an admin.",
     tags: ["missing", "search", "expected"],
     section: "screens",
@@ -784,7 +771,7 @@ export const FAQ: Array<Searchable & { section?: string }> = [
   {
     id: "no-tm",
     q: "The parcel has no TM-number on it.",
-    a: "Search by the customer's name or the store on Receive. If you cannot match it, put it aside and ask an admin rather than guessing.",
+    a: "Search by the customer's name or the store on Orders. If you cannot match it, put it aside and ask an admin rather than guessing.",
     tags: ["unknown", "label", "match"],
   },
   {
@@ -896,7 +883,7 @@ export const GLOSSARY: Searchable[] = [
   { id: "tm", q: "TM-number", a: "An order's number, like TM-00042. One order is one item line for one customer." },
   { id: "pkg", q: "Package (PKG-…)", a: "A box you pack, like PKG-10042. Its number is on the label's barcode and QR." },
   { id: "expected", q: "Expected", a: "A paid order on its way to the hub, not logged in yet." },
-  { id: "shelf", q: "On the shelf", a: "Logged in at the hub and waiting to be packed." },
+  { id: "shelf", q: "At hub", a: "Logged in at the hub and waiting to be boxed." },
   { id: "packed", q: "Packed", a: "In a package that has not left yet." },
   { id: "shipped", q: "Shipped", a: "Left the hub. The customer's order is in transit." },
   { id: "log-in", q: "Log in (a parcel)", a: "Record that a parcel has arrived, with its weight. Not the same as signing in to the app." },

@@ -558,6 +558,11 @@ export async function updateOrderStatusAdmin(
 export interface StatusChangeOptions {
   /** false when the caller sends one staff alert for a batch (a package shipping). */
   staffAlert?: boolean;
+  /**
+   * false when the caller tells the customer once for a batch: a package leaving
+   * or arriving sends one message listing what is inside (098), not one per order.
+   */
+  notifyCustomer?: boolean;
   /** Store tracking to print on the customer's purchased email (opt-in, see order-purchase.service). */
   customerStoreTracking?: Array<{ carrier: string; number: string }>;
 }
@@ -577,7 +582,7 @@ export async function advanceOrderFromWarehouse(
   orderId: string,
   newStatus: (typeof WAREHOUSE_ORDER_MOVES)[number],
   trackingData?: OrderTrackingInput,
-  opts?: { staffAlert?: boolean },
+  opts?: { staffAlert?: boolean; notifyCustomer?: boolean },
 ): Promise<Order> {
   if (!canAccessWarehouse(user)) {
     throw new APIError(403, "Warehouse access required");
@@ -717,6 +722,7 @@ async function applyOrderStatusChange(
     await closePackageIfAllDelivered(orderId, { id: user.id, role: actorRole });
   }
 
+  if (opts?.notifyCustomer === false) return updated as Order;
   sendOrderStatusEmail(order.user_id, updated, newStatus, {
     trackingNumber: trackingData?.tracking_number,
     carrier: trackingData?.carrier,

@@ -94,3 +94,8 @@ export type CreatePackageInput = z.infer<typeof createPackageSchema>;
 export type AddPackageItemsInput = z.infer<typeof addPackageItemsSchema>;
 export type ReceiveItemInput = z.infer<typeof receiveItemSchema>;
 export type ShipPackageInput = z.infer<typeof shipPackageSchema>;
+
+/** 098: several parcels off the truck at once, no weights. */
+export const bulkReceiveSchema = z.object({
+  order_ids: z.array(z.uuid()).min(1, "Choose at least one item").max(100),
+});

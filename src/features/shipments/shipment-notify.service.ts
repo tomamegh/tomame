@@ -37,6 +37,12 @@ export interface ShipmentNotifyInput {
   expectedOn: string | null;
   orders: Array<{ id: string; orderNo: string; productName: string }>;
   contact: Contact | null;
+  /**
+   * Set when the move was also an order STATUS change (a package shipping, or
+   * being delivered). WhatsApp then uses that status's approved template, named
+   * for the whole package, instead of the generic step update.
+   */
+  orderStatus?: "in_transit" | "delivered";
 }
 
 export async function notifyShipmentUpdate(input: ShipmentNotifyInput, now: Date = new Date()): Promise<void> {
@@ -67,11 +73,19 @@ export async function notifyShipmentUpdate(input: ShipmentNotifyInput, now: Date
     const reason = [input.message?.trim() || input.description, expected ? `now expected ${expected}` : null]
       .filter(Boolean)
       .join(", ");
+    const packageName =
+      input.orders.length === 1 ? first.productName : `your package of ${input.orders.length} items`;
     await queueWhatsApp({
       userId: input.userId,
       event,
-      message:
-        input.kind === "delay"
+      message: input.orderStatus
+        ? whatsappMessages.orderStatus({
+            orderId: first.id,
+            productName: packageName,
+            status: input.orderStatus,
+            trackingNumber: first.orderNo,
+          })
+        : input.kind === "delay"
           ? whatsappMessages.shipmentDelay({ orderId: first.id, what, reason: trimSentence(reason) })
           : whatsappMessages.shipmentUpdate({
               orderId: first.id,

@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/features/shipments/shipment-notify.service", () => ({ notifyShipmentUpdate: vi.fn() }));
+vi.mock("@/features/shipments/stage-settings.service", async () => {
+  const { DEFAULT_STAGE_SETTINGS } = await import("@/features/shipments/stages");
+  return { loadStageSettings: vi.fn(async () => DEFAULT_STAGE_SETTINGS) };
+});
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn() }));
 vi.mock("@/features/orders/services/order-events.service", () => ({ recordOrderEvent: vi.fn() }));
@@ -38,6 +43,7 @@ import { recordWarehouseActivity } from "@/features/warehouse/services/activity.
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { recordOrderEvent } from "@/features/orders/services/order-events.service";
 import { advanceOrderFromWarehouse } from "@/features/orders/services/orders.service";
+import { notifyShipmentUpdate } from "@/features/shipments/shipment-notify.service";
 import type { PlatformUser } from "@/features/users/types";
 import { APIError } from "@/lib/auth/api-helpers";
 
@@ -228,6 +234,33 @@ describe("shipping", () => {
     );
   });
 
+  it("emails each customer once for the box, never once per order (098)", async () => {
+    sealedWith([
+      order({ id: "o-1", user_id: "u-1" }),
+      order({ id: "o-2", order_no: "TM-00002", user_id: "u-1" }),
+      order({ id: "o-3", order_no: "TM-00003", user_id: "u-2" }),
+    ]);
+    vi.mocked(q.updatePackage).mockResolvedValue(pkgRow({ status: "shipped", shipped_at: "now" }) as never);
+
+    await shipWarehousePackage(operator, "p-1", {});
+
+    for (const call of vi.mocked(advanceOrderFromWarehouse).mock.calls) {
+      expect(call[4]).toMatchObject({ notifyCustomer: false });
+    }
+    const sent = vi.mocked(notifyShipmentUpdate).mock.calls.map(([input]) => [input.userId, input.orders.map((o) => o.orderNo), input.orderStatus]);
+    expect(sent).toEqual([
+      ["u-1", ["TM-00001", "TM-00002"], "in_transit"],
+      ["u-2", ["TM-00003"], "in_transit"],
+    ]);
+  });
+
+  it("emails nobody when an order inside would not move", async () => {
+    sealedWith([order({ id: "o-1" }), order({ id: "o-2", order_no: "TM-00002" })]);
+    vi.mocked(advanceOrderFromWarehouse).mockResolvedValueOnce({} as never).mockRejectedValueOnce(new APIError(409, "held"));
+    await shipWarehousePackage(operator, "p-1", {});
+    expect(notifyShipmentUpdate).not.toHaveBeenCalled();
+  });
+
   it("keeps the package sealed and reports the order that would not move", async () => {
     sealedWith([order({ id: "o-1" }), order({ id: "o-2", order_no: "TM-00002" })]);
     vi.mocked(advanceOrderFromWarehouse)
@@ -253,7 +286,8 @@ describe("receiving", () => {
     expect(recordOrderEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "hub_received", weight_lbs: 1.4, is_customer_visible: true }),
     );
-    expect(advanceOrderFromWarehouse).toHaveBeenCalledWith(operator, "o-1", "processing");
+    // 098: no "we're buying it" email for a parcel already at the hub.
+    expect(advanceOrderFromWarehouse).toHaveBeenCalledWith(operator, "o-1", "processing", undefined, { notifyCustomer: false });
   });
 
   it("does not write a second arrival for the same weight", async () => {

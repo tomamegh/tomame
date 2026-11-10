@@ -384,7 +384,7 @@ export function simGoals(state: SimState): SimGoal[] {
     {
       id: "pack",
       label: "Pack both of Ama's items in one box",
-      hint: "Tick both, then New package. One customer, one box.",
+      hint: "Tick both, then Pack into one box. One customer, one box.",
       done: both || (!!pkg && pkg.status === "shipped"),
     },
     {

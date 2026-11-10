@@ -124,33 +124,41 @@ function ScreenSketch({ screen }: { screen: ScreenInfo }) {
         </div>
         {screen.id === "overview" ? (
           <div className="flex flex-col gap-3 p-4">
-            <span className={cn(bar, "h-3 w-40 bg-tm-ink/80")} />
-            <div className="grid grid-cols-5 gap-2">
-              {["Expected", "Shelf", "Packing", "Sealed", "Shipped"].map((label, i) => (
-                <div key={label} className="flex flex-col gap-1.5 rounded-[12px] border border-tm-border bg-card p-2">
-                  <span className="tm-nums font-display text-[16px] leading-none font-bold text-tm-ink">{[4, 2, 1, 1, 6][i]}</span>
-                  <span className="truncate text-[9px] font-semibold text-tm-text-3">{label}</span>
+            <div className="grid grid-cols-3 gap-1 rounded-[12px] border border-tm-border bg-card p-1">
+              {[["Expected", 3], ["At hub", 2], ["Boxes", 1]].map(([label, n], i) => (
+                <span
+                  key={label}
+                  className={cn(
+                    "flex items-center justify-center gap-1 rounded-[9px] py-1.5 text-[10px] font-semibold",
+                    i === 1 ? "bg-tm-ink text-white" : "text-tm-text-2",
+                  )}
+                >
+                  {label} <span className="tm-nums opacity-70">{n}</span>
+                </span>
+              ))}
+            </div>
+            <div className="overflow-hidden rounded-[12px] border border-tm-border bg-card">
+              <div className="flex items-center gap-2 border-b border-tm-hairline bg-tm-paper/60 px-3 py-2">
+                <span className="size-3.5 rounded-[4px] bg-tm-coral" />
+                <span className="text-[10px] font-bold text-tm-ink">Ama Mensah · Osu, Accra</span>
+              </div>
+              {[0, 1].map((i) => (
+                <div key={i} className="flex items-center gap-2 border-b border-tm-hairline bg-tm-tint/50 px-3 py-2 last:border-0">
+                  <span className="size-3.5 rounded-[4px] bg-tm-coral" />
+                  <span className="size-8 shrink-0 rounded-[8px] bg-[linear-gradient(135deg,#e7d9cf,#f5eee9)]" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className={cn(bar, "h-2 w-3/4 bg-tm-ink/70")} />
+                    <span className="flex gap-1">
+                      <span className="rounded-full bg-tm-paper px-1.5 py-0.5 text-[8.5px] font-semibold text-tm-text-2">Order: Purchased</span>
+                      <span className="text-[8.5px] font-semibold text-tm-green-ink">At our US hub</span>
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="rounded-[12px] border border-[#f5d9b0] bg-tm-amber-bg px-3 py-2 text-[10px] font-semibold text-[#7a4a06]">
-              1 customer issue open · 1 item on hold. Check before you seal anything.
-            </div>
-            <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-2">
-              <div className="flex flex-col gap-2 rounded-[12px] border border-tm-border bg-card p-3">
-                <span className="text-[10px] font-bold text-tm-ink">On the bench</span>
-                <div className="grid grid-cols-2 gap-2">
-                  {[0, 1].map((i) => (
-                    <div key={i} className="h-14 rounded-[10px] bg-[radial-gradient(120%_90%_at_50%_0%,#fff1ec_0%,#fdf9f6_60%)]" />
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 rounded-[12px] border border-tm-border bg-card p-3">
-                <span className="text-[10px] font-bold text-tm-ink">Ready to pack</span>
-                <span className={cn(bar, "h-2 w-full")} />
-                <span className={cn(bar, "h-2 w-3/4")} />
-                <span className="h-5 w-12 rounded-full bg-[image:var(--tm-gradient-cta)] opacity-80" />
-              </div>
+            <div className="flex items-center gap-2 rounded-[12px] bg-tm-ink p-1.5 pl-2.5 text-white">
+              <span className="text-[10px] font-semibold">2 items selected</span>
+              <span className="ml-auto rounded-full bg-[image:var(--tm-gradient-cta)] px-2.5 py-1 text-[9.5px] font-semibold">Pack into one box</span>
             </div>
           </div>
         ) : (

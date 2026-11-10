@@ -9,6 +9,10 @@ import { canAccessAdmin, canAccessWarehouse } from "@/lib/auth/admin-access";
 export const metadata: Metadata = {
   title: { default: "Warehouse", template: "%s · Warehouse · Tomame" },
   robots: { index: false, follow: false },
+  // 098: installed from here, the app is the warehouse, opening on Orders. The
+  // file sits under /icons so the proxy never asks a manifest fetch to sign in.
+  manifest: "/icons/pwa/warehouse.webmanifest",
+  appleWebApp: { capable: true, title: "Tomame Hub", statusBarStyle: "default" },
 };
 
 /**

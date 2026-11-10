@@ -11,7 +11,7 @@ import { formatGhanaPhone } from "@/features/order-delivery/schema";
 import { toast } from "@/lib/sonner";
 
 import type { WarehouseItem } from "../types";
-import { formatRelative } from "./format";
+import { relativeInline } from "./format";
 import { errorText, warehouseRequest } from "./warehouse-actions";
 import { ItemThumb } from "./warehouse-ui";
 
@@ -79,7 +79,7 @@ export function CustomerRidesPanel({ rides }: { rides: Array<{ item: WarehouseIt
                     Trip
                   </a>
                 ) : null}
-                <span className="text-tm-text-3">asked {formatRelative(ride.requestedAt).toLowerCase()}</span>
+                <span className="text-tm-text-3">asked {relativeInline(ride.requestedAt)}</span>
               </div>
               {ride.note ? <span className="text-[12.5px] text-tm-text-2">“{ride.note}”</span> : null}
             </div>

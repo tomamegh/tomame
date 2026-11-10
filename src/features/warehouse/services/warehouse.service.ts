@@ -35,6 +35,8 @@ import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { findStore } from "@/features/extraction/stores";
 import { recordOrderEvent } from "@/features/orders/services/order-events.service";
 import { advanceOrderFromWarehouse } from "@/features/orders/services/orders.service";
+import { notifyShipmentUpdate } from "@/features/shipments/shipment-notify.service";
+import { loadStageSettings } from "@/features/shipments/stage-settings.service";
 import { notifyStaff } from "@/features/staff-alerts/notify";
 import type { PlatformUser } from "@/features/users/types";
 import { APIError } from "@/lib/auth/api-helpers";
@@ -135,7 +137,9 @@ export async function receiveWarehouseItem(
   // "purchased" event, and the arrival must come after it on their timeline.
   if (order.status === "paid" && !order.held_at) {
     try {
-      await advanceOrderFromWarehouse(user, order.id, "processing");
+      // No "we're buying it" email: it is already at the hub. The customer
+      // hears about the box it leaves in (098), and sees the arrival on the page.
+      await advanceOrderFromWarehouse(user, order.id, "processing", undefined, { notifyCustomer: false });
     } catch (error) {
       // The arrival is recorded either way; the status is the admin's to fix.
       logger.warn("warehouse receive: could not advance paid order", {
@@ -173,6 +177,30 @@ export async function receiveWarehouseItem(
   }
 
   return getWarehouseItem(user, orderId);
+}
+
+/**
+ * Log several parcels in at once (098): the operator ticks what came off the
+ * truck and taps "Mark received". No weights; weigh later from the item. Each
+ * order is tried on its own and the ones that could not move come back.
+ */
+export async function receiveWarehouseItems(
+  user: PlatformUser,
+  orderIds: string[],
+): Promise<{ received: number; failed: Array<{ order_no: string; reason: string }> }> {
+  requireWarehouse(user);
+  const orders = await listWarehouseOrders({ ids: [...new Set(orderIds)], limit: orderIds.length });
+  const failed: Array<{ order_no: string; reason: string }> = [];
+  let received = 0;
+  for (const order of orders) {
+    try {
+      await receiveWarehouseItem(user, order.id, {});
+      received += 1;
+    } catch (error) {
+      failed.push({ order_no: order.order_no, reason: error instanceof APIError ? error.message : "Could not log it in" });
+    }
+  }
+  return { received, failed };
 }
 
 // ── Packages ────────────────────────────────────────────────────────────────
@@ -335,12 +363,13 @@ export async function shipWarehousePackage(
     if (!item || item.order_status === "in_transit") continue;
     try {
       if (item.order_status === "paid") {
-        await advanceOrderFromWarehouse(user, item.order_id, "processing", undefined, { staffAlert: false });
+        await advanceOrderFromWarehouse(user, item.order_id, "processing", undefined, { staffAlert: false, notifyCustomer: false });
       }
       // 086: the air waybill / forwarder number is INTERNAL. It stays on the
       // package; the order (and so the customer's email, WhatsApp and journey)
-      // is tracked by its Tomame number only.
-      await advanceOrderFromWarehouse(user, item.order_id, "in_transit", undefined, { staffAlert: false });
+      // is tracked by its Tomame number only. 098: the customer is told once,
+      // below, for everything of theirs in this box.
+      await advanceOrderFromWarehouse(user, item.order_id, "in_transit", undefined, { staffAlert: false, notifyCustomer: false });
     } catch (error) {
       failed.push({
         order_no: item.order_no,
@@ -372,6 +401,7 @@ export async function shipWarehousePackage(
     carrier: carrier ?? null,
     tracking_number: trackingNumber ?? null,
   });
+  await notifyPackageCustomers(pkg, "in_transit");
   // One staff email for the package, not one per order inside it.
   const orderIds = pkg.lines.flatMap((l) => (l.item ? [l.item.order_id] : []));
   if (orderIds.length > 0) {
@@ -527,6 +557,13 @@ export async function getWarehouseDashboard(user: PlatformUser): Promise<Warehou
   };
 }
 
+/** Open customer complaints about a parcel photo — the home screen's warning (098). */
+export async function countOpenWarehouseIssues(user: PlatformUser): Promise<number> {
+  requireWarehouse(user);
+  const open = await listOrderFeedback("open");
+  return open.filter((f) => f.verdict !== "looks_right").length;
+}
+
 /** What customers said about their parcel photos, with the item attached. */
 export async function listWarehouseIssues(
   user: PlatformUser,
@@ -571,6 +608,37 @@ export async function getWarehouseReturnAddress(user: PlatformUser): Promise<War
 }
 
 // ── Internals ───────────────────────────────────────────────────────────────
+
+/**
+ * One message per customer for a box changing status (098): "your package of 3
+ * items has left our hub", listing each, instead of an email per order.
+ */
+export async function notifyPackageCustomers(
+  pkg: Pick<WarehousePackage, "lines">,
+  status: "in_transit" | "delivered",
+): Promise<void> {
+  const settings = await loadStageSettings();
+  const setting = settings[status === "in_transit" ? "departed" : "delivered"];
+  const byCustomer = new Map<string, WarehouseItem[]>();
+  for (const line of pkg.lines) {
+    if (!line.item) continue;
+    byCustomer.set(line.item.customer_key, [...(byCustomer.get(line.item.customer_key) ?? []), line.item]);
+  }
+  for (const [userId, items] of byCustomer) {
+    await notifyShipmentUpdate({
+      kind: "stage",
+      userId,
+      stageKey: setting.stage,
+      stageTitle: setting.title,
+      description: setting.description,
+      message: null,
+      expectedOn: null,
+      orders: items.map((i) => ({ id: i.order_id, orderNo: i.order_no, productName: i.title })),
+      contact: null,
+      orderStatus: status,
+    });
+  }
+}
 
 async function requirePackage(id: string): Promise<PackageRow> {
   const row = await getPackageById(id);

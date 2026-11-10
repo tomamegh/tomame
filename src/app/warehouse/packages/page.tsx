@@ -12,7 +12,7 @@ import { listWarehousePackages } from "@/features/warehouse/services/warehouse.s
 import type { PackageStatus } from "@/features/warehouse/types";
 import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Packages" };
+export const metadata: Metadata = { title: "Boxes" };
 export const dynamic = "force-dynamic";
 
 const STATUSES: PackageStatus[] = ["packing", "sealed", "shipped"];
@@ -47,8 +47,8 @@ export default async function WarehousePackagesPage({
     <div className="flex flex-col gap-6">
       <WarehouseHeading
         kicker="Outbound"
-        title="Packages"
-        blurb="Every box the hub has packed. Tap one to open it and see what is inside."
+        title="Boxes"
+        blurb="Every box the hub has packed, and the ones that have shipped. Tap one to see what is inside."
         action={
           <>
             <GuideLink section="screens">Learn how</GuideLink>

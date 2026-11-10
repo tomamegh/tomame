@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { WarehousePackage } from "../types";
-import { formatDateTime, formatRelative, formatShortDate, pluralise } from "./format";
+import { formatDateTime, formatRelative, formatShortDate, pluralise, relativeInline } from "./format";
 import { ShipmentUpdateDialog, type ShipmentUpdateMode } from "./shipment-update-dialog";
 
 /**
@@ -81,7 +81,7 @@ export function PackageJourneyPanel({
           <div className="min-w-0">
             <p className="font-semibold break-words">{pkg.notice.message}</p>
             <p className="mt-0.5 text-[12px]">
-              Shown to customers · posted {formatRelative(pkg.notice.at).toLowerCase()}
+              Shown to customers · posted {relativeInline(pkg.notice.at)}
               {pkg.notice.expected_on ? ` · new estimate ${formatShortDate(`${pkg.notice.expected_on}T12:00:00Z`)}` : ""}
             </p>
           </div>

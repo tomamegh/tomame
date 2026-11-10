@@ -8,7 +8,6 @@ import {
   ChevronDownIcon,
   CircleHelpIcon,
   InboxIcon,
-  LayoutGridIcon,
   LogOutIcon,
   MessageSquareWarningIcon,
   ScanLineIcon,
@@ -51,15 +50,14 @@ interface Operator {
 }
 
 const NAV = [
-  { href: "/warehouse", label: "Overview", icon: LayoutGridIcon, exact: true },
-  { href: "/warehouse/receive", label: "Receive", icon: InboxIcon },
-  { href: "/warehouse/packages", label: "Packages", icon: BoxesIcon },
-  // 098. Fourth, so it is on the phone's bottom bar: the Accra side works the
-  // shipments board from a phone. Issues moved off the bar; the overview links it.
+  // 098: the home is the orders to act on (expected, at the hub, boxes), which
+  // replaced the separate Receive screen. These four are the phone's tab bar.
+  { href: "/warehouse", label: "Orders", icon: InboxIcon, exact: true },
+  { href: "/warehouse/packages", label: "Boxes", icon: BoxesIcon },
   { href: "/warehouse/shipments", label: "Shipments", icon: PlaneLandingIcon },
-  { href: "/warehouse/issues", label: "Issues", icon: MessageSquareWarningIcon, wide: true },
-  // 086. Past the fourth, so the phone's bottom bar keeps its four; there it is
-  // reached from Receive and the dashboard. In the top bar only where there is room.
+  { href: "/warehouse/issues", label: "Issues", icon: MessageSquareWarningIcon },
+  // 086. Past the fourth, so the phone's bottom bar keeps its four; in the top
+  // bar only where there is room, and reached from a box's scan on a phone.
   { href: "/warehouse/inbound", label: "Inbound", icon: TruckIcon, wide: true },
 ] as const;
 

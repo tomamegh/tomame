@@ -221,7 +221,7 @@ export function ShipmentsBoard({
 
       {selectionCount > 0 && (
         <div
-          className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 px-3 md:bottom-6"
+          className="fixed inset-x-0 bottom-[calc(100px+env(safe-area-inset-bottom))] z-40 px-3 md:bottom-6"
           role="region"
           aria-label="Selected shipments"
         >

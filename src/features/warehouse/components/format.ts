@@ -98,6 +98,12 @@ export function formatRelative(iso: string | null | undefined, now = new Date())
   return formatShortDate(iso);
 }
 
+/** `formatRelative` mid-sentence: "yesterday", "3 min ago", but "1 Oct" keeps its month. */
+export function relativeInline(iso: string | null | undefined): string {
+  const text = formatRelative(iso);
+  return /^[A-Z][a-z]/.test(text) ? text[0]!.toLowerCase() + text.slice(1) : text;
+}
+
 /** Group items by the person they belong to — how a bench is packed. */
 export function groupByRecipient(items: WarehouseItem[]): Array<{
   key: string;

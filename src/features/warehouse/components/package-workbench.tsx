@@ -149,7 +149,7 @@ export function PackageWorkbench({
         className="inline-flex w-fit items-center gap-1.5 text-[13px] font-semibold text-tm-text-2 transition-colors hover:text-tm-ink"
       >
         <ArrowLeftIcon className="size-4" aria-hidden />
-        Packages
+        Boxes
       </Link>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
@@ -157,7 +157,8 @@ export function PackageWorkbench({
           {/* Hero */}
           <section className="tm-up relative overflow-hidden rounded-[26px] border border-tm-border bg-card [animation-duration:0.5s]">
             <div className="grid grid-cols-[minmax(0,1fr)] items-center gap-6 p-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:p-7">
-              <div className="relative mx-auto flex h-[236px] w-[240px] items-end justify-center rounded-[22px] bg-[radial-gradient(110%_100%_at_50%_0%,#ffe4d9_0%,#fff1ec_40%,#fdf9f6_80%)] pb-5">
+              {/* 098: off on a phone, where the next action has to be above the fold. */}
+              <div className="relative mx-auto hidden h-[236px] w-[240px] items-end justify-center sm:flex rounded-[22px] bg-[radial-gradient(110%_100%_at_50%_0%,#ffe4d9_0%,#fff1ec_40%,#fdf9f6_80%)] pb-5">
                 <motion.div
                   key={pkg.status}
                   initial={reduce ? false : { scale: 0.94 }}
@@ -715,7 +716,7 @@ function ShipDialog({
       } else {
         toast.success({
           title: `${pkg.reference} is on its way`,
-          description: `${pluralise(orders, "customer order")} moved to in transit and notified.`,
+          description: `${pluralise(orders, "order")} moved to in transit. Each customer got one email listing what's in the box.`,
         });
         onOpenChange(false);
       }
@@ -734,7 +735,7 @@ function ShipDialog({
           <DialogTitle className="font-display text-[20px] font-bold text-tm-ink">Ship {pkg.reference}</DialogTitle>
           <DialogDescription className="text-[13px] font-medium text-tm-text-2">
             {orders > 0
-              ? `${pluralise(orders, "order")} move to "in transit" and each customer gets their shipping update. This cannot be undone here.`
+              ? `${pluralise(orders, "order")} move to "in transit". Each customer gets one email listing what of theirs is in this box. This cannot be undone here.`
               : "Marks the package as gone from the hub."}
           </DialogDescription>
         </DialogHeader>
@@ -755,7 +756,7 @@ function ShipDialog({
               value={tracking}
               onChange={(e) => setTracking(e.target.value)}
               maxLength={80}
-              placeholder="Shown to customers"
+              placeholder="Internal, not shown to customers"
               className="h-10 rounded-[12px] border border-tm-border bg-card px-3 font-mono text-[13.5px] font-medium text-tm-ink outline-none placeholder:font-sans placeholder:text-tm-text-3 focus:border-tm-coral/60"
             />
           </label>

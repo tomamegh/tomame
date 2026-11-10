@@ -161,6 +161,7 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
   const inserts: OrderEventInsert[] = [];
   const movedOrders: WarehouseOrderRow[] = [];
   const riderNotified = new Set<string>();
+  const deliveredOrders: WarehouseOrderRow[] = [];
 
   for (const order of orders) {
     const blocked = whyNotMovable(order, events.get(order.id) ?? [], input.stage);
@@ -171,7 +172,8 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
 
     if (input.stage === "delivered") {
       try {
-        await advanceOrderFromWarehouse(user, order.id, "delivered", undefined, { staffAlert: false });
+        await advanceOrderFromWarehouse(user, order.id, "delivered", undefined, { staffAlert: false, notifyCustomer: false });
+        deliveredOrders.push(order);
         result.moved += 1;
       } catch (error) {
         result.failed.push({
@@ -260,6 +262,25 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
       to: input.stage,
       message: input.message,
     });
+  }
+
+  // Delivered is a status change: one "delivered" message per customer, listing
+  // what of theirs arrived, on the approved delivered template.
+  if (deliveredOrders.length > 0) {
+    for (const [userId, own] of groupByCustomer(deliveredOrders)) {
+      await notifyShipmentUpdate({
+        kind: "stage",
+        userId,
+        stageKey: "delivered",
+        stageTitle: setting.title,
+        description: setting.description,
+        message: input.message,
+        expectedOn: null,
+        orders: own.map(toNotifyOrder),
+        contact: null,
+        orderStatus: "delivered",
+      });
+    }
   }
 
   if (input.notify && movedOrders.length > 0) {

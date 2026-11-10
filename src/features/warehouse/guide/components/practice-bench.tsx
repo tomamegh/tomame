@@ -188,7 +188,7 @@ function Shelf({ state, dispatch }: { state: SimState; dispatch: Dispatch }) {
     <section aria-labelledby="sim-shelf" className="flex min-w-0 flex-col overflow-hidden rounded-[24px] border border-tm-border bg-card">
       <header className="flex items-center justify-between gap-3 border-b border-tm-hairline px-4 py-3.5 sm:px-5">
         <h3 id="sim-shelf" className="font-display text-[17px] font-bold text-tm-ink">
-          Receive
+          Orders
         </h3>
         <span className="text-[12px] font-semibold text-tm-text-3">Practice parcels</span>
       </header>
@@ -238,7 +238,7 @@ function Shelf({ state, dispatch }: { state: SimState; dispatch: Dispatch }) {
               className="tm-cta-gradient inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold text-white focus-visible:ring-4 focus-visible:ring-white/30 focus-visible:outline-none"
             >
               <BoxIcon className="size-4" aria-hidden />
-              {openPkg ? `Add to ${openPkg.reference}` : "New package"}
+              {openPkg ? `Add to ${openPkg.reference}` : "Pack into one box"}
             </button>
           </motion.div>
         ) : null}
@@ -249,7 +249,7 @@ function Shelf({ state, dispatch }: { state: SimState; dispatch: Dispatch }) {
 
 const STAGE_LABEL: Record<SimParcel["stage"], { text: string; cls: string }> = {
   expected: { text: "Expected", cls: "bg-tm-paper text-tm-text-2" },
-  shelf: { text: "On the shelf", cls: "bg-tm-amber-bg text-[#7a4a06]" },
+  shelf: { text: "At hub", cls: "bg-tm-amber-bg text-[#7a4a06]" },
   packed: { text: "Packed", cls: "bg-tm-pill-bg text-tm-coral-strong" },
   shipped: { text: "Shipped", cls: "bg-tm-green-bg text-tm-green-ink" },
 };
@@ -432,7 +432,7 @@ function Bench({ state, dispatch }: { state: SimState; dispatch: Dispatch }) {
         <div className="flex min-w-0 flex-col gap-3">
           {!pkg ? (
             <p className="text-[13.5px] leading-[1.55] font-medium text-tm-text-2">
-              Nothing on the bench yet. Log both of Ama&apos;s parcels in, tick them, and press <b>New package</b>.
+              Nothing on the bench yet. Log both of Ama&apos;s parcels in, tick them, and press <b>Pack into one box</b>.
             </p>
           ) : (
             <>
