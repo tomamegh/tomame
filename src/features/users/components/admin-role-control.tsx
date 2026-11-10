@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2Icon, PackageIcon, ShieldIcon, UserIcon } from "lucide-react";
+import { Loader2Icon, PackageIcon, ShieldIcon, UserIcon, TruckIcon } from "lucide-react";
 
 import {
   AlertDialog,
@@ -44,8 +44,9 @@ import { roleBadge, roleChangeWarning, roleGrantSummary } from "./admin-user-for
  * somebody every admin endpoint should not be the click that dismisses a menu.
  */
 
-const ROLE_OPTIONS: { value: Extract<PlatformRoles, "user" | "admin" | "warehouse">; label: string; Icon: typeof UserIcon }[] = [
+const ROLE_OPTIONS: { value: Extract<PlatformRoles, "user" | "admin" | "warehouse" | "driver">; label: string; Icon: typeof UserIcon }[] = [
   { value: "user", label: "Customer", Icon: UserIcon },
+  { value: "driver", label: "Driver", Icon: TruckIcon },
   { value: "warehouse", label: "Warehouse", Icon: PackageIcon },
   { value: "admin", label: "Admin", Icon: ShieldIcon },
 ];
@@ -84,13 +85,17 @@ export function AdminRoleControl({
             ? "Admin access granted"
             : role === "warehouse"
               ? "Warehouse access granted"
-              : "Role changed to customer",
+              : role === "driver"
+                ? "Driver access granted"
+                : "Role changed to customer",
         description:
           role === "admin"
             ? `${userLabel} can now reach every admin screen and endpoint.`
             : role === "warehouse"
               ? `${userLabel} can now use the packaging platform, and nothing else.`
-              : `${userLabel} can use the storefront only.`,
+              : role === "driver"
+                ? `${userLabel} can now see and complete the deliveries assigned to them, and nothing else.`
+                : `${userLabel} can use the storefront only.`,
       });
       setPendingRole(null);
       router.refresh();

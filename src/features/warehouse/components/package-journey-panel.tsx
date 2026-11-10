@@ -28,9 +28,11 @@ const STEPS: ShipmentStageKey[] = ["departed", "arrived_country", "ghana_warehou
 export function PackageJourneyPanel({
   pkg,
   settings,
+  drivers = [],
 }: {
   pkg: WarehousePackage;
   settings: Record<ShipmentStageKey, StageSetting>;
+  drivers?: Array<{ id: string; name: string; phone: string | null }>;
 }) {
   const [mode, setMode] = useState<ShipmentUpdateMode | null>(null);
   const stage = pkg.stage ?? "departed";
@@ -115,6 +117,7 @@ export function PackageJourneyPanel({
         mode={mode ?? "move"}
         settings={settings}
         suggestedStage={next as MovableStage | null}
+        drivers={drivers}
         targets={{
           package_ids: [pkg.id],
           order_ids: [],

@@ -25,7 +25,7 @@ export const promoteUserSchema = z.object({
  * while the form checked a bare `z.string()`, so a blank name passed in the
  * browser and came back as a 400 in a toast. One schema, imported by both.
  */
-export const CREATABLE_ROLES = ["user", "admin", "warehouse"] as const;
+export const CREATABLE_ROLES = ["user", "admin", "warehouse", "driver"] as const;
 
 export const createUserSchema = z.object({
   email,

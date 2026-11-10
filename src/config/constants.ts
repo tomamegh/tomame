@@ -100,6 +100,8 @@ export const AUDIT_ACTOR_ROLES = {
   ADMIN: "admin",
   SYSTEM: "system",
   WAREHOUSE: "warehouse",
+  /** 102: a driver confirming a delivery with the customer's code. */
+  DRIVER: "driver",
 } as const;
 
 export type AuditActorRole =

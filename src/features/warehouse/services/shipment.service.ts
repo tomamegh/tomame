@@ -19,6 +19,9 @@ import {
 } from "@/db/queries/warehouse";
 import { AUDIT_ENTITY_TYPES } from "@/config/constants";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { assignDriver, getDriverProfile } from "@/db/queries/driver-deliveries";
+import { ensureDeliveryCodes } from "@/features/drivers/services/delivery-code.service";
+import { normaliseGhanaPhone } from "@/features/order-delivery/schema";
 import { handOverToRider } from "@/features/order-delivery/services/courier.service";
 import { listOpenCustomerRides } from "@/features/order-delivery/services/customer-ride.service";
 import { advanceOrderFromWarehouse } from "@/features/orders/services/orders.service";
@@ -62,6 +65,9 @@ export interface MoveResult {
   skipped: Array<{ order_no: string; reason: string }>;
   failed: Array<{ order_no: string; reason: string }>;
 }
+
+/** Steps from which the customer needs their delivery code (102). */
+const CODE_STAGES: readonly string[] = ["ghana_warehouse", "ready_for_pickup", "out_for_delivery"];
 
 /** Delivered packages stay on the board this long, so a mis-tap can be seen. */
 const DELIVERED_WINDOW_DAYS = 7;
@@ -142,6 +148,25 @@ export async function getShipmentBoard(user: PlatformUser): Promise<ShipmentBoar
   return { packages, loose, order_stages: orderStages, rides };
 }
 
+/** One order's step and live delay, for its own page (098): moved on its own, or with its box. */
+export async function getOrderShipment(
+  user: PlatformUser,
+  orderId: string,
+): Promise<Omit<ShipmentOrder, "item">> {
+  requireWarehouse(user);
+  const [order] = await listWarehouseOrders({ ids: [orderId] });
+  if (!order) throw new APIError(404, "Order not found");
+  const own = (await eventsByOrder([orderId])).get(orderId) ?? [];
+  const stage = currentStageKey(order.status, own);
+  const stageAt = latestStageAt(own, stage);
+  const notice = activeNotice(own, stageAt, null);
+  return {
+    stage,
+    stage_at: stageAt,
+    notice: notice ? { message: notice.message, expected_on: notice.expectedOn, at: notice.at } : null,
+  };
+}
+
 // ── Moving ──────────────────────────────────────────────────────────────────
 
 export async function moveShipments(user: PlatformUser, input: MoveShipmentsInput): Promise<MoveResult> {
@@ -155,6 +180,20 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
     }
   }
 
+  // 102: our driver. Their name and number go to the customer as the rider,
+  // and the orders appear in the driver's app.
+  let rider = input.rider;
+  let driverId: string | null = null;
+  if (input.driver_id) {
+    const driver = await getDriverProfile(input.driver_id);
+    if (!driver) throw new APIError(404, "That driver no longer exists.");
+    const name = [driver.first_name, driver.last_name].filter(Boolean).join(" ").trim() || "Your Tomame driver";
+    const phone = driver.phone ? normaliseGhanaPhone(driver.phone) : null;
+    if (!phone) throw new APIError(409, `Add a Ghana phone number to ${name}'s profile first, so customers can reach them.`);
+    rider = { courier_name: name, courier_phone: phone, tracking_url: null, provider: null };
+    driverId = driver.id;
+  }
+
   const events = await eventsByOrder(orders.map((o) => o.id));
   const occurredAt = input.occurred_at ?? new Date().toISOString();
   const result: MoveResult = { moved: 0, skipped: [], failed: [] };
@@ -164,7 +203,9 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
   const deliveredOrders: WarehouseOrderRow[] = [];
 
   for (const order of orders) {
-    const blocked = whyNotMovable(order, events.get(order.id) ?? [], input.stage);
+    // 102: naming a rider or driver for an order already out for delivery is a
+    // reassignment (the first driver could not go), not a repeat.
+    const blocked = whyNotMovable(order, events.get(order.id) ?? [], input.stage, { allowSame: !!rider });
     if (blocked) {
       (blocked.skip ? result.skipped : result.failed).push({ order_no: order.order_no, reason: blocked.reason });
       continue;
@@ -187,13 +228,14 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
     // 101: a named rider goes through the same hand-off as the admin page, so
     // the customer gets the rider card, email and WhatsApp. One message per
     // customer per run, however many of their orders the rider carries.
-    if (input.rider) {
+    if (rider) {
       try {
         const first = !riderNotified.has(order.user_id);
+        if (driverId) await assignDriver(order.id, order.user_id, driverId, new Date().toISOString());
         await handOverToRider(
           { actorId: user.id, actorRole: warehouseActorRole(user) },
           order.id,
-          input.rider,
+          rider,
           { packageId: packageByOrder.get(order.id) ?? null, notify: input.notify && first },
         );
         riderNotified.add(order.user_id);
@@ -227,6 +269,10 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
   if (inserts.length > 0) {
     await insertOrderEvents(createAdmin(), inserts);
     result.moved += inserts.length;
+  }
+  // 102: from the Accra warehouse on, the customer holds a code for hand-over.
+  if (CODE_STAGES.includes(input.stage) && movedOrders.length > 0) {
+    await ensureDeliveryCodes(movedOrders.map((o) => o.id));
   }
 
   // The packages moved, whatever happened to a straggler inside: the box is
@@ -316,6 +362,7 @@ export function whyNotMovable(
   order: Pick<WarehouseOrderRow, "status" | "held_at" | "hold_reason">,
   events: readonly Pick<OrderEventRow, "kind" | "occurred_at" | "title" | "detail" | "location">[],
   stage: MovableStage,
+  opts: { allowSame?: boolean } = {},
 ): { reason: string; skip: boolean } | null {
   if (order.status === "delivered" || order.status === "completed") {
     return { reason: "Already delivered", skip: true };
@@ -326,7 +373,7 @@ export function whyNotMovable(
   if (order.held_at) return { reason: `On hold: ${order.hold_reason ?? "no reason given"}`, skip: false };
   const rank = reachedRank(order.status, events);
   const current = currentStageKey(order.status, events);
-  if (rank > STAGE_RANK[stage] || current === stage) {
+  if (rank > STAGE_RANK[stage] || (current === stage && !opts.allowSame)) {
     return { reason: "Already at or past this step", skip: true };
   }
   return null;

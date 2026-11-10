@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import type { PlatformUser } from "@/features/users/types";
-import { canAccessWarehouse } from "@/lib/auth/admin-access";
+import { canAccessDeliveries, canAccessWarehouse } from "@/lib/auth/admin-access";
 
 /**
  * The signed-in operator for a warehouse PAGE (081).
@@ -20,5 +20,13 @@ export async function warehousePageUser(returnTo: string): Promise<PlatformUser>
   const user = await getAuthenticatedUser();
   if (!user) redirect(`/auth/login?next=${encodeURIComponent(returnTo)}`);
   if (!canAccessWarehouse(user)) notFound();
+  return user;
+}
+
+/** The same, for the deliveries screen (102): drivers as well as hub staff. */
+export async function deliveriesPageUser(returnTo: string): Promise<PlatformUser> {
+  const user = await getAuthenticatedUser();
+  if (!user) redirect(`/auth/login?next=${encodeURIComponent(returnTo)}`);
+  if (!canAccessDeliveries(user)) notFound();
   return user;
 }

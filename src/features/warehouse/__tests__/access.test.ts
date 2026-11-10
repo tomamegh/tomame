@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canAccessAdmin, canAccessWarehouse, isWarehouseOnly } from "@/lib/auth/admin-access";
+import { canAccessAdmin, canAccessDeliveries, canAccessWarehouse, isDriver, isWarehouseOnly } from "@/lib/auth/admin-access";
 import { postAuthDestination } from "@/lib/auth/post-auth-destination";
 
 const as = (role: string | undefined) => ({ app_metadata: role ? { role } : {} });
@@ -35,5 +35,28 @@ describe("warehouse access (081)", () => {
     expect(postAuthDestination({ isAdmin: true })).toBe("/admin");
     expect(postAuthDestination({ isAdmin: false })).toBe("/app");
     expect(postAuthDestination({ next: "/warehouse", isAdmin: true })).toBe("/warehouse");
+  });
+});
+
+describe("driver access (102)", () => {
+  it("lets a driver into deliveries and nothing else", () => {
+    expect(isDriver(as("driver"))).toBe(true);
+    expect(canAccessDeliveries(as("driver"))).toBe(true);
+    expect(canAccessWarehouse(as("driver"))).toBe(false);
+    expect(canAccessAdmin(as("driver"))).toBe(false);
+    expect(isWarehouseOnly(as("driver"))).toBe(false);
+  });
+
+  it("lets hub staff see deliveries too, but not customers", () => {
+    expect(canAccessDeliveries(as("warehouse"))).toBe(true);
+    expect(canAccessDeliveries(as("admin"))).toBe(true);
+    expect(canAccessDeliveries(as("user"))).toBe(false);
+    expect(canAccessDeliveries(null)).toBe(false);
+  });
+
+  it("always lands a driver on their deliveries", () => {
+    expect(postAuthDestination({ isAdmin: false, isDriver: true })).toBe("/warehouse/deliveries");
+    expect(postAuthDestination({ next: "/warehouse", isAdmin: false, isDriver: true })).toBe("/warehouse/deliveries");
+    expect(postAuthDestination({ next: "/app/bag", isAdmin: false, isDriver: true })).toBe("/warehouse/deliveries");
   });
 });

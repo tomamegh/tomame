@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { buildOrderIntake } from "./order-intake.service";
 import { allowedTransitionsFrom } from "./order-transitions";
-import { canAccessAdmin, canAccessWarehouse } from "@/lib/auth/admin-access";
+import { canAccessAdmin, canAccessDeliveries, canAccessWarehouse, isDriver } from "@/lib/auth/admin-access";
 import { sendEmail } from "@/lib/email/transport";
 import {
   orderPlacedTemplate,
@@ -601,10 +601,28 @@ export async function advanceOrderFromWarehouse(
   );
 }
 
+/**
+ * A driver hands the parcel over (102): `in_transit → delivered`, the same
+ * guarded transition, audited as the driver. The caller has already checked the
+ * customer's code and the photo; this is only the status change.
+ */
+export async function deliverOrderAsDriver(
+  user: PlatformUser,
+  orderId: string,
+  opts?: { notifyCustomer?: boolean },
+): Promise<Order> {
+  if (!canAccessDeliveries(user)) throw new APIError(403, "Delivery access required");
+  const role = isDriver(user) ? "driver" : canAccessAdmin(user) ? "admin" : "warehouse";
+  return applyOrderStatusChange(createAdminClient(), user, role, orderId, "delivered", undefined, {
+    staffAlert: false,
+    notifyCustomer: opts?.notifyCustomer,
+  });
+}
+
 async function applyOrderStatusChange(
   client: SupabaseClient,
   user: PlatformUser,
-  actorRole: "admin" | "warehouse",
+  actorRole: "admin" | "warehouse" | "driver",
   orderId: string,
   newStatus: string,
   trackingData?: OrderTrackingInput,

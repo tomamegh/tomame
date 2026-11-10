@@ -48,6 +48,8 @@ export function roleBadge(role: PlatformRoles): { label: string; tone: AdminTone
       return { label: "System", tone: "neutral" };
     case "warehouse":
       return { label: "Warehouse", tone: "amber" };
+    case "driver":
+      return { label: "Driver", tone: "green" };
     default:
       return { label: "Customer", tone: "muted" };
   }
@@ -67,6 +69,8 @@ export function roleGrantSummary(role: PlatformRoles): string {
       return "Full access to every admin screen and every admin endpoint: orders, payments, pricing, customer records and the ability to change anyone's role, including removing yours.";
     case "system":
       return "A machine account. It is not a person and should not be assigned by hand.";
+    case "driver":
+      return "Deliveries only: the orders assigned to them for delivery, with each recipient's name, phone and address. They photograph the hand-over and confirm it with the customer's delivery code. Never prices, payments, emails, other customers' orders or any admin screen. They are kept out of the storefront too.";
     case "warehouse":
       return "The packaging platform only: receiving parcels, photographing them, packing, printing labels and shipping. They see an item's name, photo and weight and the recipient's name, phone and delivery area. Never prices, payments, emails or any admin screen. They are kept out of the storefront too.";
     default:

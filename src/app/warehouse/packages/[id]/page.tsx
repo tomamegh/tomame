@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { PackageWorkbench } from "@/features/warehouse/components/package-workbench";
 import { getWarehousePackage } from "@/features/warehouse/services/warehouse.service";
 import { getStageSettingsForStaff } from "@/features/warehouse/services/shipment.service";
+import { listDriversForStaff } from "@/features/drivers/services/driver.service";
 import { APIError } from "@/lib/auth/api-helpers";
 
 export const metadata: Metadata = { title: "Package" };
@@ -26,13 +27,18 @@ export default async function WarehousePackagePage({
   const query = await searchParams;
 
   try {
-    const [pkg, stageSettings] = await Promise.all([getWarehousePackage(user, id), getStageSettingsForStaff(user)]);
+    const [pkg, stageSettings, drivers] = await Promise.all([
+      getWarehousePackage(user, id),
+      getStageSettingsForStaff(user),
+      listDriversForStaff(user),
+    ]);
     return (
       <PackageWorkbench
         pkg={pkg}
         openAdd={query.add === "1"}
         scanned={query.scanned === "1"}
         stageSettings={stageSettings}
+        drivers={drivers}
       />
     );
   } catch (error) {

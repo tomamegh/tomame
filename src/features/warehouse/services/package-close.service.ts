@@ -19,7 +19,7 @@ import { logger } from "@/lib/logger";
  */
 export async function closePackageIfAllDelivered(
   orderId: string,
-  actor: { id: string; role: "user" | "admin" | "warehouse" | "system" },
+  actor: { id: string; role: "user" | "admin" | "warehouse" | "system" | "driver" },
 ): Promise<void> {
   try {
     const found = await getShippedPackageForOrder(orderId);

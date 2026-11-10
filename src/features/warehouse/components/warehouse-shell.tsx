@@ -11,6 +11,7 @@ import {
   LogOutIcon,
   MessageSquareWarningIcon,
   ScanLineIcon,
+  CarFrontIcon,
   PlaneLandingIcon,
   ShieldIcon,
   TruckIcon,
@@ -47,6 +48,8 @@ interface Operator {
   name: string;
   email: string | null;
   isAdmin: boolean;
+  /** 102: a driver's app is their deliveries and nothing else. */
+  isDriver?: boolean;
 }
 
 const NAV = [
@@ -59,7 +62,12 @@ const NAV = [
   // 086. Past the fourth, so the phone's bottom bar keeps its four; in the top
   // bar only where there is room, and reached from a box's scan on a phone.
   { href: "/warehouse/inbound", label: "Inbound", icon: TruckIcon, wide: true },
+  // 102: every driver's stops, for staff. Drivers see only their own.
+  { href: "/warehouse/deliveries", label: "Deliveries", icon: CarFrontIcon, wide: true },
 ] as const;
+
+/** 102: a driver's whole navigation. */
+const DRIVER_NAV = [{ href: "/warehouse/deliveries", label: "My deliveries", icon: CarFrontIcon, exact: false }] as const;
 
 /** The operator guide (081): in the top bar, the account menu, and a "?" — not a sixth tab. */
 const GUIDE_HREF = "/warehouse/guide";
@@ -86,23 +94,25 @@ export function WarehouseShell({
     await createClient().auth.signOut();
     window.location.assign("/auth/login");
   };
+  const driver = operator.isDriver === true;
+  const nav: ReadonlyArray<(typeof NAV)[number] | (typeof DRIVER_NAV)[number]> = driver ? DRIVER_NAV : NAV;
 
   return (
     <div className="min-h-dvh bg-tm-paper">
       <header className="tm-safe-top sticky top-0 z-40 border-b border-tm-hairline bg-card/90 backdrop-blur-[14px] print:hidden">
         <div className="mx-auto flex h-16 w-full max-w-[1320px] items-center gap-4 px-4 md:px-8">
-          <Link href="/warehouse" className="flex shrink-0 items-center gap-2.5" aria-label="Warehouse overview">
+          <Link href={driver ? "/warehouse/deliveries" : "/warehouse"} className="flex shrink-0 items-center gap-2.5" aria-label="Warehouse home">
             <Logo variant="mark" height={24} decorative />
             <span className="flex flex-col leading-none">
               <Logo variant="wordmark" height={14} decorative />
               <span className="mt-1 text-[10px] font-bold tracking-[0.16em] text-tm-text-3 uppercase">
-                Warehouse
+                {driver ? "Deliveries" : "Warehouse"}
               </span>
             </span>
           </Link>
 
           <nav className="ml-4 hidden items-center gap-1 md:flex" aria-label="Warehouse">
-            {NAV.map((item) => {
+            {nav.map((item) => {
               const active = isActive(pathname, item.href, "exact" in item ? item.exact : false);
               return (
                 <Link
@@ -121,7 +131,7 @@ export function WarehouseShell({
               );
             })}
             {/* The guide sits after the four working screens, and only where there is room. */}
-            <Link
+            {driver ? null : <Link
               href={GUIDE_HREF}
               aria-current={isActive(pathname, GUIDE_HREF) ? "page" : undefined}
               className={cn(
@@ -131,10 +141,11 @@ export function WarehouseShell({
             >
               <BookOpenIcon className="size-4" aria-hidden />
               Guide
-            </Link>
+            </Link>}
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            {driver ? null : <>
             <Link
               href={GUIDE_HREF}
               aria-label="Help and guide"
@@ -154,6 +165,7 @@ export function WarehouseShell({
               <ScanLineIcon className="size-4" aria-hidden />
               Scan
             </Link>
+            </>}
 
             <DropdownMenu>
               <DropdownMenuTrigger aria-label="Account menu" className="flex items-center gap-2 rounded-full border border-tm-border bg-card py-1 pr-2.5 pl-1 transition-colors hover:bg-tm-paper focus-visible:ring-2 focus-visible:ring-tm-coral/40 focus-visible:outline-none">
@@ -172,16 +184,18 @@ export function WarehouseShell({
                     <span className="truncate text-[12px] font-medium text-tm-text-3">{operator.email}</span>
                   ) : null}
                   <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-tm-amber-bg px-2 py-0.5 text-[11px] font-semibold text-[#7a4a06]">
-                    {operator.isAdmin ? "Admin" : "Warehouse operator"}
+                    {operator.isAdmin ? "Admin" : driver ? "Driver" : "Warehouse operator"}
                   </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href={GUIDE_HREF} className="gap-2">
-                    <CircleHelpIcon className="size-4" aria-hidden />
-                    Help &amp; guide
-                  </Link>
-                </DropdownMenuItem>
+                {driver ? null : (
+                  <DropdownMenuItem asChild>
+                    <Link href={GUIDE_HREF} className="gap-2">
+                      <CircleHelpIcon className="size-4" aria-hidden />
+                      Help &amp; guide
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 {operator.isAdmin ? (
                   <DropdownMenuItem asChild>
                     <Link href="/admin" className="gap-2">
@@ -204,7 +218,7 @@ export function WarehouseShell({
         {children}
       </main>
 
-      <MobileTabBar pathname={pathname} />
+      {driver ? null : <MobileTabBar pathname={pathname} />}
     </div>
   );
 }

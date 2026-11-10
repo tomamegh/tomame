@@ -1,7 +1,13 @@
 import { CookieOptions, createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { canAccessAdmin, canAccessWarehouse, isWarehouseOnly } from "@/lib/auth/admin-access";
+import {
+  canAccessAdmin,
+  canAccessDeliveries,
+  canAccessWarehouse,
+  isDriver,
+  isWarehouseOnly,
+} from "@/lib/auth/admin-access";
 import { buildCsp } from "@/lib/security/csp";
 import { imageOptimizerDecision } from "@/lib/security/image-hosts";
 
@@ -112,6 +118,9 @@ export async function updateSession(request: NextRequest) {
   // prefix for the reason `/api/admin` is above — a new warehouse endpoint is
   // closed by default. Each route still checks `canAccessWarehouse` itself.
   const warehouseRoutes = ["/warehouse", "/api/warehouse"];
+  // 102: a driver's whole app. Inside `/warehouse` for the shell and the PWA,
+  // but its own gate: drivers reach these and nothing else.
+  const driverRoutes = ["/warehouse/deliveries", "/api/driver"];
   // The quote flow (paste link → preview → review) is open to visitors; the
   // order submit API and everything after it still require a session.
   // `/app/products` is the catalogue search, and it belongs here for the same
@@ -142,9 +151,10 @@ export async function updateSession(request: NextRequest) {
   const isPublic = publicRoutes.some((p) => pathname.startsWith(p));
   const isAdminRoute = adminRoutes.some((p) => pathname.startsWith(p));
   const isWarehouseRoute = warehouseRoutes.some((p) => pathname.startsWith(p));
+  const isDriverRoute = driverRoutes.some((p) => pathname.startsWith(p));
   const isProtected =
     !isPublic &&
-    (isAdminRoute || isWarehouseRoute || authRoutes.some((p) => pathname.startsWith(p)));
+    (isAdminRoute || isWarehouseRoute || isDriverRoute || authRoutes.some((p) => pathname.startsWith(p)));
 
   // An API route must answer with a STATUS, never a redirect. A 302 to
   // /auth/login reaches `fetch` as a 200 of HTML, which the client parses as
@@ -169,13 +179,31 @@ export async function updateSession(request: NextRequest) {
     if (isApi) return jsonError(403, "Admin access required", csp);
     const url = request.nextUrl.clone();
     // A warehouse operator who types /admin is sent to their own home, not to
-    // a storefront they are also kept out of (below).
-    url.pathname = isWarehouseOnly(user) ? "/warehouse" : "/app";
+    // a storefront they are also kept out of (below). A driver likewise (102).
+    url.pathname = isDriver(user) ? "/warehouse/deliveries" : isWarehouseOnly(user) ? "/warehouse" : "/app";
     url.search = "";
     return withCsp(NextResponse.redirect(url), csp);
   }
 
-  if (isWarehouseRoute && !canAccessWarehouse(user)) {
+  // 102: the deliveries screen and the driver API: drivers, operators, admins.
+  if (isDriverRoute && !canAccessDeliveries(user)) {
+    if (isApi) return jsonError(403, "Delivery access required", csp);
+    const url = request.nextUrl.clone();
+    url.pathname = "/app";
+    url.search = "";
+    return withCsp(NextResponse.redirect(url), csp);
+  }
+
+  // 102: a driver anywhere else in the warehouse goes back to their deliveries.
+  if (isWarehouseRoute && !isDriverRoute && isDriver(user)) {
+    if (isApi) return jsonError(403, "Warehouse access required", csp);
+    const url = request.nextUrl.clone();
+    url.pathname = "/warehouse/deliveries";
+    url.search = "";
+    return withCsp(NextResponse.redirect(url), csp);
+  }
+
+  if (isWarehouseRoute && !isDriverRoute && !canAccessWarehouse(user)) {
     if (isApi) return jsonError(403, "Warehouse access required", csp);
     const url = request.nextUrl.clone();
     url.pathname = "/app";
@@ -188,9 +216,9 @@ export async function updateSession(request: NextRequest) {
   // storefront session. Pages only: an API call under `/api/*` from their own
   // session sees their own (empty) customer data and nothing else, because every
   // RLS policy tests `role = 'admin'`.
-  if (isWarehouseOnly(user) && pathname.startsWith("/app")) {
+  if ((isWarehouseOnly(user) || isDriver(user)) && pathname.startsWith("/app")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/warehouse";
+    url.pathname = isDriver(user) ? "/warehouse/deliveries" : "/warehouse";
     url.search = "";
     return withCsp(NextResponse.redirect(url), csp);
   }

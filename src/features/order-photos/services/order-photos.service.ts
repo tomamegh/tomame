@@ -49,8 +49,8 @@ import { toOrderPhotoView, type OrderPhotoView } from "../types";
 export interface PhotoActor {
   id: string;
   email: string | null;
-  /** 081: an operator at the hub is audited as one, not as an admin. */
-  role?: "admin" | "warehouse";
+  /** 081: an operator at the hub is audited as one, not as an admin. 102: so is a driver. */
+  role?: "admin" | "warehouse" | "driver";
 }
 
 /**
@@ -71,6 +71,11 @@ export interface UploadOrderPhotosInput {
   eventId?: string | null;
   /** False files the picture internally without showing the customer. */
   isCustomerVisible?: boolean;
+  /**
+   * 102: false for a driver's hand-over photo. The "your parcel reached our
+   * hub" email is about the hub; the customer hears "delivered" instead.
+   */
+  notify?: boolean;
 }
 
 // ── Admin writes ────────────────────────────────────────────────────────────
@@ -178,6 +183,7 @@ export async function uploadOrderPhotos(
   // duplicates every picture on the customer's journey with no way to tell the
   // copies apart. The deploy-order problem still surfaces, one line earlier and
   // far more clearly, when `insertOrderPhoto` cannot find `order_photos`.
+  if (input.notify === false) return stored.map(toOrderPhotoView);
   try {
     await notifyParcelPhotoAdded({
       orderId: order.id,

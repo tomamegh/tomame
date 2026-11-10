@@ -70,12 +70,15 @@ export const moveShipmentsSchema = z
      * (075): a Ghana number or an https ride link, provider derived server-side.
      */
     rider: courierHandoffSchema.nullish().transform((v) => v ?? null),
+    /** 102: one of our drivers takes them. Their app then lists these orders. */
+    driver_id: z.uuid().nullish().transform((v) => v ?? null),
   })
   .refine(hasTarget, { message: "Choose at least one package or order" })
-  .refine((v) => !v.rider || v.stage === "out_for_delivery", {
-    message: "A rider goes with Out for delivery",
+  .refine((v) => (!v.rider && !v.driver_id) || v.stage === "out_for_delivery", {
+    message: "A rider or driver goes with Out for delivery",
     path: ["rider"],
-  });
+  })
+  .refine((v) => !(v.rider && v.driver_id), { message: "Choose our driver or another rider, not both", path: ["driver_id"] });
 
 export const shipmentNoticeSchema = z
   .object({

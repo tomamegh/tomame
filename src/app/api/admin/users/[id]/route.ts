@@ -9,7 +9,7 @@ import { getUserDetail, updateUser } from "@/features/users/services/users.servi
 import { z } from "zod";
 
 const updateUserSchema = z.object({
-  role: z.enum(["user", "admin", "warehouse"]),
+  role: z.enum(["user", "admin", "warehouse", "driver"]),
 });
 
 export async function GET(

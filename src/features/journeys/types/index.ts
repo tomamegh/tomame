@@ -164,4 +164,6 @@ export interface JourneyDetailViewModel {
   canConfirmReceived: boolean;
   /** 101: sending their own rider to the Accra warehouse. Null when not on its way. */
   ride: CustomerRideView | null;
+  /** 102: six digits the customer gives the driver at the door. Null until it is close. */
+  deliveryCode: string | null;
 }

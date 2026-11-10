@@ -73,12 +73,15 @@ export function PackageWorkbench({
   openAdd,
   scanned,
   stageSettings,
+  drivers = [],
 }: {
   pkg: WarehousePackage;
   openAdd: boolean;
   scanned: boolean;
   /** 098: for the journey panel once the package has shipped. */
   stageSettings: Record<ShipmentStageKey, StageSetting>;
+  /** 102: offered on Out for delivery. */
+  drivers?: Array<{ id: string; name: string; phone: string | null }>;
 }) {
   const router = useRouter();
   const reduce = useReducedMotion();
@@ -281,7 +284,7 @@ export function PackageWorkbench({
             </ol>
           </section>
 
-          {pkg.status === "shipped" ? <PackageJourneyPanel pkg={pkg} settings={stageSettings} /> : null}
+          {pkg.status === "shipped" ? <PackageJourneyPanel pkg={pkg} settings={stageSettings} drivers={drivers} /> : null}
 
           {/* Contents */}
           <section className="tm-up overflow-hidden rounded-[22px] border border-tm-border bg-card [animation-duration:0.5s] [animation-delay:.06s]">

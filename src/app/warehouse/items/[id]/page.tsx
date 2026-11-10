@@ -9,9 +9,12 @@ import { AdminOrderParcelPanel } from "@/features/order-photos/components/admin-
 import { formatDateTime, formatLbs, recipientLines, STAGE_META } from "@/features/warehouse/components/format";
 import { OrderInboundPanel } from "@/features/warehouse/components/inbound";
 import { ItemActions } from "@/features/warehouse/components/item-actions";
+import { ItemStatusPanel } from "@/features/warehouse/components/item-status-panel";
 import { ItemFlags, ItemThumb, PackageStatusBadge, StageBadge } from "@/features/warehouse/components/warehouse-ui";
 import { listInboundForOrder } from "@/features/warehouse/services/inbound.service";
 import { getWarehouseItem } from "@/features/warehouse/services/warehouse.service";
+import { getOrderShipment, getStageSettingsForStaff } from "@/features/warehouse/services/shipment.service";
+import { listDriversForStaff } from "@/features/drivers/services/driver.service";
 import { APIError } from "@/lib/auth/api-helpers";
 
 export const metadata: Metadata = { title: "Item" };
@@ -40,7 +43,13 @@ export default async function WarehouseItemPage({ params }: { params: Promise<{ 
     throw error;
   }
   // 086: the store's tracking numbers for this order, so the scan finds it.
-  const inbound = await listInboundForOrder(user, id);
+  // 098: its status and tracking step, to move it on its own.
+  const [inbound, shipment, stageSettings, drivers] = await Promise.all([
+    listInboundForOrder(user, id),
+    getOrderShipment(user, id),
+    getStageSettingsForStaff(user),
+    listDriversForStaff(user),
+  ]);
 
   const facts: Array<{ label: string; value: string }> = [
     { label: "Quantity", value: String(item.quantity) },
@@ -54,11 +63,11 @@ export default async function WarehouseItemPage({ params }: { params: Promise<{ 
   return (
     <div className="flex flex-col gap-6">
       <Link
-        href="/warehouse/receive"
+        href="/warehouse"
         className="inline-flex w-fit items-center gap-1.5 text-[13px] font-semibold text-tm-text-2 transition-colors hover:text-tm-ink"
       >
         <ArrowLeftIcon className="size-4" aria-hidden />
-        Receive
+        Orders
       </Link>
 
       <section className="tm-up grid grid-cols-[minmax(0,1fr)] gap-5 rounded-[26px] border border-tm-border bg-card p-5 [animation-duration:0.5s] sm:grid-cols-[auto_minmax(0,1fr)] sm:p-6">
@@ -93,6 +102,8 @@ export default async function WarehouseItemPage({ params }: { params: Promise<{ 
           <ItemActions item={item} />
         </div>
       </section>
+
+      <ItemStatusPanel item={item} shipment={shipment} settings={stageSettings} drivers={drivers} />
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div id="photos" className="flex min-w-0 scroll-mt-24 flex-col gap-6">

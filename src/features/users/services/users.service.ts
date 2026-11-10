@@ -7,7 +7,7 @@ import { revokeUserSessions } from "@/db/queries/auth-sessions";
 import type { MessageResponse } from "@/types/api";
 
 /** The roles a person can be given by hand. `system` is a machine account. */
-export type AssignableRole = "user" | "admin" | "warehouse";
+export type AssignableRole = "user" | "admin" | "warehouse" | "driver";
 import type { Order } from "@/features/orders/types";
 import type {
   PlatformUser,

@@ -70,6 +70,8 @@ const AddUserForm = ({ ...props }: FormProps) => {
                 ? `${data.email} can now reach every admin screen and endpoint.`
                 : data.role === "warehouse"
                   ? `${data.email} can sign in to the warehouse packaging platform.`
+                  : data.role === "driver"
+                    ? `${data.email} can sign in and see the deliveries assigned to them. Add their Ghana phone number so customers can reach them.`
                   : `${data.email} can sign in to the storefront.`,
           });
           form.reset();
@@ -186,6 +188,7 @@ const AddUserForm = ({ ...props }: FormProps) => {
                         <SelectGroup>
                           <SelectItem value="user">User</SelectItem>
                           <SelectItem value="warehouse">Warehouse operator</SelectItem>
+                          <SelectItem value="driver">Driver</SelectItem>
                           <SelectItem value="admin">Admin</SelectItem>
                         </SelectGroup>
                       </SelectContent>
@@ -204,9 +207,9 @@ const AddUserForm = ({ ...props }: FormProps) => {
               spelled out where the choice is made, in the same words the role
               control on a user's page uses.
             */}
-            {(form.watch("role") === "admin" || form.watch("role") === "warehouse") && (
+            {(form.watch("role") === "admin" || form.watch("role") === "warehouse" || form.watch("role") === "driver") && (
               <p className="rounded-[12px] bg-tm-amber-bg px-3.5 py-2.5 text-[12px] leading-[1.5] font-medium text-[#7a4a06]">
-                {roleGrantSummary(form.watch("role") === "admin" ? "admin" : "warehouse")}
+                {roleGrantSummary(form.watch("role") as "admin" | "warehouse" | "driver")}
               </p>
             )}
             <Controller

@@ -4,6 +4,7 @@ import { RATE_LIMIT } from "@/config/security";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import type { PlatformUser } from "@/features/users/types";
 import { APIError } from "@/lib/auth/api-helpers";
+import { canAccessDeliveries } from "@/lib/auth/admin-access";
 import { requireAuth, requireWarehouse } from "@/lib/auth/guards";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
@@ -22,6 +23,20 @@ export async function authenticateWarehouse(
   }
   const user = requireAuth(await getAuthenticatedUser());
   return requireWarehouse(user);
+}
+
+/**
+ * The opening lines of every `/api/driver/*` handler (102): rate limit, signed
+ * in, and a driver, operator or admin. The service scopes a driver to their own.
+ */
+export async function authenticateDelivery(request: NextRequest, bucket: string): Promise<PlatformUser> {
+  const ip = getClientIp(request);
+  if (!(await checkRateLimit(`driver-${bucket}:${ip}`, RATE_LIMIT.admin)).allowed) {
+    throw new APIError(429, "Too many requests");
+  }
+  const user = requireAuth(await getAuthenticatedUser());
+  if (!canAccessDeliveries(user)) throw new APIError(403, "Delivery access required");
+  return user;
 }
 
 /** A JSON body, or a 400 that says so. */

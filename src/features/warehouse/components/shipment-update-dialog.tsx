@@ -58,6 +58,7 @@ export function ShipmentUpdateDialog({
   settings,
   suggestedStage,
   onDone,
+  drivers = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -66,6 +67,8 @@ export function ShipmentUpdateDialog({
   settings: Record<ShipmentStageKey, StageSetting>;
   suggestedStage: MovableStage | null;
   onDone?: () => void;
+  /** 102: our drivers, offered on Out for delivery. */
+  drivers?: Array<{ id: string; name: string; phone: string | null }>;
 }) {
   const router = useRouter();
   const [stage, setStage] = useState<MovableStage>(suggestedStage ?? "arrived_country");
@@ -76,6 +79,8 @@ export function ShipmentUpdateDialog({
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [rideLink, setRideLink] = useState("");
+  const [driverId, setDriverId] = useState<string>("");
+  const [riderKind, setRiderKind] = useState<"driver" | "other">("driver");
   const [notify, setNotify] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -90,8 +95,10 @@ export function ShipmentUpdateDialog({
     setContactName("");
     setContactPhone("");
     setRideLink("");
+    setDriverId("");
+    setRiderKind(drivers.length > 0 ? "driver" : "other");
     setNotify(true);
-  }, [open, suggestedStage]);
+  }, [open, suggestedStage, drivers.length]);
 
   const setting = mode === "move" ? settings[stage] : null;
   const riderStep = mode === "move" && stage === "out_for_delivery";
@@ -105,12 +112,13 @@ export function ShipmentUpdateDialog({
     try {
       // 101: on Out for delivery the box names the rider, who goes through the
       // same hand-off as the admin page (rider card, email, WhatsApp).
-      const withRider = riderStep && (contactPhone.trim() || rideLink.trim());
+      const useDriver = riderStep && riderKind === "driver" && !!driverId;
+      const withRider = riderStep && !useDriver && riderKind === "other" && (contactPhone.trim() || rideLink.trim());
       const common = {
         package_ids: targets.package_ids,
         order_ids: targets.order_ids,
-        contact_name: withRider ? null : contactName.trim() || null,
-        contact_phone: withRider ? null : contactPhone.trim() || null,
+        contact_name: withRider || useDriver ? null : contactName.trim() || null,
+        contact_phone: withRider || useDriver ? null : contactPhone.trim() || null,
         notify,
       };
       const result =
@@ -124,6 +132,7 @@ export function ShipmentUpdateDialog({
               rider: withRider
                 ? { courier_name: contactName, courier_phone: contactPhone, tracking_url: rideLink }
                 : null,
+              driver_id: useDriver ? driverId : null,
             })
           : await warehouseRequest<MoveResult>("/api/warehouse/shipments/notice", "POST", {
               ...common,
@@ -255,7 +264,48 @@ export function ShipmentUpdateDialog({
             </label>
           )}
 
-          {mode !== "clear" && !(mode === "move" && stage === "delivered") && (
+          {riderStep && drivers.length > 0 && (
+            <div className="flex flex-col gap-2 rounded-[16px] bg-tm-paper p-3">
+              <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-tm-ink">
+                <BikeIcon className="size-3.5" aria-hidden />
+                Who is taking them
+              </span>
+              <div className="grid grid-cols-2 gap-1 rounded-[12px] border border-tm-border bg-card p-1">
+                {(["driver", "other"] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setRiderKind(k)}
+                    aria-pressed={riderKind === k}
+                    className={cn(
+                      "h-9 rounded-[9px] text-[13px] font-semibold",
+                      riderKind === k ? "bg-tm-ink text-white" : "text-tm-text-2 hover:bg-tm-paper",
+                    )}
+                  >
+                    {k === "driver" ? "Our driver" : "Another rider"}
+                  </button>
+                ))}
+              </div>
+              {riderKind === "driver" && (
+                <>
+                  <select value={driverId} onChange={(e) => setDriverId(e.target.value)} className={FIELD} aria-label="Driver">
+                    <option value="">Choose a driver…</option>
+                    {drivers.map((d) => (
+                      <option key={d.id} value={d.id} disabled={!d.phone}>
+                        {d.name}
+                        {d.phone ? "" : " (no phone on profile)"}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[12px] font-medium text-tm-text-3">
+                    The parcels appear in their app. Customers get the driver&apos;s name and number, and a code to give them at the door.
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
+          {mode !== "clear" && !(mode === "move" && stage === "delivered") && !(riderStep && drivers.length > 0 && riderKind === "driver") && (
             <div className="flex flex-col gap-2 rounded-[16px] bg-tm-paper p-3">
               <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-tm-ink">
                 {riderStep ? <BikeIcon className="size-3.5" aria-hidden /> : <PhoneIcon className="size-3.5" aria-hidden />}

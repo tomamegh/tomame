@@ -17,6 +17,7 @@ import type { JourneyDetailViewModel } from "../types";
 import { JourneyItemCard } from "./journey-item-card";
 import { JourneyPaidCard } from "./journey-paid-card";
 import { JourneyPhotosCard } from "./journey-photos-card";
+import { JourneyDeliveryCodeCard } from "./journey-delivery-code-card";
 import { JourneyOwnRideCard } from "./journey-own-ride-card";
 import { JourneyProgressCard } from "./journey-progress-card";
 import { JourneyTrackRail } from "./journey-track-rail";
@@ -183,6 +184,9 @@ export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyD
             The rider comes straight after the track: when someone is on a
             motorbike with the parcel, the number to call is the whole page.
           */}
+          {/* 102: right under the track, where it is found at the door. */}
+          {journey.deliveryCode && <JourneyDeliveryCodeCard code={journey.deliveryCode} />}
+
           {courier}
 
           {/* 098: every leg, who to call about the current one, and any delay. */}

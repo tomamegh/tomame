@@ -12,8 +12,15 @@ import { getOrder } from "@/features/orders/services/orders.service";
 import { listPaymentChannels } from "@/features/payments/services/payment-channels.service";
 import { pickProductColour } from "@/features/quotes/components/format";
 import { getCustomerRideView } from "@/features/order-delivery/services/customer-ride.service";
+import { getViewerDeliveryCode } from "@/db/queries/driver-deliveries";
+import { ensureDeliveryCodes } from "@/features/drivers/services/delivery-code.service";
 import { loadStageSettings } from "@/features/shipments/stage-settings.service";
-import { currentStageKey as deriveCurrent, deriveShipmentProgress, transitLabel } from "@/features/shipments/stages";
+import {
+  STAGE_RANK,
+  currentStageKey as deriveCurrent,
+  deriveShipmentProgress,
+  transitLabel,
+} from "@/features/shipments/stages";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -134,6 +141,7 @@ export async function getJourneyDetail(
     progress,
     canConfirmReceived: order.status === "in_transit" && !order.held_at,
     ride,
+    deliveryCode: await deliveryCodeFor(user, order.id, order.status, progress.current),
   };
 }
 
@@ -248,4 +256,27 @@ function itemOf(order: Order): JourneyItem {
     url: order.product_url,
     imageUrl: order.product_image_url ?? product?.image ?? null,
   };
+}
+
+/**
+ * 102: the code the customer gives the driver, once the parcel is at our Accra
+ * warehouse or nearer. An order that got there before codes existed is issued
+ * one now. A failure costs the code card, never the page.
+ */
+async function deliveryCodeFor(
+  user: PlatformUser,
+  orderId: string,
+  status: string,
+  stage: ReturnType<typeof deriveCurrent>,
+): Promise<string | null> {
+  if (status !== "in_transit" || !stage || STAGE_RANK[stage] < STAGE_RANK.ghana_warehouse) return null;
+  try {
+    const code = await getViewerDeliveryCode(user.id, orderId);
+    if (code) return code;
+    await ensureDeliveryCodes([orderId]);
+    return await getViewerDeliveryCode(user.id, orderId);
+  } catch (error) {
+    logger.warn("journey detail: delivery code unavailable", { orderId, error: String(error) });
+    return null;
+  }
 }

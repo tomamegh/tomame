@@ -63,3 +63,17 @@ export function canAccessWarehouse(subject: AdminAccessSubject | null | undefine
 export function isWarehouseOnly(subject: AdminAccessSubject | null | undefined): boolean {
   return subject?.app_metadata?.role === "warehouse";
 }
+
+/**
+ * A driver (102). Their whole app is `/warehouse/deliveries` and `/api/driver/*`:
+ * the deliveries assigned to them, nothing of the hub's bench, the admin or the
+ * storefront. The proxy sends them home from anywhere else.
+ */
+export function isDriver(subject: AdminAccessSubject | null | undefined): boolean {
+  return subject?.app_metadata?.role === "driver";
+}
+
+/** Who may open the deliveries screen and its API: drivers, operators and admins. */
+export function canAccessDeliveries(subject: AdminAccessSubject | null | undefined): boolean {
+  return isDriver(subject) || canAccessWarehouse(subject);
+}

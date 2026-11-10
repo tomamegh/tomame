@@ -44,6 +44,7 @@ const ROLE_FILTERS = [
   { value: "admin", label: "Admins" },
   { value: "user", label: "Customers" },
   { value: "warehouse", label: "Warehouse" },
+  { value: "driver", label: "Drivers" },
 ] as const;
 
 export default async function AdminUsersPage({
@@ -57,7 +58,7 @@ export default async function AdminUsersPage({
   const params = await searchParams;
   const rawRole = Array.isArray(params.role) ? params.role[0] : params.role;
   const role =
-    rawRole === "admin" || rawRole === "user" || rawRole === "warehouse" ? rawRole : undefined;
+    rawRole === "admin" || rawRole === "user" || rawRole === "warehouse" || rawRole === "driver" ? rawRole : undefined;
 
   const { users, count, stats } = await listUsers(createAdminClient(), viewer, { role });
 
@@ -109,7 +110,9 @@ export default async function AdminUsersPage({
               ? "Customers"
               : role === "warehouse"
                 ? "Warehouse operators"
-                : "All accounts"
+                : role === "driver"
+                  ? "Drivers"
+                  : "All accounts"
         }
         blurb={`${formatCount(count)} ${count === 1 ? "account" : "accounts"}, newest first.`}
         action={
@@ -148,6 +151,8 @@ export default async function AdminUsersPage({
                   ? "Every account on the platform is an admin account. No customer has signed up yet."
                   : role === "warehouse"
                     ? "No warehouse operators yet. Add a user with the Warehouse role to give someone at the hub the packaging platform, and nothing else."
+                    : role === "driver"
+                    ? "No drivers yet. Add a user with the Driver role (with their Ghana phone number) to let them see and complete the deliveries you assign them."
                     : "Nobody has signed up and no account has been created by hand."
             }
           >

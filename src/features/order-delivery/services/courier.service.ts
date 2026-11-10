@@ -17,6 +17,7 @@ import {
 } from "@/db/queries/notifications";
 import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { ensureDeliveryCodes } from "@/features/drivers/services/delivery-code.service";
 import { recordOrderEvent } from "@/features/orders/services/order-events.service";
 import type { PlatformUser } from "@/features/users/types";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
@@ -158,6 +159,9 @@ export async function handOverToRider(
     contact_name: input.courier_phone ? input.courier_name : null,
     contact_phone: input.courier_phone,
   });
+
+  // 102: the customer needs their code before the rider reaches them.
+  await ensureDeliveryCodes([orderId]);
 
   if (opts.notify === false) return { courier: saved, action, notification: "skipped" };
   const notification = await notifyCourierDispatched(order, saved, Boolean(previous), now);

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowRightIcon, CheckIcon, ClockAlertIcon, PackageIcon, UsersIcon, XIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon, ChevronDownIcon, ClockAlertIcon, PackageIcon, UsersIcon, XIcon } from "lucide-react";
 
 import { AdminBadge, type AdminTone } from "@/components/layout/admin/admin-page";
 import { AdminButton } from "@/components/layout/admin/controls";
@@ -16,7 +16,7 @@ import {
 } from "@/features/shipments/stages";
 import { cn } from "@/lib/utils";
 
-import type { ShipmentBoard, ShipmentOrder, WarehousePackage } from "../types";
+import type { ShipmentBoard, ShipmentOrder, WarehouseItem, WarehousePackage } from "../types";
 import { formatRelative, pluralise, recipientPlace } from "./format";
 import { CustomerRidesPanel } from "./customer-rides-panel";
 import { ShipmentUpdateDialog, type ShipmentUpdateMode } from "./shipment-update-dialog";
@@ -67,9 +67,11 @@ function inFilter(stage: ShipmentStageKey | null, filter: Filter): boolean {
 export function ShipmentsBoard({
   board,
   settings,
+  drivers = [],
 }: {
   board: ShipmentBoard;
   settings: Record<ShipmentStageKey, StageSetting>;
+  drivers?: Array<{ id: string; name: string; phone: string | null }>;
 }) {
   const [filter, setFilter] = useState<Filter>("moving");
   const [pickedPackages, setPickedPackages] = useState<Set<string>>(new Set());
@@ -90,25 +92,40 @@ export function ShipmentsBoard({
     [board],
   );
 
+  // 098: an order can be ticked on its own, loose or inside a box. An order
+  // inside a box that is itself ticked moves with the box and is not sent twice.
+  const inBox = useMemo(() => {
+    const map = new Map<string, { item: WarehouseItem; pkgId: string }>();
+    for (const p of board.packages) for (const l of p.lines) if (l.item) map.set(l.item.order_id, { item: l.item, pkgId: p.id });
+    return map;
+  }, [board]);
   const selectedPackages = board.packages.filter((p) => pickedPackages.has(p.id));
   const selectedLoose = board.loose.filter((o) => pickedOrders.has(o.item.order_id));
-  const selectionCount = selectedPackages.length + selectedLoose.length;
+  const selectedInner = [...pickedOrders]
+    .map((id) => inBox.get(id))
+    .filter((x): x is { item: WarehouseItem; pkgId: string } => !!x && !pickedPackages.has(x.pkgId));
+  const singleOrderIds = [...selectedLoose.map((o) => o.item.order_id), ...selectedInner.map((x) => x.item.order_id)];
+  const selectionCount = selectedPackages.length + singleOrderIds.length;
   const orderCount =
-    selectedPackages.reduce((n, p) => n + p.lines.filter((l) => l.item).length, 0) + selectedLoose.length;
+    selectedPackages.reduce((n, p) => n + p.lines.filter((l) => l.item).length, 0) + singleOrderIds.length;
   const customerCount = new Set([
     ...selectedPackages.flatMap((p) => p.lines.flatMap((l) => (l.item ? [l.item.customer_key] : []))),
     ...selectedLoose.map((o) => o.item.customer_key),
+    ...selectedInner.map((x) => x.item.customer_key),
   ]).size;
 
   // The step after the furthest-behind thing selected: moving a mixed selection
   // forward never skips the one that is lagging.
-  const selectedStages = [...selectedPackages.map((p) => p.stage), ...selectedLoose.map((o) => o.stage)].filter(
-    (s): s is ShipmentStageKey => !!s,
-  );
+  const selectedStages = [
+    ...selectedPackages.map((p) => p.stage),
+    ...selectedLoose.map((o) => o.stage),
+    ...selectedInner.map((x) => board.order_stages[x.item.order_id] ?? null),
+  ].filter((s): s is ShipmentStageKey => !!s);
   const slowest = selectedStages.sort((a, b) => STAGE_RANK[a] - STAGE_RANK[b])[0] ?? null;
   const allPickup =
     selectedPackages.every((p) => p.recipients.every((r) => r.kind === "pickup")) &&
-    selectedLoose.every((o) => o.item.recipient.kind === "pickup");
+    selectedLoose.every((o) => o.item.recipient.kind === "pickup") &&
+    selectedInner.every((x) => x.item.recipient.kind === "pickup");
   const suggested = nextMovableStage(slowest, allPickup);
   const anyNotice = selectedPackages.some((p) => p.notice) || selectedLoose.some((o) => o.notice);
 
@@ -192,6 +209,8 @@ export function ShipmentsBoard({
                     pkg={pkg}
                     picked={pickedPackages.has(pkg.id)}
                     onToggle={() => toggle(pickedPackages, pkg.id, setPickedPackages)}
+                    pickedOrders={pickedOrders}
+                    onToggleOrder={(id) => toggle(pickedOrders, id, setPickedOrders)}
                     orderStages={board.order_stages}
                     typicalDays={pkg.stage ? settings[pkg.stage].typical_days : null}
                   />
@@ -257,10 +276,11 @@ export function ShipmentsBoard({
         suggestedStage={suggested}
         targets={{
           package_ids: selectedPackages.map((p) => p.id),
-          order_ids: selectedLoose.map((o) => o.item.order_id),
+          order_ids: singleOrderIds,
           summary: summaryText(selectedPackages.length, orderCount, customerCount),
         }}
         onDone={clear}
+        drivers={drivers}
       />
     </div>
   );
@@ -322,15 +342,20 @@ function PackageRow({
   pkg,
   picked,
   onToggle,
+  pickedOrders,
+  onToggleOrder,
   orderStages,
   typicalDays,
 }: {
   pkg: WarehousePackage;
   picked: boolean;
   onToggle: () => void;
+  pickedOrders: Set<string>;
+  onToggleOrder: (orderId: string) => void;
   orderStages: Record<string, ShipmentStageKey | null>;
   typicalDays: number | null;
 }) {
+  const [open, setOpen] = useState(false);
   const items = pkg.lines.flatMap((l) => (l.item ? [l.item] : []));
   const behind = items.filter((i) => {
     const s = orderStages[i.order_id];
@@ -341,43 +366,87 @@ function PackageRow({
   return (
     <li
       className={cn(
-        "flex items-center gap-3 rounded-[18px] border bg-card p-3 transition-colors",
+        "flex flex-col rounded-[18px] border bg-card transition-colors",
         picked ? "border-tm-coral bg-tm-tint/40" : "border-tm-border",
       )}
     >
-      <button type="button" onClick={onToggle} aria-pressed={picked} aria-label={`Select ${pkg.reference}`} className="p-1">
-        <Tick on={picked} />
-      </button>
-      <div className="flex -space-x-3">
-        {items.slice(0, 3).map((item) => (
-          <ItemThumb key={item.order_id} item={item} size={40} rounded={12} className="ring-2 ring-card" />
-        ))}
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <Link href={`/warehouse/packages/${pkg.id}`} className="font-mono text-[14.5px] font-bold text-tm-ink hover:underline">
-            {pkg.reference}
-          </Link>
-          <span className="text-[12px] font-medium text-tm-text-3">
-            {pluralise(items.length, "order")}
-            {pkg.is_consolidated ? (
-              <>
-                {" · "}
-                <UsersIcon className="inline size-3 align-[-1px]" aria-hidden /> {pkg.recipients.length}
-              </>
-            ) : place ? (
-              ` · ${place}`
-            ) : null}
-            {pkg.service === "sea" ? " · Sea" : ""}
-          </span>
+      <div className="flex items-center gap-3 p-3">
+        <button type="button" onClick={onToggle} aria-pressed={picked} aria-label={`Select ${pkg.reference}`} className="p-1">
+          <Tick on={picked} />
+        </button>
+        <div className="flex -space-x-3">
+          {items.slice(0, 3).map((item) => (
+            <ItemThumb key={item.order_id} item={item} size={40} rounded={12} className="ring-2 ring-card" />
+          ))}
         </div>
-        <StageLine stage={pkg.stage} at={pkg.stage_at} typicalDays={typicalDays} notice={pkg.notice} />
-        {behind > 0 && (
-          <span className="text-[12px] font-medium text-tm-text-3">
-            {pluralise(behind, "order")} inside {behind === 1 ? "is" : "are"} a step behind (on hold or added late).
-          </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <Link href={`/warehouse/packages/${pkg.id}`} className="font-mono text-[14.5px] font-bold text-tm-ink hover:underline">
+              {pkg.reference}
+            </Link>
+            <span className="text-[12px] font-medium text-tm-text-3">
+              {pluralise(items.length, "order")}
+              {pkg.is_consolidated ? (
+                <>
+                  {" · "}
+                  <UsersIcon className="inline size-3 align-[-1px]" aria-hidden /> {pkg.recipients.length}
+                </>
+              ) : place ? (
+                ` · ${place}`
+              ) : null}
+              {pkg.service === "sea" ? " · Sea" : ""}
+            </span>
+          </div>
+          <StageLine stage={pkg.stage} at={pkg.stage_at} typicalDays={typicalDays} notice={pkg.notice} />
+          {behind > 0 && (
+            <span className="text-[12px] font-medium text-tm-text-3">
+              {pluralise(behind, "order")} inside {behind === 1 ? "is" : "are"} a step behind (on hold or added late).
+            </span>
+          )}
+        </div>
+        {items.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-label={`${open ? "Hide" : "Show"} the orders in ${pkg.reference}`}
+            className="flex h-10 shrink-0 items-center gap-1 rounded-full px-2.5 text-[12.5px] font-semibold text-tm-text-2 hover:bg-tm-paper"
+          >
+            <span className="hidden sm:inline">Orders</span>
+            <ChevronDownIcon className={cn("size-4 transition-transform", open && "rotate-180")} aria-hidden />
+          </button>
         )}
       </div>
+      {open && (
+        <ul className="divide-y divide-tm-hairline border-t border-tm-hairline">
+          {items.map((item) => {
+            const on = picked || pickedOrders.has(item.order_id);
+            const stage = orderStages[item.order_id] ?? null;
+            return (
+              <li key={item.order_id}>
+                <button
+                  type="button"
+                  onClick={() => onToggleOrder(item.order_id)}
+                  disabled={picked}
+                  aria-pressed={on}
+                  aria-label={`Select ${item.order_no} on its own`}
+                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left disabled:cursor-default"
+                >
+                  <Tick on={on} />
+                  <ItemThumb item={item} size={36} rounded={10} />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[13px] font-semibold text-tm-ink">
+                      <span className="font-mono">{item.order_no}</span> · {item.title}
+                    </span>
+                    <span className="truncate text-[12px] font-medium text-tm-text-3">{item.recipient.name ?? "Customer"}</span>
+                  </span>
+                  {stage ? <AdminBadge tone={STAGE_TONE[stage]}>{STAFF_STAGE_LABEL[stage]}</AdminBadge> : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </li>
   );
 }

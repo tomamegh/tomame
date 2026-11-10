@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/features/drivers/services/delivery-code.service", () => ({ ensureDeliveryCodes: vi.fn() }));
 // WhatsApp (079) is queued beside the email; its own tests live in notifications.
 vi.mock("@/features/notifications/services/whatsapp.service", () => ({ queueWhatsApp: vi.fn(async () => "not_configured") }));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));

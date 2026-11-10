@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { WarehouseActivityBeacon } from "@/features/warehouse/components/activity-beacon";
 import { WarehouseShell } from "@/features/warehouse/components/warehouse-shell";
-import { canAccessAdmin, canAccessWarehouse } from "@/lib/auth/admin-access";
+import { canAccessAdmin, canAccessDeliveries, isDriver } from "@/lib/auth/admin-access";
 
 export const metadata: Metadata = {
   title: { default: "Warehouse", template: "%s · Warehouse · Tomame" },
@@ -31,7 +31,9 @@ export default async function WarehouseLayout({ children }: { children: React.Re
   // A session revoked since its token was minted passes the proxy and fails
   // here: send it to sign in, not to a 404 (see warehousePageUser).
   if (!user) redirect("/auth/login?next=%2Fwarehouse");
-  if (!canAccessWarehouse(user)) notFound();
+  // 102: drivers use this shell for their deliveries; the proxy keeps them there.
+  if (!canAccessDeliveries(user)) notFound();
+  const driver = isDriver(user);
 
   const name =
     [user.profile?.first_name, user.profile?.last_name].filter(Boolean).join(" ").trim() ||
@@ -39,9 +41,9 @@ export default async function WarehouseLayout({ children }: { children: React.Re
     "Operator";
 
   return (
-    <WarehouseShell operator={{ name, email: user.email ?? null, isAdmin: canAccessAdmin(user) }}>
-      {/* 082: page views for the admin's activity trail. Renders nothing. */}
-      <WarehouseActivityBeacon />
+    <WarehouseShell operator={{ name, email: user.email ?? null, isAdmin: canAccessAdmin(user), isDriver: driver }}>
+      {/* 082: page views for the admin's activity trail. Renders nothing. Hub staff only. */}
+      {driver ? null : <WarehouseActivityBeacon />}
       {children}
     </WarehouseShell>
   );

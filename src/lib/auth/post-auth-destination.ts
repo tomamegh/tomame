@@ -31,6 +31,8 @@ export interface PostAuthDestinationInput {
    * the proxy would only bounce them back, which reads as a login that refuses.
    */
   isWarehouse?: boolean;
+  /** A driver (102): always their deliveries, `next` honoured only inside them. */
+  isDriver?: boolean;
 }
 
 /** Where a customer goes with no other instruction. */
@@ -39,13 +41,19 @@ export const CUSTOMER_HOME = "/app";
 export const ADMIN_HOME = "/admin";
 /** Where a warehouse operator goes, always (081). */
 export const WAREHOUSE_HOME = "/warehouse";
+/** Where a driver goes, always (102). */
+export const DRIVER_HOME = "/warehouse/deliveries";
 
 export function postAuthDestination({
   next,
   isAdmin,
   isWarehouse = false,
+  isDriver = false,
 }: PostAuthDestinationInput): string {
   const explicit = safeInternalPath(next);
+  if (isDriver && !isAdmin) {
+    return explicit && isUnder(explicit, DRIVER_HOME) ? explicit : DRIVER_HOME;
+  }
   if (isWarehouse && !isAdmin) {
     return explicit && isUnder(explicit, WAREHOUSE_HOME) ? explicit : WAREHOUSE_HOME;
   }
