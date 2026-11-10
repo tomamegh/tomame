@@ -12,6 +12,7 @@ import {
   getStaffContactMessage,
   getStaffOrderFeedback,
   getStaffPayment,
+  getStaffRideRequest,
   getStaffSourcingRequest,
   listStaffOrdersByGroup,
   readSiteSettingValues,
@@ -521,6 +522,39 @@ export async function buildAlert(t: StaffAlertTrigger, environment: string | nul
         facts: [["What they said", feedback.message.slice(0, 1000)]],
       };
     }
+    case "customer_ride": {
+      const target = await orderTarget(t.orderId);
+      const [customer, ride] = await Promise.all([customerOf(target.userId), getStaffRideRequest(t.orderId)]);
+      const coming = t.action === "requested";
+      const eta = ride?.ride_eta ? formatAccraTime(ride.ride_eta) : null;
+      return {
+        customer,
+        items: target.items,
+        totalGhs: null,
+        payment: null,
+        adminHref: "/warehouse/shipments",
+        adminLabel: "Open shipments",
+        environment,
+        subject: `${p} ${coming ? "Customer's rider coming" : "Customer's rider called off"} ${target.reference}${coming && eta ? ` · ${eta}` : ""}`,
+        eyebrow: coming ? "Own rider" : "Rider cancelled",
+        tone: coming ? "amber" : "neutral",
+        headline: coming
+          ? `${target.reference}: the customer is sending their own rider`
+          : `${target.reference}: the customer cancelled their rider`,
+        summary: coming
+          ? `${customer.name ?? customer.email ?? "The customer"} booked a ride to collect this from the Accra warehouse. Have it ready and hand it over from the shipments board.`
+          : `${customer.name ?? customer.email ?? "The customer"} is no longer sending a rider. Deliver it as usual.`,
+        facts: coming && ride
+          ? ([
+              ["Rider", ride.ride_rider_name ?? "Not given"],
+              ["Rider's phone", ride.ride_rider_phone ?? "Not given"],
+              ["Arriving", eta ?? "Not given"],
+              ride.ride_tracking_url ? ["Ride link", ride.ride_tracking_url] : null,
+              ride.ride_note ? ["Note", ride.ride_note] : null,
+            ].filter(Boolean) as Array<[string, string]>)
+          : [],
+      };
+    }
     case "contact_message": {
       const message = await getStaffContactMessage(t.messageId);
       if (!message) throw new Error(`contact message ${t.messageId} not found`);
@@ -582,4 +616,18 @@ function hostLabel(url: string): string {
   } catch {
     return url.slice(0, 60);
   }
+}
+
+/** "Tue 11 Nov, 15:40" in Accra (GMT, no DST). */
+function formatAccraTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Africa/Accra",
+  }).format(date);
 }

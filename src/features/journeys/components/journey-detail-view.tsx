@@ -17,6 +17,7 @@ import type { JourneyDetailViewModel } from "../types";
 import { JourneyItemCard } from "./journey-item-card";
 import { JourneyPaidCard } from "./journey-paid-card";
 import { JourneyPhotosCard } from "./journey-photos-card";
+import { JourneyOwnRideCard } from "./journey-own-ride-card";
 import { JourneyProgressCard } from "./journey-progress-card";
 import { JourneyTrackRail } from "./journey-track-rail";
 import { JourneyUpdatesCard } from "./journey-updates-card";
@@ -187,9 +188,14 @@ export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyD
           {/* 098: every leg, who to call about the current one, and any delay. */}
           <JourneyProgressCard
             progress={journey.progress}
+            orderId={journey.id}
             orderNo={journey.orderNo}
+            canConfirmReceived={journey.canConfirmReceived}
             fallbackWhatsappHref={journey.whatsappHref}
           />
+
+          {/* 101: free delivery stays the default; this is the "I'll send a ride" option. */}
+          {journey.ride && <JourneyOwnRideCard orderId={journey.id} orderNo={journey.orderNo} ride={journey.ride} />}
 
           {/*
             ABOVE Updates and above the receipt (054). The photograph is the

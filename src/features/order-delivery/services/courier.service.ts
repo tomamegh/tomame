@@ -61,7 +61,32 @@ export async function dispatchOrderCourier(
 ): Promise<CourierDispatchResult> {
   // The second lock on the door; the route checks the session too.
   if (!canAccessAdmin(admin)) throw new APIError(403, "Admin access required");
+  return handOverToRider({ actorId: admin.id, actorRole: AUDIT_ACTOR_ROLES.ADMIN }, orderId, input, {}, now);
+}
 
+export interface HandOverOptions {
+  /** 101: the customer booked this ride; it is theirs, we only hand over. */
+  arrangedBy?: "tomame" | "customer";
+  /** The timeline line; defaults to "A rider has your package". */
+  title?: string;
+  /** 098: the package the order left in, for the shipments board. */
+  packageId?: string | null;
+  /** false when the caller tells this customer once for several orders. */
+  notify?: boolean;
+}
+
+/**
+ * The hand-off itself, for every caller that has already checked who it is
+ * talking to: the admin order page, the warehouse's "Out for delivery" (098)
+ * and a customer's own rider arriving at the Accra warehouse (101).
+ */
+export async function handOverToRider(
+  actor: { actorId: string; actorRole: "admin" | "warehouse" },
+  orderId: string,
+  input: CourierHandoff,
+  opts: HandOverOptions = {},
+  now: Date = new Date(),
+): Promise<CourierDispatchResult> {
   const order = await getCourierOrder(orderId);
   if (!order) throw new APIError(404, "Order not found");
   if (order.status !== "in_transit") {
@@ -92,12 +117,13 @@ export async function dispatchOrderCourier(
     // When the parcel first left with a rider. A corrected link is not a
     // second departure.
     dispatchedAt: previous?.dispatchedAt ?? nowIso,
-    dispatchedBy: admin.id,
+    dispatchedBy: actor.actorId,
+    arrangedBy: opts.arrangedBy ?? "tomame",
   });
 
   await logAuditEvent({
-    actorId: admin.id,
-    actorRole: AUDIT_ACTOR_ROLES.ADMIN,
+    actorId: actor.actorId,
+    actorRole: actor.actorRole,
     action,
     entityType: AUDIT_ENTITY_TYPES.ORDER,
     entityId: orderId,
@@ -108,6 +134,7 @@ export async function dispatchOrderCourier(
       courier_phone: maskPhone(input.courier_phone),
       provider: input.provider,
       tracking_host: input.tracking_url ? new URL(input.tracking_url).hostname : null,
+      arranged_by: opts.arrangedBy ?? "tomame",
       previous: previous
         ? {
             courier_name: previous.name,
@@ -122,12 +149,17 @@ export async function dispatchOrderCourier(
     order_id: orderId,
     order_group_id: order.order_group_id,
     kind: "out_for_delivery",
-    title: previous ? "Rider details updated" : "A rider has your package",
+    title: opts.title ?? (previous ? "Rider details updated" : "A rider has your package"),
     detail: describeCourier(input),
     occurred_at: nowIso,
-    created_by: admin.id,
+    created_by: actor.actorId,
+    package_id: opts.packageId ?? null,
+    // 098: the progress timeline offers this number for the current step.
+    contact_name: input.courier_phone ? input.courier_name : null,
+    contact_phone: input.courier_phone,
   });
 
+  if (opts.notify === false) return { courier: saved, action, notification: "skipped" };
   const notification = await notifyCourierDispatched(order, saved, Boolean(previous), now);
   const courier =
     notification === "notified" || notification === "email_failed"

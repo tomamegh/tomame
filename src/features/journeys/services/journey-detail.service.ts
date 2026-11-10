@@ -11,8 +11,9 @@ import { deriveJourneyTrack } from "@/features/orders/services/journey-track";
 import { getOrder } from "@/features/orders/services/orders.service";
 import { listPaymentChannels } from "@/features/payments/services/payment-channels.service";
 import { pickProductColour } from "@/features/quotes/components/format";
+import { getCustomerRideView } from "@/features/order-delivery/services/customer-ride.service";
 import { loadStageSettings } from "@/features/shipments/stage-settings.service";
-import { deriveShipmentProgress, transitLabel } from "@/features/shipments/stages";
+import { currentStageKey as deriveCurrent, deriveShipmentProgress, transitLabel } from "@/features/shipments/stages";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -64,6 +65,14 @@ export async function getJourneyDetail(
 
   const stage = journeyStageFor(order.status);
   const eta = etaOf(order);
+  const ride =
+    order.status === "in_transit"
+      ? await getCustomerRideView(user, order.id, {
+          status: order.status,
+          held: !!order.held_at,
+          stage: deriveCurrent(order.status, events),
+        }).catch(() => null)
+      : null;
   const deliverTo = deliverToOf(group?.delivery_address ?? null);
   const progress = deriveShipmentProgress({
     status: order.status,
@@ -123,6 +132,8 @@ export async function getJourneyDetail(
         : null,
     groupSiblings: siblings,
     progress,
+    canConfirmReceived: order.status === "in_transit" && !order.held_at,
+    ride,
   };
 }
 

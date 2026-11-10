@@ -1,4 +1,5 @@
 import type { ShipmentProgress } from "@/features/shipments/stages";
+import type { CustomerRideView } from "@/features/order-delivery/customer-ride";
 import type { OrderEventRow } from "@/db/queries/order-events";
 import type { OrderPhotoView } from "@/features/order-photos/types";
 import type { JourneyTone } from "@/features/orders/services/journey-stage";
@@ -159,4 +160,8 @@ export interface JourneyDetailViewModel {
   groupSiblings: { id: string; orderNo: string; productName: string }[];
   /** 098: every step from payment to the door, who to call, and any delay notice. */
   progress: ShipmentProgress;
+  /** 098: on its way and not on hold, so the customer may say it has arrived. */
+  canConfirmReceived: boolean;
+  /** 101: sending their own rider to the Accra warehouse. Null when not on its way. */
+  ride: CustomerRideView | null;
 }

@@ -23,7 +23,9 @@ export type StaffAlertTrigger =
   | { kind: "assisted_requested"; requestId: string }
   | { kind: "order_feedback"; feedbackId: string }
   | { kind: "contact_message"; messageId: string }
-  | { kind: "car_enquiry"; enquiryId: string; carTitle: string };
+  | { kind: "car_enquiry"; enquiryId: string; carTitle: string }
+  /** 101: a customer is sending (or called off) their own rider to the Accra warehouse. */
+  | { kind: "customer_ride"; orderId: string; action: "requested" | "cancelled"; at: string };
 
 /** Which toggle a trigger belongs to. */
 export function eventOf(t: StaffAlertTrigger): StaffAlertEvent {
@@ -49,6 +51,7 @@ export function eventOf(t: StaffAlertTrigger): StaffAlertEvent {
     case "order_feedback":
     case "contact_message":
     case "car_enquiry":
+    case "customer_ride":
       return "customer_message";
   }
 }
@@ -85,6 +88,9 @@ export function eventKeyOf(t: StaffAlertTrigger): string {
       return `customer_message:contact:${t.messageId}`;
     case "car_enquiry":
       return `customer_message:car_enquiry:${t.enquiryId}`;
+    case "customer_ride":
+      // A changed request is news too, so the key carries when it was made.
+      return `customer_message:ride:${t.orderId}:${t.action}:${t.at}`;
   }
 }
 
@@ -93,6 +99,7 @@ export function entityOf(t: StaffAlertTrigger): { entity_type: string; entity_id
     case "order_placed":
     case "order_status":
     case "order_review":
+    case "customer_ride":
       return { entity_type: "order", entity_id: t.orderId };
     case "bag_placed":
     case "bag_status":

@@ -413,6 +413,29 @@ export async function listLooseInTransitOrders(limit = 300): Promise<WarehouseOr
   return orders.filter((o) => !packed.has(o.id));
 }
 
+/**
+ * 098: the shipped package an order travels in, with the statuses of every
+ * order beside it, or null when it is in none (or its package has not shipped).
+ */
+export async function getShippedPackageForOrder(
+  orderId: string,
+): Promise<{ pkg: PackageRow; orderStatuses: string[] } | null> {
+  const db = createAdminClient();
+  const { data: line, error } = await db
+    .from("warehouse_package_items")
+    .select("package_id")
+    .eq("order_id", orderId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load the package item: ${error.message}`);
+  if (!line) return null;
+  const pkg = await getPackageById(line.package_id as string);
+  if (!pkg || pkg.status !== "shipped") return null;
+  const items = await listPackageItems([pkg.id]);
+  const ids = items.flatMap((i) => (i.order_id ? [i.order_id] : []));
+  const orders = await listWarehouseOrders({ ids, limit: ids.length });
+  return { pkg, orderStatuses: orders.map((o) => o.status) };
+}
+
 /** The latest hub arrival per order. */
 export async function listHubArrivals(orderIds: string[]): Promise<Map<string, HubEventRow>> {
   const out = new Map<string, HubEventRow>();

@@ -316,3 +316,22 @@ export async function getStaffCustomer(userId: string): Promise<StaffCustomer> {
   const name = [p?.first_name, p?.last_name].filter((s): s is string => !!s?.trim()).join(" ") || null;
   return { name, email: auth?.user?.email ?? null, phone: p?.phone ?? null };
 }
+
+/** 101: the ride a customer is sending, for the staff alert. */
+export interface StaffRideRow {
+  ride_rider_name: string | null;
+  ride_rider_phone: string | null;
+  ride_tracking_url: string | null;
+  ride_eta: string | null;
+  ride_note: string | null;
+}
+
+export async function getStaffRideRequest(orderId: string): Promise<StaffRideRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("order_deliveries")
+    .select("ride_rider_name, ride_rider_phone, ride_tracking_url, ride_eta, ride_note")
+    .eq("order_id", orderId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load the ride request: ${error.message}`);
+  return (data as StaffRideRow | null) ?? null;
+}

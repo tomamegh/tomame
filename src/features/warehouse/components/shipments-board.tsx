@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 
 import type { ShipmentBoard, ShipmentOrder, WarehousePackage } from "../types";
 import { formatRelative, pluralise, recipientPlace } from "./format";
+import { CustomerRidesPanel } from "./customer-rides-panel";
 import { ShipmentUpdateDialog, type ShipmentUpdateMode } from "./shipment-update-dialog";
 import { ItemThumb } from "./warehouse-ui";
 
@@ -133,6 +134,8 @@ export function ShipmentsBoard({
 
   return (
     <div className="flex flex-col gap-5 pb-28">
+      <CustomerRidesPanel rides={board.rides} />
+
       <nav className="-mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0" aria-label="Filter by step">
         {FILTERS.map((f) => (
           <button

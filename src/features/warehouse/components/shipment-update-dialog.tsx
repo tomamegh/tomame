@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BellIcon, ClockAlertIcon, PhoneIcon, RouteIcon } from "lucide-react";
+import { BellIcon, BikeIcon, ClockAlertIcon, PhoneIcon, RouteIcon } from "lucide-react";
 
 import { AdminButton } from "@/components/layout/admin/controls";
 import {
@@ -75,6 +75,7 @@ export function ShipmentUpdateDialog({
   const [expectedOn, setExpectedOn] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [rideLink, setRideLink] = useState("");
   const [notify, setNotify] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -88,10 +89,12 @@ export function ShipmentUpdateDialog({
     setExpectedOn("");
     setContactName("");
     setContactPhone("");
+    setRideLink("");
     setNotify(true);
   }, [open, suggestedStage]);
 
   const setting = mode === "move" ? settings[stage] : null;
+  const riderStep = mode === "move" && stage === "out_for_delivery";
   const fallbackContact = setting?.contact_phone
     ? `${setting.contact_name ? `${setting.contact_name} · ` : ""}${setting.contact_phone}`
     : null;
@@ -100,11 +103,14 @@ export function ShipmentUpdateDialog({
     event.preventDefault();
     setBusy(true);
     try {
+      // 101: on Out for delivery the box names the rider, who goes through the
+      // same hand-off as the admin page (rider card, email, WhatsApp).
+      const withRider = riderStep && (contactPhone.trim() || rideLink.trim());
       const common = {
         package_ids: targets.package_ids,
         order_ids: targets.order_ids,
-        contact_name: contactName.trim() || null,
-        contact_phone: contactPhone.trim() || null,
+        contact_name: withRider ? null : contactName.trim() || null,
+        contact_phone: withRider ? null : contactPhone.trim() || null,
         notify,
       };
       const result =
@@ -115,6 +121,9 @@ export function ShipmentUpdateDialog({
               message: message.trim() || null,
               location: location.trim() || null,
               occurred_at: when ? new Date(when).toISOString() : null,
+              rider: withRider
+                ? { courier_name: contactName, courier_phone: contactPhone, tracking_url: rideLink }
+                : null,
             })
           : await warehouseRequest<MoveResult>("/api/warehouse/shipments/notice", "POST", {
               ...common,
@@ -249,15 +258,15 @@ export function ShipmentUpdateDialog({
           {mode !== "clear" && !(mode === "move" && stage === "delivered") && (
             <div className="flex flex-col gap-2 rounded-[16px] bg-tm-paper p-3">
               <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-tm-ink">
-                <PhoneIcon className="size-3.5" aria-hidden />
-                Who customers should call
+                {riderStep ? <BikeIcon className="size-3.5" aria-hidden /> : <PhoneIcon className="size-3.5" aria-hidden />}
+                {riderStep ? "The rider taking them" : "Who customers should call"}
               </span>
               <div className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">
                 <input
                   value={contactName}
                   onChange={(e) => setContactName(e.target.value)}
                   maxLength={80}
-                  placeholder="Name, e.g. Ama (customs desk)"
+                  placeholder={riderStep ? "Rider's name, e.g. Kofi" : "Name, e.g. Ama (customs desk)"}
                   className={FIELD}
                 />
                 <input
@@ -269,10 +278,22 @@ export function ShipmentUpdateDialog({
                   className={FIELD}
                 />
               </div>
+              {riderStep && (
+                <input
+                  value={rideLink}
+                  onChange={(e) => setRideLink(e.target.value)}
+                  inputMode="url"
+                  maxLength={2048}
+                  placeholder="Uber / Bolt / Yango trip link (optional)"
+                  className={FIELD}
+                />
+              )}
               <span className="text-[12px] font-medium text-tm-text-3">
-                {fallbackContact
-                  ? `Leave blank to use this step's usual contact: ${fallbackContact}.`
-                  : "Leave blank and customers are offered Tomame's WhatsApp."}
+                {riderStep
+                  ? "Customers get the rider's name, a call button and the live trip. One message each, however many of their orders the rider has."
+                  : fallbackContact
+                    ? `Leave blank to use this step's usual contact: ${fallbackContact}.`
+                    : "Leave blank and customers are offered Tomame's WhatsApp."}
               </span>
             </div>
           )}

@@ -9,6 +9,7 @@
  * adding it to what a hub contractor can see.
  */
 
+import type { CustomerRideRequest } from "@/features/order-delivery/customer-ride";
 import type { PackageStage, ShipmentStageKey } from "@/features/shipments/stages";
 
 export type PackageStatus = "packing" | "sealed" | "shipped";
@@ -145,6 +146,8 @@ export interface ShipmentBoard {
   loose: ShipmentOrder[];
   /** Step per order inside the packages above, keyed by order id. */
   order_stages: Record<string, ShipmentStageKey | null>;
+  /** 101: customers sending their own rider, not handed over yet, oldest first. */
+  rides: Array<{ item: WarehouseItem; ride: CustomerRideRequest }>;
 }
 
 export interface WarehouseReturnAddress {

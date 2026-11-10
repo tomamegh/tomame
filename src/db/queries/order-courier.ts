@@ -118,6 +118,8 @@ export interface CourierWrite {
   provider: CourierProvider | null;
   dispatchedAt: string;
   dispatchedBy: string;
+  /** 101: who booked the ride. Defaults to our team. */
+  arrangedBy?: "tomame" | "customer";
 }
 
 /**
@@ -139,6 +141,7 @@ export async function upsertOrderCourier(input: CourierWrite): Promise<OrderCour
         courier_provider: input.provider,
         courier_dispatched_at: input.dispatchedAt,
         courier_dispatched_by: input.dispatchedBy,
+        courier_arranged_by: input.arrangedBy ?? "tomame",
       },
       { onConflict: "order_id" },
     )

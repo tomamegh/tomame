@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { courierHandoffSchema } from "@/features/order-delivery/schema";
 import { normaliseWhatsAppPhone } from "@/lib/whatsapp/phone";
 
 import { MOVABLE_STAGES, SHIPMENT_STAGE_KEYS } from "./stages";
@@ -64,8 +65,17 @@ export const moveShipmentsSchema = z
     contact_name: optionalText(80),
     contact_phone: contactPhoneSchema,
     notify: z.boolean().default(true),
+    /**
+     * 101: the rider taking these orders out. Same rules as the admin hand-off
+     * (075): a Ghana number or an https ride link, provider derived server-side.
+     */
+    rider: courierHandoffSchema.nullish().transform((v) => v ?? null),
   })
-  .refine(hasTarget, { message: "Choose at least one package or order" });
+  .refine(hasTarget, { message: "Choose at least one package or order" })
+  .refine((v) => !v.rider || v.stage === "out_for_delivery", {
+    message: "A rider goes with Out for delivery",
+    path: ["rider"],
+  });
 
 export const shipmentNoticeSchema = z
   .object({

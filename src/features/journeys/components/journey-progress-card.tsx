@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CaretDown, Phone, WarningCircle, WhatsappLogo } from "@phosphor-icons/react/ssr";
+import { useRouter } from "next/navigation";
+import { CaretDown, CheckCircle, Phone, SpinnerGap, WarningCircle, WhatsappLogo } from "@phosphor-icons/react/ssr";
+
+import { apiFetch } from "@/lib/api-client";
+import { toast } from "@/lib/sonner";
 
 import {
   telHref,
@@ -14,7 +18,10 @@ import { formatEventStamp, formatWeekdayDay } from "../format";
 
 export interface JourneyProgressCardProps {
   progress: ShipmentProgress;
+  orderId: string;
   orderNo: string;
+  /** 098: show "I've received it" — the fallback when staff forgot to mark it delivered. */
+  canConfirmReceived: boolean;
   /** Tomame's own WhatsApp, for a step nobody has set a contact on. */
   fallbackWhatsappHref: string | null;
 }
@@ -27,7 +34,13 @@ export interface JourneyProgressCardProps {
  * Folded by default to the last finished step, the current one and the next:
  * that is the question a customer opens the page with. The rest is one tap away.
  */
-export function JourneyProgressCard({ progress, orderNo, fallbackWhatsappHref }: JourneyProgressCardProps) {
+export function JourneyProgressCard({
+  progress,
+  orderId,
+  orderNo,
+  canConfirmReceived,
+  fallbackWhatsappHref,
+}: JourneyProgressCardProps) {
   const [expanded, setExpanded] = useState(false);
   if (progress.isCancelled || !progress.current) return null;
 
@@ -67,7 +80,69 @@ export function JourneyProgressCard({ progress, orderNo, fallbackWhatsappHref }:
           />
         ))}
       </ol>
+
+      {canConfirmReceived && <ReceivedPrompt orderId={orderId} orderNo={orderNo} />}
     </section>
+  );
+}
+
+/**
+ * "Already got it?" (098). Two taps, because it closes the order: the first asks,
+ * the second confirms. Staff are told either way.
+ */
+function ReceivedPrompt({ orderId, orderNo }: { orderId: string; orderNo: string }) {
+  const router = useRouter();
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      await apiFetch(`/api/orders/${orderId}/received`, { method: "POST" });
+      toast.success({ title: "Thanks! Marked as delivered", description: "Enjoy it. If anything is wrong, message us." });
+      router.refresh();
+    } catch (error) {
+      toast.error({
+        title: "Could not mark it delivered",
+        description: error instanceof Error ? error.message : "Try again in a moment.",
+      });
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2.5 border-t border-[#F5EEE9] pt-4">
+      {asking ? (
+        <>
+          <p className="text-[13px] leading-[1.45] text-tm-text-2">
+            Confirm you have <span className="tm-nums font-semibold text-tm-ink">{orderNo}</span> in your hands? This
+            marks the order delivered.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={confirm}
+              disabled={busy}
+              className="inline-flex h-10 items-center gap-1.5 rounded-full bg-tm-ink px-4 text-[13px] leading-none font-semibold text-white disabled:opacity-60"
+            >
+              {busy ? <SpinnerGap className="size-4 animate-spin" aria-hidden /> : <CheckCircle weight="fill" className="size-4" aria-hidden />}
+              Yes, I have it
+            </button>
+            <button type="button" onClick={() => setAsking(false)} disabled={busy} className={PILL}>
+              Not yet
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[13px] text-tm-text-2">Already got your parcel?</span>
+          <button type="button" onClick={() => setAsking(true)} className={PILL}>
+            <CheckCircle weight="fill" className="size-4 text-tm-green" aria-hidden />
+            I&apos;ve received it
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

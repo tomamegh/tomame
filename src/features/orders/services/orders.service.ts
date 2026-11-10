@@ -29,6 +29,7 @@ import { mayEmailUser } from "@/lib/email/notify-preference";
 import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
 import { whatsappMessages } from "@/lib/whatsapp/templates";
 import { notifyStaff } from "@/features/staff-alerts/notify";
+import { closePackageIfAllDelivered } from "@/features/warehouse/services/package-close.service";
 
 /**
  * null ONLY when there is no such order (or RLS hides it). A database error
@@ -711,6 +712,11 @@ async function applyOrderStatusChange(
     });
   }
 
+  // 098: the last order out of a package closes it on the shipments board.
+  if (newStatus === "delivered") {
+    await closePackageIfAllDelivered(orderId, { id: user.id, role: actorRole });
+  }
+
   sendOrderStatusEmail(order.user_id, updated, newStatus, {
     trackingNumber: trackingData?.tracking_number,
     carrier: trackingData?.carrier,
@@ -813,6 +819,55 @@ export async function cancelOrderByUser(
   return updated as Order;
 }
 
+/**
+ * The customer says the parcel is in their hands (098): `in_transit → delivered`.
+ *
+ * The fallback for a delivery staff forgot to record. Same guarded transition,
+ * same delivery row and journey event as the warehouse's "Delivered", but in the
+ * customer's words, audited as the customer, and with no "delivered" email —
+ * they are the one who just told us. Staff are alerted, so a mistaken tap is
+ * seen. Idempotent: an order already delivered comes back unchanged.
+ */
+export async function confirmOrderReceivedByUser(user: PlatformUser, orderId: string): Promise<Order> {
+  const supabase = createAdminClient();
+  const order = await getOrderById(supabase, orderId);
+  if (!order || order.user_id !== user.id) throw new APIError(404, "Order not found");
+  if (order.status === "delivered" || order.status === "completed") return order;
+  if (order.status !== "in_transit") {
+    throw new APIError(409, "This order has not left our US hub yet, so it cannot have reached you.");
+  }
+  if (order.held_at) {
+    throw new APIError(409, "We are checking something on this order. Message us and we will mark it for you.");
+  }
+
+  const deliveredAt = new Date().toISOString();
+  const updated = await updateOrderStatus(supabase, orderId, "in_transit", {
+    status: "delivered",
+    delivered_at: deliveredAt,
+  });
+  await upsertOrderDelivery(supabase, orderId, order.user_id, { status: "delivered", delivered_at: deliveredAt });
+
+  await logAuditEvent({
+    actorId: user.id,
+    actorRole: "user",
+    action: "order_received_by_user",
+    entityType: "order",
+    entityId: orderId,
+    metadata: { from: "in_transit", to: "delivered" },
+  });
+  notifyStaff({ kind: "order_status", orderId, from: "in_transit", to: "delivered", by: "the customer" });
+  await recordOrderEvent({
+    order_id: orderId,
+    order_group_id: order.order_group_id ?? null,
+    kind: "delivered",
+    title: "You confirmed you received it",
+    created_by: user.id,
+  });
+  await closePackageIfAllDelivered(orderId, { id: user.id, role: "user" });
+
+  return updated as Order;
+}
+
 /** Is a Paystack transaction still open for this order, or for the bag it belongs to? */
 async function hasPendingPayment(client: SupabaseClient, order: Order): Promise<boolean> {
   const base = client.from("payments").select("id").eq("status", "pending").limit(1);
@@ -856,6 +911,7 @@ const HISTORY_METADATA_WHITELIST: Record<string, readonly string[]> = {
   // `{ from, to }` — order statuses the customer already sees on their order.
   order_status_changed: ["from", "to"],
   order_cancelled_by_user: ["from", "to"],
+  order_received_by_user: ["from", "to"],
   // Whether the review changed anything the customer will notice; no reasons.
   order_review_approved: ["priceChanged", "countryChanged"],
   // The corrected total; `admin_pricing_note` is internal and never included.

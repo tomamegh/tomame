@@ -19,6 +19,8 @@ import {
 } from "@/db/queries/warehouse";
 import { AUDIT_ENTITY_TYPES } from "@/config/constants";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { handOverToRider } from "@/features/order-delivery/services/courier.service";
+import { listOpenCustomerRides } from "@/features/order-delivery/services/customer-ride.service";
 import { advanceOrderFromWarehouse } from "@/features/orders/services/orders.service";
 import type { MoveShipmentsInput, ShipmentNoticeInput, StageSettingInput } from "@/features/shipments/schema";
 import { notifyShipmentUpdate } from "@/features/shipments/shipment-notify.service";
@@ -91,7 +93,7 @@ export async function saveStageSetting(user: PlatformUser, input: StageSettingIn
 export async function getShipmentBoard(user: PlatformUser): Promise<ShipmentBoard> {
   requireWarehouse(user);
   const since = new Date(Date.now() - DELIVERED_WINDOW_DAYS * 86_400_000).toISOString();
-  const [moving, delivered, looseOrders] = await Promise.all([
+  const [moving, delivered, looseOrders, openRides] = await Promise.all([
     listPackages({
       statuses: ["shipped"],
       stages: ["departed", "arrived_country", "ghana_warehouse", "ready_for_pickup", "out_for_delivery"],
@@ -99,6 +101,7 @@ export async function getShipmentBoard(user: PlatformUser): Promise<ShipmentBoar
     }),
     listPackages({ statuses: ["shipped"], stages: ["delivered"], stageSince: since, limit: 50 }),
     listLooseInTransitOrders(),
+    listOpenCustomerRides(user),
   ]);
   const packages = await hydratePackages([...moving, ...delivered]);
   const packageOrderIds = packages.flatMap((p) => p.lines.flatMap((l) => (l.item ? [l.item.order_id] : [])));
@@ -127,7 +130,16 @@ export async function getShipmentBoard(user: PlatformUser): Promise<ShipmentBoar
     };
   });
 
-  return { packages, loose, order_stages: orderStages };
+  const rideItems = openRides.length
+    ? await hydrateItems(await listWarehouseOrders({ ids: openRides.map((r) => r.orderId), limit: openRides.length }))
+    : [];
+  const rideItemById = new Map(rideItems.map((i) => [i.order_id, i]));
+  const rides = openRides.flatMap(({ orderId, ...ride }) => {
+    const item = rideItemById.get(orderId);
+    return item && item.order_status === "in_transit" ? [{ item, ride }] : [];
+  });
+
+  return { packages, loose, order_stages: orderStages, rides };
 }
 
 // ── Moving ──────────────────────────────────────────────────────────────────
@@ -148,6 +160,7 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
   const result: MoveResult = { moved: 0, skipped: [], failed: [] };
   const inserts: OrderEventInsert[] = [];
   const movedOrders: WarehouseOrderRow[] = [];
+  const riderNotified = new Set<string>();
 
   for (const order of orders) {
     const blocked = whyNotMovable(order, events.get(order.id) ?? [], input.stage);
@@ -164,6 +177,29 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
         result.failed.push({
           order_no: order.order_no,
           reason: error instanceof APIError ? error.message : "Could not mark it delivered",
+        });
+      }
+      continue;
+    }
+
+    // 101: a named rider goes through the same hand-off as the admin page, so
+    // the customer gets the rider card, email and WhatsApp. One message per
+    // customer per run, however many of their orders the rider carries.
+    if (input.rider) {
+      try {
+        const first = !riderNotified.has(order.user_id);
+        await handOverToRider(
+          { actorId: user.id, actorRole: warehouseActorRole(user) },
+          order.id,
+          input.rider,
+          { packageId: packageByOrder.get(order.id) ?? null, notify: input.notify && first },
+        );
+        riderNotified.add(order.user_id);
+        result.moved += 1;
+      } catch (error) {
+        result.failed.push({
+          order_no: order.order_no,
+          reason: error instanceof APIError ? error.message : "Could not hand it to the rider",
         });
       }
       continue;
@@ -196,7 +232,9 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
   for (const pkg of packages) {
     // Never backwards and never the same step twice, which would also take
     // down a delay notice nobody resolved. Pickup ↔ delivery is a sideways fix.
-    if (pkg.stage && (STAGE_RANK[pkg.stage] > STAGE_RANK[input.stage] || pkg.stage === input.stage)) continue;
+    // Delivering its last order already closed the package; read it again.
+    const current = input.stage === "delivered" ? ((await getPackageById(pkg.id))?.stage ?? pkg.stage) : pkg.stage;
+    if (current && (STAGE_RANK[current] > STAGE_RANK[input.stage] || current === input.stage)) continue;
     const row = await updatePackage(pkg.id, "shipped", {
       stage: input.stage,
       stage_at: occurredAt,
