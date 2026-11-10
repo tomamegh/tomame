@@ -23,11 +23,16 @@ export type OrderEventKind =
   | "hub_received"
   | "departed"
   | "arrived_country"
+  // 098: the legs after the US hub, and the delay notice pair.
+  | "ghana_warehouse"
+  | "ready_for_pickup"
   | "out_for_delivery"
   | "delivered"
   | "completed"
   | "cancelled"
-  | "note";
+  | "note"
+  | "delay"
+  | "delay_cleared";
 
 export interface OrderEventRow {
   id: string;
@@ -43,6 +48,13 @@ export interface OrderEventRow {
   is_customer_visible: boolean;
   created_by: string | null;
   created_at: string;
+  /** 098: the package whose move wrote this row. */
+  package_id: string | null;
+  /** 098: who to call about this step; null falls back to the stage default. */
+  contact_name: string | null;
+  contact_phone: string | null;
+  /** 098: a delay's revised date. */
+  expected_on: string | null;
 }
 
 export interface OrderEventInsert {
@@ -56,10 +68,14 @@ export interface OrderEventInsert {
   occurred_at?: string;
   is_customer_visible?: boolean;
   created_by?: string | null;
+  package_id?: string | null;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  expected_on?: string | null;
 }
 
 const COLUMNS =
-  "id, order_id, order_group_id, kind, title, detail, location, weight_lbs, occurred_at, is_customer_visible, created_by, created_at";
+  "id, order_id, order_group_id, kind, title, detail, location, weight_lbs, occurred_at, is_customer_visible, created_by, created_at, package_id, contact_name, contact_phone, expected_on";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
@@ -127,6 +143,19 @@ export async function listOrderEventsForOrders(
   return ((data ?? []) as Record<string, unknown>[]).map(normalizeRow);
 }
 
+/** Write many events in one round trip — a package move. Service-role client only. */
+export async function insertOrderEvents(
+  client: SupabaseClient,
+  inputs: readonly OrderEventInsert[],
+): Promise<OrderEventRow[]> {
+  if (inputs.length === 0) return [];
+  const { data, error } = await client.from("order_events").insert([...inputs]).select(COLUMNS);
+  if (error) {
+    throw new Error(`Failed to record order events: ${error.message}`);
+  }
+  return ((data ?? []) as Record<string, unknown>[]).map(normalizeRow);
+}
+
 /** Write one event. Service-role client only — RLS grants `authenticated` no INSERT. */
 export async function insertOrderEvent(
   client: SupabaseClient,
@@ -162,5 +191,9 @@ function normalizeRow(row: Record<string, unknown>): OrderEventRow {
     is_customer_visible: row.is_customer_visible === true,
     created_by: (row.created_by as string | null) ?? null,
     created_at: String(row.created_at),
+    package_id: (row.package_id as string | null) ?? null,
+    contact_name: (row.contact_name as string | null) ?? null,
+    contact_phone: (row.contact_phone as string | null) ?? null,
+    expected_on: (row.expected_on as string | null) ?? null,
   };
 }

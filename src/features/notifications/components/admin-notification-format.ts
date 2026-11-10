@@ -45,6 +45,8 @@ const EVENT_LABELS: Record<string, string> = {
   paste_priced: "Paste priced",
   paste_unreadable: "Paste unreadable",
   parcel_photo_added: "Parcel photo added",
+  shipment_update: "Shipment step",
+  shipment_delay: "Shipment delay",
   courier_dispatched: "Rider sent",
   order_paid: "Payment confirmed",
   order_processing: "Buying the item",

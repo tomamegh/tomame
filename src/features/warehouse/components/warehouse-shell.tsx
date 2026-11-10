@@ -12,6 +12,7 @@ import {
   LogOutIcon,
   MessageSquareWarningIcon,
   ScanLineIcon,
+  PlaneLandingIcon,
   ShieldIcon,
   TruckIcon,
 } from "lucide-react";
@@ -53,9 +54,12 @@ const NAV = [
   { href: "/warehouse", label: "Overview", icon: LayoutGridIcon, exact: true },
   { href: "/warehouse/receive", label: "Receive", icon: InboxIcon },
   { href: "/warehouse/packages", label: "Packages", icon: BoxesIcon },
-  { href: "/warehouse/issues", label: "Issues", icon: MessageSquareWarningIcon },
-  // 086. Fifth, so the phone's bottom bar keeps its four; there it is reached
-  // from Receive and the dashboard. In the top bar only where there is room.
+  // 098. Fourth, so it is on the phone's bottom bar: the Accra side works the
+  // shipments board from a phone. Issues moved off the bar; the overview links it.
+  { href: "/warehouse/shipments", label: "Shipments", icon: PlaneLandingIcon },
+  { href: "/warehouse/issues", label: "Issues", icon: MessageSquareWarningIcon, wide: true },
+  // 086. Past the fourth, so the phone's bottom bar keeps its four; there it is
+  // reached from Receive and the dashboard. In the top bar only where there is room.
   { href: "/warehouse/inbound", label: "Inbound", icon: TruckIcon, wide: true },
 ] as const;
 

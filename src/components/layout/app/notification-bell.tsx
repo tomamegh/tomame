@@ -161,6 +161,9 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
  */
 function notificationTitle(event: string, payload: Record<string, unknown>): string {
   const host = typeof payload.store_host === "string" ? payload.store_host : null;
+  const orderNo = typeof payload.order_no === "string" ? payload.order_no : null;
+  const stageTitle = typeof payload.stage_title === "string" ? payload.stage_title : null;
+  const many = typeof payload.order_count === "number" && payload.order_count > 1;
   const known: Record<string, string> = {
     order_placed: "Order placed",
     price_drop: "A price you're watching dropped",
@@ -170,6 +173,13 @@ function notificationTitle(event: string, payload: Record<string, unknown>): str
     order_expired_unpaid: "We closed an unpaid order",
     order_repriced: "The total of your unpaid order changed",
     // 075: a payload `is_update` means new rider details replaced the first ones.
+    // 098: one entry per move, naming the step.
+    shipment_update: stageTitle
+      ? many
+        ? `${stageTitle}: ${payload.order_count} of your orders`
+        : `${stageTitle}${orderNo ? `: ${orderNo}` : ""}`
+      : "Your parcel moved",
+    shipment_delay: orderNo && !many ? `${orderNo} is running late` : "Your parcel is running late",
     courier_dispatched:
       payload.is_update === true ? "Your rider's details changed" : "A rider has your package",
     /*

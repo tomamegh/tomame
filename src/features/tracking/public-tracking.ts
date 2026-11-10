@@ -34,6 +34,7 @@
 
 import type { OrderEventKind } from "@/db/queries/order-events";
 import { journeyStageFor, type JourneyTone } from "@/features/orders/services/journey-stage";
+import { transitLabel } from "@/features/shipments/stages";
 import { deriveJourneyTrack, type JourneyTrack } from "@/features/orders/services/journey-track";
 import type { JourneyEta } from "@/features/journeys/types";
 
@@ -203,7 +204,7 @@ export function shapePublicTracking(
     found: true,
     reference: order.order_no,
     status: order.status,
-    stageLabel: stage.label,
+    stageLabel: transitLabel(order.status, events, stage.label),
     tone: stage.tone,
     track:
       level === "full"

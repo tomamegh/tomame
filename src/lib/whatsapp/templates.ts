@@ -150,6 +150,20 @@ export const WHATSAPP_TEMPLATES = {
     samples: ["Kojo", "Emmanuel", "order TM-10482", "+233 24 412 3456", "https://m.uber.com/ul/?trip=abc123"],
     button: orderButton("Track delivery"),
   },
+  shipment_update: {
+    name: "tomame_shipment_update",
+    category: "UTILITY",
+    body: "Hi {{1}}, an update on {{2}}: {{3}}. Your order page has the details and who to call if you need us.",
+    samples: ["Ama", "order TM-10482", "Arrived in Ghana. Landed and clearing customs"],
+    button: orderButton("Track order"),
+  },
+  shipment_delay: {
+    name: "tomame_shipment_delay",
+    category: "UTILITY",
+    body: "Hi {{1}}, {{2}} is running late: {{3}}. Sorry for the wait. Your order page has the latest and who to call.",
+    samples: ["Ama", "order TM-10482", "customs needs one more day, now expected Fri 14 Nov"],
+    button: orderButton("Track order"),
+  },
   quote_ready: {
     name: "tomame_quote_ready",
     category: "UTILITY",
@@ -298,6 +312,15 @@ export const whatsappMessages = {
       ],
       buttonPath: orderPath(d.orderId),
     };
+  },
+
+  /** 098: one message per customer per move; `what` names the order or "3 of your orders". */
+  shipmentUpdate(d: { orderId: string; what: string; update: string }): WhatsAppMessage {
+    return { template: "shipment_update", params: [d.what, d.update], buttonPath: orderPath(d.orderId) };
+  },
+
+  shipmentDelay(d: { orderId: string; what: string; reason: string }): WhatsAppMessage {
+    return { template: "shipment_delay", params: [d.what, d.reason], buttonPath: orderPath(d.orderId) };
   },
 
   quoteReady(d: { productName: string; reviewPath: string }): WhatsAppMessage {

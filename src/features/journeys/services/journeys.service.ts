@@ -4,6 +4,7 @@ import type { OrderEventRow } from "@/db/queries/order-events";
 import { listOrderGroupsByIds, type OrderGroupRow } from "@/db/queries/order-groups";
 import { mapCustomerOrderEvents } from "@/features/orders/services/order-events.service";
 import { journeyStageFor } from "@/features/orders/services/journey-stage";
+import { transitLabel } from "@/features/shipments/stages";
 import {
   deriveJourneyTrack,
   noteFor,
@@ -123,7 +124,7 @@ function toRow(
     quantity: order.quantity,
     totalGhs: totalGhsOf(order),
     status: order.status,
-    stageLabel: stage.label,
+    stageLabel: transitLabel(order.status, events, stage.label),
     tone: stage.tone,
     percent: track.percent,
     hint: hintFor(order, events, stage.hint),

@@ -17,6 +17,7 @@ import type { JourneyDetailViewModel } from "../types";
 import { JourneyItemCard } from "./journey-item-card";
 import { JourneyPaidCard } from "./journey-paid-card";
 import { JourneyPhotosCard } from "./journey-photos-card";
+import { JourneyProgressCard } from "./journey-progress-card";
 import { JourneyTrackRail } from "./journey-track-rail";
 import { JourneyUpdatesCard } from "./journey-updates-card";
 import { stageIcon, tonePalette } from "./stage-visuals";
@@ -182,6 +183,13 @@ export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyD
             motorbike with the parcel, the number to call is the whole page.
           */}
           {courier}
+
+          {/* 098: every leg, who to call about the current one, and any delay. */}
+          <JourneyProgressCard
+            progress={journey.progress}
+            orderNo={journey.orderNo}
+            fallbackWhatsappHref={journey.whatsappHref}
+          />
 
           {/*
             ABOVE Updates and above the receipt (054). The photograph is the

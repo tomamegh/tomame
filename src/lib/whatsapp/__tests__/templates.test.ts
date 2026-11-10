@@ -65,6 +65,8 @@ describe("builders fill every placeholder", () => {
     ["not found", whatsappMessages.sourcingAnswered({ productName: "Shoes", available: false })],
     ["rider", whatsappMessages.riderAssigned({ orderId: "o1", orderNo: "TM-1", productName: "Shoes", riderName: null, providerName: "Bolt", riderPhone: null, trackingUrl: null })],
     ["quote", whatsappMessages.quoteReady({ productName: "Shoes", reviewPath: "/app/orders/review/c1" })],
+    ["shipment", whatsappMessages.shipmentUpdate({ orderId: "o1", what: "order TM-1", update: "Arrived in Ghana. Landed and clearing customs" })],
+    ["delay", whatsappMessages.shipmentDelay({ orderId: "o1", what: "order TM-1", reason: "customs needs one more day" })],
   ];
 
   it.each(built)("%s", (_label, message) => {

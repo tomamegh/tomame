@@ -268,6 +268,10 @@ function Full({ result }: { result: PublicTrackingFull }) {
     is_customer_visible: true,
     created_by: null,
     created_at: u.occurred_at,
+    package_id: null,
+    contact_name: null,
+    contact_phone: null,
+    expected_on: null,
   }));
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">

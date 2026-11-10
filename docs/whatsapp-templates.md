@@ -524,3 +524,55 @@ Sample values:
 - Button URL `{{1}}` → `app/bag`
 
 Preview: _Hi Ama, we updated our shipping rates before you paid, so the total for your bag of 3 items changed from GH₵ 880.34 to GH₵ 930.34. Nothing has been charged. Tap below to review it._
+
+### 19. `tomame_shipment_update` — Parcel reached a new step (Ghana legs)
+
+| Field | Value |
+|---|---|
+| Name | `tomame_shipment_update` |
+| Category | UTILITY |
+| Language | English (`en`) |
+| Header | none |
+| Footer | none |
+| Button | Visit website — text **Track order**, URL type **Dynamic**, URL `https://<production domain>/{{1}}` |
+
+Body (paste exactly):
+
+```
+Hi {{1}}, an update on {{2}}: {{3}}. Your order page has the details and who to call if you need us.
+```
+
+Sample values:
+
+- `{{1}}` → Ama
+- `{{2}}` → order TM-10482
+- `{{3}}` → Arrived in Ghana. Landed and clearing customs
+- Button URL `{{1}}` → `app/orders/3f2a9c1e-7b4d-4e0a-9f61-2c8d5b7a1e90`
+
+Preview: _Hi Ama, an update on order TM-10482: Arrived in Ghana. Landed and clearing customs. Your order page has the details and who to call if you need us._
+
+### 20. `tomame_shipment_delay` — Parcel delayed
+
+| Field | Value |
+|---|---|
+| Name | `tomame_shipment_delay` |
+| Category | UTILITY |
+| Language | English (`en`) |
+| Header | none |
+| Footer | none |
+| Button | Visit website — text **Track order**, URL type **Dynamic**, URL `https://<production domain>/{{1}}` |
+
+Body (paste exactly):
+
+```
+Hi {{1}}, {{2}} is running late: {{3}}. Sorry for the wait. Your order page has the latest and who to call.
+```
+
+Sample values:
+
+- `{{1}}` → Ama
+- `{{2}}` → order TM-10482
+- `{{3}}` → customs needs one more day, now expected Fri 14 Nov
+- Button URL `{{1}}` → `app/orders/3f2a9c1e-7b4d-4e0a-9f61-2c8d5b7a1e90`
+
+Preview: _Hi Ama, order TM-10482 is running late: customs needs one more day, now expected Fri 14 Nov. Sorry for the wait. Your order page has the latest and who to call._

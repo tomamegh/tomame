@@ -11,6 +11,8 @@ import { deriveJourneyTrack } from "@/features/orders/services/journey-track";
 import { getOrder } from "@/features/orders/services/orders.service";
 import { listPaymentChannels } from "@/features/payments/services/payment-channels.service";
 import { pickProductColour } from "@/features/quotes/components/format";
+import { loadStageSettings } from "@/features/shipments/stage-settings.service";
+import { deriveShipmentProgress, transitLabel } from "@/features/shipments/stages";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -45,7 +47,7 @@ export async function getJourneyDetail(
   const order = await getOrder(client, user, orderId);
 
   const admin = createAdminClient();
-  const [events, photos, group, settings, channels] = await Promise.all([
+  const [events, photos, group, settings, channels, stageSettings] = await Promise.all([
     listOrderEvents(admin, order.id, { customerVisibleOnly: true }),
     // Ownership is already `getOrder`'s above, so this reads by order id; it
     // never throws, so a storage hiccup costs the pictures and not the page.
@@ -57,10 +59,18 @@ export async function getJourneyDetail(
       return {} as Record<string, unknown>;
     }),
     listPaymentChannels().catch(() => []),
+    loadStageSettings(),
   ]);
 
   const stage = journeyStageFor(order.status);
   const eta = etaOf(order);
+  const deliverTo = deliverToOf(group?.delivery_address ?? null);
+  const progress = deriveShipmentProgress({
+    status: order.status,
+    events,
+    settings: stageSettings,
+    deliveryKind: deliverTo?.kind ?? null,
+  });
   const payment = await loadPayment(admin, order, channels);
 
   const siblings =
@@ -79,7 +89,9 @@ export async function getJourneyDetail(
     orderNo: order.order_no,
     productName: order.product_name,
     status: order.status,
-    stageLabel: stage.label,
+    // 098: once it has left the hub, the badge names the leg ("Arrived in
+    // Ghana"), not the status ("In the air").
+    stageLabel: transitLabel(order.status, events, stage.label, stageSettings),
     tone: stage.tone,
     // The eyebrow's "PAID 28 AUG" comes from the payment event, not from the
     // order's `created_at`: an order created on Monday and paid on Thursday is
@@ -93,7 +105,7 @@ export async function getJourneyDetail(
       deliveredAt: order.delivered_at,
     }),
     eta,
-    deliverTo: deliverToOf(group?.delivery_address ?? null),
+    deliverTo,
     updates: events,
     photos,
     pricing: order.pricing,
@@ -110,6 +122,7 @@ export async function getJourneyDetail(
         ? { orderGroupId: group?.id ?? null }
         : null,
     groupSiblings: siblings,
+    progress,
   };
 }
 

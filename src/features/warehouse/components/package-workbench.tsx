@@ -36,8 +36,11 @@ import {
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 
+import type { ShipmentStageKey, StageSetting } from "@/features/shipments/stages";
+
 import type { WarehousePackage } from "../types";
 import { AddItemsDialog } from "./add-items-dialog";
+import { PackageJourneyPanel } from "./package-journey-panel";
 import {
   PACKAGE_META,
   formatDateTime,
@@ -69,10 +72,13 @@ export function PackageWorkbench({
   pkg,
   openAdd,
   scanned,
+  stageSettings,
 }: {
   pkg: WarehousePackage;
   openAdd: boolean;
   scanned: boolean;
+  /** 098: for the journey panel once the package has shipped. */
+  stageSettings: Record<ShipmentStageKey, StageSetting>;
 }) {
   const router = useRouter();
   const reduce = useReducedMotion();
@@ -273,6 +279,8 @@ export function PackageWorkbench({
               ))}
             </ol>
           </section>
+
+          {pkg.status === "shipped" ? <PackageJourneyPanel pkg={pkg} settings={stageSettings} /> : null}
 
           {/* Contents */}
           <section className="tm-up overflow-hidden rounded-[22px] border border-tm-border bg-card [animation-duration:0.5s] [animation-delay:.06s]">

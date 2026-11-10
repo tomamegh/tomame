@@ -1,3 +1,4 @@
+import type { ShipmentProgress } from "@/features/shipments/stages";
 import type { OrderEventRow } from "@/db/queries/order-events";
 import type { OrderPhotoView } from "@/features/order-photos/types";
 import type { JourneyTone } from "@/features/orders/services/journey-stage";
@@ -156,4 +157,6 @@ export interface JourneyDetailViewModel {
   payable: { orderGroupId: string | null } | null;
   /** Siblings bought in the same bag, so the screen can link to them. */
   groupSiblings: { id: string; orderNo: string; productName: string }[];
+  /** 098: every step from payment to the door, who to call, and any delay notice. */
+  progress: ShipmentProgress;
 }

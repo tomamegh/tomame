@@ -562,13 +562,14 @@ export interface StatusChangeOptions {
 }
 
 /**
- * The two moves the hub makes (081): a parcel that has physically arrived was
- * evidently bought (`paid → processing`), and a package that has left carries
- * its orders into `in_transit`. Nothing else — a warehouse operator cannot
- * cancel, deliver or complete an order. Same transition table, same hold check,
+ * The moves the warehouse makes (081, 098): a parcel that has physically arrived
+ * was evidently bought (`paid → processing`), a package that has left carries
+ * its orders into `in_transit`, and since order updates moved to the warehouse
+ * (098) the Accra side hands it over (`in_transit → delivered`). Nothing else —
+ * a warehouse operator cannot cancel or complete an order. Same transition table, same hold check,
  * same emails and journey events as the admin path, because it IS that path.
  */
-export const WAREHOUSE_ORDER_MOVES = ["processing", "in_transit"] as const;
+export const WAREHOUSE_ORDER_MOVES = ["processing", "in_transit", "delivered"] as const;
 
 export async function advanceOrderFromWarehouse(
   user: PlatformUser,

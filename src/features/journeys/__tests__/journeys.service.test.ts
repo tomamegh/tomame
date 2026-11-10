@@ -56,6 +56,10 @@ const order = (over: Partial<Order> = {}): Order =>
 
 const event = (over: Partial<OrderEventRow> & Pick<OrderEventRow, "order_id" | "kind">): OrderEventRow => ({
   id: "e1",
+  package_id: null,
+  contact_name: null,
+  contact_phone: null,
+  expected_on: null,
   order_group_id: null,
   title: "t",
   detail: null,

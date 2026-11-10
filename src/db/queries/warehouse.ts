@@ -17,6 +17,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type PackageStatus = "packing" | "sealed" | "shipped";
 export type PackageService = "air" | "sea";
+/** 098: where a shipped package is. Null until it ships. */
+export type PackageStageValue =
+  | "departed"
+  | "arrived_country"
+  | "ghana_warehouse"
+  | "ready_for_pickup"
+  | "out_for_delivery"
+  | "delivered";
 
 export interface PackageRow {
   id: string;
@@ -43,6 +51,12 @@ export interface PackageRow {
   shipped_by: string | null;
   label_printed_at: string | null;
   label_print_count: number;
+  stage: PackageStageValue | null;
+  stage_at: string | null;
+  stage_by: string | null;
+  notice: string | null;
+  notice_expected_on: string | null;
+  notice_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -100,7 +114,7 @@ export interface BoxRefRow {
 }
 
 const PACKAGE_COLUMNS =
-  "id, package_no, reference, status, service, origin, destination, weight_lbs, length_in, width_in, height_in, carrier, tracking_number, fragile, this_way_up, keep_dry, notes, created_by, sealed_at, sealed_by, shipped_at, shipped_by, label_printed_at, label_print_count, created_at, updated_at";
+  "id, package_no, reference, status, service, origin, destination, weight_lbs, length_in, width_in, height_in, carrier, tracking_number, fragile, this_way_up, keep_dry, notes, created_by, sealed_at, sealed_by, shipped_at, shipped_by, label_printed_at, label_print_count, stage, stage_at, stage_by, notice, notice_expected_on, notice_at, created_at, updated_at";
 
 const ITEM_COLUMNS = "id, package_id, order_id, description, quantity, added_by, created_at";
 
@@ -126,10 +140,19 @@ export async function listPackages(filters: {
   statuses?: PackageStatus[];
   limit?: number;
   shippedSince?: string;
+  ids?: string[];
+  /** 098: shipped packages at these stages. */
+  stages?: PackageStageValue[];
+  /** 098: packages whose stage last moved on or after this. */
+  stageSince?: string;
 } = {}): Promise<PackageRow[]> {
+  if (filters.ids && filters.ids.length === 0) return [];
   let query = createAdminClient().from("warehouse_packages").select(PACKAGE_COLUMNS);
   if (filters.statuses?.length) query = query.in("status", filters.statuses);
   if (filters.shippedSince) query = query.gte("shipped_at", filters.shippedSince);
+  if (filters.ids) query = query.in("id", filters.ids);
+  if (filters.stages?.length) query = query.in("stage", filters.stages);
+  if (filters.stageSince) query = query.gte("stage_at", filters.stageSince);
   const { data, error } = await query
     .order("updated_at", { ascending: false })
     .limit(filters.limit ?? 100);
@@ -196,6 +219,12 @@ export type PackagePatch = Partial<
     | "shipped_by"
     | "label_printed_at"
     | "label_print_count"
+    | "stage"
+    | "stage_at"
+    | "stage_by"
+    | "notice"
+    | "notice_expected_on"
+    | "notice_at"
   >
 >;
 
@@ -365,6 +394,23 @@ export async function listGroupDeliverySnapshots(
     out.set(row.id as string, (row.delivery_address as Record<string, unknown> | null) ?? null);
   }
   return out;
+}
+
+/**
+ * 098: orders that have shipped (`in_transit`) and sit in no package — sent by
+ * the admin console, or shipped before 081. The shipments board moves them too.
+ */
+export async function listLooseInTransitOrders(limit = 300): Promise<WarehouseOrderRow[]> {
+  const db = createAdminClient();
+  const orders = await listWarehouseOrders({ statuses: ["in_transit"], limit });
+  if (orders.length === 0) return [];
+  const { data, error } = await db
+    .from("warehouse_package_items")
+    .select("order_id")
+    .in("order_id", orders.map((o) => o.id));
+  if (error) throw new Error(`Failed to load package items: ${error.message}`);
+  const packed = new Set((data ?? []).map((r) => r.order_id as string));
+  return orders.filter((o) => !packed.has(o.id));
 }
 
 /** The latest hub arrival per order. */

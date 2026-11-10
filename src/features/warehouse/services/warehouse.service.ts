@@ -75,7 +75,8 @@ import type {
  * THE BENCH. Items the hub handles are orders in `paid` or `processing`. An order
  * moves `paid → processing` when it is logged in (it has physically arrived, so
  * it was bought), and `processing → in_transit` when its package ships. Those are
- * the only two moves the warehouse makes; see `advanceOrderFromWarehouse`.
+ * the bench's two moves; after that the shipments board (`shipment.service.ts`,
+ * 098) carries it to `delivered`. See `advanceOrderFromWarehouse`.
  */
 
 const BENCH_STATUSES = ["paid", "processing"];
@@ -353,10 +354,15 @@ export async function shipWarehousePackage(
     return { package: await getWarehousePackage(user, id), failed };
   }
 
+  const shippedAt = new Date().toISOString();
   const row = await updatePackage(id, "sealed", {
     status: "shipped",
-    shipped_at: new Date().toISOString(),
+    shipped_at: shippedAt,
     shipped_by: user.id,
+    // 098: a shipped package is at least dispatched; the shipments board moves it on.
+    stage: "departed",
+    stage_at: shippedAt,
+    stage_by: user.id,
     ...(carrier ? { carrier } : {}),
     ...(trackingNumber ? { tracking_number: trackingNumber } : {}),
   });
@@ -677,7 +683,7 @@ function toPatch(input: Partial<UpdatePackageInput>): PackagePatch {
 }
 
 /** Orders → the DTO. The one place a warehouse item is shaped. */
-async function hydrateItems(orders: WarehouseOrderRow[]): Promise<WarehouseItem[]> {
+export async function hydrateItems(orders: WarehouseOrderRow[]): Promise<WarehouseItem[]> {
   if (orders.length === 0) return [];
   const orderIds = orders.map((o) => o.id);
   const groupIds = [...new Set(orders.map((o) => o.order_group_id).filter((g): g is string => !!g))];
@@ -750,7 +756,7 @@ async function hydrateItems(orders: WarehouseOrderRow[]): Promise<WarehouseItem[
   });
 }
 
-async function hydratePackages(rows: PackageRow[]): Promise<WarehousePackage[]> {
+export async function hydratePackages(rows: PackageRow[]): Promise<WarehousePackage[]> {
   if (rows.length === 0) return [];
   const lines = await listPackageItems(rows.map((r) => r.id));
   const orderIds = lines.map((l) => l.order_id).filter((id): id is string => !!id);
@@ -759,7 +765,9 @@ async function hydratePackages(rows: PackageRow[]): Promise<WarehousePackage[]> 
     : [];
   const items = new Map((await hydrateItems(orders)).map((i) => [i.order_id, i]));
   const staffIds = [
-    ...new Set(rows.flatMap((r) => [r.created_by, r.sealed_by, r.shipped_by]).filter((x): x is string => !!x)),
+    ...new Set(
+      rows.flatMap((r) => [r.created_by, r.sealed_by, r.shipped_by, r.stage_by]).filter((x): x is string => !!x),
+    ),
   ];
   const names = await getProfileNames(staffIds);
 
@@ -819,6 +827,12 @@ async function hydratePackages(rows: PackageRow[]): Promise<WarehousePackage[]> 
       shipped_at: row.shipped_at,
       label_printed_at: row.label_printed_at,
       label_print_count: row.label_print_count,
+      stage: row.stage,
+      stage_at: row.stage_at,
+      stage_by_name: row.stage_by ? names.get(row.stage_by) ?? null : null,
+      notice: row.notice
+        ? { message: row.notice, expected_on: row.notice_expected_on, at: row.notice_at ?? row.updated_at }
+        : null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

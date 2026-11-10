@@ -134,6 +134,9 @@ const EVENT_INDEX: Partial<Record<OrderEventKind, number>> = {
   hub_received: 2,
   departed: 3,
   arrived_country: 3,
+  // 098: still on the way, not yet at the door.
+  ghana_warehouse: 3,
+  ready_for_pickup: 3,
   out_for_delivery: 3,
   delivered: 4,
 };
@@ -144,7 +147,7 @@ const STOP_EVENTS: Record<TrackStopKey, readonly OrderEventKind[]> = {
   purchased: ["purchased"],
   hub: ["hub_received"],
   in_the_air: ["departed", "arrived_country"],
-  your_door: ["delivered", "out_for_delivery"],
+  your_door: ["delivered", "out_for_delivery", "ready_for_pickup"],
 };
 
 // ── Derivation ──────────────────────────────────────────────────────────────

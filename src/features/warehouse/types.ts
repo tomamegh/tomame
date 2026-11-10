@@ -9,6 +9,8 @@
  * adding it to what a hub contractor can see.
  */
 
+import type { PackageStage, ShipmentStageKey } from "@/features/shipments/stages";
+
 export type PackageStatus = "packing" | "sealed" | "shipped";
 export type PackageService = "air" | "sea";
 
@@ -115,8 +117,34 @@ export interface WarehousePackage {
   shipped_at: string | null;
   label_printed_at: string | null;
   label_print_count: number;
+  /** 098: where it is since it shipped. Null until then. */
+  stage: PackageStage | null;
+  stage_at: string | null;
+  stage_by_name: string | null;
+  /** 098: the delay notice customers are seeing for it, if any. */
+  notice: { message: string; expected_on: string | null; at: string } | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * 098: an order on the shipments board — a package's line or a loose order
+ * shipped outside a package — with the step it has reached.
+ */
+export interface ShipmentOrder {
+  item: WarehouseItem;
+  stage: ShipmentStageKey | null;
+  stage_at: string | null;
+  notice: { message: string; expected_on: string | null; at: string } | null;
+}
+
+export interface ShipmentBoard {
+  /** Shipped packages not yet delivered, plus those delivered in the last week. */
+  packages: WarehousePackage[];
+  /** In-transit orders in no package. */
+  loose: ShipmentOrder[];
+  /** Step per order inside the packages above, keyed by order id. */
+  order_stages: Record<string, ShipmentStageKey | null>;
 }
 
 export interface WarehouseReturnAddress {

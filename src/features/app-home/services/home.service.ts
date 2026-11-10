@@ -34,6 +34,7 @@ import { priceUnderExistingLock } from "@/features/quotes/services/quote-lock.se
 import { loadQuoteConstants, QuoteConstantsMissingError } from "@/features/quotes/services/quote-constants.service";
 import type { QuoteConstants, Viewer } from "@/features/quotes/types";
 import { journeyStageFor } from "@/features/orders/services/journey-stage";
+import { transitLabel } from "@/features/shipments/stages";
 import { deriveJourneyTrack, noteFor } from "@/features/orders/services/journey-track";
 import { mapCustomerOrderEvents } from "@/features/orders/services/order-events.service";
 import { orderEta, orderTotalGhs, storeNameFor } from "@/features/journeys/order-facts";
@@ -284,7 +285,7 @@ export function buildHomeOrders(
         productImageUrl: row.product_image_url,
         store: storeNameFor(row.product_url, row.store_platform),
         status: row.status,
-        stageLabel: stage.label,
+        stageLabel: transitLabel(row.status, events, stage.label),
         tone: stage.tone,
         track: deriveJourneyTrack({
           status: row.status,

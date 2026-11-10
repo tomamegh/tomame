@@ -36,6 +36,10 @@ const admin = {
 
 const row = (over: Partial<q.OrderEventRow> = {}): q.OrderEventRow => ({
   id: "e1",
+  package_id: null,
+  contact_name: null,
+  contact_phone: null,
+  expected_on: null,
   order_id: "o1",
   order_group_id: null,
   kind: "purchased",
