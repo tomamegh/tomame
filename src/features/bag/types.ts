@@ -1,5 +1,6 @@
 import type { PricingBreakdown } from "@/lib/pricing";
 import type { OriginCountry } from "@/features/orders/types";
+import type { PayHold } from "@/features/extraction/pay-gate";
 
 /**
  * A line whose product is still being read (049).
@@ -83,6 +84,12 @@ export interface BagLine {
    * cannot be paid for, and the bag polls until the check clears.
    */
   freight_checking: boolean;
+  /**
+   * 103: why this line cannot be paid for yet — the price is being confirmed,
+   * stock and condition need a person, or the item is unavailable
+   * (`features/extraction/pay-gate.ts`). It stays in the bag, priced.
+   */
+  pay_hold?: PayHold | null;
 }
 
 /** One consolidation box in the bag, as the customer sees it. All derived server-side. */
@@ -184,6 +191,8 @@ export interface BagView {
    * this" and "we could not price this" are different promises.
    */
   has_sourcing_lines: boolean;
+  /** 103: a line's price or stock is still being confirmed (or it is unavailable). Checkout is refused until it clears. */
+  has_pay_holds?: boolean;
 }
 
 export interface AddToBagResult {

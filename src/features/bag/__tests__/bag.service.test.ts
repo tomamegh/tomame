@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+vi.mock("@/features/quote-checks/services/quote-checks.service", () => ({ checksByExtraction: vi.fn(async () => new Map()), ensureQuoteChecks: vi.fn(async () => undefined) }));
 vi.mock("@/lib/supabase/errors", () => ({
   isSchemaMissingError: (e: unknown) => /does not exist|PGRST205|42P01/i.test(e instanceof Error ? e.message : String(e)),
 }));

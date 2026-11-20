@@ -4,6 +4,7 @@ import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { customerExtraction, customerMessages, freightCheckOf, priceExtractionWith, type PriceOverrides } from "@/features/extraction/quote.service";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
+import { quoteTrustFor } from "@/features/quote-checks/services/quote-checks.service";
 import { listGhsRates } from "@/lib/exchange-rates/service";
 import type { ExtractionResult, Quote } from "@/features/extraction/types";
 import type { FxOverride, PricingBreakdown, PricingCalculator } from "@/lib/pricing";
@@ -83,7 +84,16 @@ export async function quoteForViewer(
   });
   const customer = customerExtraction(extraction);
   const freightCheck = freightCheckOf(extraction);
-  return { ...customer, messages: customerMessages(customer.messages, pricing, freightCheck != null), pricing, pricing_unavailable_reason: reason, freight_check: freightCheck };
+  // Price confidence, stock check and the one pay hold (features/extraction/pay-gate.ts).
+  const trust = await quoteTrustFor(extraction.extraction_cache_id, extraction);
+  return {
+    ...customer,
+    messages: customerMessages(customer.messages, pricing, freightCheck != null),
+    pricing,
+    pricing_unavailable_reason: reason,
+    freight_check: freightCheck,
+    ...trust,
+  };
 }
 
 /**

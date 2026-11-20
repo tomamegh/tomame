@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { notifyStaff } from "@/features/staff-alerts/notify";
+import { payHoldRefusal } from "@/features/extraction/pay-gate";
 import { createOrder } from "@/features/orders/services/orders.service";
 import { requireContactDetails } from "@/features/account/services/contact-details.service";
 import { getDeliveryAddressById } from "@/db/queries/delivery-addresses";
@@ -69,6 +70,12 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
   // seconds on purpose: what it would have charged may still move. Also a wait.
   if (bag.has_freight_checks) {
     throw new APIError(409, "We are still checking the freight on one of your items. Give it a few seconds and try again.");
+  }
+  // 103: a price or stock check that has not cleared (pay-gate.ts). The line
+  // stays in the bag; it just cannot be paid for yet.
+  const held = bag.lines.find((l) => l.pay_hold != null && l.pay_hold.kind !== "freight_check");
+  if (held?.pay_hold) {
+    throw new APIError(409, payHoldRefusal(held.pay_hold, held.product.title));
   }
   // Checked BEFORE the generic unpriced guard, for the same reason the pending
   // one is: a line a buyer is looking up is not a failure the customer can fix

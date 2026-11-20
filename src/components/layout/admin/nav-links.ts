@@ -2,6 +2,8 @@ import type { LucideIcon } from "lucide-react";
 import {
   HandCoinsIcon,
   ActivityIcon,
+  BadgeDollarSignIcon,
+  PackageCheckIcon,
   BanknoteIcon,
   BellIcon,
   BookmarkIcon,
@@ -86,6 +88,9 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
       // Blocking in a way the others are not: every open row is a bag that
       // cannot be paid for until a buyer prices it.
       { title: "Sourcing", url: "/admin/sourcing-requests", icon: HandCoinsIcon, badge: "sourcingOpen" },
+      // 103: quotes a customer cannot pay for until someone checks the store.
+      { title: "Stock checks", url: "/admin/stock-checks", icon: PackageCheckIcon },
+      { title: "Price checks", url: "/admin/price-checks", icon: BadgeDollarSignIcon },
       { title: "Messages", url: "/admin/contact-messages", icon: MailIcon, badge: "contactOpen" },
       // A customer looking at the photograph of their own parcel, still on a
       // shelf in America. The badge counts only `open` rows, so it disappears

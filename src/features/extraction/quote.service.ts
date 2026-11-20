@@ -7,6 +7,7 @@ import { WEIGHT_NOT_LISTED_MESSAGE } from "./resolvers/messages";
 import type { FxOverride, PricingBreakdown, PricingCalculator } from "@/lib/pricing";
 import { freightCheckPending, freightCorrectionPatch } from "@/features/pricing/freight-inspection";
 import { reviveRegion } from "./region-revive";
+import { payHoldOf } from "./pay-gate";
 import type { ExtractionResult, FreightCheck, Quote } from "./types";
 
 export { storeShippingCurrencyOf };
@@ -132,11 +133,16 @@ export async function priceExtraction(
 
 /**
  * The extraction as a customer may see it: the freight inspector's verdict is
- * internal (its effect is already in the price) and never leaves the server.
+ * internal (its effect is already in the price) and never leaves the server,
+ * and neither do the per-tier price readings or what the guards refused (the
+ * customer gets `price_status` and `pay_hold` instead).
  */
-export function customerExtraction<T extends ExtractionResult>(extraction: T): Omit<T, "freight_inspection"> {
+export function customerExtraction<T extends ExtractionResult>(extraction: T): Omit<T, "freight_inspection" | "price_reads" | "price_confidence" | "quality"> {
   const copy: T = { ...reviveRegion(extraction) };
   delete copy.freight_inspection;
+  delete copy.price_reads;
+  delete copy.price_confidence;
+  delete copy.quality;
   return copy;
 }
 
@@ -179,5 +185,16 @@ export async function buildQuote(
   const { pricing, reason } = await priceExtraction(extraction, quantity, null, null);
   const customer = customerExtraction(extraction);
   const freightCheck = freightCheckOf(extraction);
-  return { ...customer, messages: customerMessages(customer.messages, pricing, freightCheck != null), pricing, pricing_unavailable_reason: reason, freight_check: freightCheck };
+  // No stored checks are read here: the hold is the rule's answer with none on file.
+  const payHold = payHoldOf({ extraction, checks: [] });
+  return {
+    ...customer,
+    messages: customerMessages(customer.messages, pricing, freightCheck != null),
+    pricing,
+    pricing_unavailable_reason: reason,
+    freight_check: freightCheck,
+    price_status: extraction.price_confidence?.level ?? null,
+    stock_check: null,
+    pay_hold: payHold,
+  };
 }

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+vi.mock("@/features/quote-checks/services/quote-checks.service", () => ({ payHoldFor: vi.fn(async () => null) }));
 vi.mock("@/features/extraction/extraction.service", () => ({ getExtractionSnapshot: vi.fn() }));
 vi.mock("@/features/extraction/scrapers", () => ({ resolvePlatform: vi.fn(() => ({ name: "amazon" })) }));
 vi.mock("@/features/extraction/resolvers/merge", () => ({ hasRequiredFields: vi.fn(() => true) }));

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+vi.mock("@/features/quote-checks/services/quote-checks.service", () => ({ quoteTrustFor: vi.fn(async () => ({ price_status: null, stock_check: null, pay_hold: null })) }));
 vi.mock("@/db/queries/quote-locks", () => ({
   findActiveLock: vi.fn(),
   getQuoteLockById: vi.fn(),
