@@ -192,6 +192,10 @@ export function PasteQueueView({
     // Once, on mount: later changes come from this screen's own actions.
   }, []);
   useEffect(() => writeBatch(batchIds), [batchIds]);
+  const batchIdsRef = useRef(batchIds);
+  useEffect(() => {
+    batchIdsRef.current = batchIds;
+  }, [batchIds]);
 
   /**
    * Queue links one after another and add them to the batch. `follow` keeps
@@ -211,10 +215,15 @@ export function PasteQueueView({
       }
       setQueueing(true);
       const added: PasteStatus[] = [];
+      const before = [...batchIdsRef.current];
+      let repeats = 0;
       for (const link of take) {
         try {
           const paste = await createPaste.mutateAsync({ product_url: link });
           added.push(paste);
+          // The server answers a link this viewer already pasted with the same row,
+          // so a repeat would otherwise change nothing on screen and say nothing.
+          if (before.includes(paste.id)) repeats += 1;
           // Each row joins the batch as it is created, so it starts reading in place.
           setBatchIds((prev) => (prev.includes(paste.id) ? prev : [...prev, paste.id].slice(0, PASTE_BATCH_MAX)));
         } catch (error) {
@@ -228,6 +237,18 @@ export function PasteQueueView({
       setQueueing(false);
       if (added.length === 0) return;
       setUrl("");
+      const fresh = added.length - repeats;
+      if (!follow || before.length > 0) {
+        if (fresh === 0) {
+          toast.info({ title: repeats === 1 ? "That link is already in your list" : "Those links are already in your list" });
+        } else {
+          const total = Math.min(before.length + fresh, PASTE_BATCH_MAX);
+          toast.success({
+            title: fresh === 1 ? "Link added" : `${fresh} links added`,
+            description: `${total} of ${PASTE_BATCH_MAX}. We're reading ${fresh === 1 ? "it" : "them"} now; paste the next one whenever you're ready.`,
+          });
+        }
+      }
 
       const only = added.length === 1 && links.length === 1 ? added[0]! : null;
       if (follow && only) {
@@ -432,14 +453,15 @@ export function PasteQueueView({
                 placeholder={canSearch ? "Paste a link or describe it" : "Paste a product link"}
                 className="min-w-0 flex-1 bg-transparent text-base leading-none text-foreground outline-none placeholder:text-muted-foreground sm:text-[15px]"
               />
-              {/* "+" only once there is a link to take: it means "this one, and another after it". */}
-              {typedLinks.length > 0 && !batchFull && (
+              {/* "+" is always there on the link tab so it can be found; it wakes up once
+                  there is a link to take ("this one, and another after it"). */}
+              {mode === "paste" && !batchFull && (
                 <Button
                   type="button"
                   variant="secondary"
                   size="icon-lg"
                   onClick={onAddAnother}
-                  disabled={queueing}
+                  disabled={queueing || typedLinks.length === 0}
                   aria-label="Add this link and paste another"
                   title="Add this link and paste another"
                 >
