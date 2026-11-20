@@ -65,6 +65,19 @@ function capitalise(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** A store phrase that means "you cannot buy this now". */
+export const UNAVAILABLE_PHRASE = /out ?of ?stock|unavailable|discontinued|sold out|no longer available/i;
+
+/**
+ * The store itself said the item cannot be bought (a title, no price, and an
+ * out-of-stock phrase) — as opposed to a read that simply failed. A re-read
+ * that says so replaces an older priced read; a failed one never does.
+ */
+export function storeSaysUnavailable(product: ScrapedProduct): boolean {
+  if (!product.title || product.price != null) return false;
+  return UNAVAILABLE_PHRASE.test(availabilityOf(product));
+}
+
 /** Customer-facing copy (plan A7). */
 export const STOCK_CHECK_MESSAGE = "We confirm stock and condition before you pay";
 export const STOCK_UNAVAILABLE_MESSAGE = "This item is no longer available from the store";

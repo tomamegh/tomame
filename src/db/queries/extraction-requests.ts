@@ -86,10 +86,14 @@ export interface ExtractionJobRow extends ExtractionRequestRow {
   started_at: string | null;
   finished_at: string | null;
   error: string | null;
+  /** 106: when this link was last asked to be read (paste, re-paste, retry button). Null on rows from before 106. */
+  queued_at?: string | null;
+  /** 106: the sweep leaves a requeued job alone until then. */
+  not_before?: string | null;
 }
 
 const JOB_COLUMNS =
-  "id, url_hash, product_url, extraction_cache_id, created_at, updated_at, user_id, session_id, status, attempts, started_at, finished_at, error";
+  "id, url_hash, product_url, extraction_cache_id, created_at, updated_at, user_id, session_id, status, attempts, started_at, finished_at, error, queued_at, not_before";
 
 /** The column that owns a row, and its value. Exactly one identity, enforced by a CHECK in 049. */
 function ownerFilter(viewer: RequestViewer): { column: "user_id" | "session_id"; value: string } | null {
@@ -115,6 +119,11 @@ export async function enqueueExtractionRequest(input: {
   urlHash: string;
   productUrl: string;
   cachedId: string | null;
+  /**
+   * 106: the cached read is stale; queue a fresh read while `cachedId` keeps
+   * serving the old figures (the row is `pending` WITH an extraction).
+   */
+  recheck?: boolean;
 }): Promise<ExtractionJobRow | null> {
   const owner = ownerFilter(input.viewer);
   if (!owner) return null;
@@ -125,6 +134,9 @@ export async function enqueueExtractionRequest(input: {
   // A row in flight is left exactly as it is: resetting a `running` job to
   // `pending` would let the sweeper start a second worker on it.
   if (existing?.status === "running") return existing;
+  // A re-check already queued is not undone by a cache-hit write (the job's own
+  // `notePaste`, or a second paste); a second re-check request joins it.
+  if (existing?.status === "pending" && (existing.extraction_cache_id || input.recheck)) return existing;
 
   // A row that is `ready` is only final while its answer still stands. `cachedId`
   // is the product-keyed cache row that is VALID right now; when it is null the
@@ -133,9 +145,10 @@ export async function enqueueExtractionRequest(input: {
   // "Read it again" on a lapsed quote — and re-pasting the same link — a silent
   // no-op: the same expired row came back, no job was scheduled, and the screen
   // did not so much as blink.
-  if (existing?.status === "ready" && existing.extraction_cache_id && input.cachedId) return existing;
+  if (existing?.status === "ready" && existing.extraction_cache_id && input.cachedId && !input.recheck) return existing;
 
-  const ready = input.cachedId != null;
+  const ready = input.cachedId != null && !input.recheck;
+  const now = new Date().toISOString();
   const { data, error } = await db
     .from("extraction_requests")
     .upsert(
@@ -148,8 +161,10 @@ export async function enqueueExtractionRequest(input: {
         attempts: 0,
         error: null,
         started_at: null,
-        finished_at: ready ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
+        finished_at: ready ? now : null,
+        updated_at: now,
+        queued_at: now,
+        not_before: null,
       },
       // `owner_key` is the generated column 049 added (coalesce(user_id, session_id)).
       // Conflict is inferred on it rather than on whichever identity column this
@@ -275,19 +290,22 @@ export async function reclaimStaleExtractionRequests(staleAfterMs: number, maxAt
   // guards against is silent and permanent.
   const { data, error } = await db
     .from("extraction_requests")
-    .select("id, attempts")
+    .select("id, attempts, extraction_cache_id")
     .eq("status", "running")
     .or(`started_at.lt.${cutoff},started_at.is.null`)
     .limit(50);
 
   if (error || !data?.length) return 0;
 
-  for (const row of data as { id: string; attempts: number }[]) {
+  for (const row of data as { id: string; attempts: number; extraction_cache_id: string | null }[]) {
     const exhausted = row.attempts + 1 >= maxAttempts;
     await db
       .from("extraction_requests")
       .update(
-        exhausted
+        // A re-check that keeps dying settles on the figures it already had (106).
+        exhausted && row.extraction_cache_id
+          ? { status: "ready", attempts: row.attempts + 1, finished_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+          : exhausted
           ? {
               status: "failed",
               error: "We could not read that page. Tell us what you want instead and a buyer will help.",
@@ -309,6 +327,8 @@ export async function listQueuedExtractionRequests(limit: number): Promise<Extra
     .from("extraction_requests")
     .select(JOB_COLUMNS)
     .eq("status", "pending")
+    // A retry waiting out its delay (106) is not due yet.
+    .or(`not_before.is.null,not_before.lte.${new Date().toISOString()}`)
     .order("updated_at", { ascending: true })
     .limit(limit);
 
@@ -349,7 +369,7 @@ export async function adoptExtractionRequests(sessionId: string, userId: string)
  * clears `started_at`, so the stale-reclaim cutoff cannot fire on a row that is
  * merely waiting its turn.
  */
-export async function requeueExtractionRequest(id: string, attempts: number): Promise<void> {
+export async function requeueExtractionRequest(id: string, attempts: number, notBefore: Date | null = null): Promise<void> {
   const { error } = await createAdminClient()
     .from("extraction_requests")
     .update({
@@ -358,10 +378,79 @@ export async function requeueExtractionRequest(id: string, attempts: number): Pr
       started_at: null,
       finished_at: null,
       updated_at: new Date().toISOString(),
+      not_before: notBefore ? notBefore.toISOString() : null,
     })
     .eq("id", id);
 
   if (error) logger.warn("extraction request requeue failed", { id, message: error.message });
+}
+
+/** What a paste that waited too long ends as: a re-check keeps its old figures, a first read fails. */
+export const GIVE_UP_ERROR = "We couldn't read that page. Ask a buyer and we'll find it for you.";
+
+/**
+ * End every paste still `pending`/`running` whose customer has waited past
+ * `olderThanMs` since asking (106 `queued_at`; `updated_at` for older rows).
+ * A re-check (it names an extraction) settles `ready` on the figures it
+ * already had; anything else fails with "Ask a buyer". Guarded on the status
+ * read, so a job finishing at the same moment wins. Scoped to one viewer when
+ * given (the list read), every row otherwise (the sweep). Returns how many ended.
+ */
+export async function giveUpStuckExtractionRequests(olderThanMs: number, viewer?: RequestViewer): Promise<number> {
+  const cutoff = new Date(Date.now() - olderThanMs).toISOString();
+  const db = createAdminClient();
+  let query = db
+    .from("extraction_requests")
+    .select("id, status, extraction_cache_id")
+    .in("status", ["pending", "running"])
+    .or(`queued_at.lt.${cutoff},and(queued_at.is.null,updated_at.lt.${cutoff})`)
+    .limit(50);
+  if (viewer) {
+    const owner = ownerFilter(viewer);
+    if (!owner) return 0;
+    query = query.eq(owner.column, owner.value);
+  }
+  const { data, error } = await query;
+  if (error || !data?.length) return 0;
+
+  let ended = 0;
+  const now = new Date().toISOString();
+  for (const row of data as { id: string; status: ExtractionRequestStatus; extraction_cache_id: string | null }[]) {
+    const { data: updated } = await db
+      .from("extraction_requests")
+      .update(
+        row.extraction_cache_id
+          ? { status: "ready", error: null, finished_at: now, updated_at: now, not_before: null }
+          : { status: "failed", error: GIVE_UP_ERROR, finished_at: now, updated_at: now, not_before: null },
+      )
+      .eq("id", row.id)
+      .eq("status", row.status)
+      .select("id");
+    ended += updated?.length ?? 0;
+  }
+  if (ended) logger.warn("extraction requests: gave up on stuck pastes", { ended });
+  return ended;
+}
+
+/**
+ * Whether a fresh read of this extraction is queued or running right now
+ * (a re-check, 106): the quote screen marks its figures "Re-checking…" and
+ * keeps asking. Rows past the give-up window do not count.
+ */
+export async function hasOpenRecheck(extractionCacheId: string, withinMs: number): Promise<boolean> {
+  const cutoff = new Date(Date.now() - withinMs).toISOString();
+  const { data, error } = await createAdminClient()
+    .from("extraction_requests")
+    .select("id")
+    .eq("extraction_cache_id", extractionCacheId)
+    .in("status", ["pending", "running"])
+    .gt("queued_at", cutoff)
+    .limit(1);
+  if (error) {
+    logger.warn("extraction requests: re-check lookup failed", { message: error.message });
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
 }
 
 /**

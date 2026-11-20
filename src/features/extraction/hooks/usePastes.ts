@@ -41,7 +41,8 @@ export function usePastes(initialData: PasteStatus[]) {
   // what pasting a link does. The screen made one request and then sat there:
   // the job finished within seconds and the page still said "Reading this
   // page…" a minute later, until the customer reloaded.
-  const anyReading = query.data.some((p) => p.outcome === "reading");
+  // A re-check (106) is reading too: its old figures are replaced when it lands.
+  const anyReading = query.data.some((p) => p.outcome === "reading" || p.rechecking);
   const { refetch } = query;
   useVisibleBackoff(() => void refetch(), PASTE_POLL, anyReading);
 

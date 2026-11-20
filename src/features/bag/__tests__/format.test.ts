@@ -114,6 +114,15 @@ describe("describePendingWait", () => {
     expect(wait.detail).toMatch(/WhatsApp/);
   });
 
+  it("past ninety seconds says plainly it is still reading, and offers a buyer (106)", () => {
+    expect(describePendingWait(at(89), NOW).phase).toBe("stuck");
+    const wait = describePendingWait(at(90), NOW);
+    expect(wait.phase).toBe("long");
+    expect(wait.title).toBe("Still reading…");
+    expect(wait.detail).toMatch(/ask a buyer/i);
+    expect(describePendingWait(at(600), NOW).title).toBe("Still reading…");
+  });
+
   it("shows the job's own reason once it has given up", () => {
     const wait = describePendingWait(at(3, { status: "failed", error: "We could not read that page." }), NOW);
     expect(wait.phase).toBe("failed");

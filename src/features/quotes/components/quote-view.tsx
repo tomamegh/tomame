@@ -7,6 +7,7 @@ import { ArrowLeft } from "@phosphor-icons/react/ssr";
 
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/empty-state";
+import { InlineStatus } from "@/components/ui/inline-status";
 
 import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { Quote } from "@/features/extraction/types";
@@ -62,6 +63,8 @@ const INSTRUCTIONS_MAX = 1000;
 interface QuoteResponse extends Quote {
   product_url: string;
   is_watching: boolean;
+  /** A fresh read of this link is running (a re-paste of a stale read, 106); the figures shown are the old read's. */
+  rechecking?: boolean;
 }
 
 export interface QuoteViewProps {
@@ -180,6 +183,13 @@ export function QuoteView({
         setQuote(response.data);
         // Say so when the check moved the freight; a silent jump in the total
         // is the thing a customer would rightly distrust.
+        // A fresh read of a stale quote landed: say what it changed.
+        if (previous?.rechecking && !response.data.rechecking) {
+          const was = previous.product.price;
+          const is = response.data.product.price;
+          if (is == null) toast.error({ title: "No longer available", description: "The store isn't selling this item right now." });
+          else if (was != null && is !== was) toast.success({ title: "Price updated", description: "The store's price changed since we last read it." });
+        }
         const before = previous?.pricing?.flat_rate_ghs;
         const after = response.data.pricing?.flat_rate_ghs;
         if (previous?.freight_check && !response.data.freight_check && before != null && after != null && before !== after) {
@@ -195,7 +205,8 @@ export function QuoteView({
       });
   }, [extractionId, quantity, shippingCode]);
   useVisibleInterval(pollFreight, FREIGHT_POLL_MS, checkingFreight);
-  const checkingPrice = quote?.pay_hold?.kind === "price_check" && !quote.pay_hold.needs_staff;
+  // An automatic price re-read, or a fresh read of a stale quote: both settle within a minute.
+  const checkingPrice = (quote?.pay_hold?.kind === "price_check" && !quote.pay_hold.needs_staff) || quote?.rechecking === true;
   useVisibleInterval(pollFreight, PRICE_CHECK_POLL_MS, checkingPrice && !checkingFreight);
   useVisibleInterval(pollFreight, QUOTE_REFRESH_MS, quote != null && !checkingFreight && !checkingPrice);
 
@@ -486,6 +497,12 @@ export function QuoteView({
         fetchedAt={quote.fetched_at}
         now={receivedAt}
       />
+
+      {quote.rechecking && (
+        <InlineStatus tone="progress" title="Re-checking price and stock…">
+          This link was last read a while ago. We&apos;re reading the store again; the price below updates when it lands.
+        </InlineStatus>
+      )}
 
       {/*
         One grid at every width. Below `lg` it collapses to a single column and

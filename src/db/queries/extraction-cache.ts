@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { withProductDefaults, type ExtractionResult } from "@/features/extraction/types";
+import { storeSaysUnavailable } from "@/features/extraction/stock-signals";
 import type { ExtractionSource } from "@/config/extraction";
 
 /**
@@ -84,6 +85,8 @@ export async function upsertExtractionCache(input: {
   source: ExtractionSource | null;
   requestedBy: string | null;
   expiresAt: string;
+  /** The store said the item is unavailable: this incomplete read replaces a complete one. */
+  replaceComplete?: boolean;
 }): Promise<string | null> {
   try {
     const db = createAdminClient();
@@ -101,7 +104,7 @@ export async function upsertExtractionCache(input: {
     // A price CAN legitimately vanish (a delisted product), so this is not "never
     // overwrite": a complete result always wins, and an incomplete one is only
     // refused while a complete, unexpired row still stands.
-    if (!input.complete) {
+    if (!input.complete && !input.replaceComplete) {
       const { data: existing } = await db
         .from("extraction_cache")
         .select("id")
@@ -187,6 +190,8 @@ export interface QuoteFacts {
   usable: boolean;
   /** It carries a price. A readable page with no price is not a quote. */
   priced: boolean;
+  /** No price because the store said it is out of stock (not because the read failed). */
+  unavailable: boolean;
   /** The listing's title when the page yielded one — for a notification to name the product. */
   title: string | null;
 }
@@ -227,6 +232,7 @@ export async function getQuoteFacts(ids: readonly string[]): Promise<Map<string,
       facts.set(row.id, {
         usable,
         priced: usable && typeof price === "number" && Number.isFinite(price) && price > 0,
+        unavailable: usable && storeSaysUnavailable(product),
         title: typeof product?.title === "string" && product.title.trim() ? product.title : null,
       });
     }

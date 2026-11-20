@@ -25,6 +25,8 @@ const paste = (over: Partial<PasteStatus> = {}): PasteStatus => ({
   product_url: "https://www.amazon.com/dp/B0C1",
   status: "ready",
   outcome: "priced",
+  rechecking: false,
+  queued_at: "2026-11-20T10:00:00Z",
   extraction_cache_id: "e1",
   title: "Headphones",
   error: null,
@@ -49,6 +51,11 @@ const line = (over: Partial<PasteBatchLine> = {}): PasteBatchLine => ({
 });
 
 describe("batchRowStatus", () => {
+  it("a re-check reads as Re-checking until it lands; out of stock is its own state (106)", () => {
+    expect(batchRowStatus(paste({ status: "running", rechecking: true }), line())).toMatchObject({ kind: "reading", label: "Re-checking", addable: false });
+    expect(batchRowStatus(paste({ outcome: "unavailable", extraction_cache_id: null }), null)).toMatchObject({ kind: "unavailable", label: "Out of stock", askable: true });
+  });
+
   it("walks Reading → Pricing → Ready", () => {
     expect(batchRowStatus(paste({ outcome: "reading", status: "running", extraction_cache_id: null }), null).label).toBe("Reading");
     expect(batchRowStatus(paste(), null).label).toBe("Pricing");

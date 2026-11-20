@@ -48,6 +48,9 @@ export function batchRowStatus(paste: PasteStatus, line: PasteBatchLine | null):
   const base = { pulse: false, addable: false, askable: false };
   if (paste.assisted) return { ...base, kind: "assisted", label: "With a buyer", tone: "success" };
   if (paste.outcome === "reading") return { ...base, kind: "reading", label: "Reading", tone: "progress", pulse: true };
+  // A stale read being read again (106): the old figures are not offered until it lands.
+  if (paste.rechecking) return { ...base, kind: "reading", label: "Re-checking", tone: "progress", pulse: true };
+  if (paste.outcome === "unavailable") return { ...base, kind: "unavailable", label: "Out of stock", tone: "warning", askable: true };
   if (paste.outcome !== "priced") return { ...base, kind: "failed", label: "Couldn't read", tone: "warning", askable: true };
   if (!line) return { ...base, kind: "pricing", label: "Pricing", tone: "progress", pulse: true };
   // No total and no reason yet: the price is still settling, and the preview asks again.

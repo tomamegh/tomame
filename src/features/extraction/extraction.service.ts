@@ -10,6 +10,7 @@ import { storeForUrl, type StoreDefinition } from "./stores";
 import { resolveProduct, continueResolve, type ChainOutcome } from "./resolvers";
 import { hasRequiredFields, hasWeight } from "./resolvers/merge";
 import { extractionQualityOf } from "./quality";
+import { storeSaysUnavailable } from "./stock-signals";
 import { classifyCategory } from "./category.service";
 import { inspectFreight, planFreightInspection } from "@/features/pricing/services/freight-inspector.service";
 import { freightCheckDue } from "@/features/pricing/freight-inspection";
@@ -90,8 +91,8 @@ export async function extractProductData(url: string, userId: string | null): Pr
  * optional one a call site could forget (see `applyImageOverride` in the Phase 1
  * post-mortem): the anonymous case is a real `null`, not an omission.
  */
-export async function extractPrepared(prepared: PreparedUrl, viewer: RequestViewer): Promise<FreshExtraction> {
-  const extraction = await resolveExtraction(prepared, viewer.userId);
+export async function extractPrepared(prepared: PreparedUrl, viewer: RequestViewer, opts: { fresh?: boolean } = {}): Promise<FreshExtraction> {
+  const extraction = await resolveExtraction(prepared, viewer.userId, opts.fresh === true);
   await notePaste(prepared, viewer, extraction.extraction_cache_id);
   return extraction;
 }
@@ -128,8 +129,9 @@ async function notePaste(
   });
 }
 
-async function resolveExtraction(prepared: PreparedUrl, userId: string | null): Promise<FreshExtraction> {
-  const cached = await getCachedExtractionByHash(prepared.urlHash);
+/** `fresh`: read the store again even when a cached read stands (a re-check of a stale read, a retry). */
+async function resolveExtraction(prepared: PreparedUrl, userId: string | null, fresh = false): Promise<FreshExtraction> {
+  const cached = fresh ? null : await getCachedExtractionByHash(prepared.urlHash);
   if (cached) {
     logger.info("extraction: cache hit", { url: prepared.canonicalUrl });
     // The cache query fills legacy rows to the current product shape.
@@ -335,8 +337,10 @@ async function performExtraction(prepared: PreparedUrl, userId: string | null): 
 
   const ttl = complete ? EXTRACTION.cacheTtlCompleteMs : EXTRACTION.cacheTtlPartialMs;
   const expiresAt = new Date(Date.now() + ttl).toISOString();
+  // The store saying "out of stock" is news a re-read must deliver, even over an older priced read.
+  const replaceComplete = !complete && storeSaysUnavailable(outcome.product);
   const write = (r: ExtractionResult, source: ChainOutcome["primarySource"], isComplete: boolean) =>
-    upsertExtractionCache({ urlHash, productUrl: canonicalUrl, result: r, complete: isComplete, source, requestedBy: userId, expiresAt });
+    upsertExtractionCache({ urlHash, productUrl: canonicalUrl, result: r, complete: isComplete, source, requestedBy: userId, expiresAt, replaceComplete: replaceComplete && !isComplete });
   const cacheId = await write(result, outcome.primarySource, complete);
 
   const needsEnrichment = complete && outcome.skipped.length > 0 && !hasWeight(outcome.product) && (await weightMattersFor(outcome.product.category));

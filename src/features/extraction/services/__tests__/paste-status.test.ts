@@ -19,9 +19,9 @@ const row = (over: Record<string, unknown> = {}) =>
     ...over,
   }) as never;
 
-const PRICED = { usable: true, priced: true, title: "A thing" };
-const UNPRICED = { usable: true, priced: false, title: "A thing" };
-const LAPSED = { usable: false, priced: false, title: null };
+const PRICED = { usable: true, priced: true, unavailable: false, title: "A thing" };
+const UNPRICED = { usable: true, priced: false, unavailable: false, title: "A thing" };
+const LAPSED = { usable: false, priced: false, unavailable: false, title: null };
 
 describe("toPasteStatus — what the screen may promise", () => {
   it("keeps bookkeeping out of the response", () => {
@@ -87,5 +87,30 @@ describe("toPasteStatus — what the screen may promise", () => {
     expect(status.assisted).toEqual({ status: "contacted", requested_at: "2026-09-13T10:05:00Z" });
     // The assisted row's id is staff bookkeeping; the browser does not need it.
     expect(status.assisted).not.toHaveProperty("id");
+  });
+});
+
+describe("toPasteStatus — re-checks and stock (106)", () => {
+  it("a re-check keeps the old figures on screen, marked, until it lands", () => {
+    const status = toPasteStatus(row({ status: "running", extraction_cache_id: "cache-1" }), PRICED);
+    expect(status.outcome).toBe("priced");
+    expect(status.rechecking).toBe(true);
+    expect(status.extraction_cache_id).toBe("cache-1");
+    expect(toPasteStatus(row(), PRICED).rechecking).toBe(false);
+  });
+
+  it("a re-check whose old read has lapsed is plain reading", () => {
+    const status = toPasteStatus(row({ status: "pending", extraction_cache_id: "cache-1" }), LAPSED);
+    expect(status.outcome).toBe("reading");
+    expect(status.rechecking).toBe(false);
+  });
+
+  it("an item the store says is out of stock is unavailable, not unpriced", () => {
+    expect(toPasteStatus(row(), { ...UNPRICED, unavailable: true }).outcome).toBe("unavailable");
+  });
+
+  it("the reading clock runs from the latest ask, not from the first paste", () => {
+    expect(toPasteStatus(row({ queued_at: "2026-09-14T08:00:00Z" }), PRICED).queued_at).toBe("2026-09-14T08:00:00Z");
+    expect(toPasteStatus(row(), PRICED).queued_at).toBe("2026-09-13T10:00:00Z");
   });
 });

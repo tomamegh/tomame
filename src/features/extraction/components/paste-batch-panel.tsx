@@ -57,7 +57,8 @@ export function PasteBatchPanel({ pastes, onDescribe, onDone }: PasteBatchPanelP
   const [addingAll, setAddingAll] = useState(false);
   const addToBag = useAddToBag();
 
-  const pricedIds = useMemo(() => pastes.filter((p) => p.outcome === "priced" && p.extraction_cache_id).map((p) => p.id), [pastes]);
+  // A row being re-checked joins the preview once its fresh read lands, which re-asks for it.
+  const pricedIds = useMemo(() => pastes.filter((p) => p.outcome === "priced" && !p.rechecking && p.extraction_cache_id).map((p) => p.id), [pastes]);
   const preview = usePasteBatchPreview(pricedIds);
   const lineByPaste = useMemo(() => new Map((preview.data?.lines ?? []).map((l) => [l.request_id, l])), [preview.data]);
 

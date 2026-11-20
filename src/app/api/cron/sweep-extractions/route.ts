@@ -28,7 +28,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   return runCronJob(request, "sweep-extractions", async () => {
     const summary = await sweepExtractions();
     // Only worth a line when it actually did something — this runs 1,440 times a day.
-    if (summary.claimed || summary.reclaimed) {
+    if (summary.claimed || summary.reclaimed || summary.gaveUp) {
       logger.info("sweep-extractions run", { ...summary });
     }
     return { ...summary };

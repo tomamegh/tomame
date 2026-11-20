@@ -4,7 +4,7 @@ import { listPastesForViewer } from "@/db/queries/extraction-requests";
 import { getQuoteFacts } from "@/db/queries/extraction-cache";
 import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
 import { extractProductSchema } from "@/features/extraction/schema";
-import { enqueuePaste, PasteNotAdmittedError, runExtractionJob } from "@/features/extraction/services/extraction-queue.service";
+import { enqueuePaste, PasteNotAdmittedError, runPasteJob, settleStuckPastes } from "@/features/extraction/services/extraction-queue.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
@@ -13,8 +13,10 @@ import { RATE_LIMIT } from "@/config/security";
 import { toPasteStatus } from "@/features/extraction/services/paste-status";
 
 // The response is immediate; `after()` keeps the invocation alive for the job,
-// bounded by the chain budget: 25 s, 60 s for SHEIN (stores.ts budgetMs).
-export const maxDuration = 120;
+// bounded by the chain budget (25 s, 60 s for SHEIN, stores.ts budgetMs) and,
+// when every tier failed, the 45 s pause and one retry (`runPasteJob`).
+export const maxDuration = 180;
+const JOB_BUDGET_MS = (maxDuration - 10) * 1000;
 
 /**
  * POST /api/pastes — put a link on the queue and answer straight away.
@@ -67,7 +69,8 @@ export async function POST(request: NextRequest) {
     // Start it here rather than waiting for the sweep: the customer is still on
     // the page and a minute of queue latency would undo the point of this route.
     // The claim is guarded, so this racing the sweeper is safe and expected.
-    if (!enqueued.ready) after(() => runExtractionJob(enqueued.request.id));
+    // A stale cached read is re-read the same way; its old figures show meanwhile.
+    if (!enqueued.ready) after(() => runPasteJob(enqueued.request.id, JOB_BUDGET_MS));
 
     const [facts, assisted] = await Promise.all([
       getQuoteFacts([enqueued.request.extraction_cache_id ?? ""]),
@@ -105,6 +108,8 @@ export async function GET(request: NextRequest) {
       throw new APIError(429, "Too many requests");
     }
 
+    // Nothing on this list reads forever, even when the sweep is not running.
+    await settleStuckPastes(viewer);
     const rows = await listPastesForViewer(viewer);
     // One read each for the whole page rather than one per row.
     const [facts, assisted] = await Promise.all([

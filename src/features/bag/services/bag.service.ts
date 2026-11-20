@@ -225,7 +225,8 @@ async function addPasteToBag(viewer: Viewer, input: AddToBagInput, requestId: st
   if (!request) throw new APIError(404, "We have no record of that link.");
   if (!ownsRequest(viewer, request)) throw new APIError(404, "We have no record of that link.");
 
-  if (request.status === "ready" && request.extraction_cache_id) {
+  // A re-check (106, pending with an extraction) prices from the read it is replacing; the line follows the row when it lands.
+  if (request.extraction_cache_id && request.status !== "failed") {
     return addToBag(viewer, { ...input, extraction_request_id: undefined, extraction_cache_id: request.extraction_cache_id });
   }
 
@@ -632,7 +633,7 @@ async function pendingStateFor(viewer: Viewer, row: CartItemRow): Promise<{ pend
       // that is not pending or running is a dead end for this line.
       status: request.status === "pending" || request.status === "running" ? request.status : "failed",
       error: request.status === "failed" ? request.error : null,
-      queued_at: request.created_at,
+      queued_at: request.queued_at ?? request.created_at,
       assisted_open: assisted.has(request.product_url),
     },
     productUrl: request.product_url,

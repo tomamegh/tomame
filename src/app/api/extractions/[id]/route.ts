@@ -2,6 +2,7 @@ import { NextRequest, after } from "next/server";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { getValidExtractionById } from "@/db/queries/extraction-cache";
 import { startFreightRecheck } from "@/features/extraction/extraction.service";
+import { isRechecking } from "@/features/extraction/services/extraction-queue.service";
 import { quoteForViewer } from "@/features/quotes/services/quote-lock.service";
 import { isWatching } from "@/features/watches/services/watches.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
@@ -48,12 +49,14 @@ export async function GET(
     if (recheck) after(recheck.run);
     const result = recheck?.result ?? row.result;
 
-    const [quote, watching] = await Promise.all([
+    const [quote, watching, rechecking] = await Promise.all([
       quoteForViewer({ ...result, extraction_cache_id: row.id, cached: true }, quantity, viewer, storeShippingCode ? { storeShippingCode } : null),
       isWatching(user?.id ?? null, row.url_hash),
+      // A re-paste of a stale read is re-reading it (106): the screen marks the figures and keeps asking.
+      isRechecking(row.id),
     ]);
 
-    return finalize(successResponse({ ...quote, product_url: row.product_url, is_watching: watching }));
+    return finalize(successResponse({ ...quote, product_url: row.product_url, is_watching: watching, rechecking }));
   } catch (error) {
     return errorResponse(error);
   }

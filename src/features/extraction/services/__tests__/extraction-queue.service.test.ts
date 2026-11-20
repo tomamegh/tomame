@@ -8,6 +8,8 @@ vi.mock("@/db/queries/extraction-requests", () => ({
   completeExtractionRequest: vi.fn(),
   enqueueExtractionRequest: vi.fn(),
   findExtractionRequestByUrl: vi.fn(),
+  giveUpStuckExtractionRequests: vi.fn(async () => 0),
+  hasOpenRecheck: vi.fn(async () => false),
   listQueuedExtractionRequests: vi.fn(),
   reclaimStaleExtractionRequests: vi.fn(),
   requeueExtractionRequest: vi.fn(),
@@ -30,6 +32,7 @@ import {
   claimExtractionRequest,
   completeExtractionRequest,
   enqueueExtractionRequest,
+  giveUpStuckExtractionRequests,
   listQueuedExtractionRequests,
   reclaimStaleExtractionRequests,
   requeueExtractionRequest,
@@ -42,6 +45,8 @@ import {
   MAX_EXTRACTION_ATTEMPTS,
   enqueuePaste,
   PasteNotAdmittedError,
+  PASTE_GIVE_UP_MS,
+  isStaleRead,
   runExtractionJob,
   sweepExtractions,
 } from "../extraction-queue.service";
@@ -72,6 +77,7 @@ beforeEach(() => {
   vi.mocked(getCachedExtractionByHash).mockResolvedValue(null as never);
   vi.mocked(reclaimStaleExtractionRequests).mockResolvedValue(0);
   vi.mocked(listQueuedExtractionRequests).mockResolvedValue([]);
+  vi.mocked(giveUpStuckExtractionRequests).mockResolvedValue(0);
 });
 
 describe("enqueuePaste", () => {
@@ -268,5 +274,117 @@ describe("a notification must not be able to undo the job", () => {
     );
     // The row stays finished. This is the assertion that matters.
     expect(requeueExtractionRequest).not.toHaveBeenCalled();
+  });
+});
+
+// ── 106: stale re-reads, one retry, nothing reads forever ────────────────────
+
+const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+const product = (over: Record<string, unknown> = {}) => ({ title: "LEGO", price: null, currency: null, availability: null, metadata: {}, ...over });
+
+describe("re-paste of a stale read (106)", () => {
+  it("knows a stale read from a fresh one", () => {
+    expect(isStaleRead({ fetched_at: minutesAgo(60) })).toBe(true);
+    expect(isStaleRead({ fetched_at: minutesAgo(5) })).toBe(false);
+    expect(isStaleRead({ fetched_at: undefined as never })).toBe(false);
+  });
+
+  it("re-queues the same row with the old read kept, spending the read budget", async () => {
+    vi.mocked(getCachedExtractionByHash).mockResolvedValue({ id: "cache-9", result: { fetched_at: minutesAgo(60) } } as never);
+    vi.mocked(enqueueExtractionRequest).mockResolvedValue(job({ status: "pending", extraction_cache_id: "cache-9" }));
+    const admit = vi.fn().mockResolvedValue(true);
+
+    const result = await enqueuePaste(VIEWER, "https://store.test/p/1", admit);
+
+    expect(admit).toHaveBeenCalledTimes(1);
+    expect(admit).toHaveBeenCalledWith(false);
+    expect(enqueueExtractionRequest).toHaveBeenCalledWith(expect.objectContaining({ cachedId: "cache-9", recheck: true }));
+    expect(result).toMatchObject({ ready: false, rechecking: true });
+  });
+
+  it("a fresh read is not re-read: a cache hit, no vendor budget", async () => {
+    vi.mocked(getCachedExtractionByHash).mockResolvedValue({ id: "cache-9", result: { fetched_at: minutesAgo(2) } } as never);
+    vi.mocked(enqueueExtractionRequest).mockResolvedValue(job({ status: "ready", extraction_cache_id: "cache-9" }));
+    const admit = vi.fn().mockResolvedValue(true);
+
+    const result = await enqueuePaste(VIEWER, "https://store.test/p/1", admit);
+
+    expect(admit).toHaveBeenCalledWith(true);
+    expect(enqueueExtractionRequest).toHaveBeenCalledWith(expect.objectContaining({ recheck: false }));
+    expect(result).toMatchObject({ ready: true, rechecking: false });
+  });
+
+  it("over the read budget, the stale read is served as the cache hit it is", async () => {
+    vi.mocked(getCachedExtractionByHash).mockResolvedValue({ id: "cache-9", result: { fetched_at: minutesAgo(60) } } as never);
+    vi.mocked(enqueueExtractionRequest).mockResolvedValue(job({ status: "ready", extraction_cache_id: "cache-9" }));
+    const admit = vi.fn(async (cacheHit: boolean) => cacheHit);
+
+    const result = await enqueuePaste(VIEWER, "https://store.test/p/1", admit);
+
+    expect(admit.mock.calls).toEqual([[false], [true]]);
+    expect(enqueueExtractionRequest).toHaveBeenCalledWith(expect.objectContaining({ recheck: false }));
+    expect(result?.ready).toBe(true);
+  });
+
+  it("the re-check reads the store fresh, settles on the new read, and tells nobody", async () => {
+    vi.mocked(claimExtractionRequest).mockResolvedValue(job({ status: "running", extraction_cache_id: "cache-9", attempts: 0 }));
+    vi.mocked(extractPrepared).mockResolvedValue({ extraction_cache_id: "cache-9", product: product({ price: 12.99, currency: "USD" }) } as never);
+
+    expect(await runExtractionJob("req-1")).toBe("ran");
+    expect(vi.mocked(extractPrepared).mock.calls[0]?.[2]).toEqual({ fresh: true });
+    expect(completeExtractionRequest).toHaveBeenCalledWith(expect.objectContaining({ status: "ready", extractionCacheId: "cache-9" }));
+    expect(notifyPasteFinished).not.toHaveBeenCalled();
+    expect(enqueueCatalogQueryFromPaste).not.toHaveBeenCalled();
+  });
+
+  it("a re-check that reads nothing is not retried: the old figures stand", async () => {
+    vi.mocked(claimExtractionRequest).mockResolvedValue(job({ status: "running", extraction_cache_id: "cache-9" }));
+    vi.mocked(extractPrepared).mockResolvedValue({ extraction_cache_id: "cache-9", product: product() } as never);
+
+    expect(await runExtractionJob("req-1")).toBe("ran");
+    expect(requeueExtractionRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("a read where every tier failed is retried once (106)", () => {
+  it("first attempt: back on the queue for ~45 s, nothing settled or announced", async () => {
+    vi.mocked(claimExtractionRequest).mockResolvedValue(job({ status: "running", attempts: 0 }));
+    vi.mocked(extractPrepared).mockResolvedValue({ extraction_cache_id: "cache-p", product: product({ title: null }) } as never);
+    const before = Date.now();
+
+    expect(await runExtractionJob("req-1")).toBe("retry");
+    const [id, attempts, notBefore] = vi.mocked(requeueExtractionRequest).mock.calls[0]!;
+    expect([id, attempts]).toEqual(["req-1", 1]);
+    expect((notBefore as Date).getTime() - before).toBeGreaterThanOrEqual(44_000);
+    expect(completeExtractionRequest).not.toHaveBeenCalled();
+    expect(notifyPasteFinished).not.toHaveBeenCalled();
+  });
+
+  it("second attempt reads fresh (not the failed read cached for 5 min) and settles", async () => {
+    vi.mocked(claimExtractionRequest).mockResolvedValue(job({ status: "running", attempts: 1 }));
+    vi.mocked(extractPrepared).mockResolvedValue({ extraction_cache_id: "cache-p", product: product() } as never);
+
+    expect(await runExtractionJob("req-1")).toBe("ran");
+    expect(vi.mocked(extractPrepared).mock.calls[0]?.[2]).toEqual({ fresh: true });
+    expect(requeueExtractionRequest).not.toHaveBeenCalled();
+    expect(completeExtractionRequest).toHaveBeenCalledWith(expect.objectContaining({ status: "ready" }));
+  });
+
+  it("the store saying out of stock is an answer, not a failure: no retry", async () => {
+    vi.mocked(claimExtractionRequest).mockResolvedValue(job({ status: "running", attempts: 0 }));
+    vi.mocked(extractPrepared).mockResolvedValue({ extraction_cache_id: "cache-p", product: product({ availability: "Currently unavailable." }) } as never);
+
+    expect(await runExtractionJob("req-1")).toBe("ran");
+    expect(requeueExtractionRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("nothing reads forever (106)", () => {
+  it("the sweep ends pastes waiting past the give-up window", async () => {
+    vi.mocked(giveUpStuckExtractionRequests).mockResolvedValue(2);
+    const summary = await sweepExtractions();
+    expect(giveUpStuckExtractionRequests).toHaveBeenCalledWith(PASTE_GIVE_UP_MS);
+    expect(summary.gaveUp).toBe(2);
+    expect(PASTE_GIVE_UP_MS).toBeGreaterThanOrEqual(4 * 60_000);
   });
 });

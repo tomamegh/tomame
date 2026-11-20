@@ -21,6 +21,7 @@ import type { ChainOutcome, ExtractionResolver, HtmlFetch, ResolveContext, Resol
 import { WEIGHT_NOT_LISTED_MESSAGE } from "./messages";
 import { PAGE_OFFER_CONFIDENCE } from "./structured-data.resolver";
 import { guardHtmlPrice, PRICE_REJECTED_MESSAGE, type PriceRead } from "../price-confidence";
+import { UNAVAILABLE_PHRASE } from "../stock-signals";
 
 /** Every resolver, by name. A store's `providers` list picks and orders them. */
 export const RESOLVERS: Record<ExtractionSource, ExtractionResolver> = {
@@ -236,7 +237,7 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
   const unavailable = () => {
     const phrase = availabilityPhrase();
     if (!state.product.title || state.product.price != null || !phrase) return false;
-    if (!/out ?of ?stock|unavailable|discontinued|sold out|no longer available/i.test(phrase)) return false;
+    if (!UNAVAILABLE_PHRASE.test(phrase)) return false;
     // A tier that reads sellers' offers may still price it (Amazon's offer list).
     return !resolvers.some((r) => r.readsUnavailable && r.available(ctx) && !ran.includes(r.name) && Date.now() < deadline);
   };

@@ -215,7 +215,7 @@ export function BagLineRow({
           </StepperButton>
         </div>
 
-        {wait && (wait.phase === "stuck" || wait.phase === "failed") && (
+        {wait && (wait.phase === "stuck" || wait.phase === "long" || wait.phase === "failed") && (
           <button
             type="button"
             onClick={onDescribeIt}

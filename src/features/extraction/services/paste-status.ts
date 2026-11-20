@@ -30,7 +30,15 @@ export interface PasteStatus {
    * - `unpriced` — the page was read but no price came out; describe it.
    * - `expired`  — the quote has lapsed or the job failed; paste it again.
    */
-  outcome: "reading" | "priced" | "unpriced" | "expired";
+  outcome: "reading" | "priced" | "unpriced" | "unavailable" | "expired";
+  /**
+   * 106: a stale read is being read again. `outcome` describes the figures on
+   * hand meanwhile (usually `priced`); the screen marks them "Re-checking price
+   * and stock…" and keeps asking until this is false.
+   */
+  rechecking: boolean;
+  /** When the customer last asked for this link to be read: the "Reading…" clock starts here. */
+  queued_at: string;
   /** Safe to navigate to ONLY when `outcome` is `priced`. Null otherwise. */
   extraction_cache_id: string | null;
   /** The listing's title once the page has been read; null while reading or when it had none. */
@@ -73,6 +81,8 @@ export function toPasteStatus(
     product_url: row.product_url,
     status: row.status,
     outcome,
+    rechecking: (row.status === "pending" || row.status === "running") && outcome !== "reading",
+    queued_at: row.queued_at ?? row.created_at,
     extraction_cache_id: outcome === "priced" ? row.extraction_cache_id : null,
     title: facts?.title ?? null,
     error: row.status === "failed" ? row.error : null,
@@ -83,8 +93,17 @@ export function toPasteStatus(
 }
 
 function resolveOutcome(row: ExtractionJobRow, facts?: QuoteFacts): PasteStatus["outcome"] {
-  if (row.status === "pending" || row.status === "running") return "reading";
+  if (row.status === "pending" || row.status === "running") {
+    // A re-check (106) keeps showing the read it is replacing while that still stands.
+    if (row.extraction_cache_id && facts?.usable) return settled(facts);
+    return "reading";
+  }
   if (row.status === "failed" || !row.extraction_cache_id) return "expired";
   if (!facts?.usable) return "expired";
-  return facts.priced ? "priced" : "unpriced";
+  return settled(facts);
+}
+
+function settled(facts: QuoteFacts): PasteStatus["outcome"] {
+  if (facts.priced) return "priced";
+  return facts.unavailable ? "unavailable" : "unpriced";
 }

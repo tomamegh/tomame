@@ -173,8 +173,14 @@ function buildDeliveryRow(view: BagView): BagSummaryRow {
  */
 export const PENDING_SLOW_MS = 5_000;
 export const PENDING_STUCK_MS = 20_000;
+/**
+ * Past this the row stops counting seconds and says plainly that it is still
+ * reading (a failed read is being retried, 106). The job itself ends within
+ * five minutes either way (`PASTE_GIVE_UP_MS`).
+ */
+export const PENDING_LONG_MS = 90_000;
 
-export type PendingPhase = "reading" | "slow" | "stuck" | "failed" | "assisted";
+export type PendingPhase = "reading" | "slow" | "stuck" | "long" | "failed" | "assisted";
 
 export interface PendingWait {
   phase: PendingPhase;
@@ -232,6 +238,13 @@ export function describePendingWait(
     : "the price will appear here when it's ready.";
 
   // Plain status, no personality: a wait is information, not a joke (2026-11-20).
+  if (elapsed >= PENDING_LONG_MS) {
+    return {
+      phase: "long",
+      title: "Still reading…",
+      detail: "This store is slow to answer; we're trying again. Or ask a buyer and we'll find it for you on WhatsApp.",
+    };
+  }
   if (elapsed >= PENDING_STUCK_MS) {
     return {
       phase: "stuck",

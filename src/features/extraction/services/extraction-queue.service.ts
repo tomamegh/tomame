@@ -5,6 +5,8 @@ import {
   completeExtractionRequest,
   enqueueExtractionRequest,
   findExtractionRequestByUrl,
+  giveUpStuckExtractionRequests,
+  hasOpenRecheck,
   listQueuedExtractionRequests,
   reclaimStaleExtractionRequests,
   requeueExtractionRequest,
@@ -16,6 +18,8 @@ import { EXTRACTION } from "@/config/extraction";
 import { STORES } from "../stores";
 import { logger } from "@/lib/logger";
 import { extractPrepared, prepareProductUrl } from "../extraction.service";
+import { storeSaysUnavailable } from "../stock-signals";
+import type { ExtractionResult } from "../types";
 import { notifyPasteFinished, type PasteFinishedResult } from "./paste-notify.service";
 import { enqueueCatalogQueryFromPaste } from "@/features/catalog/services/catalog-enqueue.service";
 
@@ -48,10 +52,29 @@ export const MAX_EXTRACTION_ATTEMPTS = 3;
  */
 export const STALE_RUNNING_MS = Math.max(EXTRACTION.totalBudgetMs, ...STORES.map((s) => s.budgetMs ?? 0)) + 35_000;
 
+/** The longest one read may take, across stores (SHEIN 60 s). */
+const MAX_CHAIN_MS = STALE_RUNNING_MS - 35_000;
+
+/**
+ * No paste reads for longer than this from when the customer asked (106
+ * `queued_at`): past it a first read fails with "Ask a buyer" and a re-check
+ * settles on the figures it had. Covers the slowest legitimate path — a 60 s
+ * read, the 45 s retry delay plus a sweep minute, a second 60 s read.
+ */
+export const PASTE_GIVE_UP_MS = 5 * 60_000;
+
+/** A cached read older than the freshness window is re-read on a re-paste. Unknown age: not stale. */
+export function isStaleRead(result: Pick<ExtractionResult, "fetched_at"> | null | undefined, now = Date.now()): boolean {
+  const at = Date.parse(result?.fetched_at ?? "");
+  return Number.isFinite(at) && now - at > EXTRACTION.repasteFreshMs;
+}
+
 export interface EnqueuedPaste {
   request: ExtractionJobRow;
   /** True when the row was already answered by the product-keyed cache — nothing to run. */
   ready: boolean;
+  /** A stale cached read is being read again; its old figures show meanwhile (106). */
+  rechecking: boolean;
 }
 
 /**
@@ -81,17 +104,31 @@ export async function enqueuePaste(
 ): Promise<EnqueuedPaste | null> {
   const prepared = await prepareProductUrl(rawUrl);
   const cached = await getCachedExtractionByHash(prepared.urlHash);
-  if (admit && !(await admit(cached != null))) throw new PasteNotAdmittedError(cached != null);
+  // A stale read is re-read: that is a vendor call and spends the read budget.
+  // Refused, the customer still gets the old read, as the cache hit it is.
+  let recheck = cached != null && isStaleRead(cached.result);
+  if (admit) {
+    if (recheck) recheck = await admit(false);
+    const fresh = !cached || recheck;
+    // A stale read served as-is (its re-read refused) is a cache hit like any other.
+    if (!(recheck || (await admit(!fresh)))) throw new PasteNotAdmittedError(!fresh);
+  }
 
   const request = await enqueueExtractionRequest({
     viewer,
     urlHash: prepared.urlHash,
     productUrl: prepared.canonicalUrl,
     cachedId: cached?.id ?? null,
+    recheck,
   });
   if (!request) return null;
 
-  return { request, ready: request.status === "ready" && !!request.extraction_cache_id };
+  const open = request.status === "pending" || request.status === "running";
+  return {
+    request,
+    ready: request.status === "ready" && !!request.extraction_cache_id,
+    rechecking: open && !!request.extraction_cache_id,
+  };
 }
 
 /**
@@ -106,25 +143,35 @@ export async function enqueuePaste(
  * point of view: there is nothing to price against. It is recorded as one so the
  * screen can offer the describe-it form rather than spin forever.
  */
-export async function runExtractionJob(requestId: string): Promise<"ran" | "skipped" | "failed"> {
+export async function runExtractionJob(requestId: string): Promise<"ran" | "skipped" | "failed" | "retry"> {
   const claimed = await claimExtractionRequest(requestId);
   if (!claimed) return "skipped";
 
   const attempts = claimed.attempts + 1;
+  // A pending row that names an extraction is a re-check of a stale read (106):
+  // the store is read again, and the old figures stand if it reads nothing.
+  const recheck = claimed.extraction_cache_id != null;
 
   // What the customer should be told, decided inside the try/catch and acted on
   // AFTER it. Null means the job has not settled — it is going round again, and
   // there is nothing to report yet.
   let finished: PasteFinishedResult | null = null;
-  let outcome: "ran" | "failed";
+  let outcome: "ran" | "failed" | "retry";
   // The freight check the extraction left pending, run once the job has settled.
   let checkFreight: (() => Promise<void>) | undefined;
 
   try {
     const prepared = await prepareProductUrl(claimed.product_url);
-    const extraction = await extractPrepared(prepared, { userId: claimed.user_id, sessionId: claimed.session_id });
+    // A retry or a re-check must not be answered by the read it is replacing.
+    const extraction = await extractPrepared(prepared, { userId: claimed.user_id, sessionId: claimed.session_id }, { fresh: recheck || claimed.attempts > 0 });
 
-    if (!extraction.extraction_cache_id) {
+    if (readNothing(extraction) && !recheck && attempts < 2) {
+      // Every tier failed (a vendor moment, a timeout): read once more after a
+      // pause before telling the customer we couldn't. The row stays "reading".
+      await requeueExtractionRequest(claimed.id, attempts, new Date(Date.now() + EXTRACTION.failedReadRetryMs));
+      logger.info("extraction job: nothing read, retrying once", { id: claimed.id, url: claimed.product_url });
+      outcome = "retry";
+    } else if (!extraction.extraction_cache_id) {
       await completeExtractionRequest({
         id: claimed.id,
         status: "failed",
@@ -180,9 +227,10 @@ export async function runExtractionJob(requestId: string): Promise<"ran" | "skip
   // The missing table is still reported, at error level, because the job's
   // state is already correct by this point and re-running it cannot fix a
   // schema problem.
+  // A re-check is not news to announce: the customer is looking at the quote.
   if (finished) {
     try {
-      await notifyPasteFinished(claimed, finished);
+      if (!recheck) await notifyPasteFinished(claimed, finished);
     } catch (error) {
       logger.error("paste notification failed after the job had already settled", {
         id: claimed.id,
@@ -212,7 +260,7 @@ export async function runExtractionJob(requestId: string): Promise<"ran" | "skip
         });
       }
       try {
-        await enqueueCatalogQueryFromPaste(finished.extractionCacheId);
+        if (!recheck) await enqueueCatalogQueryFromPaste(finished.extractionCacheId);
       } catch (error) {
         logger.error("catalogue enqueue threw after the job had already settled", {
           id: claimed.id,
@@ -229,7 +277,10 @@ export interface SweepSummary {
   reclaimed: number;
   claimed: number;
   ran: number;
+  /** Includes jobs sent round for their one retry. */
   failed: number;
+  /** Pastes ended for waiting past `PASTE_GIVE_UP_MS`; present only when some were. */
+  gaveUp?: number;
 }
 
 /**
@@ -243,6 +294,8 @@ export interface SweepSummary {
  */
 export async function sweepExtractions(batchSize = 3): Promise<SweepSummary> {
   const reclaimed = await reclaimStaleExtractionRequests(STALE_RUNNING_MS, MAX_EXTRACTION_ATTEMPTS);
+  // Nothing reads forever: past the give-up window a paste ends (106).
+  const gaveUp = await giveUpStuckExtractionRequests(PASTE_GIVE_UP_MS);
   const queued = await listQueuedExtractionRequests(batchSize);
 
   let ran = 0;
@@ -256,7 +309,46 @@ export async function sweepExtractions(batchSize = 3): Promise<SweepSummary> {
     else failed += 1;
   }
 
-  return { reclaimed, claimed, ran, failed };
+  return { reclaimed, claimed, ran, failed, ...(gaveUp ? { gaveUp } : {}) };
+}
+
+/**
+ * The paste route's background run: the job, and when every tier failed, its
+ * one retry after the pause — in this same invocation when the function has
+ * room for it (a 60 s store's two reads plus the pause), else the sweep runs
+ * it once `not_before` passes.
+ */
+export async function runPasteJob(requestId: string, functionBudgetMs: number): Promise<void> {
+  const started = Date.now();
+  if ((await runExtractionJob(requestId)) !== "retry") return;
+  const room = functionBudgetMs - (Date.now() - started) - EXTRACTION.failedReadRetryMs - MAX_CHAIN_MS - 5_000;
+  if (room < 0) return;
+  await new Promise((resolve) => setTimeout(resolve, EXTRACTION.failedReadRetryMs));
+  await runExtractionJob(requestId);
+}
+
+/** A list read ends this viewer's pastes that waited past the give-up window, so none shows "Reading" forever. */
+export async function settleStuckPastes(viewer: RequestViewer): Promise<void> {
+  try {
+    await giveUpStuckExtractionRequests(PASTE_GIVE_UP_MS, viewer);
+  } catch (error) {
+    logger.warn("pastes: could not settle stuck rows", { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/** Whether a fresh read of this extraction is in flight: the quote shows "Re-checking price and stock…". */
+export async function isRechecking(extractionCacheId: string): Promise<boolean> {
+  try {
+    return await hasOpenRecheck(extractionCacheId, PASTE_GIVE_UP_MS);
+  } catch {
+    return false;
+  }
+}
+
+/** Every tier failed: no price, and not because the store said it is out of stock. */
+function readNothing(extraction: ExtractionResult): boolean {
+  const product = extraction.product;
+  return !!product && product.price == null && !storeSaysUnavailable(product);
 }
 
 /** The viewer's row for a link, for a screen that already knows the URL. */

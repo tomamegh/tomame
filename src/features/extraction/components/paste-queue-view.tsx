@@ -749,6 +749,7 @@ const SETTLED_COPY: Record<
 > = {
   priced: { label: "Priced and ready", tone: "green" },
   unpriced: { label: "We read the page but found no price", tone: "amber" },
+  unavailable: { label: "Out of stock at the store right now", tone: "amber" },
   expired: { label: "This quote has lapsed", tone: "amber" },
 };
 
@@ -810,7 +811,7 @@ function PasteRow({
             request_id: paste.id,
             status: paste.status === "running" ? "running" : paste.status === "failed" ? "failed" : "pending",
             error: paste.error,
-            queued_at: paste.created_at,
+            queued_at: paste.queued_at ?? paste.created_at,
             assisted_open: paste.assisted != null,
           } satisfies BagLinePending,
           now,
@@ -823,7 +824,7 @@ function PasteRow({
   // A row still being read is the one thing on this screen that has to LOOK
   // alive. It gets the full indicator; settled rows get a line of text.
   if (wait && !assisted) {
-    const troubled = wait.phase === "stuck" || wait.phase === "failed";
+    const troubled = wait.phase === "stuck" || wait.phase === "long" || wait.phase === "failed";
     return (
       <li className="flex flex-col gap-3 border-t border-tm-hairline px-[18px] py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:px-[22px]">
         <a
@@ -839,7 +840,7 @@ function PasteRow({
           host={host}
           title={wait.title}
           detail={wait.detail}
-          elapsedSeconds={wait.phase === "failed" ? null : secondsSince(paste.created_at, now)}
+          elapsedSeconds={wait.phase === "failed" || wait.phase === "long" ? null : secondsSince(paste.queued_at ?? paste.created_at, now)}
           tone={troubled ? "amber" : "neutral"}
           className="min-w-0 flex-1"
         />
@@ -888,6 +889,12 @@ function PasteRow({
             </span>
             {wait.detail && <span className="text-xs leading-[1.4] text-tm-text-3">{wait.detail}</span>}
           </span>
+        ) : settled && paste.rechecking ? (
+          // A stale read being read again (106): the old figures stand, marked, until it lands.
+          <span className="flex items-center gap-1.5 text-[13px] leading-none font-medium text-tm-text-2">
+            <ArrowsClockwise weight="bold" className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
+            Re-checking price and stock…
+          </span>
         ) : settled ? (
           <span
             className={cn(
@@ -926,7 +933,7 @@ function PasteRow({
             </button>
           ) : null}
 
-          {(paste.outcome === "unpriced" || paste.outcome === "expired") && (
+          {(paste.outcome === "unpriced" || paste.outcome === "unavailable" || paste.outcome === "expired") && (
             <button
               type="button"
               onClick={onDescribe}

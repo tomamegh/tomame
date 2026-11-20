@@ -7,7 +7,7 @@ import { looksLikeScript, parseShelfPrice, textOf } from "../scrapers/parse";
 import { emptyProduct, type ScrapedProduct } from "../scrapers/types";
 import { mergeResult, type MergeState } from "../resolvers/merge";
 import { assessPriceConfidence, guardHtmlPrice, judgeReread, priceCeilingFor, pricesAgree, type PriceRead } from "../price-confidence";
-import { detectStockSignals } from "../stock-signals";
+import { detectStockSignals, storeSaysUnavailable } from "../stock-signals";
 import { checksNeeded, payHoldOf, payHoldRefusal, PRICE_RECHECK_MAX_PENDING_MS, type QuoteCheckState } from "../pay-gate";
 import type { ExtractionResult } from "../types";
 
@@ -142,6 +142,16 @@ describe("judgeReread", () => {
     expect(judgeReread({ price: 50, currency: "USD" }, [{ source: "structured-data", price: 60, currency: "USD" }]).outcome).toBe("disagree");
     expect(judgeReread({ price: 50, currency: "USD" }, [{ source: "structured-data", price: 60, currency: "EUR" }]).outcome).toBe("none");
     expect(judgeReread({ price: 50, currency: "USD" }, []).outcome).toBe("none");
+  });
+});
+
+describe("storeSaysUnavailable (106)", () => {
+  it("is the store's own word, not a failed read", () => {
+    expect(storeSaysUnavailable(product({ price: null, availability: "Currently unavailable." }))).toBe(true);
+    expect(storeSaysUnavailable(product({ price: null, metadata: { availability: "Out of Stock" } }))).toBe(true);
+    expect(storeSaysUnavailable(product({ price: null }))).toBe(false); // nothing read
+    expect(storeSaysUnavailable(product({ price: 20, availability: "Out of stock" }))).toBe(false);
+    expect(storeSaysUnavailable(product({ title: null, price: null, availability: "Out of stock" }))).toBe(false);
   });
 });
 
