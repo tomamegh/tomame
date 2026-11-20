@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { defaultCurrencyForUrl, hashUrl, isShortUrl, normalizeUrl, regionForUrl, resolveShortUrl, usEbayItemUrl } from "../url";
+import { canonicalAmazonUrl, defaultCurrencyForUrl, hashUrl, isShortUrl, normalizeUrl, regionForUrl, resolveShortUrl, usEbayItemUrl } from "../url";
 import { amazonScraper } from "../scrapers/amazon";
 import { ebayScraper } from "../scrapers/ebay";
 import { sheinScraper } from "../scrapers/shein";
@@ -131,6 +131,32 @@ describe("resolveShortUrl (public endpoint — no open redirect follow)", () => 
     const shared =
       "https://www.amazon.com/dp/B0FG2WQHL2?ref=cm_sw_r_cso_cp_apin_dp_X&ref_=cm_sw_r_cso_cp_apin_dp_X&social_share=cm_sw_r_cso_cp_apin_dp_X";
     expect(hashUrl(shared)).toBe(hashUrl("https://www.amazon.com/dp/B0FG2WQHL2"));
+  });
+});
+
+describe("canonical Amazon links (pasted from Ghana)", () => {
+  const CANON = "https://www.amazon.com/dp/B0DJ1C3J2B";
+  it.each([
+    "https://www.amazon.com/-/en/LEGO-Marvel-Iron-Man-Ultron/dp/B0DJ1C3J2B?language=en_US&currency=GHS",
+    "https://www.amazon.com/LEGO-Marvel-Iron-Man-Ultron/dp/B0DJ1C3J2B/ref=sr_1_3?crid=2X&dib=eyJ2&keywords=lego+iron+man&qid=1732100000&sr=8-3",
+    "https://www.amazon.com/dp/B0DJ1C3J2B?th=1&psc=1&language=en_GB",
+    "http://amazon.com/dp/b0dj1c3j2b",
+    "https://m.amazon.com/gp/aw/d/B0DJ1C3J2B/?currency=GHS",
+    "https://smile.amazon.com/gp/product/B0DJ1C3J2B/ref=ppx_yo_dt_b_asin_title",
+    "https://www.amazon.com/-/es/dp/B0DJ1C3J2B?language=es_US",
+  ])("%s → one link, one cache key", (raw) => {
+    expect(canonicalAmazonUrl(raw)).toBe(CANON);
+    expect(amazonScraper.canonicalUrl(raw)).toBe(CANON);
+    expect(hashUrl(amazonScraper.canonicalUrl(raw))).toBe(hashUrl(CANON));
+  });
+  it("keeps the variant: a different ASIN is a different item", () => {
+    expect(canonicalAmazonUrl("https://www.amazon.com/Kindle/dp/B0CFPJYX7P?th=1")).toBe("https://www.amazon.com/dp/B0CFPJYX7P");
+  });
+  it("keeps the UK marketplace", () => {
+    expect(canonicalAmazonUrl("https://www.amazon.co.uk/-/en/dp/B0DJ1C3J2B?currency=GHS")).toBe("https://www.amazon.co.uk/dp/B0DJ1C3J2B");
+  });
+  it("no ASIN, no canonical link", () => {
+    expect(canonicalAmazonUrl("https://www.amazon.com/s?k=lego")).toBeNull();
   });
 });
 

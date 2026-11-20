@@ -176,6 +176,21 @@ export function amazonAsinOf(url: string): string | null {
   return m?.[1]?.toUpperCase() ?? null;
 }
 
+/**
+ * One spelling per Amazon product, for reading and for the cache key:
+ * `https://www.amazon.com/dp/<ASIN>` (or amazon.co.uk). A link shared from
+ * Ghana carries `language=`, `currency=GHS`, `ref`, `th`/`psc`, a `/-/en/`
+ * locale prefix, the `m.`/`smile.` host or plain http; none of it names a
+ * different item (the variant is the ASIN in the path), and leaving it in gave
+ * one product several cache rows and asked the store for a Ghana-priced page.
+ * Null when the link names no ASIN.
+ */
+export function canonicalAmazonUrl(raw: string): string | null {
+  const asin = amazonAsinOf(raw);
+  if (!asin) return null;
+  return `https://www.${amazonDomainOf(raw)}/dp/${asin}`;
+}
+
 /** "amazon.com", "amazon.co.uk", … — the marketplace the URL points at. */
 export function amazonDomainOf(url: string): string {
   const host = parseUrl(url)?.hostname.toLowerCase() ?? "";

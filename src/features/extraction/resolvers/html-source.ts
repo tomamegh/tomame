@@ -91,7 +91,9 @@ export async function fetchProductHtml(
       retries: 0,
       run: async (t) => {
         const region = regionForUrl(url);
-        const geolocation = region === "USA" ? "US" : region === "UK" ? "GB" : undefined;
+        // Read as a shopper in the store's country: US for every store but the UK
+        // ones (an unregistered store too), never wherever Zyte's proxy lands.
+        const geolocation = region === "UK" ? "GB" : region === "CHINA" ? undefined : "US";
         const html = await fetchZyteBrowserHtml(url, Math.min(t, EXTRACTION.zyteBrowserTimeoutMs), undefined, geolocation);
         return { success: !!html, html, error: html ? null : "zyte returned no page" };
       },

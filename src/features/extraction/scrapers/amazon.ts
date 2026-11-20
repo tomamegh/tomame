@@ -3,7 +3,7 @@ import type { HtmlAttemptName, PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, AMAZON_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyAmazonProduct } from "@/lib/apify/client";
 import { parseWeightLbs } from "../weight";
-import { amazonAsinOf, defaultCurrencyForUrl } from "../url";
+import { amazonAsinOf, canonicalAmazonUrl, defaultCurrencyForUrl } from "../url";
 import { addVariant, cleanString, normalizeImages, parseRating, parseReviewCount, parseShelfPrice, textOf } from "./parse";
 
 function text($: CheerioAPI, selector: string): string | null {
@@ -398,9 +398,7 @@ export class AmazonScraper implements PlatformScraper {
   public canonicalUrl(raw: string): string {
     try {
       const u = new URL(raw);
-      const asin = amazonAsinOf(raw);
-      if (asin) return `${u.origin}/dp/${asin}`;
-      return `${u.origin}${u.pathname}`;
+      return canonicalAmazonUrl(raw) ?? `${u.origin}${u.pathname}`;
     } catch {
       return raw;
     }
