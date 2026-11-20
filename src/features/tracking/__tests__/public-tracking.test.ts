@@ -108,8 +108,11 @@ describe("looksLikeTomameNumber", () => {
 describe("the second factor", () => {
   it("accepts four digits, a full phone number (last four kept) or an email", () => {
     expect(parseVerifier("0192")).toEqual({ kind: "phone_last4", digits: "0192" });
-    expect(parseVerifier("024 555 0192")).toEqual({ kind: "phone_last4", digits: "0192" });
-    expect(parseVerifier("+233 (24) 555-0192")).toEqual({ kind: "phone_last4", digits: "0192" });
+    // The full checkout number is compared whole, normalised to E.164.
+    expect(parseVerifier("024 555 0192")).toEqual({ kind: "phone_full", e164: "+233245550192" });
+    expect(parseVerifier("+233 (24) 555-0192")).toEqual({ kind: "phone_full", e164: "+233245550192" });
+    // A long number that is not a Ghana number still works by its last four.
+    expect(parseVerifier("+1 212 555 0192")).toEqual({ kind: "phone_last4", digits: "0192" });
     expect(parseVerifier("01920")).toEqual({ kind: "phone_last4", digits: "1920" });
     expect(parseVerifier(" Kwame@Tomame.local ")).toEqual({ kind: "email", email: "kwame@tomame.local" });
     expect(parseVerifier("192")).toBeNull();
@@ -123,6 +126,9 @@ describe("the second factor", () => {
     expect(verifierMatches({ kind: "phone_last4", digits: "0193" }, onFile)).toBe(false);
     expect(verifierMatches({ kind: "email", email: "kwame@tomame.local" }, onFile)).toBe(true);
     expect(verifierMatches({ kind: "email", email: "other@x.test" }, { phones: [], email: null })).toBe(false);
+    // The full number must match whole, not just its ending.
+    expect(verifierMatches({ kind: "phone_full", e164: "+233245550192" }, onFile)).toBe(true);
+    expect(verifierMatches({ kind: "phone_full", e164: "+233205550192" }, onFile)).toBe(false);
   });
 });
 
@@ -163,24 +169,24 @@ describe("lookupPublicTracking", () => {
     expect(keysHit()).toEqual([PER_ADDRESS]);
   });
 
-  it("accepts a full phone number and compares its last four digits", async () => {
+  it("accepts the full checkout phone number, normalised, and compares it whole", async () => {
     vi.mocked(q.getTrackingOrderByNo).mockResolvedValue(ORDER as never);
-    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "+233 24 555 0192", viewerId: null });
+    const res = await lookupPublicTracking({ query: "TM-00002", verifier: "024 555 0192", viewerId: null });
     expect(res).toMatchObject({ detail: "full" });
   });
 
-  it("says when the second factor is wrong, stays coarse, and counts the miss against the reference", async () => {
+  it("answers a wrong second factor exactly like a missing order, and counts the miss against the reference", async () => {
     vi.mocked(q.getTrackingOrderByNo).mockResolvedValue(ORDER as never);
     const res = await lookupPublicTracking({ query: "TM-00002", verifier: "1111", viewerId: null, ip: "203.0.113.9" });
-    expect(res).toMatchObject({ found: true, detail: "coarse", verify: { kind: "mismatch" } });
+    expect(res).toEqual({ found: false });
     expect(keysHit()).toEqual([PER_ADDRESS, PER_REFERENCE]);
   });
 
-  it("says no phone is on file rather than 'does not match', and does not count it", async () => {
+  it("answers 'no phone on file' as not found too, and does not count it", async () => {
     vi.mocked(q.getTrackingOrderByNo).mockResolvedValue(ORDER as never);
     vi.mocked(q.getOrderPhones).mockResolvedValue([]);
     const res = await lookupPublicTracking({ query: "TM-00002", verifier: "0192", viewerId: null, ip: "203.0.113.9" });
-    expect(res).toMatchObject({ detail: "coarse", verify: { kind: "no_phone_on_file" } });
+    expect(res).toEqual({ found: false });
     expect(keysHit()).toEqual([PER_ADDRESS]);
   });
 

@@ -51,7 +51,7 @@ describe("where an order is", () => {
   });
 
   it("labels a parcel on its way by its leg", () => {
-    expect(transitLabel("in_transit", [ev("arrived_country", "2026-11-02")], "In the air")).toBe("Arrived in Ghana");
+    expect(transitLabel("in_transit", [ev("arrived_country", "2026-11-02")], "In the air")).toBe("Arrived in Accra — cleared");
     expect(transitLabel("processing", [], "Purchased")).toBe("Purchased");
   });
 });
@@ -66,7 +66,9 @@ describe("the customer's progress list", () => {
     const byKey = Object.fromEntries(progress.steps.map((s) => [s.key, s]));
     expect(byKey.departed?.state).toBe("done");
     expect(byKey.arrived_country?.state).toBe("current");
-    expect(byKey.arrived_country?.description).toBe("Landed and clearing customs.");
+    expect(byKey.arrived_country?.description).toBe(
+      "Landed in Accra. Customs and clearance are included in your freight, so there is nothing to pay.",
+    );
     expect(byKey.arrived_country?.contact).toEqual({ name: "Customs desk", phone: "+233244123456", whatsapp: true, hours: null });
     expect(byKey.ghana_warehouse?.state).toBe("next");
     expect(byKey.departed?.contact).toBeNull();

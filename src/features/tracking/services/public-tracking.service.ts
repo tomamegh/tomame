@@ -60,6 +60,9 @@ export async function lookupPublicTracking(input: {
     const verifier = parseVerifier(input.verifier);
     verify = verifier ? await checkSecondFactor(order, verifier, input.ip ?? "unknown") : { kind: "invalid" };
     if (!verify) level = "full";
+    // A second factor that does not match answers exactly like a reference
+    // that does not exist: the page never says which of the two was wrong.
+    if (verify?.kind === "mismatch" || verify?.kind === "no_phone_on_file") return TRACKING_NOT_FOUND;
   }
 
   const events = await listTrackingEvents(order.id);
@@ -105,7 +108,7 @@ async function checkSecondFactor(order: VerifyOrder, verifier: Verifier, ip: str
   let phones: string[] = [];
   let email: string | null = null;
   try {
-    if (verifier.kind === "phone_last4") phones = await getOrderPhones(order);
+    if (verifier.kind !== "email") phones = await getOrderPhones(order);
     else email = await getOrderOwnerEmail(order.user_id);
   } catch (error: unknown) {
     logger.error("Tracking verify could not read what is on file", {
@@ -118,7 +121,7 @@ async function checkSecondFactor(order: VerifyOrder, verifier: Verifier, ip: str
   }
 
   // Nothing to compare with is not a wrong answer, and does not count as one.
-  if (verifier.kind === "phone_last4" && phones.length === 0) return { kind: "no_phone_on_file" };
+  if (verifier.kind !== "email" && phones.length === 0) return { kind: "no_phone_on_file" };
   if (verifierMatches(verifier, { phones, email })) return null;
 
   // A miss: now, and only now, spend the reference's shared allowance.

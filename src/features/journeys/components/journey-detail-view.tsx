@@ -118,6 +118,14 @@ export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyD
                 <h1 className="font-display max-w-full text-[22px] leading-[1.15] font-bold break-words lg:max-w-[560px] lg:text-[28px]">
                   {journey.productName}
                 </h1>
+                {journey.orderNo && journey.paidAt ? (
+                  <Link
+                    href={`/track?q=${encodeURIComponent(journey.orderNo)}`}
+                    className="w-fit text-[13px] leading-[1.4] font-semibold text-tm-coral underline-offset-4 hover:underline"
+                  >
+                    Track {journey.orderNo} without signing in
+                  </Link>
+                ) : null}
               </div>
 
               <span

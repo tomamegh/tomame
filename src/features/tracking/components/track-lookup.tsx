@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, CalendarCheck, LockKey, MagnifyingGlass, SpinnerGap } from "@phosphor-icons/react/ssr";
+import { ArrowRight, CalendarCheck, LockKey, MagnifyingGlass, SpinnerGap, WhatsappLogo } from "@phosphor-icons/react/ssr";
+
+import { TRACK_NOT_FOUND_MESSAGE, TRACK_WHATSAPP_CTA, orderSupportMessage, waMeHref } from "@/config/tracking-copy";
 
 import type { OrderEventRow } from "@/db/queries/order-events";
 import { JourneyTrackRail } from "@/features/journeys/components/journey-track-rail";
@@ -33,7 +35,13 @@ async function lookup(q: string, verify?: string): Promise<PublicTrackingResult>
   return res.data;
 }
 
-export function TrackLookup({ initialQuery }: { initialQuery: string }) {
+export interface TrackLookupProps {
+  initialQuery: string;
+  /** `site_settings.whatsapp_number`; the WhatsApp buttons are left out when it is unset. */
+  whatsappNumber?: string | null;
+}
+
+export function TrackLookup({ initialQuery, whatsappNumber = null }: TrackLookupProps) {
   const router = useRouter();
   const [q, setQ] = useState(initialQuery);
   const [verify, setVerify] = useState("");
@@ -119,12 +127,10 @@ export function TrackLookup({ initialQuery }: { initialQuery: string }) {
       {error ? <p className="text-[14px] font-semibold text-tm-coral-strong">{error}</p> : null}
 
       {result && !result.found ? (
-        <section className="rounded-[24px] border border-tm-border bg-card p-6">
-          <h2 className="font-display text-lg font-bold">Nothing found</h2>
-          <p className="mt-2 text-[14px] leading-[1.5] text-tm-text-2">
-            We could not find a shipment for “{asked}”. Check the Tomame number on your receipt or in our messages: it
-            starts with TM-.
-          </p>
+        <section role="alert" className="flex flex-col gap-4 rounded-[24px] border border-tm-border bg-card p-6">
+          {/* One answer for a wrong ID and a wrong phone or email: never which. */}
+          <p className="text-[14px] leading-[1.5] font-medium text-tm-text-2">{TRACK_NOT_FOUND_MESSAGE}</p>
+          <WhatsAppButton number={whatsappNumber} text={asked ? orderSupportMessage(asked) : null} label="Message us on WhatsApp" />
         </section>
       ) : null}
 
@@ -148,18 +154,18 @@ export function TrackLookup({ initialQuery }: { initialQuery: string }) {
             >
               <p className="flex items-start gap-2 text-[13.5px] leading-[1.5] font-medium text-tm-text-2">
                 <LockKey weight="duotone" className="mt-0.5 size-5 shrink-0 text-tm-coral" aria-hidden />
-                To see the item and every update, confirm it is yours: the last 4 digits of your phone number, or
-                the email you signed up with.
+                To see the item and every update, confirm it is yours: the phone number you checked out with (or
+                its last 4 digits), or the email you signed up with.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <label htmlFor="track-verify" className="sr-only">
-                  Last 4 digits of your phone, or your email
+                  Your phone number, its last 4 digits, or your email
                 </label>
                 <input
                   id="track-verify"
                   value={verify}
                   onChange={(e) => setVerify(e.target.value)}
-                  placeholder="Last 4 digits of your phone, or your email"
+                  placeholder="Phone number, last 4 digits, or email"
                   autoComplete="off"
                   // Digits first on a phone keyboard; an email still types fine.
                   inputMode={/[a-z@]/i.test(verify) ? "email" : "numeric"}
@@ -181,6 +187,9 @@ export function TrackLookup({ initialQuery }: { initialQuery: string }) {
               ) : null}
             </form>
           ) : null}
+          <div className="border-t border-[#F5EEE9] pt-[18px]">
+            <WhatsAppButton number={whatsappNumber} text={orderSupportMessage(result.reference)} label={TRACK_WHATSAPP_CTA} />
+          </div>
         </section>
       ) : null}
 
@@ -189,18 +198,35 @@ export function TrackLookup({ initialQuery }: { initialQuery: string }) {
   );
 }
 
+/** wa.me to Tomame's number with the order ref prefilled. Nothing when no number is set. */
+function WhatsAppButton({ number, text, label }: { number: string | null; text: string | null; label: string }) {
+  const href = waMeHref(number, text);
+  if (!href) return null;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex min-h-11 w-fit items-center gap-2 rounded-[14px] border-[1.5px] border-tm-border bg-card px-4 py-2.5 text-[14px] leading-[1.3] font-semibold text-tm-ink transition-colors hover:border-tm-coral/40 hover:bg-tm-tint"
+    >
+      <WhatsappLogo weight="fill" className="size-5 shrink-0 text-tm-green" aria-hidden />
+      {label}
+    </a>
+  );
+}
+
 function verifyMessage(outcome: VerifyOutcome): string {
   switch (outcome.kind) {
     case "mismatch":
-      return "That does not match this order. Check it and try again, or sign in to see your orders.";
+      return TRACK_NOT_FOUND_MESSAGE;
     case "limited":
       return outcome.retryInMinutes
         ? `Too many tries. Try again in about ${outcome.retryInMinutes} minute${outcome.retryInMinutes === 1 ? "" : "s"}, or sign in to see your orders.`
         : "Too many tries. Try again later, or sign in to see your orders.";
     case "no_phone_on_file":
-      return "We do not have a phone number on this order. Use the email you signed up with instead, or sign in to see your orders.";
+      return TRACK_NOT_FOUND_MESSAGE;
     case "invalid":
-      return "Enter the last 4 digits of your phone number, or your email.";
+      return "Enter your phone number, its last 4 digits, or your email.";
     case "error":
       return "Something went wrong on our side. Try again in a moment.";
   }
