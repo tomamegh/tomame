@@ -108,11 +108,13 @@ export function compareSummary(priced: number, withinBudget: number | null): str
 }
 
 /** The no-match line, naming the stores actually searched. */
-export function nothingFoundMessage(product: string | null, storeNames: readonly string[], reason: "no_listings" | "no_exact" | "no_price" | "not_understood" | "failed"): string {
+export function nothingFoundMessage(product: string | null, storeNames: readonly string[], reason: "no_listings" | "no_exact" | "no_price" | "not_understood" | "failed" | "stores_unavailable"): string {
   const where = storeNames.length > 0 ? `${listNames(storeNames)} and what we have already priced` : "what we have already priced";
   switch (reason) {
     case "not_understood":
       return "We could not tell which product you mean. A buyer can help, or try naming the brand and model.";
+    case "stores_unavailable":
+      return `${listNames(storeNames)} ${storeNames.length === 1 ? "was" : "were"} slow to answer, so we could only search what we have already priced. Try again in a few minutes, or a buyer can look for you now.`;
     case "failed":
       return "We could not finish this search on our side. A buyer can look for you, or try again in a few minutes.";
     case "no_listings":

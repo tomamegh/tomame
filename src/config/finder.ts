@@ -20,12 +20,12 @@ export const FINDER = {
    */
   monthlyCaps: { production: 300, other: 20 } satisfies MonthlyCaps,
   /** A run stops starting new work after this long and finishes with what it has. */
-  deadlineMs: 100_000,
+  deadlineMs: 210_000,
   /**
    * A `running` run older than this lost its worker (deploy, crash, timeout).
    * Above the deadline plus a slow email, so a live run is never stolen.
    */
-  staleRunningMs: 150_000,
+  staleRunningMs: 270_000,
   /** A `pending` run `after()` never started; the sweep starts it. */
   stalePendingMs: 60_000,
   /** Tries before a run is failed for good. */
@@ -33,7 +33,7 @@ export const FINDER = {
   understandTimeoutMs: 12_000,
   shortlistTimeoutMs: 15_000,
   /** One store's search page. ScraperAPI eBay measured at 25 s. */
-  storeSearchTimeoutMs: 30_000,
+  storeSearchTimeoutMs: 75_000,
   /** The freight inspector, when a candidate's freight is still being checked. */
   freightCheckTimeoutMs: 30_000,
   /** How many shortlisted matches go through the full extraction and calculator. */

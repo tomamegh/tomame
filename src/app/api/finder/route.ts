@@ -9,8 +9,8 @@ import { checkRateLimit, rateLimitSubject } from "@/lib/rate-limit";
 import { resolveViewer } from "@/lib/quote-session";
 
 // The response is immediate; `after()` keeps the invocation alive for the run,
-// which stops starting new work at FINDER.deadlineMs (100 s).
-export const maxDuration = 180;
+// which stops starting new work at FINDER.deadlineMs (210 s).
+export const maxDuration = 300;
 
 /**
  * POST /api/finder — "Tell us what you want". Starts a price finder run and

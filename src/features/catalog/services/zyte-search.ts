@@ -91,7 +91,7 @@ export async function fetchZyteCatalogSearch(store: ZyteSearchStore, query: stri
   if (!isZyteConfigured()) throw new Error("Zyte is not configured (ZYTE_API_KEY)");
   const t0 = Date.now();
   const list = await fetchZyteProductList(zyteSearchUrl(store, query), {
-    timeoutMs: CATALOG_JOB.vendorTimeoutMs,
+    timeoutMs: ctx.timeoutMs ?? CATALOG_JOB.vendorTimeoutMs,
     geolocation: "US",
   });
   if (!list) throw new Error(`Zyte ${store} search returned no product list`);

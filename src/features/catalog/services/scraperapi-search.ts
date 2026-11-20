@@ -108,6 +108,8 @@ interface SearchEnvelope<T> {
 export interface MapContext {
   queryId: string | null;
   category: string | null;
+  /** Vendor call timeout; the catalogue job's when absent. The finder waits longer (it is not under the 60 s cron route). */
+  timeoutMs?: number;
 }
 
 export interface CatalogSearchFetch {
@@ -321,7 +323,7 @@ export async function fetchCatalogSearch(store: CatalogStore, query: string, ctx
   const qs = new URLSearchParams({ api_key: apiKey, query, country_code: "us", tld: "com" });
   const t0 = Date.now();
 
-  const res = await fetch(`${BASE}/${path}?${qs.toString()}`, { signal: AbortSignal.timeout(CATALOG_JOB.vendorTimeoutMs) });
+  const res = await fetch(`${BASE}/${path}?${qs.toString()}`, { signal: AbortSignal.timeout(ctx.timeoutMs ?? CATALOG_JOB.vendorTimeoutMs) });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`ScraperAPI ${store} search failed: HTTP ${res.status} ${body.slice(0, 200)}`);

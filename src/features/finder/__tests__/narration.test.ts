@@ -98,6 +98,12 @@ describe("no match and the buyer hand-off", () => {
     );
   });
 
+  it("says the stores did not answer instead of claiming there is no match", () => {
+    expect(nothingFoundMessage("Oraimo FreePods 4", ["Amazon", "Walmart", "eBay"], "stores_unavailable")).toBe(
+      "Amazon, Walmart and eBay were slow to answer, so we could only search what we have already priced. Try again in a few minutes, or a buyer can look for you now.",
+    );
+  });
+
   it("types the request and a reference into the WhatsApp message", () => {
     const id = "1a2b3c4d-0000-4000-8000-000000000000";
     expect(finderReference(id)).toBe("F-1A2B3C4D");

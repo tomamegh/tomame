@@ -336,8 +336,14 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   await writer.save();
 
   const searchedNames = outcomes.filter((o) => !o.failed).map((o) => o.name);
+  const unansweredNames = outcomes.filter((o) => o.failed).map((o) => o.name);
+  // Every live store failed: say so, rather than "no new X" off the catalogue alone.
+  const noMatch = (reason: "no_listings" | "no_exact") =>
+    searchedNames.length === 0 && unansweredNames.length > 0
+      ? nothingFoundMessage(spec.product, unansweredNames, "stores_unavailable")
+      : nothingFoundMessage(spec.product, searchedNames, reason);
   const listings = mergeListings(searches.flatMap((s) => s.listings), catalogue, 200);
-  if (listings.length === 0) return handoff(nothingFoundMessage(spec.product, searchedNames, "no_listings"));
+  if (listings.length === 0) return handoff(noMatch("no_listings"));
 
   // 3. Shortlist ──────────────────────────────────────────────────────────
   narrator.emit({ type: "step_started", step: "shortlist", label: "Keeping only exact matches" });
@@ -384,7 +390,7 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   }
   narrator.emit({ type: "step_done", step: "shortlist", summary: shortlistSummary(matches.length, listings.length), details: dropDetails(dropped) });
   await writer.save();
-  if (top.length === 0) return handoff(nothingFoundMessage(spec.product, searchedNames, "no_exact"));
+  if (top.length === 0) return handoff(noMatch("no_exact"));
 
   // 4. Price at the store ─────────────────────────────────────────────────
   narrator.emit({ type: "step_started", step: "price", label: "Checking each price at the store" });
@@ -532,10 +538,10 @@ export interface FinderSweepSummary {
 
 /**
  * The safety net: release runs whose worker died, then run up to `batch`
- * that nothing started. Sequential: each run is bounded by `FINDER.deadlineMs`,
- * so two fit well inside the route's 300 s.
+ * that nothing started. Each run is bounded by `FINDER.deadlineMs` (210 s), so
+ * one fits inside the route's 300 s; the sweep runs every minute.
  */
-export async function sweepFinderRuns(batch = 2): Promise<FinderSweepSummary> {
+export async function sweepFinderRuns(batch = 1): Promise<FinderSweepSummary> {
   const { touched: reclaimed, failed } = await reclaimStaleFinderRuns(FINDER.staleRunningMs, FINDER.maxAttempts, (run) => ({
     type: "nothing_found",
     at: Math.max(0, Date.now() - Date.parse(run.started_at ?? run.created_at)),

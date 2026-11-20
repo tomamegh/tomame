@@ -83,7 +83,7 @@ export async function searchFinderStore(store: CatalogStore, query: string, now:
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error("store search timed out")), FINDER.storeSearchTimeoutMs);
     });
-    const fetched = await Promise.race([fetchCatalogStoreSearch(store, query, { queryId: null, category: null }), timeout]);
+    const fetched = await Promise.race([fetchCatalogStoreSearch(store, query, { queryId: null, category: null, timeoutMs: FINDER.storeSearchTimeoutMs - 2_000 }), timeout]);
     return { store, listings: fetched.items.map(listingFromVendorRow), failed: false };
   } catch (error) {
     logger.warn("finder: store search failed", { store, error: error instanceof Error ? error.message : String(error) });

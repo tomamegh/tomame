@@ -4,7 +4,7 @@ import { sweepFinderRuns } from "@/features/finder/services/finder-run.service";
 import { runCronJob } from "@/lib/auth/cron";
 import { logger } from "@/lib/logger";
 
-/** Two runs per sweep, each stopped at FINDER.deadlineMs (100 s): inside Vercel's 300 s. */
+/** One run per sweep, stopped at FINDER.deadlineMs (210 s): inside Vercel's 300 s. */
 export const maxDuration = 300;
 
 /**
