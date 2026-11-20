@@ -13,12 +13,24 @@ import { storeForUrl } from "./stores";
  * that agrees because it repeated the same mistake proves nothing.
  */
 export function rereadTiers(plan: readonly ExtractionResolver[], originalSource: string | null): ExtractionResolver[] {
-  return plan.filter((r) => {
+  const tiers = plan.filter((r) => {
     if (r.name === originalSource || r.name === "category-map") return false;
     if (r.name === "structured-data") return true;
     return !HTML_TIERS.has(r.name);
   });
+  // Amazon: the offer list is the second read (exact ASIN, a few seconds).
+  // The rest only run if it reads nothing, one after another, so a re-read
+  // costs one vendor call when it works.
+  const first = tiers.find((r) => r.name === REREAD_FIRST);
+  if (!first) return tiers;
+  const rest = tiers
+    .filter((r) => r !== first)
+    .map((r) => ({ ...r, startAfterMs: undefined, startWhen: undefined, resolve: r.resolve.bind(r) }) satisfies ExtractionResolver);
+  return [{ ...first, startAfterMs: undefined, startWhen: undefined, resolve: first.resolve.bind(first) }, ...rest];
 }
+
+/** The tier a re-read tries first when the store's plan has it. */
+const REREAD_FIRST = "amazon-offers";
 
 export interface RereadInput {
   url: string;

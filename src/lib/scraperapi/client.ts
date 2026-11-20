@@ -84,6 +84,44 @@ export async function fetchAmazonProductStructured(asin: string, tld: string, co
   return data?.name ? data : null;
 }
 
+/** One seller's offer on an Amazon listing (`structured/amazon/offers`). Numbers arrive as strings ("100%", "1,613") as often as numbers. */
+export interface ScraperApiAmazonOffer {
+  price?: number | string;
+  price_symbol?: string;
+  /** "FREE" / "$5.99" */
+  shipping_price?: string;
+  shipping_price_extracted?: number | string;
+  /** "New", "Used - Like New", "Renewed" … */
+  condition?: string;
+  delivery_earliest_date?: string;
+  delivery_latest_date?: string;
+  /** Sic: ScraperAPI's spelling. */
+  fullfilled_by_amazon?: boolean;
+  seller_name?: string;
+  seller_id?: string;
+  seller_percent_positive_ratings?: number | string;
+  seller_average_rating?: number | string;
+  seller_total_reviews?: number | string;
+  /** The offer Amazon lists first (Amazon.com itself when it sells the item). */
+  pinned_offer?: boolean;
+  [key: string]: unknown;
+}
+
+export interface ScraperApiAmazonOffers {
+  item?: { name?: string; image?: string; average_rating?: number | string; total_reviews?: number | string };
+  listings?: ScraperApiAmazonOffer[];
+}
+
+/**
+ * Every seller's offer for one ASIN: the read for a listing with no buy box
+ * ("No featured offers available" from abroad, sellers still listed).
+ * Measured 2026-11-20: 4-9 s, 11 offers for B0DJ1C3J2B.
+ */
+export async function fetchAmazonOffersStructured(asin: string, tld: string, country: string): Promise<ScraperApiAmazonOffers | null> {
+  const data = await get<ScraperApiAmazonOffers>("amazon/offers", { asin, tld, country }, asin);
+  return data && Array.isArray(data.listings) ? data : null;
+}
+
 export async function fetchEbayProductStructured(productId: string, country: string): Promise<ScraperApiEbayProduct | null> {
   const data = await get<ScraperApiEbayProduct>("ebay/product", { product_id: productId, country }, productId);
   return data?.title ? data : null;

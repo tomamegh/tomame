@@ -11,6 +11,7 @@ import { llmResolver } from "./llm.resolver";
 import { apifyResolver } from "./apify.resolver";
 import { rainforestResolver } from "./rainforest.resolver";
 import { scraperApiResolver } from "./scraperapi.resolver";
+import { amazonOffersResolver } from "./amazon-offers.resolver";
 import { oxylabsResolver } from "./oxylabs.resolver";
 import { zyteResolver } from "./zyte.resolver";
 import { categoryResolver } from "./category.resolver";
@@ -26,6 +27,7 @@ export const RESOLVERS: Record<ExtractionSource, ExtractionResolver> = {
   ebay: ebayResolver,
   shopify: shopifyResolver,
   scraperapi: scraperApiResolver,
+  "amazon-offers": amazonOffersResolver,
   oxylabs: oxylabsResolver,
   zyte: zyteResolver,
   rainforest: rainforestResolver,
@@ -233,7 +235,10 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     state.product.availability ?? (typeof state.product.metadata.availability === "string" ? state.product.metadata.availability : null);
   const unavailable = () => {
     const phrase = availabilityPhrase();
-    return !!state.product.title && state.product.price == null && !!phrase && /out ?of ?stock|unavailable|discontinued|sold out|no longer available/i.test(phrase);
+    if (!state.product.title || state.product.price != null || !phrase) return false;
+    if (!/out ?of ?stock|unavailable|discontinued|sold out|no longer available/i.test(phrase)) return false;
+    // A tier that reads sellers' offers may still price it (Amazon's offer list).
+    return !resolvers.some((r) => r.readsUnavailable && r.available(ctx) && !ran.includes(r.name) && Date.now() < deadline);
   };
 
   // The price is the page's own offer for this URL (confidence above any AI

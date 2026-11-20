@@ -16,7 +16,7 @@ import type { AuditSample, TierReading } from "./accuracy-audit";
  * back. The two page parsers share one fetched page per URL.
  */
 const AUDIT_TIERS: Record<string, ExtractionSource[]> = {
-  amazon: ["scraperapi", "oxylabs", "zyte", "rainforest", "platform-html", "structured-data"],
+  amazon: ["scraperapi", "amazon-offers", "oxylabs", "zyte", "rainforest", "platform-html", "structured-data"],
   walmart: ["oxylabs", "zyte", "structured-data"],
   ebay: ["ebay", "scraperapi", "platform-html", "structured-data"],
 };

@@ -57,7 +57,7 @@ export const GENERIC_STORE_SLUG = "generic";
  * nothing" rows as its own. The `geo_location` fix in lib/oxylabs is untested
  * live; put it back after `scripts/extraction-accuracy-audit.ts` shows it pricing.
  */
-const AMAZON_PLAN: ProviderPlanEntry[] = ["scraperapi", "zyte", "rainforest", "category-map", "platform-html", "structured-data", "llm"];
+const AMAZON_PLAN: ProviderPlanEntry[] = ["scraperapi", "zyte", "amazon-offers", "rainforest", "category-map", "platform-html", "structured-data", "llm"];
 /**
  * Stores without their own scraper. Zyte's AI product read starts first; the
  * page's own JSON-LD/OpenGraph is read in parallel (hedged 2 s behind, through

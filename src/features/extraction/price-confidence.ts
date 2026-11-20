@@ -61,7 +61,7 @@ export const HTML_TIERS: ReadonlySet<ExtractionSource> = new Set<ExtractionSourc
  * id, a Walmart product id, a Shopify variant. Zyte is an AI reading of the
  * page and is exact only when the page's own offer agrees with it.
  */
-const EXACT_TIERS: ReadonlySet<ExtractionSource> = new Set<ExtractionSource>(["scraperapi", "oxylabs", "rainforest", "ebay", "shopify"]);
+const EXACT_TIERS: ReadonlySet<ExtractionSource> = new Set<ExtractionSource>(["scraperapi", "amazon-offers", "oxylabs", "rainforest", "ebay", "shopify"]);
 
 const CEILING_HIGH = 15_000;
 const CEILING_DEFAULT = 2_500;

@@ -187,7 +187,8 @@ export function mapScraperApiEbay(item: ScraperApiEbayProduct, sourceUrl: string
   };
 }
 
-function marketplace(url: string): { tld: string; country: string } {
+/** ScraperAPI's Amazon marketplace (`tld`) and proxy country for a link. */
+export function marketplace(url: string): { tld: string; country: string } {
   const domain = amazonDomainOf(url); // amazon.com | amazon.co.uk
   const tld = domain.replace(/^amazon\./, "");
   const country = tld === "com" ? "us" : tld === "co.uk" ? "uk" : tld.split(".").pop() ?? "us";

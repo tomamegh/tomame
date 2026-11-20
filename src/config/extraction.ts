@@ -40,8 +40,19 @@ export const EXTRACTION = {
   apifyRunTimeoutSeconds: 90,
   /** Rainforest product request. Documented 1–6 s; leave room for a slow one. */
   rainforestTimeoutMs: 12_000,
-  /** ScraperAPI structured endpoint. Measured 2–5 s; their hard limit is 70 s. */
-  scraperApiTimeoutMs: 12_000,
+  /**
+   * ScraperAPI structured endpoint. Measured 2–5 s in September; 17.5 s for an
+   * Amazon product on 2026-11-20, which a 12 s timeout threw away. Their hard
+   * limit is 70 s; ours stays inside the 25 s chain budget. Only a slow answer
+   * waits this long: the hedged tiers start behind it after `hedgeAfterMs`.
+   */
+  scraperApiTimeoutMs: 21_000,
+  /**
+   * Amazon's offer list (every seller) starts this long after the race begins
+   * when nothing has priced the item yet, or at once when the product read
+   * came back with no buy box. One ScraperAPI structured call.
+   */
+  amazonOffersHedgeMs: 7_000,
 
   /** Model used for the full-page LLM tier. Structured output over stripped page text. */
   llmModel: "claude-opus-5",
@@ -57,8 +68,16 @@ export const EXTRACTION = {
    * through this cache, and a TTL past its own interval would freeze its price.
    */
   cacheTtlCompleteMs: 12 * 60 * 60 * 1000,
-  /** Cache TTL when extraction is partial — retry sooner rather than pin a bad result. */
-  cacheTtlPartialMs: 15 * 60 * 1000,
+  /** Cache TTL when extraction is partial or failed: a re-paste after this reads again rather than pin a bad result. */
+  cacheTtlPartialMs: 5 * 60 * 1000,
+  /**
+   * A re-paste (or a quote opened from one) of a link read longer ago than this
+   * re-reads it in the background: the old figures show, marked as being
+   * re-checked, until the new read replaces them.
+   */
+  repasteFreshMs: 15 * 60 * 1000,
+  /** A read where every tier failed is tried once more, in the background, after this long. */
+  failedReadRetryMs: 45_000,
 } as const;
 
 export type ExtractionSource =
@@ -67,6 +86,8 @@ export type ExtractionSource =
   /** A Shopify storefront's own product JSON. */
   | "shopify"
   | "scraperapi"
+  /** ScraperAPI's Amazon offer list: a seller's offer when the listing has no buy box. */
+  | "amazon-offers"
   | "oxylabs"
   | "zyte"
   | "rainforest"

@@ -32,7 +32,7 @@ export const QUOTE_HEALTH_RULES = {
 
 /** Tiers that read a page we fetched ourselves, or a model's reading of it. */
 const HTML_TIERS = new Set(["platform-html", "structured-data", "llm", "apify"]);
-const STRUCTURED_TIERS = new Set(["scraperapi", "oxylabs", "zyte", "rainforest", "ebay", "shopify", "staff"]);
+const STRUCTURED_TIERS = new Set(["scraperapi", "amazon-offers", "oxylabs", "zyte", "rainforest", "ebay", "shopify", "staff"]);
 
 export interface QuoteRowInput {
   platform: string | null;

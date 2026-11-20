@@ -66,6 +66,12 @@ export interface ExtractionResolver {
    */
   readonly startAfterMs?: number;
   readonly startWhen?: (ctx: ResolveContext) => boolean;
+  /**
+   * The tier can still price an item the store page calls unavailable (Amazon's
+   * offer list: "Currently unavailable" in the buy box, sellers below). While
+   * it has not run, "the store says unavailable" does not end the race.
+   */
+  readonly readsUnavailable?: boolean;
   /** Whether this tier can run right now (key present, platform supported). */
   available(ctx: ResolveContext): boolean;
   /** Should this tier run given what is still missing? Cheap tiers say yes always. */
