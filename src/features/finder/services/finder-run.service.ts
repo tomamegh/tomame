@@ -27,7 +27,7 @@ import { priceExtractionWith } from "@/features/extraction/quote.service";
 import type { ExtractionResult } from "@/features/extraction/types";
 import { freightCheckPending } from "@/features/pricing/freight-inspection";
 import { loadDisplayPricingCalculator, loadPricingCalculator } from "@/features/pricing/services/pricing.service";
-import { checksByExtraction } from "@/features/quote-checks/services/quote-checks.service";
+import { checksByExtraction, openSellerCheck } from "@/features/quote-checks/services/quote-checks.service";
 import { APIError } from "@/lib/auth/api-helpers";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -48,6 +48,7 @@ import {
   type StoreSearchOutcome,
 } from "../narration";
 import { rankCandidates, toFinderQuote, type RankInput } from "../ranking";
+import { isSuspiciouslyLow, outlierReason, outlierReference } from "../price-outlier";
 import { dropDetails, isClearlyOverBudget, keywordMatches, mergeDrops, postFilterListings, type DropReason, type FinderListing } from "../shortlist";
 import { normaliseFinderQuery, specSummary, type ParsedFinderSpec } from "../spec";
 import { finderAllowedStores, finderStoreName, mergeListings, pickSearchStores } from "../stores";
@@ -426,6 +427,8 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   narrator.emit({ type: "step_started", step: "freight", label: "Working out freight to Accra" });
   await writer.save();
   const calculator = await loadPricingCalculator();
+  // The typical price of the exact matches: a new item far below it is checked, not crowned.
+  const reference = outlierReference(matches.map((m) => m.priceUsd ?? 0));
   const priced: PricedCandidate[] = [];
   const settled = await Promise.all(readable.map(async (e) => ({ e, result: await settleFreight(e.extraction!, e.cacheId!, msLeft()) })));
   for (const { e, result } of settled) {
@@ -444,7 +447,11 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
       narrator.emit({ type: "price_confirming", candidateId: l.id });
       continue;
     }
-    const stockCheck = hold?.kind === "stock_check";
+    const lowPrice = hold?.kind !== "stock_check" && isSuspiciouslyLow(l.priceUsd, reference);
+    if (lowPrice) {
+      await openSellerCheck({ userId: run.user_id, sessionId: run.session_id }, e.cacheId!, l.productUrl, snapshot, [outlierReason(l.priceUsd!, reference!.priceUsd)]);
+    }
+    const stockCheck = hold?.kind === "stock_check" || lowPrice;
     priced.push({ listing: l, cacheId: e.cacheId, quote, state: stockCheck ? "stock_check" : "priced" });
     narrator.emit({ type: "candidate_priced", candidateId: l.id, quote, stockCheck, extractionCacheId: e.cacheId! });
   }

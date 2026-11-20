@@ -203,6 +203,22 @@ export async function ensureQuoteChecks(viewer: Viewer, extractionCacheId: strin
 }
 
 /**
+ * A system stock check with reasons the caller found (the finder's "price far
+ * below other new listings"). Pay waits on it like any stock check. One open
+ * system check per product and kind, so a repeat is a no-op.
+ */
+export async function openSellerCheck(viewer: Viewer, extractionCacheId: string, productUrl: string, extraction: ExtractionResult, reasons: string[]): Promise<void> {
+  try {
+    const checks = (await checksByExtraction([extractionCacheId])).get(extractionCacheId) ?? [];
+    if (checks.some((c) => c.kind === "stock" && c.status === "pending")) return;
+    const row = await insertQuoteCheck({ ...baseRow(extractionCacheId, productUrl, extraction, viewer), kind: "stock", origin: "system", status: "pending", reasons });
+    if (row) await opened(row, viewer.userId);
+  } catch (error) {
+    logger.error("quote checks: could not open a seller check", { extractionCacheId, error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/**
  * The automatic re-read of a single-source price. Agreeing → confirmed for
  * 24 h; disagreeing → waits on staff (alerted); nothing read or no budget →
  * lapsed, and the price is payable as it stands. Guarded on `checking`, so a
