@@ -22,6 +22,7 @@ import { usePasteBatchPreview } from "../hooks/usePastes";
 import type { PasteBatchLine } from "../services/paste-batch";
 import type { PasteStatus } from "../services/paste-status";
 import { batchRowStatus, type BatchRowStatus } from "./batch-format";
+import { ReadingSteps, ReadingStepsCompact, readingStageOf } from "./reading-indicator";
 
 export type BatchView = "list" | "cards";
 
@@ -141,7 +142,7 @@ export function PasteBatchPanel({ pastes, onDescribe, onDone }: PasteBatchPanelP
               <AnimatePresence initial={false}>
                 {rows.map((row) => (
                   <motion.li key={row.paste.id} className="border-t border-border first:border-t-0" layout="position" variants={riseIn} initial="hidden" animate="visible" exit="exit" transition={SPRING.layout}>
-                    <BatchListRow row={row} added={row.line ? added.has(row.line.extraction_cache_id) : false} onDescribe={() => onDescribe(row.paste)} />
+                    <BatchListRow row={row} single={!many} added={row.line ? added.has(row.line.extraction_cache_id) : false} onDescribe={() => onDescribe(row.paste)} />
                   </motion.li>
                 ))}
               </AnimatePresence>
@@ -231,9 +232,11 @@ function Thumb({ image, host, className }: { image: string | null; host: string;
   );
 }
 
-function BatchListRow({ row, added, onDescribe }: { row: Row; added: boolean; onDescribe: () => void }) {
+function BatchListRow({ row, added, single, onDescribe }: { row: Row; added: boolean; single: boolean; onDescribe: () => void }) {
   const { paste, line, status } = row;
   const host = hostOf(paste.product_url);
+  const working = !added && (status.kind === "reading" || status.kind === "pricing");
+  const stage = readingStageOf(paste.status, status.kind === "pricing");
   const title = line?.title ?? paste.title ?? host;
   const href = paste.extraction_cache_id ? `/app/orders/review/${paste.extraction_cache_id}` : null;
 
@@ -260,6 +263,12 @@ function BatchListRow({ row, added, onDescribe }: { row: Row; added: boolean; on
           )}
           <span className="truncate text-[12px] text-muted-foreground">{line?.store ?? host}</span>
         </div>
+        {working && !single && <ReadingStepsCompact host={host} stage={stage} />}
+        {working && single && (
+          <div className="pt-1.5">
+            <ReadingSteps host={host} stage={stage} />
+          </div>
+        )}
       </div>
       <div className="flex flex-col items-end gap-1 text-right">
         {line?.total_ghs != null ? (
@@ -337,11 +346,15 @@ function BatchCards({
               {line?.total_ghs != null ? (
                 <PriceDisplay amount={formatGhs(line.total_ghs)} usd={line.total_usd != null ? `≈ ${formatUsd(line.total_usd)}` : null} />
               ) : (
-                <p className="tm-caption min-h-[52px] text-muted-foreground">
-                  {status.kind === "reading" || status.kind === "pricing"
-                    ? "The price appears here when the page has been read."
-                    : (line?.pricing_unavailable_reason ?? paste.error ?? "We couldn't read a price from this page.")}
-                </p>
+                status.kind === "reading" || status.kind === "pricing" ? (
+                  <div className="min-h-[52px]">
+                    <ReadingSteps host={hostOf(paste.product_url)} stage={readingStageOf(paste.status, status.kind === "pricing")} />
+                  </div>
+                ) : (
+                  <p className="tm-caption min-h-[52px] text-muted-foreground">
+                    {line?.pricing_unavailable_reason ?? paste.error ?? "We couldn't read a price from this page."}
+                  </p>
+                )
               )}
               {line?.pay_hold && line.pay_hold.kind !== "freight_check" && (
                 <PayHoldNotice hold={line.pay_hold} extractionId={line.extraction_cache_id} compact />

@@ -1228,3 +1228,73 @@ html[data-tm-splash="force"] .tm-splash {
     box-shadow: none !important;
   }
 }
+
+/* ── Ask bar: the Home search box's moving ring (features/finder/components/ask-bar) ── */
+@property --tm-ask-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.tm-ask-ring {
+  position: relative;
+  isolation: isolate;
+}
+.tm-ask-ring::before,
+.tm-ask-ring::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--tm-ask-angle), #f43f5e, #f97316, #f59e0b, #fbcfe8, #f43f5e);
+  animation: tmAskSpin 5s linear infinite;
+  pointer-events: none;
+}
+/* The ring: the gradient shows only in the 2px around the box. */
+.tm-ask-ring::before {
+  z-index: -1;
+  padding: 2px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+/* The glow: the same gradient, blurred behind; brighter while typing. */
+.tm-ask-ring::after {
+  z-index: -2;
+  filter: blur(22px);
+  opacity: 0.28;
+  transition: opacity 0.4s var(--tm-ease);
+}
+.tm-ask-ring:focus-within::after {
+  opacity: 0.5;
+}
+.tm-ask-ring[data-busy="true"]::before,
+.tm-ask-ring[data-busy="true"]::after {
+  animation-duration: 1.4s;
+}
+@keyframes tmAskSpin {
+  to {
+    --tm-ask-angle: 360deg;
+  }
+}
+/* The typed example's caret. */
+.tm-ask-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: var(--tm-coral);
+  animation: tmAskBlink 1s steps(1) infinite;
+}
+@keyframes tmAskBlink {
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tm-ask-ring::before,
+  .tm-ask-ring::after,
+  .tm-ask-caret {
+    animation: none;
+  }
+}

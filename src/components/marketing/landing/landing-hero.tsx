@@ -114,9 +114,9 @@ export function LandingHero({
           */}
           <div className="flex flex-col gap-2.5">
             <p className="text-[14px] leading-[22px] font-medium text-tm-text-2">
-              Paste a link from <StoreCycler stores={cyclerStores} rowHeight={22} />
+              Tell us what you want, or paste a link from <StoreCycler stores={cyclerStores} rowHeight={22} />
             </p>
-            <PasteBar />
+            <PasteBar stores={cyclerStores} />
           </div>
 
           {trustChips.length > 0 && (

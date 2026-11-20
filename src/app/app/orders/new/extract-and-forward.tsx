@@ -112,6 +112,7 @@ function NewOrderContent() {
         title={urls.length > 1 ? "Adding your links" : "Reading this page"}
         detail={null}
         elapsedSeconds={null}
+        stage={urls.length > 1 ? undefined : "queued"}
       />
     </div>
   );

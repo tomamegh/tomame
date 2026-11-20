@@ -843,6 +843,7 @@ function PasteRow({
           detail={wait.detail}
           elapsedSeconds={wait.phase === "failed" || wait.phase === "long" ? null : secondsSince(paste.queued_at ?? paste.created_at, now)}
           tone={troubled ? "amber" : "neutral"}
+          stage={wait.phase === "failed" ? undefined : paste.status === "running" ? "reading" : "queued"}
           className="min-w-0 flex-1"
         />
 
