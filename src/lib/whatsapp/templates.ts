@@ -31,56 +31,57 @@ export interface WhatsAppTemplateDef {
 const orderButton = (text: string) => ({ text, sampleSuffix: "app/orders/3f2a9c1e-7b4d-4e0a-9f61-2c8d5b7a1e90" });
 
 export const WHATSAPP_TEMPLATES = {
-  // ── The brief's stage updates (2026-11-20). Each body opens with the
-  // customer-facing stage name (`config/tracking-copy.ts`). Variables, in
-  // order: first name, item name, order ID, then the date or area. ──────────
+  // ── The brief's stage updates (2026-11-20), word for word. The brief's
+  // [first name], [item name], [order ID], [date] and [area / address] are the
+  // placeholders; {{1}} is always the first name. `STAGE_PARAMS` says which
+  // fact fills each of the others. ─────────────────────────────────────────
   stage_paid: {
     name: "tomame_stage_paid",
     category: "UTILITY",
-    body: "Hi {{1}}, Paid — order confirmed. We have your payment for {{2}} (order {{3}}) and our buyers are placing it with the store now.",
+    body: "Hi {{1}}, thank you for shopping with Tomame.\nPayment received — your order is confirmed.\nItem: {{2}}\nOrder: {{3}}\nExpected delivery: 5–7 days from today.\nWe will message you here at every step. Track anytime: tomame.ca/track\n— Tomame",
     samples: ["Ama", "Oraimo BoomPop N headphones", "TM-00042"],
     button: orderButton("Track order"),
   },
   stage_purchased: {
     name: "tomame_stage_purchased",
     category: "UTILITY",
-    body: "Hi {{1}}, Purchased from the store: {{2}} (order {{3}}) is on its way to our US hub.",
+    body: "Good news, {{1}} — we have purchased your item from the store.\nItem: {{2}}\nOrder: {{3}}\nNext step: delivery to our US hub.\nTrack anytime: tomame.ca/track\n— Tomame",
     samples: ["Ama", "Oraimo BoomPop N headphones", "TM-00042"],
     button: orderButton("Track order"),
   },
   stage_us_hub: {
     name: "tomame_stage_us_hub",
     category: "UTILITY",
-    body: "Hi {{1}}, Arrived at our US hub: {{2}} (order {{3}}) is checked and waiting for the next flight to Accra.",
+    body: "Hi {{1}}, your item has arrived at our US hub and passed our check.\nItem: {{2}}\nOrder: {{3}}\nNext step: the flight to Accra.\nTrack anytime: tomame.ca/track\n— Tomame",
     samples: ["Kofi", "Instant Pot Duo 7-in-1", "TM-00042"],
     button: orderButton("Track order"),
   },
   stage_in_flight: {
     name: "tomame_stage_in_flight",
     category: "UTILITY",
-    body: "Hi {{1}}, In flight to Accra: {{2}} (order {{3}}) left our US hub on {{4}}. We'll message you when it lands.",
-    samples: ["Kofi", "Instant Pot Duo 7-in-1", "TM-00042", "Fri 21 Nov"],
+    body: "Hi {{1}}, your box is on its way to Accra.\nOrder: {{2}}\nExpected in Accra: {{3}}.\nWe will message you here as soon as it lands and clears.\n— Tomame",
+    samples: ["Kofi", "TM-00042", "Fri 21 Nov"],
     button: orderButton("Track order"),
   },
   stage_accra_cleared: {
     name: "tomame_stage_accra_cleared",
     category: "UTILITY",
-    body: "Hi {{1}}, Arrived in Accra — cleared: {{2}} (order {{3}}) has landed and cleared customs, with nothing extra to pay. We're getting it ready for delivery.",
-    samples: ["Esi", "Sony WH-1000XM5 headphones", "TM-00042"],
+    body: "Hi {{1}}, your box has landed in Accra and cleared.\nOrder: {{2}}\nNext step: delivery to you. Please keep your phone close — we will confirm your delivery details with you here.\n— Tomame",
+    samples: ["Esi", "TM-00042"],
     button: orderButton("Track order"),
   },
   stage_out_for_delivery: {
     name: "tomame_stage_out_for_delivery",
     category: "UTILITY",
-    body: "Hi {{1}}, Out for delivery: {{2}} (order {{3}}) is with our rider and on the way to {{4}} today. Keep your phone close.",
-    samples: ["Esi", "Sony WH-1000XM5 headphones", "TM-00042", "East Legon"],
+    body: "Hi {{1}}, your order is out for delivery today.\nOrder: {{2}}\nDelivering to: {{3}}\nPlease be available to receive it. Questions? Reply here, or call us on +233 59 442 4746 (8am–10pm).\n— Tomame",
+    samples: ["Esi", "TM-00042", "East Legon"],
     button: orderButton("Track order"),
   },
   stage_delivered: {
     name: "tomame_stage_delivered",
     category: "UTILITY",
-    body: "Hi {{1}}, Delivered: {{2}} (order {{3}}) has been delivered. Thank you for shopping with Tomame!",
-    samples: ["Esi", "Sony WH-1000XM5 headphones", "TM-00042"],
+    body: "Delivered — thank you, {{1}}.\nOrder {{2}} was handed over today.\nWe hope you enjoy your {{3}}. If anything is wrong with it, reply here within 24 hours and we will help.\n— Tomame",
+    samples: ["Esi", "TM-00042", "Sony WH-1000XM5 headphones"],
     button: orderButton("View order"),
   },
   order_placed: {
@@ -254,10 +255,25 @@ const STATUS_STAGE: Record<string, string> = {
   delivered: "delivered",
 };
 
-/** "Fri 21 Nov", Accra time — the {{4}} of the in-flight message. */
+/** Which fact fills {{2}} onwards in each stage template, in placeholder order. */
+type StageFact = "item" | "order" | "expected" | "area";
+const STAGE_PARAMS: Record<string, readonly StageFact[]> = {
+  stage_paid: ["item", "order"],
+  stage_purchased: ["item", "order"],
+  stage_us_hub: ["item", "order"],
+  stage_in_flight: ["order", "expected"],
+  stage_accra_cleared: ["order"],
+  stage_out_for_delivery: ["order", "area"],
+  stage_delivered: ["order", "item"],
+};
+
+/** Days from leaving the hub to Accra when no window is set: the 098 seed's "departed" typical_days. */
+export const IN_FLIGHT_DAYS = 5;
+
+/** "Fri 21 Nov", Accra time — the [date] of the in-flight message. */
 export function formatStageDate(at: Date | string): string {
-  const date = typeof at === "string" ? new Date(at) : at;
-  if (Number.isNaN(date.getTime())) return "today";
+  const date = typeof at === "string" ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(at) ? `${at}T12:00:00Z` : at) : at;
+  if (Number.isNaN(date.getTime())) return "in the next few days";
   return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Accra" }).format(date);
 }
 
@@ -268,20 +284,43 @@ export interface StageMessageInput {
   /** TM-00042; "TM-00042 and 2 more" for a package. */
   orderNo: string | null;
   itemName: string;
-  /** When the stage happened (the in-flight date). Defaults to now. */
+  /** When the stage happened. Defaults to now. */
   at?: Date | string | null;
-  /** Delivery area for "Out for delivery". */
+  /** The order's delivery window end (YYYY-MM-DD), for "Expected in Accra". */
+  expectedOn?: string | null;
+  /** Delivery area for "Out for delivery": the checkout snapshot's area, city or zone. */
   area?: string | null;
 }
 
-/** The brief's message for a stage, or null for a stage it has none for (pickup). */
+/** The order's window end, or when it has none, the departure plus `IN_FLIGHT_DAYS`. */
+function expectedInAccra(d: StageMessageInput): string {
+  if (d.expectedOn) return formatStageDate(d.expectedOn);
+  const from = d.at ? new Date(d.at) : new Date();
+  return formatStageDate(new Date(from.getTime() + IN_FLIGHT_DAYS * 86_400_000));
+}
+
+/**
+ * The brief's message for a stage, or null when there is none (pickup), or
+ * when "Out for delivery" has no area to name: the brief's [area / address] is
+ * never sent as a vague "your address", the caller finds the area first.
+ */
 export function stageMessage(d: StageMessageInput): WhatsAppMessage | null {
   const template = STAGE_TEMPLATE[d.stage];
   if (!template) return null;
-  const params = [d.itemName.trim() || "your item", d.orderNo?.trim() || "on your order page"];
-  if (template === "stage_in_flight") params.push(formatStageDate(d.at ?? new Date()));
-  if (template === "stage_out_for_delivery") params.push(d.area?.trim() || "your address");
-  return { template, params, buttonPath: orderPath(d.orderId) };
+  const area = d.area?.trim() || null;
+  if (template === "stage_out_for_delivery" && !area) return null;
+  const facts: Record<StageFact, string> = {
+    item: d.itemName.trim() || "your item",
+    order: d.orderNo?.trim() || "on your order page",
+    expected: template === "stage_in_flight" ? expectedInAccra(d) : "",
+    area: area ?? "",
+  };
+  return { template, params: (STAGE_PARAMS[template] ?? []).map((f) => facts[f]), buttonPath: orderPath(d.orderId) };
+}
+
+/** One message per stage per order, however many paths announce it (status change, package move). */
+export function stageDedupeKey(orderId: string, template: WhatsAppTemplateKey): string {
+  return `whatsapp_stage:${orderId}:${template}`;
 }
 
 // ── Builders: one per event, so call sites cannot put {{3}} where {{2}} goes ──
@@ -299,13 +338,21 @@ export const whatsappMessages = {
     productName: string;
     status: string;
     trackingNumber?: string | null;
+    /** The delivery window end (YYYY-MM-DD), for "Expected in Accra". */
+    expectedOn?: string | null;
   }): WhatsAppMessage | null {
     const button = orderPath(d.orderId);
     // Paid, purchased, in flight and delivered speak in the brief's stage
     // templates; Tomame's own number only, carrier numbers never reach the customer.
     const stage = STATUS_STAGE[d.status];
     if (stage) {
-      return stageMessage({ stage, orderId: d.orderId, orderNo: d.trackingNumber ?? null, itemName: d.productName });
+      return stageMessage({
+        stage,
+        orderId: d.orderId,
+        orderNo: d.trackingNumber ?? null,
+        itemName: d.productName,
+        expectedOn: d.expectedOn ?? null,
+      });
     }
     if (d.status === "cancelled") return { template: "order_cancelled", params: [d.productName], buttonPath: button };
     return null;

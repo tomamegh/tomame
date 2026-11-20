@@ -121,3 +121,39 @@ export async function getOrderWhatsAppState(orderId: string): Promise<OrderWhats
   if (error) throw new Error(`Failed to load WhatsApp state: ${error.message}`);
   return (data as OrderWhatsAppState | null) ?? null;
 }
+
+export interface OrderNotifyFacts {
+  /** The checkout's delivery snapshot (`order_groups.delivery_address`), or the saved address. */
+  delivery: Record<string, unknown> | null;
+  eta_to: string | null;
+  estimated_delivery_date: string | null;
+}
+
+/** What a stage message names beyond the order itself: where it is going, and when. */
+export async function getOrderNotifyFacts(orderId: string): Promise<OrderNotifyFacts | null> {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("orders")
+    .select("eta_to, estimated_delivery_date, delivery_address_id, order_groups(delivery_address)")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load order delivery facts: ${error.message}`);
+  if (!data) return null;
+  const row = data as unknown as {
+    eta_to: string | null;
+    estimated_delivery_date: string | null;
+    delivery_address_id: string | null;
+    order_groups: { delivery_address: Record<string, unknown> | null } | null;
+  };
+  let delivery = row.order_groups?.delivery_address ?? null;
+  if (!delivery && row.delivery_address_id) {
+    const address = await db
+      .from("delivery_addresses")
+      .select("area, city")
+      .eq("id", row.delivery_address_id)
+      .maybeSingle();
+    if (address.error) throw new Error(`Failed to load delivery address: ${address.error.message}`);
+    delivery = (address.data as Record<string, unknown> | null) ?? null;
+  }
+  return { delivery, eta_to: row.eta_to, estimated_delivery_date: row.estimated_delivery_date };
+}

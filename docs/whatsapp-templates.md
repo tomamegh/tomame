@@ -63,10 +63,26 @@ or the third failure → `failed` with the reason. The webhook then records
 
 ### Stage updates (WhatsApp & tracking brief, 2026-11-20) — submit these first
 
-One message per customer stage, opening with the exact customer-facing stage
-name (`src/config/tracking-copy.ts`). Variables, always in this order: `{{1}}`
-first name, `{{2}}` item name, `{{3}}` order ID (TM-00042), `{{4}}` the date
-(in flight) or the delivery area (out for delivery).
+The brief's text, word for word; its `[first name]`, `[item name]`,
+`[order ID]`, `[date]` and `[area / address]` are the placeholders. `{{1}}` is
+always the first name; which fact fills `{{2}}` onwards differs per template
+and is listed under each one (`STAGE_PARAMS` in the code).
+
+Sending rules (from the brief):
+
+- One message per stage, when the status actually changes. Every stage message
+  is deduped per order and template (`whatsapp_stage:<order>:<template>`), so a
+  status change and a package move cannot both send it, and landing plus the
+  Accra warehouse send "cleared" once.
+- No marketing in tracking messages.
+- Send from **+233 59 442 4746**: that number is the WhatsApp sender, i.e. its
+  Phone number ID is `WHATSAPP_PHONE_NUMBER_ID`.
+- "Expected in Accra" is the order's delivery window end; when none is set,
+  the departure date plus 5 days (the "In flight to Accra" stage's typical days).
+- "Delivering to" is the area from the checkout snapshot (the address's area
+  or city, else the delivery zone). With none at all the automated message is
+  not the stage template: a generic `tomame_shipment_update` goes instead, and
+  the admin button leaves `[area / address]` in the text for staff to fill.
 
 Automated sends need the checkout tick ("Send me WhatsApp updates about my
 order", 104); an unticked order gets none. A failed send for a ticked order is
@@ -96,10 +112,16 @@ wa.me with the same text filled in) and tick "WhatsApp sent".
 | Footer | none |
 | Button | Visit website — text **Track order**, URL type **Dynamic**, URL `https://<production domain>/{{1}}` |
 
-Body (paste exactly):
+Body (paste exactly; the line breaks are part of it):
 
 ```
-Hi {{1}}, Paid — order confirmed. We have your payment for {{2}} (order {{3}}) and our buyers are placing it with the store now.
+Hi {{1}}, thank you for shopping with Tomame.
+Payment received — your order is confirmed.
+Item: {{2}}
+Order: {{3}}
+Expected delivery: 5–7 days from today.
+We will message you here at every step. Track anytime: tomame.ca/track
+— Tomame
 ```
 
 Sample values:
@@ -109,7 +131,17 @@ Sample values:
 - `{{3}}` (order ID) → TM-00042
 - Button URL `{{1}}` → `app/orders/3f2a9c1e-7b4d-4e0a-9f61-2c8d5b7a1e90`
 
-Preview: _Hi Ama, Paid — order confirmed. We have your payment for Oraimo BoomPop N headphones (order TM-00042) and our buyers are placing it with the store now._
+Preview:
+
+```
+Hi Ama, thank you for shopping with Tomame.
+Payment received — your order is confirmed.
+Item: Oraimo BoomPop N headphones
+Order: TM-00042
+Expected delivery: 5–7 days from today.
+We will message you here at every step. Track anytime: tomame.ca/track
+— Tomame
+```
 
 ### S2. `tomame_stage_purchased` — Purchased from the store
 
@@ -122,10 +154,15 @@ Preview: _Hi Ama, Paid — order confirmed. We have your payment for Oraimo Boom
 | Footer | none |
 | Button | Visit website — text **Track order**, URL type **Dynamic**, URL `https://<production domain>/{{1}}` |
 
-Body (paste exactly):
+Body (paste exactly; the line breaks are part of it):
 
 ```
-Hi {{1}}, Purchased from the store: {{2}} (order {{3}}) is on its way to our US hub.
+Good news, {{1}} — we have purchased your item from the store.
+Item: {{2}}
+Order: {{3}}
+Next step: delivery to our US hub.
+Track anytime: tomame.ca/track
+— Tomame
 ```
 
 Sample values:
@@ -135,7 +172,16 @@ Sample values:
 - `{{3}}` (order ID) → TM-00042
 - Button URL `{{1}}` → `app/orders/3f2a9c1e-7b4d-4e0a-9f61-2c8d5b7a1e90`
 
-Preview: _Hi Ama, Purchased from the store: Oraimo BoomPop N headphones (order TM-00042) is on its way to our US hub._
+Preview:
+
+```
+Good news, Ama — we have purchased your item from the store.
+Item: Oraimo BoomPop N headphones
+Order: TM-00042
+Next step: delivery to our US hub.
+Track anytime: tomame.ca/track
+— Tomame
+```
 
 ### S3. `tomame_stage_us_hub` — Arrived at our US hub
 
@@ -148,10 +194,15 @@ Preview: _Hi Ama, Purchased from the store: Oraimo BoomPop N headphones (order T
 | Footer | none |
 | Button | Visit website — text **Track order**, URL type **Dynamic**, URL `https://<production domain>/{{1}}` |
 
-Body (paste exactly):
+Body (paste exactly; the line breaks are part of it):
 
 ```
-Hi {{1}}, Arrived at our US hub: {{2}} (order {{3}}) is checked and waiting for the next flight to Accra.
+Hi {{1}}, your item has arrived at our US hub and passed our check.
+Item: {{2}}
+Order: {{3}}
+Next step: the flight to Accra.
+Track anytime: tomame.ca/track
+— Tomame
 ```
 
 Sample values:
@@ -161,9 +212,18 @@ Sample values:
 - `{{3}}` (order ID) → TM-00042
 - Button URL `{{1}}` → `app/orders/3f2a9c1e-7b4d-4e0a-9f61-2c8d5b7a1e90`
 
-Preview: _Hi Kofi, Arrived at our US hub: Instant Pot Duo 7-in-1 (order TM-00042) is checked and waiting for the next flight to Accra._
+Preview:
 
-### S4. `tomame_stage_in_flight` — In flight to Accra [date]
+```
+Hi Kofi, your item has arrived at our US hub and passed our check.
+Item: Instant Pot Duo 7-in-1
+Order: TM-00042
+Next step: the flight to Accra.
+Track anytime: tomame.ca/track
+— Tomame
+```
+
+### S4. `tomame_stage_in_flight` — In flight to Accra
 
 | Field | Value |
 |---|---|
@@ -174,21 +234,32 @@ Preview: _Hi Kofi, Arrived at our US hub: Instant Pot Duo 7-in-1 (order TM-00042
 | Footer | none |
 | Button | Visit website — text **Track order**, URL type **Dynamic**, URL `https://<production domain>/{{1}}` |
 
-Body (paste exactly):
+Body (paste exactly; the line breaks are part of it):
 
 ```
-Hi {{1}}, In flight to Accra: {{2}} (order {{3}}) left our US hub on {{4}}. We'll message you when it lands.
+Hi {{1}}, your box is on its way to Accra.
+Order: {{2}}
+Expected in Accra: {{3}}.
+We will message you here as soon as it lands and clears.
+— Tomame
 ```
 
 Sample values:
 
 - `{{1}}` (first name) → Kofi
-- `{{2}}` (item name) → Instant Pot Duo 7-in-1
-- `{{3}}` (order ID) → TM-00042
-- `{{4}}` (date / area) → Fri 21 Nov
+- `{{2}}` (order ID) → TM-00042
+- `{{3}}` (date) → Fri 21 Nov
 - Button URL `{{1}}` → `app/orders/3f2a9c1e-7b4d-4e0a-9f61-2c8d5b7a1e90`
 
-Preview: _Hi Kofi, In flight to Accra: Instant Pot Duo 7-in-1 (order TM-00042) left our US hub on Fri 21 Nov. We'll message you when it lands._
+Preview:
+
+```
+Hi Kofi, your box is on its way to Accra.
+Order: TM-00042
+Expected in Accra: Fri 21 Nov.
+We will message you here as soon as it lands and clears.
+— Tomame
+```
 
 ### S5. `tomame_stage_accra_cleared` — Arrived in Accra — cleared
 
@@ -201,22 +272,31 @@ Preview: _Hi Kofi, In flight to Accra: Instant Pot Duo 7-in-1 (order TM-00042) l
 | Footer | none |
 | Button | Visit website — text **Track order**, URL type **Dynamic**, URL `https://<production domain>/{{1}}` |
 
-Body (paste exactly):
+Body (paste exactly; the line breaks are part of it):
 
 ```
-Hi {{1}}, Arrived in Accra — cleared: {{2}} (order {{3}}) has landed and cleared customs, with nothing extra to pay. We're getting it ready for delivery.
+Hi {{1}}, your box has landed in Accra and cleared.
+Order: {{2}}
+Next step: delivery to you. Please keep your phone close — we will confirm your delivery details with you here.
+— Tomame
 ```
 
 Sample values:
 
 - `{{1}}` (first name) → Esi
-- `{{2}}` (item name) → Sony WH-1000XM5 headphones
-- `{{3}}` (order ID) → TM-00042
+- `{{2}}` (order ID) → TM-00042
 - Button URL `{{1}}` → `app/orders/3f2a9c1e-7b4d-4e0a-9f61-2c8d5b7a1e90`
 
-Preview: _Hi Esi, Arrived in Accra — cleared: Sony WH-1000XM5 headphones (order TM-00042) has landed and cleared customs, with nothing extra to pay. We're getting it ready for delivery._
+Preview:
 
-### S6a. `tomame_stage_out_for_delivery` — Out for delivery [area]
+```
+Hi Esi, your box has landed in Accra and cleared.
+Order: TM-00042
+Next step: delivery to you. Please keep your phone close — we will confirm your delivery details with you here.
+— Tomame
+```
+
+### S6a. `tomame_stage_out_for_delivery` — Out for delivery
 
 | Field | Value |
 |---|---|
@@ -227,21 +307,32 @@ Preview: _Hi Esi, Arrived in Accra — cleared: Sony WH-1000XM5 headphones (orde
 | Footer | none |
 | Button | Visit website — text **Track order**, URL type **Dynamic**, URL `https://<production domain>/{{1}}` |
 
-Body (paste exactly):
+Body (paste exactly; the line breaks are part of it):
 
 ```
-Hi {{1}}, Out for delivery: {{2}} (order {{3}}) is with our rider and on the way to {{4}} today. Keep your phone close.
+Hi {{1}}, your order is out for delivery today.
+Order: {{2}}
+Delivering to: {{3}}
+Please be available to receive it. Questions? Reply here, or call us on +233 59 442 4746 (8am–10pm).
+— Tomame
 ```
 
 Sample values:
 
 - `{{1}}` (first name) → Esi
-- `{{2}}` (item name) → Sony WH-1000XM5 headphones
-- `{{3}}` (order ID) → TM-00042
-- `{{4}}` (date / area) → East Legon
+- `{{2}}` (order ID) → TM-00042
+- `{{3}}` (area / address) → East Legon
 - Button URL `{{1}}` → `app/orders/3f2a9c1e-7b4d-4e0a-9f61-2c8d5b7a1e90`
 
-Preview: _Hi Esi, Out for delivery: Sony WH-1000XM5 headphones (order TM-00042) is with our rider and on the way to East Legon today. Keep your phone close._
+Preview:
+
+```
+Hi Esi, your order is out for delivery today.
+Order: TM-00042
+Delivering to: East Legon
+Please be available to receive it. Questions? Reply here, or call us on +233 59 442 4746 (8am–10pm).
+— Tomame
+```
 
 ### S6b. `tomame_stage_delivered` — Delivered
 
@@ -254,20 +345,30 @@ Preview: _Hi Esi, Out for delivery: Sony WH-1000XM5 headphones (order TM-00042) 
 | Footer | none |
 | Button | Visit website — text **View order**, URL type **Dynamic**, URL `https://<production domain>/{{1}}` |
 
-Body (paste exactly):
+Body (paste exactly; the line breaks are part of it):
 
 ```
-Hi {{1}}, Delivered: {{2}} (order {{3}}) has been delivered. Thank you for shopping with Tomame!
+Delivered — thank you, {{1}}.
+Order {{2}} was handed over today.
+We hope you enjoy your {{3}}. If anything is wrong with it, reply here within 24 hours and we will help.
+— Tomame
 ```
 
 Sample values:
 
 - `{{1}}` (first name) → Esi
-- `{{2}}` (item name) → Sony WH-1000XM5 headphones
-- `{{3}}` (order ID) → TM-00042
+- `{{2}}` (order ID) → TM-00042
+- `{{3}}` (item name) → Sony WH-1000XM5 headphones
 - Button URL `{{1}}` → `app/orders/3f2a9c1e-7b4d-4e0a-9f61-2c8d5b7a1e90`
 
-Preview: _Hi Esi, Delivered: Sony WH-1000XM5 headphones (order TM-00042) has been delivered. Thank you for shopping with Tomame!_
+Preview:
+
+```
+Delivered — thank you, Esi.
+Order TM-00042 was handed over today.
+We hope you enjoy your Sony WH-1000XM5 headphones. If anything is wrong with it, reply here within 24 hours and we will help.
+— Tomame
+```
 
 ### Everything else
 

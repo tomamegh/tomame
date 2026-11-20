@@ -21,10 +21,11 @@ describe("manualWhatsAppEntries", () => {
       "In flight to Accra",
     ]);
     expect(entries[0]?.sent).toEqual({ at: "2026-11-01T11:00:00.000Z", by: "Kelvin" });
+    // No window on the order: departure (Sat 7 Nov) plus five days.
     expect(entries[3]?.text).toBe(
-      "Hi Ama, In flight to Accra: Oraimo BoomPop N (order TM-00042) left our US hub on Sat 7 Nov. We'll message you when it lands.",
+      "Hi Ama, your box is on its way to Accra.\nOrder: TM-00042\nExpected in Accra: Thu 12 Nov.\nWe will message you here as soon as it lands and clears.\n— Tomame",
     );
-    expect(entries[3]?.href).toMatch(/^https:\/\/wa\.me\/233244123456\?text=Hi%20Ama%2C%20In%20flight/);
+    expect(entries[3]?.href).toMatch(/^https:\/\/wa\.me\/233244123456\?text=Hi%20Ama%2C%20your%20box/);
   });
 
   it("fills the area into Out for delivery and offers nothing before payment", () => {
@@ -35,9 +36,17 @@ describe("manualWhatsAppEntries", () => {
       sends: [],
       area: "East Legon",
     });
-    expect(door.find((e) => e.stage === "out_for_delivery")?.text).toContain("on the way to East Legon today");
+    expect(door.find((e) => e.stage === "out_for_delivery")?.text).toContain("Delivering to: East Legon\n");
     expect(door.at(-1)?.stageName).toBe("Delivered");
     expect(door[0]?.href).toBeNull();
+    const blank = manualWhatsAppEntries({
+      order: { ...order, status: "delivered" },
+      customer: { firstName: null, phone: null },
+      events: [ev("out_for_delivery", "2026-11-12")],
+      sends: [],
+      area: null,
+    });
+    expect(blank.find((e) => e.stage === "out_for_delivery")?.text).toContain("Delivering to: [area / address]");
     expect(manualWhatsAppEntries({ order: { ...order, status: "pending" }, customer: { firstName: null, phone: null }, events: [], sends: [], area: null })).toEqual([]);
   });
 

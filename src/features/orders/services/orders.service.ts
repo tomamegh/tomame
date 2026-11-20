@@ -28,7 +28,7 @@ import { isSchemaMissingError } from "@/lib/supabase/errors";
 import type { Viewer } from "@/features/quotes/types";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
-import { whatsappMessages } from "@/lib/whatsapp/templates";
+import { stageDedupeKey, whatsappMessages } from "@/lib/whatsapp/templates";
 import { notifyStaff } from "@/features/staff-alerts/notify";
 import { closePackageIfAllDelivered } from "@/features/warehouse/services/package-close.service";
 
@@ -258,18 +258,23 @@ export async function sendOrderStatusEmail(
     // WhatsApp is its own channel with its own opt-in, so it is queued before the
     // email preference is consulted. Deduped per order and status: the Paystack
     // webhook and the browser verify can both reach "paid".
+    const whatsapp = whatsappMessages.orderStatus({
+      orderId: order.id,
+      productName: order.product_name,
+      status: newStatus,
+      trackingNumber: order.order_no,
+      expectedOn: order.eta_to ?? trackingData?.estimatedDeliveryDate ?? order.estimated_delivery_date ?? null,
+    });
     await queueWhatsApp({
       userId,
       event: `order_${newStatus}`,
-      dedupeKey: `order_status:${order.id}:${newStatus}`,
+      // One message per stage, whichever path announces it (104).
+      dedupeKey: whatsapp?.template.startsWith("stage_")
+        ? stageDedupeKey(order.id, whatsapp.template)
+        : `order_status:${order.id}:${newStatus}`,
       // The checkout tick on this order decides (104).
       orderIds: [order.id],
-      message: whatsappMessages.orderStatus({
-        orderId: order.id,
-        productName: order.product_name,
-        status: newStatus,
-        trackingNumber: order.order_no,
-      }),
+      message: whatsapp,
     });
 
     // `profiles.notify_email` — the account screen's "Email" toggle, whose own

@@ -111,7 +111,7 @@ describe("queueWhatsApp gating", () => {
         params: ["Ama", "Nike Air Max 90", "TM-00042"],
         button_path: "/app/orders/o1",
         preview:
-          "Hi Ama, Paid — order confirmed. We have your payment for Nike Air Max 90 (order TM-00042) and our buyers are placing it with the store now.",
+          "Hi Ama, thank you for shopping with Tomame.\nPayment received — your order is confirmed.\nItem: Nike Air Max 90\nOrder: TM-00042\nExpected delivery: 5–7 days from today.\nWe will message you here at every step. Track anytime: tomame.ca/track\n— Tomame",
       },
     });
   });

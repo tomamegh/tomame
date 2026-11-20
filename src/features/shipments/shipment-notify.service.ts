@@ -12,7 +12,9 @@ import { sendEmail } from "@/lib/email/transport";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
-import { stageMessage, whatsappMessages } from "@/lib/whatsapp/templates";
+import { stageDedupeKey, stageMessage, whatsappMessages } from "@/lib/whatsapp/templates";
+import { getOrderNotifyFacts } from "@/db/queries/order-whatsapp";
+import { deliveryArea } from "@/features/notifications/manual-whatsapp";
 
 import type { Contact } from "./stages";
 
@@ -80,6 +82,12 @@ export async function notifyShipmentUpdate(input: ShipmentNotifyInput, now: Date
     const orderNos =
       input.orders.length === 1 ? first.orderNo : `${first.orderNo} and ${input.orders.length - 1} more`;
     // A step the brief names speaks in its stage template; pickup has none.
+    // "Out for delivery" names the area from the checkout snapshot (the zone
+    // when the address has none), and "In flight" the order's own window.
+    const facts =
+      input.kind === "stage" && (input.stageKey === "out_for_delivery" || input.stageKey === "departed")
+        ? await getOrderNotifyFacts(first.id).catch(() => null)
+        : null;
     const stage =
       input.kind === "stage"
         ? stageMessage({
@@ -88,7 +96,8 @@ export async function notifyShipmentUpdate(input: ShipmentNotifyInput, now: Date
             orderNo: orderNos,
             itemName: packageName,
             at: now,
-            area: input.area ?? null,
+            expectedOn: facts?.eta_to ?? facts?.estimated_delivery_date ?? null,
+            area: input.area ?? deliveryArea(facts?.delivery),
           })
         : null;
     await queueWhatsApp({
@@ -104,7 +113,11 @@ export async function notifyShipmentUpdate(input: ShipmentNotifyInput, now: Date
               what,
               update: trimSentence(`${input.stageTitle}. ${input.message?.trim() || input.description}`),
             })),
-      dedupeKey: `${event}:${first.id}:${input.stageKey}:${now.toISOString().slice(0, 16)}`,
+      // One message per stage: a stage template is keyed by order and template,
+      // so landing and the Accra warehouse do not both send "cleared".
+      dedupeKey: stage
+        ? stageDedupeKey(first.id, stage.template)
+        : `${event}:${first.id}:${input.stageKey}:${now.toISOString().slice(0, 16)}`,
     });
 
     let delivered = true;

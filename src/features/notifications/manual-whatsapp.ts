@@ -16,6 +16,9 @@ import { CUSTOMER_STAGE_NAMES, waMeHref } from "@/config/tracking-copy";
 import { STAGE_RANK, reachedRank, type ShipmentStageKey, type StageEvent } from "@/features/shipments/stages";
 import { greetingName, renderTemplateBody, stageMessage, type WhatsAppTemplateKey } from "@/lib/whatsapp/templates";
 
+/** What staff see in the wa.me text when the checkout recorded no area. */
+export const AREA_BLANK = "[area / address]";
+
 /** The stages a manual send exists for, in walking order. One per template. */
 export const MANUAL_WHATSAPP_STAGES = [
   "paid",
@@ -51,7 +54,14 @@ export interface ManualWhatsAppEntry {
 }
 
 export interface ManualWhatsAppInput {
-  order: { id: string; order_no: string; status: string; product_name: string | null };
+  order: {
+    id: string;
+    order_no: string;
+    status: string;
+    product_name: string | null;
+    eta_to?: string | null;
+    estimated_delivery_date?: string | null;
+  };
   customer: { firstName: string | null; phone: string | null };
   events: readonly StageEvent[];
   sends: readonly ManualWhatsAppSend[];
@@ -78,7 +88,10 @@ export function manualWhatsAppEntries(input: ManualWhatsAppInput): ManualWhatsAp
       orderNo: input.order.order_no,
       itemName: input.order.product_name?.trim() || "your item",
       at,
-      area: input.area,
+      expectedOn: input.order.eta_to ?? input.order.estimated_delivery_date ?? null,
+      // No area on file: the brief's own blank, for staff to fill in WhatsApp
+      // before sending, never a vague "your address".
+      area: input.area ?? AREA_BLANK,
     });
     if (!message) continue;
     const text = renderTemplateBody(message.template, [first, ...message.params]);
