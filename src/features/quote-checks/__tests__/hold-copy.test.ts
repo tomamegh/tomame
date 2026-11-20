@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PayHold } from "@/features/extraction/pay-gate";
-import { PRICE_CONFIRMING_MESSAGE } from "@/features/extraction/price-confidence";
+import { PRICE_CHECKING_MESSAGE, PRICE_CONFIRMING_MESSAGE } from "@/features/extraction/price-confidence";
 import { STOCK_CHECK_MESSAGE, STOCK_UNAVAILABLE_MESSAGE } from "@/features/extraction/stock-signals";
 import type { StockCheckView } from "@/features/extraction/types";
 import { HOLD_PILL, holdCopy, stockConfirmedLine, stockReasons } from "../hold-copy";
@@ -24,6 +24,13 @@ describe("holdCopy", () => {
     expect(holdCopy(auto).detail).toMatch(/under a minute/);
     expect(holdCopy(staff).detail).toMatch(/Our team is checking/);
     expect(holdCopy(staff).pill).toBe("Confirming price");
+  });
+
+  it("an automatic re-read says it is checking with the store, not that our team is", () => {
+    const hold: PayHold = { kind: "price_check", message: PRICE_CHECKING_MESSAGE, needs_staff: false };
+    expect(`${holdCopy(hold).title}. ${holdCopy(hold).detail}`).toMatch(/^Checking this price with the store\. This usually takes under a minute\./);
+    expect(holdCopy(hold).detail).not.toMatch(/Our team/);
+    expect(holdCopy(hold).pill).toBe("Checking price");
   });
 
   it("tells a stock-check customer they can confirm on WhatsApp until a check is requested", () => {

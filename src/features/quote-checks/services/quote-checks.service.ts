@@ -72,9 +72,16 @@ export interface QuoteTrust {
   pay_hold: PayHold | null;
 }
 
-/** What the quote screen shows about trust: confidence, the stock check, the hold. */
-export async function quoteTrustFor(extractionCacheId: string | null, extraction: ExtractionResult): Promise<QuoteTrust> {
-  const checks = extractionCacheId ? (await checksByExtraction([extractionCacheId])).get(extractionCacheId) ?? [] : [];
+/**
+ * What the quote screen shows about trust: confidence, the stock check, the
+ * hold. With a viewer, a price that needs its automatic re-read gets it
+ * started (or resumed) here, so the screen's "Checking this price" settles.
+ */
+export async function quoteTrustFor(extractionCacheId: string | null, extraction: ExtractionResult, viewer?: Viewer): Promise<QuoteTrust> {
+  let checks = extractionCacheId ? (await checksByExtraction([extractionCacheId])).get(extractionCacheId) ?? [] : [];
+  if (extractionCacheId && viewer && (await ensurePriceRereadOnView(viewer, extractionCacheId, extraction, checks))) {
+    checks = (await checksByExtraction([extractionCacheId])).get(extractionCacheId) ?? [];
+  }
   const pay_hold = payHoldOf({ extraction, checks });
   const stock_check = extractionCacheId ? await stockCheckView(extractionCacheId, extraction, checks) : null;
   return { price_status: extraction.price_confidence?.level ?? null, stock_check, pay_hold };
@@ -179,27 +186,71 @@ async function opened(row: QuoteCheckRow, actorId: string | null): Promise<void>
  * customer asks for a stock check. Idempotent: the unique indexes of 103
  * turn a concurrent second open into a no-op. Never throws.
  */
-export async function ensureQuoteChecks(viewer: Viewer, extractionCacheId: string, productUrl: string, extraction: ExtractionResult): Promise<void> {
+export async function ensureQuoteChecks(
+  viewer: Viewer,
+  extractionCacheId: string,
+  productUrl: string,
+  extraction: ExtractionResult,
+  opts: { priceOnly?: boolean; checks?: readonly QuoteCheckRow[] } = {},
+): Promise<void> {
   try {
-    const checks = (await checksByExtraction([extractionCacheId])).get(extractionCacheId) ?? [];
+    const checks = opts.checks ?? (await checksByExtraction([extractionCacheId])).get(extractionCacheId) ?? [];
     const needed = checksNeeded({ extraction, checks });
     const base = baseRow(extractionCacheId, productUrl, extraction, viewer);
 
-    if (needed.stock) {
+    if (needed.stock && !opts.priceOnly) {
       const row = await insertQuoteCheck({ ...base, kind: "stock", origin: "system", status: "pending", reasons: detectStockSignals(extraction.product).map((s) => s.label) });
       if (row) await opened(row, viewer.userId);
     }
-    if (needed.price) {
+    if (needed.price === "checking") {
       const reasons = (extraction.price_confidence?.reasons ?? []).map((r) => PRICE_REASON_LABELS[r] ?? r);
-      const row = await insertQuoteCheck({ ...base, kind: "price", origin: "system", status: needed.price, reasons });
+      const row = await insertQuoteCheck({ ...base, kind: "price", origin: "system", status: "checking", reasons });
       if (row) {
         await opened(row, viewer.userId);
-        if (row.status === "checking") runAfter(() => runPriceReread(row.id));
+        runAfter(() => runPriceReread(row.id));
       }
     }
+    const open = checks.find((c) => c.kind === "price" && c.origin === "system" && (c.status === "pending" || c.status === "checking"));
+    if (needed.price === "reread" && open?.status === "pending") await startStaffCheckReread(open);
+    if (needed.price === "settle" && open?.status === "checking") await toStaff(open, "The automatic re-read did not finish");
   } catch (error) {
     logger.error("quote checks: could not open checks", { extractionCacheId, error: error instanceof Error ? error.message : String(error) });
   }
+}
+
+/**
+ * A staff price check opened before every price got an automatic re-read
+ * (`reread_at` null): re-read it now. Guarded `pending → checking`, so of two
+ * viewers racing only one starts it, and a staff decision made meanwhile wins.
+ */
+async function startStaffCheckReread(check: QuoteCheckRow): Promise<void> {
+  const row = await updateQuoteCheckFrom(check.id, "pending", { status: "checking" });
+  if (!row) return;
+  await audit(row, null, "quote_check_reread_started", { from: "pending" });
+  runAfter(() => runPriceReread(row.id));
+}
+
+/** An automatic re-read that could not confirm an unconfirmed price: a person decides (alerted). */
+async function toStaff(check: QuoteCheckRow, why: string): Promise<void> {
+  const row = await updateQuoteCheckFrom(check.id, "checking", { status: "pending", reread_at: new Date().toISOString(), reasons: [...check.reasons, why] });
+  if (!row) return;
+  await audit(row, null, "quote_check_reread", { outcome: "staff", why });
+  notifyStaff({ kind: "quote_check", checkId: row.id });
+}
+
+/**
+ * The quote screen's part: start (or resume) the automatic price re-read
+ * when the quote is viewed, so "Checking this price" is true from the first
+ * look rather than from when the line reaches the bag. Price only; stock
+ * checks still open from the bag or the customer's ask. Never throws.
+ */
+async function ensurePriceRereadOnView(viewer: Viewer, extractionCacheId: string, extraction: ExtractionResult, checks: readonly QuoteCheckRow[]): Promise<boolean> {
+  if (!viewer.userId && !viewer.sessionId) return false;
+  if (!checksNeeded({ extraction, checks }).price) return false;
+  const snapshot = await getExtractionById(extractionCacheId);
+  if (!snapshot) return false;
+  await ensureQuoteChecks(viewer, extractionCacheId, snapshot.productUrl, extraction, { priceOnly: true, checks });
+  return true;
 }
 
 /**
@@ -219,26 +270,30 @@ export async function openSellerCheck(viewer: Viewer, extractionCacheId: string,
 }
 
 /**
- * The automatic re-read of a single-source price. Agreeing → confirmed for
- * 24 h; disagreeing → waits on staff (alerted); nothing read or no budget →
- * lapsed, and the price is payable as it stands. Guarded on `checking`, so a
- * staff decision made meanwhile is never overwritten.
+ * The automatic re-read of a price that is not confirmed (single-source or
+ * unconfirmed), through tiers other than the one that read it. Agreeing →
+ * confirmed for 24 h; disagreeing → waits on staff (alerted). Nothing read or
+ * no budget → a single-source price lapses (payable as it stands); an
+ * unconfirmed one waits on staff. Guarded on `checking`, so a staff decision
+ * made meanwhile is never overwritten.
  */
 export async function runPriceReread(checkId: string): Promise<void> {
   const check = await getQuoteCheck(checkId);
-  if (!check || check.status !== "checking" || check.quoted_price == null) return;
+  if (!check || check.status !== "checking") return;
   const now = new Date();
-  const lapse = async (why: string) => {
-    const row = await updateQuoteCheckFrom(check.id, "checking", { status: "lapsed", reasons: [...check.reasons, why] });
+  const snapshot = await getExtractionById(check.extraction_cache_id);
+  const unconfirmed = snapshot?.result.price_confidence?.level === "unconfirmed";
+  const giveUp = async (why: string) => {
+    if (unconfirmed || !snapshot) return toStaff(check, why);
+    const row = await updateQuoteCheckFrom(check.id, "checking", { status: "lapsed", reread_at: new Date().toISOString(), reasons: [...check.reasons, why] });
     if (row) await audit(row, null, "quote_check_reread", { outcome: "lapsed", why });
   };
 
+  if (!snapshot) return giveUp("Quote no longer stored");
+  if (check.quoted_price == null) return giveUp("No price to re-read");
   const period = budgetPeriodOf(now);
   const budget = await readJobBudget(PRICE_REREAD_JOB.jobName, PRICE_REREAD_JOB.monthlyCaps, period);
-  if (budget.used >= budget.cap) return lapse("Re-read budget used up this month");
-
-  const snapshot = await getExtractionById(check.extraction_cache_id);
-  if (!snapshot) return lapse("Quote no longer stored");
+  if (budget.used >= budget.cap) return giveUp("Re-read budget used up this month");
   await spendJobBudget(PRICE_REREAD_JOB.jobName, PRICE_REREAD_JOB.monthlyCaps, period);
   const reads = await rereadPrice({
     url: snapshot.productUrl,
@@ -248,7 +303,7 @@ export async function runPriceReread(checkId: string): Promise<void> {
     budgetMs: PRICE_REREAD_JOB.budgetMs,
   });
   const verdict = judgeReread({ price: check.quoted_price, currency: check.quoted_currency }, reads);
-  if (verdict.outcome === "none") return lapse("No other tier could read the price");
+  if (verdict.outcome === "none") return giveUp("No other tier could read the price");
 
   const reread = { reread_price: verdict.read.price, reread_currency: verdict.read.currency, reread_source: verdict.read.source, reread_at: new Date().toISOString() };
   if (verdict.outcome === "agree") {

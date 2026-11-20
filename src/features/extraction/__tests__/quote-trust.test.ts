@@ -186,8 +186,13 @@ describe("pay gate (A0 + A7 + freight)", () => {
     const freight = { status: "pending", inspected_at: iso(1000) } as ExtractionResult["freight_inspection"];
     expect(payHoldOf({ extraction: ext({}, "unconfirmed", freight), checks: [], now: NOW })?.kind).toBe("freight_check");
   });
-  it("an unconfirmed price waits on staff, until a confirmation for THIS price", () => {
-    expect(payHoldOf({ extraction: ext({}, "unconfirmed"), checks: [], now: NOW })).toMatchObject({ kind: "price_check", needs_staff: true, message: "We're confirming this price" });
+  it("an unconfirmed price is re-read automatically first, until a confirmation for THIS price", () => {
+    const e = ext({}, "unconfirmed");
+    expect(payHoldOf({ extraction: e, checks: [], now: NOW })).toMatchObject({ kind: "price_check", needs_staff: false, message: "Checking this price with the store" });
+    expect(checksNeeded({ extraction: e, checks: [], now: NOW }).price).toBe("checking");
+    const running = check({ status: "checking", created_at: iso(5_000) });
+    expect(payHoldOf({ extraction: e, checks: [running], now: NOW })).toMatchObject({ needs_staff: false });
+    expect(checksNeeded({ extraction: e, checks: [running], now: NOW }).price).toBeNull();
     const ok = check({ status: "confirmed", confirmed_price: 50, valid_until: iso(-3600_000) });
     expect(payHoldOf({ extraction: ext({}, "unconfirmed"), checks: [ok], now: NOW })).toBeNull();
     expect(payHoldOf({ extraction: ext({ price: 55 }, "unconfirmed"), checks: [ok], now: NOW })?.kind).toBe("price_check");
@@ -203,7 +208,31 @@ describe("pay gate (A0 + A7 + freight)", () => {
     const lost = check({ status: "checking", created_at: iso(PRICE_RECHECK_MAX_PENDING_MS + 1) });
     expect(payHoldOf({ extraction: e, checks: [lost], now: NOW })).toBeNull();
     expect(payHoldOf({ extraction: e, checks: [check({ status: "lapsed" })], now: NOW })).toBeNull();
-    expect(payHoldOf({ extraction: e, checks: [check({ status: "pending" })], now: NOW })).toMatchObject({ needs_staff: true });
+    expect(payHoldOf({ extraction: e, checks: [check({ status: "pending", reread_at: iso(1000) })], now: NOW })).toMatchObject({ needs_staff: true });
+  });
+  it("an unconfirmed price the re-read could not confirm waits on staff, never lapses to payable", () => {
+    const e = ext({}, "unconfirmed");
+    const afterReread = check({ status: "pending", reread_at: iso(1000) });
+    expect(payHoldOf({ extraction: e, checks: [afterReread], now: NOW })).toMatchObject({ needs_staff: true, message: "We're confirming this price" });
+    expect(checksNeeded({ extraction: e, checks: [afterReread], now: NOW }).price).toBeNull();
+    // A run lost mid-read: held on staff and handed to them.
+    const lost = check({ status: "checking", created_at: iso(PRICE_RECHECK_MAX_PENDING_MS + 1) });
+    expect(payHoldOf({ extraction: e, checks: [lost], now: NOW })).toMatchObject({ needs_staff: true });
+    expect(checksNeeded({ extraction: e, checks: [lost], now: NOW }).price).toBe("settle");
+    // A lapsed row (from the single-source rule) never makes an unconfirmed price payable.
+    expect(payHoldOf({ extraction: e, checks: [check({ status: "lapsed" })], now: NOW })?.kind).toBe("price_check");
+  });
+  it("a staff check opened before re-reads existed is re-read once, idempotently", () => {
+    const e = ext({}, "unconfirmed");
+    const legacy = check({ status: "pending", created_at: iso(3 * 3600_000), reread_at: null });
+    expect(checksNeeded({ extraction: e, checks: [legacy], now: NOW }).price).toBe("reread");
+    expect(payHoldOf({ extraction: e, checks: [legacy], now: NOW })).toMatchObject({ needs_staff: false });
+    // Moved to checking: the run is timed from the move, not from when the row opened.
+    const moved = { ...legacy, status: "checking" as const, updated_at: iso(2_000) };
+    expect(checksNeeded({ extraction: e, checks: [moved], now: NOW }).price).toBeNull();
+    expect(payHoldOf({ extraction: e, checks: [moved], now: NOW })).toMatchObject({ needs_staff: false });
+    // A customer report is never re-read or counted.
+    expect(checksNeeded({ extraction: e, checks: [check({ origin: "customer", status: "pending" })], now: NOW }).price).toBe("checking");
   });
   it("stock signals need a staff confirmation, valid 24 h", () => {
     const renewed = ext({ title: "Kindle (Renewed)" });

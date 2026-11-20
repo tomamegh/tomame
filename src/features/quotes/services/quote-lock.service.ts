@@ -85,7 +85,7 @@ export async function quoteForViewer(
   const customer = customerExtraction(extraction);
   const freightCheck = freightCheckOf(extraction);
   // Price confidence, stock check and the one pay hold (features/extraction/pay-gate.ts).
-  const trust = await quoteTrustFor(extraction.extraction_cache_id, extraction);
+  const trust = await quoteTrustFor(extraction.extraction_cache_id, extraction, viewer);
   return {
     ...customer,
     messages: customerMessages(customer.messages, pricing, freightCheck != null),

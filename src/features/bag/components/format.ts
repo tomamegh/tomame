@@ -290,6 +290,8 @@ export function payBlockReason(view: BagView, ctx: PayBlockContext): string | nu
   const held = lines.map((l) => l.pay_hold).filter((h): h is NonNullable<BagLine["pay_hold"]> => h != null && h.kind !== "freight_check");
   const gone = held.filter((h) => h.kind === "unavailable").length;
   if (gone > 0) return `${pronoun(gone, "1 item is", `${gone} items are`)} no longer available. Remove ${pronoun(gone, "it", "them")} to pay for the rest.`;
+  const checking = held.filter((h) => h.kind === "price_check" && !h.needs_staff).length;
+  if (checking > 0) return `Checking the price of ${countItems(checking)} with the store. This usually takes under a minute.`;
   const price = held.filter((h) => h.kind === "price_check").length;
   if (price > 0) return `We're confirming the price of ${countItems(price)}. Pay opens once it's confirmed.`;
   const stock = held.filter((h) => h.kind === "stock_check").length;

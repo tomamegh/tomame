@@ -11,7 +11,8 @@ import type { ScrapedProduct } from "./scrapers/types";
  *   single_source — one read only. Shown; re-read in the background before Pay.
  *   unconfirmed   — HTML-only, reads disagree, implausible, wrong currency,
  *                   used/renewed offer on a new-item page, Subscribe & Save,
- *                   coupon or per-unit price. Shown; Pay blocked until staff confirm.
+ *                   coupon or per-unit price. Shown; re-read by another tier
+ *                   first, and Pay waits on staff only when that cannot confirm it.
  *
  * And before any of that, `guardHtmlPrice` throws out an HTML-only price the
  * page itself contradicts, so it is never quoted at all (A3).
@@ -228,5 +229,7 @@ function dedupe<T>(xs: T[]): T[] {
   return [...new Set(xs)];
 }
 
-/** Customer-facing copy for a hold on an unconfirmed price. */
+/** Customer-facing copy for a price hold waiting on staff. */
 export const PRICE_CONFIRMING_MESSAGE = "We're confirming this price";
+/** Customer-facing copy while the automatic re-read runs (it settles on its own). */
+export const PRICE_CHECKING_MESSAGE = "Checking this price with the store";

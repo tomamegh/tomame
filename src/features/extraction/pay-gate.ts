@@ -1,6 +1,6 @@
 import { freightCheckPending } from "@/features/pricing/freight-inspection";
 import { FREIGHT_CHECKING_MESSAGE } from "./resolvers/messages";
-import { PRICE_CONFIRMING_MESSAGE, type PriceConfidence } from "./price-confidence";
+import { PRICE_CHECKING_MESSAGE, PRICE_CONFIRMING_MESSAGE, type PriceConfidence } from "./price-confidence";
 import { detectStockSignals, STOCK_CHECK_MESSAGE, STOCK_UNAVAILABLE_MESSAGE } from "./stock-signals";
 import type { ExtractionResult } from "./types";
 
@@ -36,6 +36,10 @@ export interface QuoteCheckState {
   origin: QuoteCheckOrigin;
   status: QuoteCheckStatus;
   created_at: string;
+  /** Last change; when a re-read started on a row that was moved to `checking`. */
+  updated_at?: string | null;
+  /** When an automatic re-read last finished on this row (null: never re-read). */
+  reread_at?: string | null;
   valid_until: string | null;
   confirmed_price: number | null;
   substitute_url: string | null;
@@ -90,10 +94,11 @@ export function payHoldOf(input: PayGateInput): PayHold | null {
   const price = extraction.product.price;
   const level = extraction.price_confidence?.level ?? null;
   if (price != null && level && level !== "confirmed" && !priceConfirmedByStaff(checks, price, now)) {
-    if (level === "unconfirmed") return { kind: "price_check", message: PRICE_CONFIRMING_MESSAGE, needs_staff: true };
-    // single_source: held while the background re-read runs, and when it disagreed.
-    const state = rereadState(checks, now);
-    if (state !== "clear") return { kind: "price_check", message: PRICE_CONFIRMING_MESSAGE, needs_staff: state === "staff" };
+    // Held while the background re-read runs (or is about to), and on staff
+    // when it disagreed — or, for an unconfirmed price, when it could not read.
+    const state = rereadState(checks, now, level);
+    if (state === "staff" || state === "lost") return { kind: "price_check", message: PRICE_CONFIRMING_MESSAGE, needs_staff: true };
+    if (state !== "clear") return { kind: "price_check", message: PRICE_CHECKING_MESSAGE, needs_staff: false };
   }
 
   if (detectStockSignals(extraction.product).length > 0) {
@@ -121,48 +126,67 @@ export function payHoldRefusal(hold: PayHold, title: string | null): string {
 /** How long a re-read that could not finish leaves a single-source price payable before trying again. */
 export const PRICE_RECHECK_LAPSE_HOURS = 24;
 
+/** When a `checking` row started: a staff-pending row moved back to checking keeps its `created_at`. */
+const checkingSince = (c: QuoteCheckState) => t(c.updated_at ?? c.created_at);
+
+type RereadState = "auto" | "staff" | "clear" | "needed" | "reread" | "lost";
+
 /**
- * Where a single-source price's background re-read stands (its confirmed
- * outcome is counted by `priceConfirmedByStaff`, which checks the price):
- *   running → "auto"; disagreed, waiting on staff → "staff";
- *   could not finish recently → "clear" (payable, as the freight check does);
+ * Where a price's background re-read stands (its confirmed outcome is counted
+ * by `priceConfirmedByStaff`, which checks the price):
+ *   running → "auto"; waiting on staff after a re-read → "staff";
+ *   a staff row that was never re-read (opened before every price got one) → "reread";
  *   none yet, or only stale ones → "needed".
+ * A re-read that could not finish:
+ *   single_source → "clear" for a day (payable, as the freight check does);
+ *   unconfirmed   → never payable: a lost run is "lost" (goes to staff).
  */
-function rereadState(checks: readonly QuoteCheckState[], now: number): "auto" | "staff" | "clear" | "needed" {
+function rereadState(checks: readonly QuoteCheckState[], now: number, level: PriceConfidence): RereadState {
   const latest = checks.find((c) => c.kind === "price" && c.origin === "system");
   if (!latest) return "needed";
-  const age = now - t(latest.created_at);
-  if (latest.status === "checking" && age < PRICE_RECHECK_MAX_PENDING_MS) return "auto";
-  if (latest.status === "pending") return "staff";
-  // A re-read that could not finish (lapsed, or lost while checking) does not hold the price hostage.
-  if ((latest.status === "lapsed" || latest.status === "checking") && age < PRICE_RECHECK_LAPSE_HOURS * 3600_000) return "clear";
+  const lapseWindow = now - t(latest.created_at) < PRICE_RECHECK_LAPSE_HOURS * 3600_000;
+  if (latest.status === "checking") {
+    if (now - checkingSince(latest) < PRICE_RECHECK_MAX_PENDING_MS) return "auto";
+    if (level === "unconfirmed") return "lost";
+    return lapseWindow ? "clear" : "needed";
+  }
+  if (latest.status === "pending") return latest.reread_at ? "staff" : "reread";
+  if (latest.status === "lapsed" && level === "single_source" && lapseWindow) return "clear";
   return "needed";
 }
 
-/** What a line needs created so its hold can clear: the rows `ensureQuoteChecks` inserts. */
+/**
+ * What a line needs done so its hold can clear (`ensureQuoteChecks` does it):
+ *   price "checking" — open an automatic re-read;
+ *   price "reread"   — re-read the open staff check that never had one;
+ *   price "settle"   — a re-read of an unconfirmed price was lost: hand it to staff.
+ */
 export interface ChecksNeeded {
-  price: "pending" | "checking" | null;
+  price: "checking" | "reread" | "settle" | null;
   stock: boolean;
 }
 
 /**
- * Which system checks must exist for this extraction to become payable.
- * `price: "checking"` starts an automatic re-read; `"pending"` asks staff.
- * Nothing is asked for while a matching open check exists or a decision holds.
+ * Which system checks must exist (or move) for this extraction to become
+ * payable. Every non-confirmed price is re-read automatically first; staff
+ * are asked only by the re-read's outcome. Nothing is asked for while a
+ * matching open check exists or a decision holds.
  */
 export function checksNeeded(input: PayGateInput): ChecksNeeded {
   const now = input.now ?? Date.now();
   const { extraction } = input;
   const checks = [...input.checks].sort(newestFirst);
   const open = (kind: QuoteCheckKind) =>
-    checks.some((c) => c.kind === kind && c.origin === "system" && (c.status === "pending" || (c.status === "checking" && now - t(c.created_at) < PRICE_RECHECK_MAX_PENDING_MS)));
+    checks.some((c) => c.kind === kind && c.origin === "system" && (c.status === "pending" || (c.status === "checking" && now - checkingSince(c) < PRICE_RECHECK_MAX_PENDING_MS)));
 
   let price: ChecksNeeded["price"] = null;
   const level = extraction.price_confidence?.level ?? null;
   const productPrice = extraction.product.price;
-  if (productPrice != null && level && level !== "confirmed" && !priceConfirmedByStaff(checks, productPrice, now) && !open("price")) {
-    if (level === "unconfirmed") price = "pending";
-    else if (rereadState(checks, now) === "needed") price = "checking";
+  if (productPrice != null && level && level !== "confirmed" && !priceConfirmedByStaff(checks, productPrice, now)) {
+    const state = rereadState(checks, now, level);
+    if (state === "reread") price = "reread";
+    else if (state === "lost") price = "settle";
+    else if (state === "needed" && !open("price")) price = "checking";
   }
 
   const stockSystem = checks.filter((c) => c.kind === "stock" && c.origin === "system");

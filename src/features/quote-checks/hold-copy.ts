@@ -7,7 +7,7 @@ import type { StatusTone } from "@/components/ui/inline-status";
  * bag and the batch list. Pure, so every screen says the same thing and the
  * wording is a test away from changing.
  *
- * The title is always the gate's own message (PRICE_CONFIRMING_MESSAGE,
+ * The title is always the gate's own message (PRICE_CHECKING_MESSAGE, PRICE_CONFIRMING_MESSAGE,
  * STOCK_CHECK_MESSAGE, STOCK_UNAVAILABLE_MESSAGE); this file only adds what
  * happens next.
  */
@@ -43,8 +43,8 @@ export function holdCopy(hold: PayHold, stock: StockCheckView | null = null): Ho
         title: hold.message,
         detail: hold.needs_staff
           ? "Our team is checking the price on the store. You can add it to your bag now. Pay opens as soon as it's confirmed."
-          : "We're reading the store's price again to make sure it's right. This usually takes under a minute. You can add it to your bag meanwhile.",
-        pill: HOLD_PILL.price_check,
+          : "This usually takes under a minute. You can add it to your bag meanwhile.",
+        pill: hold.needs_staff ? HOLD_PILL.price_check : "Checking price",
       };
     case "stock_check": {
       const requested = stock?.status === "requested";
