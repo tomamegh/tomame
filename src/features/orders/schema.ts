@@ -110,6 +110,14 @@ export const updateOrderStatusSchema = z
       .max(5, "Five tracking numbers at most; add more on the warehouse page")
       .optional(),
     share_store_tracking: z.boolean().optional(),
+    /**
+     * 103 (A0b), `processing` only: what the store charged per item, before
+     * tax and shipping, in the listing currency. Ground truth for quoted-vs-paid
+     * drift in daily health. The admin screen requires it; the API accepts its
+     * absence so an older client cannot block a purchase.
+     */
+    store_paid_price: z.coerce.number().positive("Enter what the store charged").max(999_999).optional(),
+    store_paid_currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, "Use a 3-letter currency code").optional(),
   })
   .refine((v) => v.status === "processing" || (v.store_tracking === undefined && v.share_store_tracking === undefined), {
     message: "Store tracking goes with marking an order purchased",

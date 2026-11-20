@@ -1,5 +1,6 @@
 import type { HourlyCountInput, ErrorEventInput } from "./alert-rules";
 import type { JobHealth, OpsAlert } from "./ops-alerts";
+import { quoteHealthCandidates, type QuoteHealth } from "./quote-health";
 
 /**
  * The 07:00 health summary, as data. Pure: the service gathers the rows, this
@@ -18,6 +19,8 @@ export interface DailySummaryInput {
   alerts: OpsAlert[];
   warehouseActions: { action: string }[] | null;
   alertEmails24h: number;
+  /** A6: quote correctness; null when it could not be read. */
+  quotes?: QuoteHealth | null;
 }
 
 export interface TopIssue {
@@ -53,6 +56,7 @@ export interface DailySummary {
   warehouse: { total: number; byAction: Record<string, number> } | null;
   attention: { level: string; title: string; detail: string; href?: string }[];
   alertEmails24h: number;
+  quotes?: QuoteHealth | null;
 }
 
 const TOP_ISSUES = 5;
@@ -142,9 +146,12 @@ export function buildDailySummary(input: DailySummaryInput): DailySummary {
   const failing = input.jobs.filter((j) => j.consecutiveFailures > 0 || j.unreached || j.scheduled === false).map((j) => j.label);
   const unhealthy = new Set([...stale, ...failing]);
 
-  const attention = input.alerts
-    .filter((a) => a.level !== "info" || a.key === "orders-unpaid")
-    .map((a) => ({ level: a.level, title: a.title, detail: a.detail, href: a.href }));
+  const attention = [
+    ...input.alerts
+      .filter((a) => a.level !== "info" || a.key === "orders-unpaid")
+      .map((a) => ({ level: a.level, title: a.title, detail: a.detail, href: a.href })),
+    ...(input.quotes ? quoteHealthCandidates(input.quotes).map((a) => ({ level: a.level, title: a.title, detail: a.detail, href: a.href })) : []),
+  ];
 
   const critical = input.alerts.some((a) => a.level === "critical");
   const status: DailySummary["status"] = critical ? "critical" : attention.length > 0 ? "attention" : "healthy";
@@ -170,6 +177,7 @@ export function buildDailySummary(input: DailySummaryInput): DailySummary {
     warehouse,
     attention,
     alertEmails24h: input.alertEmails24h,
+    quotes: input.quotes ?? null,
   };
 }
 

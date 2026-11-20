@@ -4,6 +4,8 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/email/transport", () => ({ sendEmail: vi.fn() }));
 vi.mock("@/features/ops/ops.service", () => ({ getOpsOverview: vi.fn() }));
+// Quote health reads nothing here: null keeps the existing expectations unchanged.
+vi.mock("@/db/queries/quote-health", () => ({ readQuoteHealthInput: vi.fn(async () => { throw new Error("not in this test"); }) }));
 vi.mock("@/db/queries/ops-alerts", () => ({
   claimDailySummary: vi.fn(),
   countAlertSendsSince: vi.fn(),

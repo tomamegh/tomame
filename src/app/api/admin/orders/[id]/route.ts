@@ -64,11 +64,12 @@ export async function PATCH(
     const admin = requireAdmin(auth);
 
     const { id } = await params;
-    const { status, store_tracking, share_store_tracking, ...tracking } = parsed.data;
+    const { status, store_tracking, share_store_tracking, store_paid_price, store_paid_currency, ...tracking } = parsed.data;
 
-    // "Mark as purchased" also registers the store's tracking for the hub.
+    // "Mark as purchased" also registers the store's tracking for the hub and
+    // records what the store charged (103).
     if (status === "processing") {
-      const { order } = await markOrderPurchased(admin, id, { store_tracking, share_store_tracking });
+      const { order } = await markOrderPurchased(admin, id, { store_tracking, share_store_tracking, store_paid_price, store_paid_currency });
       return successResponse(order);
     }
     // Spread straight through: the service's parameter is snake_case now, so the

@@ -1,5 +1,6 @@
 import type { AlertCandidate } from "@/features/ops/alert-rules";
 import type { DailySummary } from "@/features/ops/daily-summary";
+import { quoteHealthLines } from "@/features/ops/quote-health";
 import {
   EMAIL_COLORS as C,
   appUrl,
@@ -200,6 +201,8 @@ export function opsDailySummaryTemplate(summary: DailySummary, subject: string, 
       )}
       ${sectionTitle("Warehouse")}
       ${warehouse}
+      ${sectionTitle("Quote correctness")}
+      ${summary.quotes ? quoteHealthLines(summary.quotes).map((line) => paragraph(escapeHtml(line))).join("") : paragraph("Quote health could not be read.")}
       ${divider()}
       ${button(`${appUrl()}/admin/ops`, "Open the Health screen")}
     `,

@@ -8,6 +8,9 @@ import type { InboundParcel } from "@/features/warehouse/types";
 import type { PlatformUser } from "@/features/users/types";
 import type { Order } from "../types";
 import { getOrderById, updateOrderStatusAdmin } from "./orders.service";
+import { recordStorePaidPrice } from "@/db/queries/order-store-price";
+import { logAuditEvent } from "@/features/audit/services/audit.service";
+import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
 
 /**
  * "Mark as purchased": the admin has bought the item from the store.
@@ -28,6 +31,9 @@ import { getOrderById, updateOrderStatusAdmin } from "./orders.service";
 export interface PurchaseInput {
   store_tracking?: Array<{ tracking_number: string; store_order_ref?: string | null }>;
   share_store_tracking?: boolean;
+  /** 103 (A0b): what the store charged per item, before tax and shipping. */
+  store_paid_price?: number;
+  store_paid_currency?: string;
 }
 
 export interface PurchaseResult {
@@ -71,5 +77,39 @@ export async function markOrderPurchased(user: PlatformUser, orderId: string, in
       customerStoreTracking: parcels.map((p) => ({ carrier: p.carrier_label, number: p.tracking_display })),
     }),
   });
+
+  // Recorded after the move, so a refused transition leaves no price behind.
+  if (input.store_paid_price != null && input.store_paid_price > 0) {
+    await recordStorePrice(user, order, input.store_paid_price, input.store_paid_currency);
+  }
   return { order: updated, parcels };
+}
+
+/**
+ * The store's charged price beside what we quoted (A0b), audited as
+ * `order_store_price_recorded` with the drift, so "is the scraper right?" is a
+ * number per store and tier in daily health.
+ */
+async function recordStorePrice(user: PlatformUser, order: Order, price: number, currency: string | undefined): Promise<void> {
+  const quoted = order.extraction_metadata?.product?.price ?? null;
+  const quotedCurrency = order.extraction_metadata?.product?.currency ?? "USD";
+  const paidCurrency = (currency ?? quotedCurrency).toUpperCase();
+  await recordStorePaidPrice({ orderId: order.id, price, currency: paidCurrency, by: user.id });
+  const drift = quoted != null && quoted > 0 && paidCurrency === quotedCurrency.toUpperCase() ? Math.round(((price - quoted) / quoted) * 1000) / 1000 : null;
+  await logAuditEvent({
+    actorId: user.id,
+    actorRole: AUDIT_ACTOR_ROLES.ADMIN,
+    action: "order_store_price_recorded",
+    entityType: AUDIT_ENTITY_TYPES.ORDER,
+    entityId: order.id,
+    metadata: {
+      store_paid_price: price,
+      store_paid_currency: paidCurrency,
+      quoted_price: quoted,
+      quoted_currency: quotedCurrency,
+      drift,
+      platform: order.extraction_metadata?.platform ?? null,
+      price_source: order.extraction_metadata?.price_source ?? order.extraction_metadata?.source ?? null,
+    },
+  });
 }
