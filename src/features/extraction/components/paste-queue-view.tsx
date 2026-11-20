@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,12 +12,19 @@ import {
   CheckCircle,
   LinkSimple,
   MagnifyingGlass,
+  Plus,
   Storefront,
   Tote,
   WarningCircle,
 } from "@phosphor-icons/react/ssr";
 
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { AssistedRequestDialog } from "@/features/assisted/components";
+import { PASTE_BATCH_MAX } from "../services/paste-batch";
+import { splitLinks } from "./batch-format";
+import { readBatch, writeBatch } from "./batch-storage";
+import { PasteBatchPanel } from "./paste-batch-panel";
 import { describePendingWait, hostOf, type PendingWait } from "@/features/bag/components/format";
 import type { BagLinePending } from "@/features/bag/types";
 import { ApiFetchError } from "@/lib/api-client";
@@ -116,7 +123,13 @@ export function PasteQueueView({
 }: PasteQueueViewProps) {
   const router = useRouter();
   const [url, setUrl] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const [describing, setDescribing] = useState<PasteStatus | null>(null);
+  // The links of the batch being built on this visit (plan 2b), by paste id.
+  // Kept in sessionStorage so a reload or a trip to a quote and back keeps the
+  // batch; the reads themselves live on the server and carry on regardless.
+  const [batchIds, setBatchIds] = useState<string[]>([]);
+  const [queueing, setQueueing] = useState(false);
   // WHICH row is being re-read, not merely that one is: `createPaste.isPending`
   // is one mutation shared by the screen, so keying the spinner off it put every
   // lapsed row into the reading state at once.
@@ -168,35 +181,92 @@ export function PasteQueueView({
     }
   }, [pastes, watchId, typing, router, initialWatchId, mode]);
 
+  // Restore the batch after mount (sessionStorage is not there on the server),
+  // keeping only ids this viewer still has.
+  useEffect(() => {
+    const known = new Set(pastes.map((p) => p.id));
+    const saved = readBatch().filter((id) => known.has(id));
+    // A link queued on another page (Home, `?url=`) and still reading joins the batch.
+    const reading = pastes.filter((p) => p.outcome === "reading" && !saved.includes(p.id)).map((p) => p.id);
+    setBatchIds([...saved, ...reading].slice(0, PASTE_BATCH_MAX));
+    // Once, on mount: later changes come from this screen's own actions.
+  }, []);
+  useEffect(() => writeBatch(batchIds), [batchIds]);
+
+  /**
+   * Queue links one after another and add them to the batch. `follow` keeps
+   * the single-link fast path: a lone link that is already priced opens its
+   * quote, and one still reading is followed there when it lands.
+   */
+  const queueLinks = useCallback(
+    async (links: string[], { follow }: { follow: boolean }) => {
+      const room = PASTE_BATCH_MAX - batchIds.length;
+      const take = links.slice(0, Math.max(0, room));
+      if (take.length === 0) {
+        toast.error({ title: `A batch holds up to ${PASTE_BATCH_MAX} links`, description: "Add these to your bag, then start another." });
+        return;
+      }
+      if (take.length < links.length) {
+        toast.info({ title: `Added the first ${take.length}`, description: `A batch holds up to ${PASTE_BATCH_MAX} links.` });
+      }
+      setQueueing(true);
+      const added: PasteStatus[] = [];
+      for (const link of take) {
+        try {
+          added.push(await createPaste.mutateAsync({ product_url: link }));
+        } catch (error) {
+          if (error instanceof ApiFetchError && error.status === 429) {
+            toast.error({ title: "Please wait a few minutes", description: error.message });
+            break;
+          }
+          toast.error({ title: "We couldn't take that link", description: error instanceof Error ? error.message : undefined });
+        }
+      }
+      setQueueing(false);
+      if (added.length === 0) return;
+      setUrl("");
+      setBatchIds((prev) => [...prev, ...added.map((p) => p.id).filter((id) => !prev.includes(id))].slice(0, PASTE_BATCH_MAX));
+
+      const only = added.length === 1 && links.length === 1 ? added[0]! : null;
+      if (follow && only) {
+        // Already read? Go straight to the price. Only a PRICED quote has
+        // somewhere to go; anything else stays here, where its row explains.
+        if (only.outcome === "priced" && only.extraction_cache_id) {
+          router.push(`/app/orders/review/${only.extraction_cache_id}`);
+          return;
+        }
+        if (only.outcome === "reading") setWatchId(only.id);
+      }
+    },
+    [batchIds.length, createPaste, router],
+  );
+
   const onPaste = useCallback(() => {
     const trimmed = url.trim();
     if (!trimmed) return;
-    createPaste.mutate(
-      { product_url: trimmed },
-      {
-        onSuccess: (paste) => {
-          setUrl("");
-          // Already read? Go straight to the price — making someone wait on a
-          // screen for something we already hold would be perverse.
-          // Only a PRICED quote has somewhere to go. A link that was read but
-          // never priced, or whose quote has lapsed, stays on this screen where
-          // the row says so and offers the way out.
-          if (paste.outcome === "priced" && paste.extraction_cache_id) {
-            router.push(`/app/orders/review/${paste.extraction_cache_id}`);
-            return;
-          }
-          if (paste.outcome === "reading") setWatchId(paste.id);
-        },
-        onError: (error) => {
-          if (error instanceof ApiFetchError && error.status === 429) {
-            toast.error({ title: "Steady on", description: "That is a lot of links. Try again in a few minutes." });
-            return;
-          }
-          toast.error({ title: "Could not read that link", description: error.message });
-        },
-      },
-    );
-  }, [createPaste, router, url]);
+    // Something that is not obviously a link still goes to the server, which
+    // says what is wrong with it better than a client-side guess can.
+    const links = splitLinks(trimmed);
+    void queueLinks(links.length > 0 ? links : [trimmed], { follow: batchIds.length === 0 });
+  }, [batchIds.length, queueLinks, url]);
+
+  /** "+": take this link and get ready for the next one. */
+  const onAddAnother = useCallback(() => {
+    const links = splitLinks(url);
+    if (links.length === 0) return;
+    void queueLinks(links, { follow: false }).then(() => inputRef.current?.focus());
+  }, [queueLinks, url]);
+
+  /** Pasting several links at once splits them into rows straight away. */
+  const onClipboardPaste = useCallback(
+    (event: React.ClipboardEvent<HTMLInputElement>) => {
+      const links = splitLinks(event.clipboardData.getData("text"));
+      if (links.length < 2) return;
+      event.preventDefault();
+      void queueLinks(links, { follow: false });
+    },
+    [queueLinks],
+  );
 
   const onAddToBag = useCallback(
     (paste: PasteStatus) => {
@@ -255,7 +325,7 @@ export function PasteQueueView({
     }
     if (typed.length < CATALOG_SEARCH.minQueryLength) {
       toast.error({
-        title: "A little more to go on",
+        title: "Add a few more words",
         description: `Type at least ${CATALOG_SEARCH.minQueryLength} characters, or paste a product link.`,
       });
       return;
@@ -267,7 +337,14 @@ export function PasteQueueView({
     router.push(buyForMeHref("browse", { q: typed }));
   }, [typed, isLink, canSearch, onPaste, router]);
 
-  const { reading, done } = useMemo(() => splitPastes(pastes), [pastes]);
+  // The batch's own rows are drawn by the batch panel; everything else keeps
+  // its place in "Reading now" or "Recently pasted".
+  const batch = useMemo(() => {
+    const byId = new Map(pastes.map((p) => [p.id, p]));
+    return batchIds.map((id) => byId.get(id)).filter((p): p is PasteStatus => p != null);
+  }, [batchIds, pastes]);
+  const { reading, done } = useMemo(() => splitPastes(pastes.filter((p) => !batchIds.includes(p.id))), [pastes, batchIds]);
+  const batchFull = batch.length >= PASTE_BATCH_MAX;
   const browsing = mode === "browse";
   const pasting = mode === "paste";
   // The browse mode is worth offering only when there is a shelf behind it —
@@ -297,33 +374,26 @@ export function PasteQueueView({
     retrying: retryingId === paste.id,
   });
 
+  const typedLinks = isLink ? splitLinks(typed) : [];
+  const submitLabel = queueing ? "Adding" : searchable ? "Search" : batch.length > 0 ? "Add" : "Get price";
+
   return (
-    <div className="flex flex-col gap-7">
+    <div className="flex flex-col gap-6">
       <header className="tm-up flex flex-col gap-2 [animation-duration:0.5s]">
-        <h1 className="font-display text-[30px] leading-[1.05] font-bold tracking-[-0.02em] sm:text-[38px]">
-          What should we buy for you?
-        </h1>
-        {/*
-          The sub-line names the ways ONCE, and it degrades honestly. With
-          nothing priced there is no shelf to browse, so the copy says two and
-          the switch draws two — promising a catalogue we cannot fill is worse
-          than not offering it.
-        */}
-        <p className="text-sm leading-[1.5] text-tm-text-2">
-          {canSearch
-            ? `Three ways, and they all end the same place: a whole cedi price, landed in Accra, before you pay anything. Paste a link from ${stores.slice(0, 3).join(", ")} or anywhere else, look through what we have already priced, or describe it and a buyer will go and find it.`
-            : `Two ways, and they both end the same place: a whole cedi price, landed in Accra, before you pay anything. Paste a link from ${stores.slice(0, 3).join(", ")} or anywhere else and we read it in the background, or describe it and a buyer will go and find it.`}
+        <h1 className="tm-title-1 text-foreground">What should we buy for you?</h1>
+        {/* One sentence. The three ways are the switch below; they are not explained twice. */}
+        <p className="tm-body max-w-[560px] text-muted-foreground">
+          Paste one link or several, from {stores.slice(0, 3).join(", ")} or any US store. You see the full price in cedis before you pay.
         </p>
       </header>
 
-      <ModeSwitch mode={mode} offerBrowse={offerBrowse} delay={0.06} />
+      <ModeSwitch mode={mode} offerBrowse={offerBrowse} delay={0.04} />
 
       {/*
-        ONE BOX, BOTH JOBS. It used to take links only, and the way to search by
-        name was a sentence underneath with a link in it — Kelvin, 2026-09-14: "a
-        link very small beneath that most users will miss". So the box takes
-        either, `looksLikeUrl` picks the branch, and the icon, placeholder and
-        button label say which branch is armed before anybody presses it.
+        ONE BOX, BOTH JOBS: a link is read, anything else is searched against
+        the catalogue (`looksLikeUrl` picks; the icon, placeholder and button
+        say which). Many links (plan 2b): "+" takes this link and readies the
+        box for the next; pasting several at once splits them into rows.
       */}
       {pasting && (
         <form
@@ -331,60 +401,70 @@ export function PasteQueueView({
             e.preventDefault();
             onSubmitTerm();
           }}
-          className="tm-up flex flex-col gap-2.5 sm:flex-row [animation-delay:0.1s] [animation-duration:0.5s]"
+          className="tm-up flex flex-col gap-2 [animation-delay:0.08s] [animation-duration:0.5s]"
         >
           <label className="sr-only" htmlFor="paste-url">
             {canSearch ? "Product link, or what you are looking for" : "Product link"}
           </label>
-          {/*
-            `sm:flex-1`, NOT `flex-1`. Below `sm` the form is a column, and in a
-            column `flex: 1 1 0%` makes the box's HEIGHT the flexed axis — the
-            basis of 0 beats the fixed height, and the paste box collapsed to the
-            height of its placeholder text (Kelvin: "the space to post the link in
-            is very small and bad"). The box is 56px on a phone; the input is 16px
-            there because iOS zooms the page into any field smaller than that on
-            focus.
-          */}
-          <div className="flex min-h-[56px] items-center gap-2.5 rounded-[14px] border border-tm-border bg-card px-4 sm:h-[52px] sm:min-h-0 sm:flex-1">
-            {searchable ? (
-              <MagnifyingGlass weight="bold" className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
-            ) : (
-              <LinkSimple className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
-            )}
-            <input
-              id="paste-url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              // `url` only while it still could be one. Locking the keyboard to
-              // a URL layout would put a customer typing "wireless earbuds"
-              // behind a `.com` key and no space bar.
-              inputMode={canSearch && !isLink ? "search" : "url"}
-              autoComplete="off"
-              placeholder={
-                canSearch ? "Paste a product link, or type what you want…" : "Paste a product link…"
-              }
-              className="min-w-0 flex-1 bg-transparent text-base leading-none outline-none placeholder:text-tm-text-3 sm:text-[15px]"
-            />
+          <div className="flex flex-col gap-2.5 sm:flex-row">
+            {/*
+              `sm:flex-1`, not `flex-1`: in the phone's column a flex basis of 0
+              collapses the box's height. 16px text below `sm`, or iOS zooms in.
+            */}
+            <div className="flex min-h-[56px] items-center gap-2 rounded-[16px] border border-border bg-card pr-1.5 pl-4 transition-colors focus-within:border-tm-coral/60 sm:h-[56px] sm:flex-1">
+              {searchable ? (
+                <MagnifyingGlass weight="bold" className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
+              ) : (
+                <LinkSimple weight="bold" className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
+              )}
+              <input
+                ref={inputRef}
+                id="paste-url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onPaste={onClipboardPaste}
+                // `url` only while it still could be one: a URL keyboard has no space bar.
+                inputMode={canSearch && !isLink ? "search" : "url"}
+                autoComplete="off"
+                enterKeyHint={searchable ? "search" : "go"}
+                placeholder={canSearch ? "Paste a link or describe it" : "Paste a product link"}
+                className="min-w-0 flex-1 bg-transparent text-base leading-none text-foreground outline-none placeholder:text-muted-foreground sm:text-[15px]"
+              />
+              {/* "+" only once there is a link to take: it means "this one, and another after it". */}
+              {typedLinks.length > 0 && !batchFull && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon-lg"
+                  onClick={onAddAnother}
+                  disabled={queueing}
+                  aria-label="Add this link and paste another"
+                  title="Add this link and paste another"
+                >
+                  <Plus weight="bold" className="size-5" aria-hidden />
+                </Button>
+              )}
+            </div>
+            <Button type="submit" variant="primary" size="lg" className="sm:min-w-[148px]" disabled={!typed || batchFull} loading={queueing}>
+              {submitLabel}
+              {!queueing && <ArrowRight weight="bold" className="size-4" aria-hidden />}
+            </Button>
           </div>
-          <button
-            type="submit"
-            disabled={!typed || createPaste.isPending}
-            className={cn(
-              "tm-cta-gradient flex h-[52px] items-center justify-center gap-2 rounded-[14px] px-6 text-[15px] leading-none font-bold text-white",
-              "transition-opacity disabled:cursor-not-allowed disabled:opacity-60",
-            )}
-          >
-            {createPaste.isPending ? "Adding…" : searchable ? "Search" : "Read this link"}
-            {!createPaste.isPending && <ArrowRight weight="bold" className="size-4" aria-hidden />}
-          </button>
+          <p className="tm-caption px-1 text-muted-foreground">
+            {batchFull
+              ? `That's ${PASTE_BATCH_MAX} links, the most for one batch. Add them to your bag, then start another.`
+              : batch.length > 0
+                ? `${batch.length} of ${PASTE_BATCH_MAX} links. Paste the next one, or several at once.`
+                : `Have several? Tap + after each link, or paste them all at once (up to ${PASTE_BATCH_MAX}).`}
+          </p>
         </form>
       )}
 
-      {/*
-        Live in both halves. A link that is reading right now is the only
-        time-sensitive thing on this screen, and a customer who wandered off to
-        browse while it read would otherwise never see it land.
-      */}
+      {/* The batch reads on whichever half is open: it is the time-sensitive part of the screen. */}
+      {batch.length > 0 && (
+        <PasteBatchPanel pastes={batch} onDescribe={(paste) => setDescribing(paste)} onDone={() => setBatchIds([])} />
+      )}
+
       {reading.length > 0 && (
         <Group label={`Reading now · ${reading.length}`} delay={0.14}>
           {reading.map((paste) => (
@@ -401,46 +481,25 @@ export function PasteQueueView({
         <>
           {done.length > 0 && (
             <RecentlyPastedCard count={done.length} delay={0.2}>
-              {(shown) =>
-                done.slice(0, shown).map((paste) => (
-                  <PasteRow key={paste.id} {...rowProps(paste)} />
-                ))
-              }
+              {(shown) => done.slice(0, shown).map((paste) => <PasteRow key={paste.id} {...rowProps(paste)} />)}
             </RecentlyPastedCard>
           )}
 
-          {/*
-            The "Search by name" footnote that used to sit under this is gone:
-            the box above does that job now, and a second, smaller way to reach
-            the same search was exactly the thing nobody found.
-          */}
-          {pastes.length === 0 && (
-            <p className="tm-up rounded-[24px] border border-tm-border bg-card px-6 py-12 text-center text-sm leading-[1.5] text-tm-text-2 [animation-delay:0.16s] [animation-duration:0.5s]">
-              {canSearch
-                ? "Nothing pasted yet. Drop a product link above and we will price it in cedis, all in. Or type what you are after and we will show you what we have already priced."
-                : "Nothing pasted yet. Drop a product link above and we will price it in cedis, all in."}
-              {" "}
-              {canSearch && (
-                <>
-                  You can also{" "}
-                  <Link
-                    href={buyForMeHref("browse")}
-                    className="font-semibold text-tm-coral underline-offset-2 hover:underline"
-                  >
-                    browse by category
+          {pastes.length === 0 && batch.length === 0 && (
+            <EmptyState
+              icon={LinkSimple}
+              title="Your prices will appear here"
+              description="Paste a product link above. We read the page and show the full price, delivered to Accra."
+              className="tm-up [animation-delay:0.14s] [animation-duration:0.5s]"
+              action={
+                <Button asChild variant="ghost" size="touch">
+                  <Link href={buyForMeHref("ask")}>
+                    <ChatCircleDots weight="bold" className="size-4" aria-hidden />
+                    No link? Ask a buyer to find it
                   </Link>
-                  , or{" "}
-                </>
-              )}
-              {!canSearch && <>Or </>}
-              <Link
-                href={buyForMeHref("ask")}
-                className="font-semibold text-tm-coral underline-offset-2 hover:underline"
-              >
-                ask a buyer to find it
-              </Link>
-              .
-            </p>
+                </Button>
+              }
+            />
           )}
         </>
       )}
@@ -484,11 +543,9 @@ function splitPastes(pastes: PasteStatus[]): { reading: PasteStatus[]; done: Pas
  * they came for is in there, and a modest one reads as a modest company. The
  * count still decides whether browse is drawn at all — it is just never printed.
  *
- * A COLUMN ON A PHONE, A ROW ON A DESKTOP. Two labels already truncated to
- * "Already p…" at 390px; three would be unreadable. Below `sm` each way is its
- * own full-width row, 48px tall so it is a comfortable target, with the icon and
- * the label left-aligned where the eye already is. From `sm` it collapses to the
- * one `w-fit` row it has always been.
+ * ONE ROW AT EVERY WIDTH (2026-11-20). A segmented control with short labels
+ * ("Paste a link", "Browse", "Ask a buyer") fits three segments at 390 px; the
+ * icons join from 400 px. The screen's sub-line no longer explains the three.
  */
 function ModeSwitch({
   mode,
@@ -503,7 +560,7 @@ function ModeSwitch({
   return (
     <nav
       aria-label="Ways to tell us what you want"
-      className="tm-up flex w-full flex-col gap-1 rounded-[16px] border border-tm-border bg-card p-1 sm:w-fit sm:flex-row sm:items-center [animation-duration:0.5s]"
+      className="tm-up grid w-full auto-cols-fr grid-flow-col gap-1 rounded-[14px] bg-muted p-1 sm:w-fit [animation-duration:0.5s]"
       style={{ animationDelay: `${delay}s` }}
     >
       <ModeSwitchLink
@@ -517,14 +574,14 @@ function ModeSwitch({
           href={buyForMeHref("browse")}
           active={mode === "browse"}
           icon={<Storefront weight="bold" className="size-4 shrink-0" aria-hidden />}
-          label="Browse what's priced"
+          label="Browse"
         />
       )}
       <ModeSwitchLink
         href={buyForMeHref("ask")}
         active={mode === "ask"}
         icon={<ChatCircleDots weight="bold" className="size-4 shrink-0" aria-hidden />}
-        label="Ask us to buy it"
+        label="Ask a buyer"
       />
     </nav>
   );
@@ -546,26 +603,15 @@ function ModeSwitchLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        // `min-h-12` is the phone's 48px row; from `sm` the height goes back to
-        // padding and the three sit on one line.
-        "flex min-h-12 w-full min-w-0 items-center gap-2 rounded-[12px] px-3.5 text-[13.5px] leading-none font-semibold transition-colors",
-        "sm:min-h-0 sm:w-auto sm:flex-none sm:justify-center sm:gap-1.5 sm:py-2.5",
+        // A segmented control: one row at every width, short labels, 44px tall.
+        "flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-[11px] px-3 text-[13.5px] leading-none font-semibold transition-colors",
         "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-        // `bg-tm-tint`, NOT the pill background the admin filter pills reach
-        // for — a choice about weight, not about what compiles. This comment
-        // used to say `bg-tm-pill-bg` emitted no rule at all, which was true
-        // when it was written and is not any more: `globals.css` now registers
-        // `--color-tm-pill-bg` in the `@theme` block, and carries the account
-        // of that bug. The tint stays because this is the loudest switch on the
-        // screen and the pill wash is too faint to read as "you are here" —
-        // an active state indistinguishable from an inactive one is the whole
-        // control.
         active
-          ? "bg-tm-tint text-tm-coral-strong"
-          : "text-tm-text-2 hover:bg-tm-paper hover:text-tm-ink",
+          ? "bg-card text-foreground shadow-[0_1px_3px_rgba(43,36,34,0.12)]"
+          : "text-muted-foreground hover:text-foreground",
       )}
     >
-      {icon}
+      <span className="hidden min-[400px]:inline-flex">{icon}</span>
       <span className="truncate">{label}</span>
     </Link>
   );

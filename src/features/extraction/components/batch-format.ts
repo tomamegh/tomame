@@ -1,0 +1,66 @@
+import type { StatusTone } from "@/components/ui/inline-status";
+import { HOLD_PILL } from "@/features/quote-checks/hold-copy";
+import type { PasteBatchLine } from "../services/paste-batch";
+import type { PasteStatus } from "../services/paste-status";
+import { looksLikeUrl } from "./buy-for-me-mode";
+
+/**
+ * Pure helpers for the many-links box on Buy for me (plan 2b): splitting a
+ * paste into links, and the one status each row shows.
+ */
+
+/** Every link in a block of pasted text, in order, without repeats. */
+export function splitLinks(text: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const token of text.split(/[\s,;]+/)) {
+    // Trailing punctuation from a sentence ("…/dp/B0C1.") is not part of the link.
+    const candidate = token.trim().replace(/^[<("']+|[>)"'.]+$/g, "");
+    if (!candidate || !looksLikeUrl(candidate)) continue;
+    const key = candidate.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(candidate);
+  }
+  return out;
+}
+
+export type BatchRowKind = "reading" | "pricing" | "ready" | "held" | "unavailable" | "failed" | "assisted";
+
+export interface BatchRowStatus {
+  kind: BatchRowKind;
+  label: string;
+  tone: StatusTone;
+  /** The dot pulses while the row is still moving. */
+  pulse: boolean;
+  /** The row can go in the bag (priced; a held line may sit in the bag, an unavailable one may not). */
+  addable: boolean;
+  /** The row offers "Ask a buyer". */
+  askable: boolean;
+}
+
+/**
+ * One status per row, in the words the plan names: Reading · Ready ·
+ * Confirming price · Needs a stock check · Couldn't read. `line` is the
+ * server's priced preview for the row, once it has one.
+ */
+export function batchRowStatus(paste: PasteStatus, line: PasteBatchLine | null): BatchRowStatus {
+  const base = { pulse: false, addable: false, askable: false };
+  if (paste.assisted) return { ...base, kind: "assisted", label: "With a buyer", tone: "success" };
+  if (paste.outcome === "reading") return { ...base, kind: "reading", label: "Reading", tone: "progress", pulse: true };
+  if (paste.outcome !== "priced") return { ...base, kind: "failed", label: "Couldn't read", tone: "warning", askable: true };
+  if (!line) return { ...base, kind: "pricing", label: "Pricing", tone: "progress", pulse: true };
+  if (line.total_ghs == null) return { ...base, kind: "failed", label: "Couldn't price", tone: "warning", askable: true };
+
+  const hold = line.pay_hold;
+  if (!hold) return { ...base, kind: "ready", label: "Ready", tone: "success", addable: true };
+  if (hold.kind === "unavailable") return { ...base, kind: "unavailable", label: HOLD_PILL.unavailable, tone: "warning" };
+  return {
+    ...base,
+    kind: "held",
+    label: HOLD_PILL[hold.kind],
+    tone: hold.kind === "stock_check" ? "neutral" : "progress",
+    pulse: hold.kind !== "stock_check",
+    addable: true,
+  };
+}

@@ -62,9 +62,26 @@ export interface EnqueuedPaste {
  * and no job is ever scheduled — a repeat paste stays instant and costs no vendor
  * call. The URL is canonicalised first so two spellings of one product share a row.
  */
-export async function enqueuePaste(viewer: RequestViewer, rawUrl: string): Promise<EnqueuedPaste | null> {
+/** Thrown when the caller's `admit` gate refuses a paste (the route's rate limit). */
+export class PasteNotAdmittedError extends Error {
+  constructor(readonly cacheHit: boolean) {
+    super("Paste not admitted");
+    this.name = "PasteNotAdmittedError";
+  }
+}
+
+/**
+ * `admit` runs after the cache lookup and before anything is written, so the
+ * caller can budget a fresh read (a vendor call) apart from a cache hit (free).
+ */
+export async function enqueuePaste(
+  viewer: RequestViewer,
+  rawUrl: string,
+  admit?: (cacheHit: boolean) => Promise<boolean>,
+): Promise<EnqueuedPaste | null> {
   const prepared = await prepareProductUrl(rawUrl);
   const cached = await getCachedExtractionByHash(prepared.urlHash);
+  if (admit && !(await admit(cached != null))) throw new PasteNotAdmittedError(cached != null);
 
   const request = await enqueueExtractionRequest({
     viewer,

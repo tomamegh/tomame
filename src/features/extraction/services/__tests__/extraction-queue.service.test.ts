@@ -41,6 +41,7 @@ import { enqueueCatalogQueryFromPaste } from "@/features/catalog/services/catalo
 import {
   MAX_EXTRACTION_ATTEMPTS,
   enqueuePaste,
+  PasteNotAdmittedError,
   runExtractionJob,
   sweepExtractions,
 } from "../extraction-queue.service";
@@ -107,6 +108,21 @@ describe("enqueuePaste", () => {
     );
 
     expect((await enqueuePaste(VIEWER, "https://store.test/p/1"))?.ready).toBe(false);
+  });
+
+  it("tells the admit gate whether the paste is a cache hit, and writes nothing when refused", async () => {
+    vi.mocked(getCachedExtractionByHash).mockResolvedValue({ id: "cache-9" } as never);
+    const admit = vi.fn().mockResolvedValue(false);
+
+    await expect(enqueuePaste(VIEWER, "https://store.test/p/1", admit)).rejects.toBeInstanceOf(PasteNotAdmittedError);
+    expect(admit).toHaveBeenCalledWith(true);
+    expect(enqueueExtractionRequest).not.toHaveBeenCalled();
+
+    vi.mocked(getCachedExtractionByHash).mockResolvedValue(null);
+    vi.mocked(enqueueExtractionRequest).mockResolvedValue(job());
+    admit.mockResolvedValue(true);
+    expect((await enqueuePaste(VIEWER, "https://store.test/p/1", admit))?.ready).toBe(false);
+    expect(admit).toHaveBeenLastCalledWith(false);
   });
 });
 

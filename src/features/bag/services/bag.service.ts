@@ -90,6 +90,71 @@ export async function getBag(viewer: Viewer): Promise<BagView> {
   return summarize(cart.id, lines, packed, delivery);
 }
 
+export interface BatchPreview {
+  /** One line per requested extraction that still resolves, in the order asked; quantity one each. */
+  lines: BagLine[];
+  /** What these lines would cost together, landed: the bag's own sum, less the consolidation saving. No delivery fee. */
+  total_ghs: number;
+  total_usd: number;
+  consolidation_saving_ghs: number;
+  /** Lines that could be paid for today: priced and not held. */
+  ready_count: number;
+  rate_locked_until: string | null;
+}
+
+/**
+ * Several quotes as if they were in one bag, without touching the bag
+ * (plan 2b, "all together"). Each line is priced exactly as a bag line is
+ * (`priceSnapshot`, the viewer's rate lock), held by the same pay gate, and
+ * packed by the same planner for the consolidation saving. Nothing is
+ * written: no boxes, no checks opened, no cart.
+ */
+export async function previewBatch(viewer: Viewer, extractionIds: readonly string[]): Promise<BatchPreview> {
+  const ids = [...new Set(extractionIds)].slice(0, 10);
+  const [snapshots, checks, constants] = await Promise.all([
+    Promise.all(ids.map((id) => getExtractionSnapshot(id))),
+    checksByExtraction(ids),
+    loadBoxConstants(),
+  ]);
+
+  const lines: BagLine[] = [];
+  for (const [index, snapshot] of snapshots.entries()) {
+    if (!snapshot) continue;
+    const id = ids[index]!;
+    const priced = await priceSnapshot(viewer, snapshot.result, id, 1, null, null);
+    const source: LineSource = {
+      id,
+      extraction_cache_id: id,
+      quantity: 1,
+      special_instructions: null,
+      gap_price_usd: null,
+      gap_origin_country: null,
+      sourced_price_usd: null,
+      store_shipping_code: null,
+    };
+    lines.push(toLine(source, snapshot, { ...priced, payHold: payHoldOf({ extraction: snapshot.result, checks: checks.get(id) ?? [] }) }));
+  }
+
+  const plan = packLines(
+    lines.map((l) => ({ id: l.id, quantity: l.quantity, region_code: l.product.country, weight_lbs: l.product.weight_lbs, pricing: l.pricing })),
+    constants,
+  );
+  const view = summarize(null, lines, {
+    boxes: [],
+    unboxed_line_ids: plan.unboxed_line_ids,
+    consolidation_saving_ghs: plan.consolidation_saving_ghs,
+    consolidation_saving_pct: constants.consolidation_saving_pct,
+  });
+  return {
+    lines,
+    total_ghs: view.total_ghs,
+    total_usd: view.total_usd,
+    consolidation_saving_ghs: view.consolidation_saving_ghs,
+    ready_count: lines.filter((l) => l.pricing != null && (l.pay_hold == null || l.pay_hold.kind === "freight_check")).length,
+    rate_locked_until: view.rate_locked_until,
+  };
+}
+
 /** `sum(quantity)` for the nav badge. Adoption runs here too, so the badge is right straight after sign-in. */
 export async function getBagCount(viewer: Viewer): Promise<number> {
   const cart = await resolveCart(viewer);
@@ -754,7 +819,13 @@ function pendingLine(row: CartItemRow, pending: BagLinePending, productUrl: stri
 
 type Snapshot = { id: string; productUrl: string; result: ExtractionResult } | null;
 
-function toLine(row: CartItemRow, snapshot: Snapshot, priced: Priced): BagLine {
+/** The cart-row fields a line is shaped from; a batch preview builds one without a cart. */
+type LineSource = Pick<
+  CartItemRow,
+  "id" | "extraction_cache_id" | "quantity" | "special_instructions" | "gap_price_usd" | "gap_origin_country" | "sourced_price_usd" | "store_shipping_code"
+>;
+
+function toLine(row: LineSource, snapshot: Snapshot, priced: Priced): BagLine {
   const product = snapshot?.result.product ?? null;
   const colour = product ? pickProductColour(product) : null;
   const variantParts = [colour?.selected ?? null, product?.size ?? null].filter((v): v is string => !!v);

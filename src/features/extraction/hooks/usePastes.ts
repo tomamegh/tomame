@@ -7,6 +7,7 @@ import type { AddToBagResult } from "@/features/bag/types";
 import { apiFetch } from "@/lib/api-client";
 import { useVisibleBackoff, type BackoffOptions } from "@/lib/use-visible-interval";
 import type { ApiSuccessResponse } from "@/types/api";
+import type { PasteBatchPreview } from "../services/paste-batch";
 import type { PasteStatus } from "../services/paste-status";
 
 export const pasteKeys = { all: ["pastes"] as const };
@@ -45,6 +46,30 @@ export function usePastes(initialData: PasteStatus[]) {
   useVisibleBackoff(() => void refetch(), PASTE_POLL, anyReading);
 
   return query;
+}
+
+/**
+ * The priced links of a batch, priced together on the server (plan 2b). Keyed
+ * by the set of priced paste ids, so it is asked once each time a link in the
+ * batch lands rather than on every poll.
+ */
+export function usePasteBatchPreview(pricedPasteIds: readonly string[]) {
+  const ids = [...pricedPasteIds].sort();
+  return useQuery<PasteBatchPreview>({
+    queryKey: [...pasteKeys.all, "preview", ids.join(",")],
+    queryFn: async () => {
+      const res = await apiFetch<ApiSuccessResponse<PasteBatchPreview>>("/api/pastes/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      return res.data;
+    },
+    enabled: ids.length > 0,
+    staleTime: 60_000,
+    placeholderData: (previous) => previous,
+    retry: 1,
+  });
 }
 
 /** Queue a link. Returns as soon as the row exists; the reading happens behind it. */

@@ -33,6 +33,8 @@ export interface PasteStatus {
   outcome: "reading" | "priced" | "unpriced" | "expired";
   /** Safe to navigate to ONLY when `outcome` is `priced`. Null otherwise. */
   extraction_cache_id: string | null;
+  /** The listing's title once the page has been read; null while reading or when it had none. */
+  title: string | null;
   /** Set only when the job failed. A sentence, already fit to show. */
   error: string | null;
   /** When the paste was queued, ISO — the client strikes its own 5 s / 20 s marks from this. */
@@ -72,6 +74,7 @@ export function toPasteStatus(
     status: row.status,
     outcome,
     extraction_cache_id: outcome === "priced" ? row.extraction_cache_id : null,
+    title: facts?.title ?? null,
     error: row.status === "failed" ? row.error : null,
     created_at: row.created_at,
     updated_at: row.updated_at,

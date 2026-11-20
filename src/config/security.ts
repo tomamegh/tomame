@@ -46,8 +46,15 @@ export const RATE_LIMIT = {
   clientErrors: { windowMs: 10 * 60 * 1000, maxRequests: 30 },
   /** Webhook endpoints — 100 requests per minute */
   webhooks: { windowMs: 60 * 1000, maxRequests: 100 },
-  /** Product extraction — 10 requests per 10 minutes per IP. Cache hits are not counted. */
+  /**
+   * Product extraction — 10 fresh reads per 10 minutes. Cache hits are not
+   * counted here. The paste queue (POST /api/pastes) keys it per signed-in
+   * customer and per IP only for a visitor, so customers behind one Ghana
+   * carrier IP do not block each other (2026-11-20).
+   */
   extraction: { windowMs: 10 * 60 * 1000, maxRequests: 10 },
+  /** Paste-queue cache hits: no vendor call, but each one still writes a row. 5x the read budget. */
+  extractionCacheHit: { windowMs: 10 * 60 * 1000, maxRequests: 50 },
   /**
    * Public tracking lookup (086, `POST /api/track`) — 30 per 15 minutes per
    * caller: the signed-in user's id, or the IP for a visitor (so customers

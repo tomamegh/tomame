@@ -78,11 +78,12 @@ export default async function NewOrderPage({
   searchParams: Promise<ShopSearchParams>;
 }) {
   const params = await searchParams;
-  const url = typeof params.url === "string" ? params.url : undefined;
+  // One `?url=` or several (Home's box takes many links at once).
+  const hasUrl = Array.isArray(params.url) ? params.url.some(Boolean) : typeof params.url === "string" && params.url !== "";
   const watch = typeof params.watch === "string" ? params.watch : undefined;
   // `?url=` queues the link and comes back here as `?watch=<id>`, so the row is
   // on screen — with its reading animation and its wait copy — while it reads.
-  if (url) return <ExtractAndForward />;
+  if (hasUrl) return <ExtractAndForward />;
 
   const mode = resolveBuyForMeMode(params.mode);
 

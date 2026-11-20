@@ -4,11 +4,11 @@ import { listPastesForViewer } from "@/db/queries/extraction-requests";
 import { getQuoteFacts } from "@/db/queries/extraction-cache";
 import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
 import { extractProductSchema } from "@/features/extraction/schema";
-import { enqueuePaste, runExtractionJob } from "@/features/extraction/services/extraction-queue.service";
+import { enqueuePaste, PasteNotAdmittedError, runExtractionJob } from "@/features/extraction/services/extraction-queue.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit, getClientIp, rateLimitSubject } from "@/lib/rate-limit";
+import { checkRateLimit, rateLimitSubject } from "@/lib/rate-limit";
 import { RATE_LIMIT } from "@/config/security";
 import { toPasteStatus } from "@/features/extraction/services/paste-status";
 
@@ -45,12 +45,23 @@ export async function POST(request: NextRequest) {
     const user = await getAuthenticatedUser();
     const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
 
-    const ip = getClientIp(request);
-    if (!(await checkRateLimit(`paste:${ip}`, RATE_LIMIT.extraction)).allowed) {
-      throw new APIError(429, "Too many requests. Please wait a few minutes and try again.");
-    }
+    // Per signed-in customer, per IP only for a visitor: many customers share
+    // one carrier IP in Ghana, and a batch of links from one of them must not
+    // lock out the rest. A cache hit calls no vendor, so it spends its own,
+    // looser bucket instead of the read budget (as /api/products/extract does).
+    const subject = rateLimitSubject(request, user?.id);
+    const admit = async (cacheHit: boolean) =>
+      (await checkRateLimit(cacheHit ? `paste:cache:${subject}` : `paste:${subject}`, cacheHit ? RATE_LIMIT.extractionCacheHit : RATE_LIMIT.extraction)).allowed;
 
-    const enqueued = await enqueuePaste(viewer, parsed.data.product_url);
+    let enqueued: Awaited<ReturnType<typeof enqueuePaste>>;
+    try {
+      enqueued = await enqueuePaste(viewer, parsed.data.product_url, admit);
+    } catch (error) {
+      if (error instanceof PasteNotAdmittedError) {
+        throw new APIError(429, "You've added a lot of links in a short time. Please wait a few minutes and try again.");
+      }
+      throw error;
+    }
     if (!enqueued) throw new APIError(400, "We could not queue that link. Please try again.");
 
     // Start it here rather than waiting for the sweep: the customer is still on

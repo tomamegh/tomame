@@ -3,120 +3,121 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, WarningCircle } from "@phosphor-icons/react/ssr";
+import { ArrowLeft } from "@phosphor-icons/react/ssr";
 
+import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/empty-state";
+import { readBatch, writeBatch } from "@/features/extraction/components/batch-storage";
 import { ReadingIndicator } from "@/features/extraction/components/reading-indicator";
 import { useCreatePaste } from "@/features/extraction/hooks/usePastes";
+import { PASTE_BATCH_MAX } from "@/features/extraction/services/paste-batch";
+import type { PasteStatus } from "@/features/extraction/services/paste-status";
 import { hostOf } from "@/features/bag/components/format";
 
 /**
  * The step between pasting a link somewhere else and seeing it read.
  *
- * A `?url=` arrives from the Home paste bar, a shared link, or the marketing
- * site. It used to run the OLD synchronous extraction here: one request held
- * open for the chain's whole budget, a skeleton with no sense of time, no 5 s
- * or 20 s copy, no way to add the link to the bag and walk away — every promise
- * the paste queue (049) makes, broken on the most-used entry point. Kelvin's
- * report: "I see no animation that it is being fetched … the timeout experience
- * is not working."
- *
- * Now it does what the paste bar on this screen does: queue the link and go
- * where the queue is. A link the cache already knows is forwarded straight to
- * its price; anything else lands on the Buy-for-me list as `?watch=<id>`, where
- * the row reads with its animation and wait copy and forwards to the price the
- * moment it lands. This screen is therefore on screen for one round trip.
+ * A `?url=` arrives from the Home paste box, a shared link, or the marketing
+ * site. It queues the link (049) and goes where the queue is: a link the cache
+ * already knows is forwarded straight to its price; anything else lands on Buy
+ * for me as `?watch=<id>`, where its row reads and forwards to the price when
+ * it lands. Several `?url=` (Home's box takes many links at once, plan 2b)
+ * are queued one after another and land on Buy for me as one batch. This
+ * screen is on screen for a round trip or two.
  */
 
-// ── Failure ──────────────────────────────────────────────────────────────────
-
-/**
- * Only the QUEUEING can fail here — a malformed link, a rate limit. Reading
- * failures are the row's to report, on the list, with the describe-it form.
- */
+/** Only the QUEUEING can fail here (a malformed link, a rate limit); reading failures are the row's. */
 function ExtractionFailed({ message }: { message: string | null }) {
   return (
-    <section className="mx-auto flex max-w-[560px] flex-col items-center gap-5 rounded-[24px] border border-tm-border bg-card px-6 py-12 text-center">
-      <span className="flex size-14 items-center justify-center rounded-full bg-tm-amber-bg">
-        <WarningCircle weight="duotone" className="size-7 text-tm-amber" aria-hidden />
-      </span>
-
-      <div className="flex flex-col gap-2">
-        <h1 className="font-display text-[22px] leading-[1.2] font-bold">We couldn&apos;t take that link</h1>
-        <p className="text-[14px] leading-[1.5] text-tm-text-2">
-          {message ?? "Something went wrong queuing the link."}
-        </p>
-      </div>
-
-      <ul className="flex w-full flex-col gap-2 rounded-[16px] bg-tm-tint px-5 py-4 text-left text-[13px] leading-[1.5] text-tm-text-2">
-        <li>Link straight to one product page, not a search or category page.</li>
-        <li>Copy it from your browser&apos;s address bar, not a shared preview.</li>
-      </ul>
-
-      <Link
-        href="/app/orders/new"
-        className="flex h-11 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tm-border bg-card px-5 text-[14px] leading-none font-semibold transition-colors hover:bg-tm-tint"
-      >
-        <ArrowLeft className="size-4" aria-hidden />
-        Paste another link
-      </Link>
-    </section>
+    <ErrorState
+      title="We couldn't take that link"
+      description={
+        <>
+          {message ?? "Something went wrong adding the link."} Use a link to one product page, copied from your browser&apos;s address bar.
+        </>
+      }
+      className="mx-auto w-full max-w-[560px]"
+      action={
+        <Button asChild variant="outline" size="touch">
+          <Link href="/app/orders/new">
+            <ArrowLeft className="size-4" aria-hidden />
+            Paste another link
+          </Link>
+        </Button>
+      }
+    />
   );
 }
-
-// ── Queue and forward ────────────────────────────────────────────────────────
 
 function NewOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { mutate: createPaste } = useCreatePaste();
+  const { mutateAsync: createPaste } = useCreatePaste();
 
-  // `searchParams.get()` already percent-decodes. Calling decodeURIComponent on
-  // top of it throws URIError on any URL containing a bare `%` and silently
-  // turns `%2B` into `+`. Do not reintroduce it.
-  const url = searchParams.get("url") ?? "";
+  // `searchParams` already percent-decodes. Calling decodeURIComponent on top
+  // throws URIError on a bare `%` and turns `%2B` into `+`. Do not reintroduce it.
+  const urls = searchParams.getAll("url").filter(Boolean).slice(0, PASTE_BATCH_MAX);
+  const key = urls.join("\n");
 
-  const [error, setError] = useState<string | null>(null);
+  // Null while working; set (message possibly null) once queueing has failed.
+  const [failure, setFailure] = useState<{ message: string | null } | null>(null);
   const started = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!url) return;
-    // One paste, one request: React StrictMode mounts effects twice in dev.
-    // Keyed by URL so arriving with a DIFFERENT link still queues it.
-    if (started.current === url) return;
-    started.current = url;
+    if (!key) return;
+    // One run per set of links: StrictMode mounts effects twice in dev.
+    if (started.current === key) return;
+    started.current = key;
+    const links = key.split("\n");
 
-    createPaste(
-      { product_url: url },
-      {
-        onSuccess: (paste) => {
-          // replace(), not push(): the back button should return to wherever
-          // the link was pasted, not to a screen that re-queues it.
-          if (paste.outcome === "priced" && paste.extraction_cache_id) {
-            router.replace(`/app/orders/review/${paste.extraction_cache_id}`);
+    void (async () => {
+      const queued: PasteStatus[] = [];
+      for (const link of links) {
+        try {
+          queued.push(await createPaste({ product_url: link }));
+        } catch (err) {
+          // The first failure on a single link is the answer; in a batch the rest still go.
+          if (links.length === 1) {
+            setFailure({ message: err instanceof Error ? err.message : null });
             return;
           }
-          router.replace(`/app/orders/new?watch=${encodeURIComponent(paste.id)}`);
-        },
-        onError: (err) => setError(err.message),
-      },
-    );
-  }, [url, createPaste, router]);
+        }
+      }
+      if (queued.length === 0) {
+        setFailure({ message: "None of those links could be added." });
+        return;
+      }
+      // replace(), not push(): back should return to where the link was pasted.
+      if (queued.length === 1 && links.length === 1) {
+        const only = queued[0]!;
+        if (only.outcome === "priced" && only.extraction_cache_id) {
+          router.replace(`/app/orders/review/${only.extraction_cache_id}`);
+          return;
+        }
+        router.replace(`/app/orders/new?watch=${encodeURIComponent(only.id)}`);
+        return;
+      }
+      const ids = queued.map((p) => p.id);
+      writeBatch([...readBatch().filter((id) => !ids.includes(id)), ...ids].slice(-PASTE_BATCH_MAX));
+      router.replace("/app/orders/new");
+    })();
+  }, [key, createPaste, router]);
 
-  if (error) return <ExtractionFailed message={error} />;
+  if (failure) return <ExtractionFailed message={failure.message} />;
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 rounded-[24px] border border-tm-border bg-card px-[22px] py-6">
-      <ReadingIndicator host={hostOf(url)} title="Reading this page…" detail={null} elapsedSeconds={null} />
+    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 rounded-[24px] border border-border bg-card px-[22px] py-6">
+      <ReadingIndicator
+        host={urls.length > 1 ? `${urls.length} links` : hostOf(urls[0] ?? "")}
+        title={urls.length > 1 ? "Adding your links" : "Reading this page"}
+        detail={null}
+        elapsedSeconds={null}
+      />
     </div>
   );
 }
 
-/**
- * The `?url=` path: queue that one link and go to where it reads.
- *
- * The screen WITHOUT a `?url=` is `PasteQueueView`, which is where the queue
- * lives; see `page.tsx`.
- */
+/** The `?url=` path. The screen without one is `PasteQueueView`; see `page.tsx`. */
 export function ExtractAndForward() {
   return (
     <Suspense fallback={null}>
