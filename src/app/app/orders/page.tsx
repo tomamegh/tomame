@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { JourneysView } from "@/features/journeys/components";
-import { getJourneys } from "@/features/journeys/services/journeys.service";
+import { getJourneys, getPaidBagPurchase } from "@/features/journeys/services/journeys.service";
+import { MetaPurchase } from "@/components/analytics/meta-purchase";
 
 export const metadata: Metadata = {
   title: "Your orders",
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 interface Props {
-  searchParams: Promise<{ payment?: string }>;
+  searchParams: Promise<{ payment?: string; group?: string }>;
 }
 
 /**
@@ -30,10 +31,18 @@ interface Props {
  * `getJourneys` needs a user and must not be handed `null`.
  */
 export default async function OrdersPage({ searchParams }: Props) {
-  const [{ payment }, user] = await Promise.all([searchParams, getAuthenticatedUser()]);
+  const [{ payment, group }, user] = await Promise.all([searchParams, getAuthenticatedUser()]);
   if (!user) redirect(`/auth/login?next=${encodeURIComponent("/app/orders")}`);
 
-  const data = await getJourneys(user);
+  const [data, purchase] = await Promise.all([
+    getJourneys(user),
+    payment === "success" ? getPaidBagPurchase(user.id, group) : null,
+  ]);
 
-  return <JourneysView data={data} paymentOutcome={payment ?? null} />;
+  return (
+    <>
+      <JourneysView data={data} paymentOutcome={payment ?? null} />
+      {purchase ? <MetaPurchase purchase={purchase} /> : null}
+    </>
+  );
 }

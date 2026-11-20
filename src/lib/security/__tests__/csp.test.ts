@@ -45,4 +45,20 @@ describe("buildCsp", () => {
     const csp = buildCsp({ ...base, supabaseOrigin: "http://127.0.0.1:54321" });
     expect(csp).toContain("connect-src 'self' http://127.0.0.1:54321");
   });
+
+  it("admits no Meta host unless the pixel is configured", () => {
+    expect(buildCsp(base)).not.toContain("facebook");
+  });
+
+  it("admits exactly the Meta Pixel's script and beacon hosts when configured", () => {
+    const directives = buildCsp({ ...base, isProd: true, metaPixel: true })
+      .split(";")
+      .map((d) => d.trim());
+    expect(directives.find((d) => d.startsWith("script-src"))).toBe(
+      "script-src 'self' 'unsafe-inline' https://connect.facebook.net",
+    );
+    expect(directives.find((d) => d.startsWith("connect-src"))).toBe(
+      "connect-src 'self' https://project.supabase.co https://www.facebook.com https://connect.facebook.net",
+    );
+  });
 });

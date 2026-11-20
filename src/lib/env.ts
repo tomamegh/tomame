@@ -74,6 +74,14 @@ export const env = {
     get googleApiKey() { return optional("GOOGLE_MAPS_API_KEY"); },
   },
   /**
+   * Meta Pixel id. Optional: the pixel is off when unset, so dev and prod can
+   * differ. NEXT_PUBLIC_, inlined into the client bundle at build time — the
+   * browser reads it in `src/lib/analytics/meta-pixel.ts`, not from here.
+   */
+  analytics: {
+    get metaPixelId() { return optional("NEXT_PUBLIC_META_PIXEL_ID"); },
+  },
+  /**
    * WhatsApp (Meta Cloud API). Every key optional: the channel is OFF until the
    * access token AND phone number id are both set, and then skipped cleanly
    * (no rows, no errors). Getters, so a test or a redeployed env var is read
