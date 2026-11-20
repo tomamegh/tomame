@@ -28,19 +28,19 @@ interface ToastProps {
 const variantConfig: Record<ToastVariant, { icon: React.ReactNode }> = {
   default: { icon: null },
   success: {
-    icon: <CheckCircle2 className="size-5 shrink-0 text-emerald-500" />,
+    icon: <CheckCircle2 className="size-5 shrink-0 text-tm-green" />,
   },
   error: {
-    icon: <XCircle className="size-5 shrink-0 text-red-500" />,
+    icon: <XCircle className="size-5 shrink-0 text-destructive" />,
   },
   info: {
-    icon: <Info className="size-5 shrink-0 text-blue-500" />,
+    icon: <Info className="size-5 shrink-0 text-tm-coral" />,
   },
   warning: {
-    icon: <AlertTriangle className="size-5 shrink-0 text-amber-500" />,
+    icon: <AlertTriangle className="size-5 shrink-0 text-tm-amber" />,
   },
   loading: {
-    icon: <Spinner className="size-5 shrink-0 text-gray-400" />,
+    icon: <Spinner className="size-5 shrink-0 text-muted-foreground" />,
   },
 };
 
@@ -56,20 +56,20 @@ function Toast({
   return (
     <div
       className={cn(
-        "flex w-full items-start rounded-lg bg-white p-4 shadow-lg ring-1 ring-black/5 md:w-100 md:max-w-100",
+        "flex w-full items-start rounded-[16px] border border-border bg-card p-4 shadow-[0_16px_40px_-16px_rgba(43,36,34,0.3)] md:w-100 md:max-w-100",
       )}
     >
       {icon && <div className="mr-3 pt-0.5">{icon}</div>}
       <div className="flex flex-1 flex-col">
-        <p className="text-sm font-medium text-gray-900">{title}</p>
+        <p className="text-sm font-semibold text-foreground">{title}</p>
         {description && (
-          <p className="mt-1 text-sm text-gray-500">{description}</p>
+          <p className="mt-1 text-[13px] leading-[1.45] text-muted-foreground">{description}</p>
         )}
       </div>
       {button && (
         <div className="ml-4 shrink-0">
           <button
-            className="rounded bg-indigo-50 px-3 py-1 text-sm font-semibold text-indigo-600 hover:bg-indigo-100"
+            className="min-h-9 rounded-[10px] bg-muted px-3 text-sm font-semibold text-foreground hover:bg-tm-tint dark:hover:bg-muted/70"
             onClick={() => {
               button.onClick();
               sonnerToast.dismiss(id);

@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 /** The hatch the design uses for an image it does not have yet. */
-const BLOCK = "rounded-[14px] bg-tm-hairline";
+const BLOCK = "rounded-[14px] bg-muted motion-reduce:animate-none";
 
 /**
  * The loading state, drawn on the SAME grid and at the SAME heights as the
@@ -14,7 +14,7 @@ export function QuoteSkeleton() {
     <div
       aria-busy="true"
       aria-live="polite"
-      className="flex flex-col gap-[18px] pb-[95px] lg:gap-[22px] lg:pb-0"
+      className="flex flex-col gap-[18px] pb-[92px] lg:gap-[22px] lg:pb-0"
     >
       <span className="sr-only">Loading your landed price…</span>
 
@@ -34,7 +34,7 @@ export function QuoteSkeleton() {
         <div className="flex flex-col gap-3.5 lg:gap-5">
           <div
             className={cn(
-              "h-[240px] animate-pulse rounded-[22px] bg-tm-hairline sm:h-[380px] lg:h-[460px] lg:rounded-[24px]",
+              "h-[240px] animate-pulse rounded-[22px] bg-muted motion-reduce:animate-none sm:h-[380px] lg:h-[460px] lg:rounded-[24px]",
             )}
           />
           <div className="flex flex-col gap-3.5 lg:gap-2.5">
@@ -52,7 +52,18 @@ export function QuoteSkeleton() {
         </div>
 
         <div className="flex flex-col gap-3.5">
-          <div className="h-[360px] animate-pulse rounded-[20px] bg-tm-hairline lg:h-[420px] lg:rounded-[24px]" />
+          {/* The price card: overline, figure, rate lock, breakdown line, quantity. */}
+          <div className="flex flex-col gap-4 rounded-[24px] border border-border bg-card p-4 sm:p-5 lg:p-[22px]">
+            <div className={cn(BLOCK, "h-3 w-28 animate-pulse rounded-full")} />
+            <div className={cn(BLOCK, "h-9 w-48 animate-pulse lg:h-11")} />
+            <div className={cn(BLOCK, "h-3.5 w-56 animate-pulse rounded-full")} />
+            <div className={cn(BLOCK, "h-11 w-full animate-pulse rounded-[12px] lg:h-[150px]")} />
+            <div className="flex items-center justify-between border-t border-border pt-4">
+              <div className={cn(BLOCK, "h-4 w-20 animate-pulse rounded-full")} />
+              <div className={cn(BLOCK, "h-11 w-[120px] animate-pulse rounded-full")} />
+            </div>
+            <div className={cn(BLOCK, "hidden h-[52px] w-full animate-pulse lg:block")} />
+          </div>
           <div className="flex flex-col gap-2.5 sm:flex-row">
             {[0, 1, 2].map((index) => (
               <div
