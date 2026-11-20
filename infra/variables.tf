@@ -277,6 +277,8 @@ variable "optional_third_party_secrets" {
       EBAY_ENV             — "production" (default) or "sandbox".
       EBAY_VERIFY_TOKEN    — shared secret for eBay's account-deletion
                              challenge (32–80 chars of A-Z a-z 0-9 _ -).
+      NEXT_PUBLIC_META_PIXEL_ID — Meta Pixel id (not a secret; inlined into
+                             the browser bundle). Pixel is off when absent.
 
     Kept separate from third_party_secrets so the distinction is visible. A key
     missing from that map is an outage; a key missing from this one is a
@@ -301,8 +303,9 @@ variable "optional_third_party_secrets" {
       "EBAY_CLIENT_SECRET",
       "EBAY_ENV",
       "EBAY_VERIFY_TOKEN",
+      "NEXT_PUBLIC_META_PIXEL_ID",
     ])) == 0
-    error_message = "optional_third_party_secrets accepts only SCRAPERAPI_API_KEY, RAINFOREST_API_KEY, APIFY_API_TOKEN, FREECURRENCY_API_KEY, OXYLABS_USERNAME, OXYLABS_PASSWORD, ZYTE_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV and EBAY_VERIFY_TOKEN. Anything else the app cannot run without belongs in third_party_secrets."
+    error_message = "optional_third_party_secrets accepts only SCRAPERAPI_API_KEY, RAINFOREST_API_KEY, APIFY_API_TOKEN, FREECURRENCY_API_KEY, OXYLABS_USERNAME, OXYLABS_PASSWORD, ZYTE_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, EBAY_VERIFY_TOKEN and NEXT_PUBLIC_META_PIXEL_ID. Anything else the app cannot run without belongs in third_party_secrets."
   }
 }
 

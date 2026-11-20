@@ -8,15 +8,18 @@ vi.mock("@/features/orders/services/orders.service", () => ({ listUserOrders: vi
 vi.mock("@/features/orders/services/order-events.service", () => ({
   mapCustomerOrderEvents: vi.fn(async () => new Map()),
 }));
-vi.mock("@/db/queries/order-groups", () => ({ listOrderGroupsByIds: vi.fn(async () => []) }));
+vi.mock("@/db/queries/order-groups", () => ({
+  listOrderGroupsByIds: vi.fn(async () => []),
+  getOrderGroupById: vi.fn(async () => null),
+}));
 
 import type { OrderEventRow } from "@/db/queries/order-events";
-import { listOrderGroupsByIds, type OrderGroupRow } from "@/db/queries/order-groups";
+import { getOrderGroupById, listOrderGroupsByIds, type OrderGroupRow } from "@/db/queries/order-groups";
 import { mapCustomerOrderEvents } from "@/features/orders/services/order-events.service";
 import { listUserOrders } from "@/features/orders/services/orders.service";
 import type { Order } from "@/features/orders/types";
 import type { PlatformUser } from "@/features/users/types";
-import { getJourneys } from "../services/journeys.service";
+import { getJourneys, getPaidBagPurchase } from "../services/journeys.service";
 
 const user = { id: "u1", profile: { role: "user" } } as unknown as PlatformUser;
 
@@ -293,5 +296,36 @@ describe("the hint under the bar", () => {
     const hint = (await getJourneys(user)).rows[0]!.hint;
     expect(hint).toBe("Date set when it ships");
     expect(hint).not.toMatch(/\d{1,2} [A-Z][a-z]{2}/);
+  });
+});
+
+describe("getPaidBagPurchase (Meta Pixel Purchase gate)", () => {
+  const GROUP_ID = "6f1c2a9e-3b4d-4e5f-8a7b-1c2d3e4f5a6b";
+  const group = (over: Partial<OrderGroupRow> = {}) =>
+    ({ id: GROUP_ID, user_id: "u1", status: "paid", total_ghs: 1234.5, item_count: 3, ...over }) as OrderGroupRow;
+
+  it("reports the viewer's paid group with its server total", async () => {
+    vi.mocked(getOrderGroupById).mockResolvedValueOnce(group());
+    await expect(getPaidBagPurchase("u1", GROUP_ID)).resolves.toEqual({
+      id: `group:${GROUP_ID}`,
+      valueGhs: 1234.5,
+      numItems: 3,
+    });
+  });
+
+  it("reports nothing for an unpaid group, someone else's, or a malformed id", async () => {
+    vi.mocked(getOrderGroupById).mockResolvedValueOnce(group({ status: "pending" }));
+    await expect(getPaidBagPurchase("u1", GROUP_ID)).resolves.toBeNull();
+    vi.mocked(getOrderGroupById).mockResolvedValueOnce(group({ user_id: "someone-else" }));
+    await expect(getPaidBagPurchase("u1", GROUP_ID)).resolves.toBeNull();
+    vi.mocked(getOrderGroupById).mockClear();
+    await expect(getPaidBagPurchase("u1", "not-a-uuid")).resolves.toBeNull();
+    await expect(getPaidBagPurchase("u1", undefined)).resolves.toBeNull();
+    expect(getOrderGroupById).not.toHaveBeenCalled();
+  });
+
+  it("swallows a read failure rather than breaking the orders page", async () => {
+    vi.mocked(getOrderGroupById).mockRejectedValueOnce(new Error("db down"));
+    await expect(getPaidBagPurchase("u1", GROUP_ID)).resolves.toBeNull();
   });
 });

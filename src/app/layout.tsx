@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Geist_Mono, Instrument_Sans } from "next/font/goog
 import { Providers } from "./providers";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { MetaPixel } from "@/components/analytics/meta-pixel";
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { InstallPrompt, PwaSplash, ServiceWorkerRegistrar } from "@/features/pwa/components";
@@ -130,6 +131,8 @@ export default function RootLayout({
         />
         <InstallPrompt />
         <ServiceWorkerRegistrar />
+        {/* Off unless NEXT_PUBLIC_META_PIXEL_ID is set; skips staff consoles. */}
+        <MetaPixel />
       </body>
       <Analytics />
       <SpeedInsights />

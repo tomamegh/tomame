@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api-client";
 import type { ApiSuccessResponse } from "@/types/api";
 import type { AddToBagInput } from "../schema";
 import type { AddToBagResult, BagView } from "../types";
+import { trackMetaEvent } from "@/lib/analytics/meta-pixel";
 
 export const bagKeys = {
   all: ["bag"] as const,
@@ -22,9 +23,30 @@ export function useAddToBag() {
       });
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (result, input) => {
       queryClient.invalidateQueries({ queryKey: bagKeys.all });
+      trackAddToBag(result, input.quantity);
     },
+  });
+}
+
+/**
+ * Meta Pixel `AddToCart`. The line's own server price when it has one; a link
+ * still being read has none yet and is sent without a value.
+ */
+export function trackAddToBag(result: AddToBagResult, quantity: number): void {
+  const { line } = result;
+  const total = line.pricing?.total_ghs;
+  // The line total covers every unit on the line; a repeat add only raised it.
+  const value =
+    typeof total === "number" && Number.isFinite(total) && line.quantity > 0
+      ? Math.round((total / line.quantity) * quantity * 100) / 100
+      : null;
+  trackMetaEvent("AddToCart", {
+    content_type: "product",
+    content_ids: [line.extraction_cache_id ?? line.id],
+    num_items: quantity,
+    ...(value != null ? { value, currency: "GHS" as const } : {}),
   });
 }
 

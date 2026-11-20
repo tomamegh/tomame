@@ -58,6 +58,11 @@
  *   for its debugging overlay. Next's own docs say React "will never use
  *   eval() in production mode", and that held up under `npm run build` — a
  *   production response carries no `unsafe-eval`.
+ * - `metaPixel` admits exactly Meta's two pixel hosts, and only when
+ *   `NEXT_PUBLIC_META_PIXEL_ID` is set: `connect.facebook.net` serves
+ *   `fbevents.js` and the pixel's config script; `www.facebook.com/tr` takes the
+ *   events (an image beacon, already allowed by `img-src https:`, or a
+ *   `sendBeacon`/fetch, which is `connect-src`).
  */
 
 export interface CspOptions {
@@ -65,19 +70,23 @@ export interface CspOptions {
   supabaseOrigin: string;
   /** Adds directives that only make sense once the app is served over https, and drops the dev-only `unsafe-eval`. */
   isProd: boolean;
+  /** Allow the Meta Pixel's hosts (see above). Off unless the pixel id is configured. */
+  metaPixel?: boolean;
 }
 
-export function buildCsp({ supabaseOrigin, isProd }: CspOptions): string {
+export function buildCsp({ supabaseOrigin, isProd, metaPixel = false }: CspOptions): string {
+  const pixelScript = metaPixel ? " https://connect.facebook.net" : "";
+  const pixelConnect = metaPixel ? " https://www.facebook.com https://connect.facebook.net" : "";
   const scriptSrc = isProd
-    ? `script-src 'self' 'unsafe-inline'`
-    : `script-src 'self' 'unsafe-inline' 'unsafe-eval'`;
+    ? `script-src 'self' 'unsafe-inline'${pixelScript}`
+    : `script-src 'self' 'unsafe-inline' 'unsafe-eval'${pixelScript}`;
   const directives = [
     `default-src 'self'`,
     scriptSrc,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: blob: https:`,
     `font-src 'self' data:`,
-    `connect-src 'self' ${supabaseOrigin}`,
+    `connect-src 'self' ${supabaseOrigin}${pixelConnect}`,
     // The installed app's two extra fetches. `manifest-src` would otherwise
     // fall back to `default-src`, which happens to allow it today — naming it
     // means a future tightening of `default-src` cannot silently uninstall the

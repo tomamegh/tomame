@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { useInitializePayment } from "@/features/payments/hooks/usePayment";
 import type { PaymentChannel } from "@/features/payments/types";
+import { trackMetaEvent } from "@/lib/analytics/meta-pixel";
 import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { useCheckout } from "./useBag";
@@ -91,7 +92,14 @@ export function useBagPayment({
       return;
     }
     checkout.mutate({ whatsapp_updates: whatsappUpdates }, {
-      onSuccess: (result) => openTransaction(result.order_group_id),
+      onSuccess: (result) => {
+        trackMetaEvent(
+          "InitiateCheckout",
+          { value: result.total_ghs, currency: "GHS", num_items: result.item_count, content_type: "product" },
+          `checkout:${result.order_group_id}`,
+        );
+        openTransaction(result.order_group_id);
+      },
       onError: onError("Could not start checkout"),
     });
   }, [checkout, isSignedIn, onError, openTransaction, router, whatsappUpdates]);

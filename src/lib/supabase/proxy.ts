@@ -20,7 +20,11 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 const supabaseOrigin = supabaseUrl ? new URL(supabaseUrl).origin : "";
 
 export async function updateSession(request: NextRequest) {
-  const csp = buildCsp({ supabaseOrigin, isProd: process.env.NODE_ENV === "production" });
+  const csp = buildCsp({
+    supabaseOrigin,
+    isProd: process.env.NODE_ENV === "production",
+    metaPixel: Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim()),
+  });
 
   let supabaseResponse = NextResponse.next({
     request,

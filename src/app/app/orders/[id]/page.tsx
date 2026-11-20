@@ -7,6 +7,8 @@ import { CourierCard } from "@/features/order-delivery/components/courier-card";
 import { getCourierForViewer } from "@/features/order-delivery/services/courier.service";
 import { getJourneyDetail } from "@/features/journeys/services/journey-detail.service";
 import { APIError } from "@/lib/auth/api-helpers";
+import { MetaPurchase } from "@/components/analytics/meta-purchase";
+import { orderTotalGhs } from "@/features/journeys/order-facts";
 
 export const metadata: Metadata = {
   title: "Order",
@@ -46,12 +48,25 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
       getJourneyDetail(user, id),
       getCourierForViewer(user.id, id),
     ]);
+    // A legacy single-order checkout returns here. `paidAt` comes from the
+    // order's own `payment_received` event, so the URL alone reports nothing.
+    const paidTotal =
+      payment === "success" && journey.paidAt
+        ? orderTotalGhs({ admin_total_ghs: journey.adminTotalGhs, pricing: journey.pricing })
+        : null;
     return (
-      <JourneyDetailView
-        journey={journey}
-        paymentOutcome={payment ?? null}
-        courier={<CourierCard courier={courier} orderStatus={journey.status} />}
-      />
+      <>
+        <JourneyDetailView
+          journey={journey}
+          paymentOutcome={payment ?? null}
+          courier={<CourierCard courier={courier} orderStatus={journey.status} />}
+        />
+        {paidTotal != null ? (
+          <MetaPurchase
+            purchase={{ id: `order:${journey.id}`, valueGhs: paidTotal, numItems: journey.item.quantity }}
+          />
+        ) : null}
+      </>
     );
   } catch (error: unknown) {
     if (error instanceof APIError && error.statusCode === 404) notFound();

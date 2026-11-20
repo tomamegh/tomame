@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { bagKeys } from "@/features/bag/hooks/useAddToBag";
+import { bagKeys, trackAddToBag } from "@/features/bag/hooks/useAddToBag";
 import type { AddToBagResult } from "@/features/bag/types";
 import { apiFetch } from "@/lib/api-client";
 import { useVisibleBackoff, type BackoffOptions } from "@/lib/use-visible-interval";
@@ -113,6 +113,7 @@ export function useAddPasteToBag() {
       });
       return res.data;
     },
+    onSuccess: (result, body) => trackAddToBag(result, body.quantity),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: bagKeys.all });
       queryClient.invalidateQueries({ queryKey: pasteKeys.all });
