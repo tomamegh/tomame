@@ -139,7 +139,7 @@ export function PasteBatchPanel({ pastes, onDescribe, onDone }: PasteBatchPanelP
             <ul>
               <AnimatePresence initial={false}>
                 {rows.map((row) => (
-                  <motion.li key={row.paste.id} layout="position" variants={riseIn} initial="hidden" animate="visible" exit="exit" transition={SPRING.layout}>
+                  <motion.li key={row.paste.id} className="border-t border-border first:border-t-0" layout="position" variants={riseIn} initial="hidden" animate="visible" exit="exit" transition={SPRING.layout}>
                     <BatchListRow row={row} added={row.line ? added.has(row.line.extraction_cache_id) : false} onDescribe={() => onDescribe(row.paste)} />
                   </motion.li>
                 ))}
@@ -237,7 +237,7 @@ function BatchListRow({ row, added, onDescribe }: { row: Row; added: boolean; on
   const href = paste.extraction_cache_id ? `/app/orders/review/${paste.extraction_cache_id}` : null;
 
   return (
-    <div className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 border-t border-border px-4 py-3 first:border-t-0">
+    <div className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3">
       <Thumb image={line?.image ?? null} host={host} className="size-12" />
       <div className="flex min-w-0 flex-col gap-1.5">
         {href ? (

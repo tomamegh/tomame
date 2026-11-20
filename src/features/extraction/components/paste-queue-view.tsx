@@ -213,7 +213,10 @@ export function PasteQueueView({
       const added: PasteStatus[] = [];
       for (const link of take) {
         try {
-          added.push(await createPaste.mutateAsync({ product_url: link }));
+          const paste = await createPaste.mutateAsync({ product_url: link });
+          added.push(paste);
+          // Each row joins the batch as it is created, so it starts reading in place.
+          setBatchIds((prev) => (prev.includes(paste.id) ? prev : [...prev, paste.id].slice(0, PASTE_BATCH_MAX)));
         } catch (error) {
           if (error instanceof ApiFetchError && error.status === 429) {
             toast.error({ title: "Please wait a few minutes", description: error.message });
@@ -225,7 +228,6 @@ export function PasteQueueView({
       setQueueing(false);
       if (added.length === 0) return;
       setUrl("");
-      setBatchIds((prev) => [...prev, ...added.map((p) => p.id).filter((id) => !prev.includes(id))].slice(0, PASTE_BATCH_MAX));
 
       const only = added.length === 1 && links.length === 1 ? added[0]! : null;
       if (follow && only) {
