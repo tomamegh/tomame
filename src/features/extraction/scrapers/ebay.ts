@@ -4,11 +4,11 @@ import { TomameCategory, EBAY_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyEbayProduct } from "@/lib/apify/client";
 import { dimensionsFromSpecs, weightFromSpecs } from "../weight";
 import { ebayItemIdOf } from "../url";
-import { addVariant, cleanString, normalizeImages, parseStoreShipping } from "./parse";
+import { addVariant, cleanString, normalizeImages, parseStoreShipping, textOf } from "./parse";
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
-  const t = el.text().trim();
+  const t = textOf(el).trim();
   return t || null;
 }
 

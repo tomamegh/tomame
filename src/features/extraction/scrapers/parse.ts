@@ -1,8 +1,90 @@
+import type { Cheerio } from "cheerio";
+import type { AnyNode } from "domhandler";
+
 /**
  * Pure parsers for the typed product facts every resolver reports. They turn
  * vendor/page text into numbers and normalized strings and never invent a
  * value: anything they cannot read comes back as null / empty.
  */
+
+/** Elements whose contents are never shown to a shopper. */
+const NON_CONTENT = "script, style, noscript, template";
+
+/**
+ * The visible text of an element, with `script` / `style` / `noscript` /
+ * `template` descendants removed first. Cheerio's `.text()` includes script
+ * bodies, which is how Amazon's inline `P.when("A","load").execute(…)` reached
+ * a customer's availability line (Ruko 1088, 2026-11-19). Every Cheerio
+ * scraper reads element text through this. Never mutates the page.
+ */
+export function textOf<T extends AnyNode>(el: Cheerio<T>): string {
+  if (el.length === 0) return "";
+  if (el.find(NON_CONTENT).length === 0) return el.text();
+  const copy = el.clone();
+  copy.find(NON_CONTENT).remove();
+  return copy.text();
+}
+
+/** Code, not copy: the shapes a script body or JSON blob has when it leaks into a scraped field. */
+const SCRIPT_SHAPES: RegExp[] = [
+  /\bfunction\s*\(/,
+  /\bP\.when\(/,
+  /\bwindow\.[A-Za-z_$]/,
+  /\bdocument\.(?:getElement|querySelector|write|cookie)/,
+  /=>\s*\{/,
+  /\b(?:var|let|const)\s+[A-Za-z_$][\w$]*\s*=/,
+  /\.execute\(\s*["']/,
+  /\{\s*"[\w-]+"\s*:\s*(?:"|\{|\[|true|false|null|\d)/,
+];
+
+/** True when a scraped string is script or JSON rather than shopper-facing text. */
+export function looksLikeScript(value: unknown): boolean {
+  if (typeof value !== "string" || value.length < 8) return false;
+  return SCRIPT_SHAPES.some((re) => re.test(value));
+}
+
+const PRICE_SYMBOL_CURRENCY: Record<string, string> = { $: "USD", "US$": "USD", "£": "GBP", "€": "EUR", "¥": "CNY", "GH₵": "GHS", "₵": "GHS" };
+
+export interface ShelfPrice {
+  price: number | null;
+  currency: string | null;
+  /** The text had a decimal separator followed by cents. */
+  hasCents: boolean;
+}
+
+/**
+ * A price as a store prints it: "$83.55", "US$1,299.00", "83,55 $",
+ * "EUR 83,55", "1.299,00 €", "$84". The decimal separator is the LAST "." or
+ * "," followed by one or two digits; any other separator groups thousands, so
+ * "83,55" is 83.55 and never 8355 — the misread behind Ruko's $8,355 quote.
+ * Currency from a symbol or ISO code in the text, else null.
+ */
+export function parseShelfPrice(raw: string | null | undefined): ShelfPrice {
+  const none: ShelfPrice = { price: null, currency: null, hasCents: false };
+  if (!raw) return none;
+  const text = raw.replace(/\u00a0|\u202f/g, " ").trim();
+  const m = text.match(/\d[\d.,\s]*\d|\d/);
+  if (!m?.[0]) return none;
+  const digits = m[0].replace(/\s+/g, "");
+  const dec = digits.match(/^(.*)[.,](\d{1,2})$/);
+  let value: number;
+  let hasCents = false;
+  if (dec && dec[1] !== undefined && dec[2] !== undefined) {
+    value = parseFloat(`${dec[1].replace(/[.,]/g, "") || "0"}.${dec[2]}`);
+    hasCents = true;
+  } else {
+    value = parseFloat(digits.replace(/[.,]/g, ""));
+  }
+  if (!Number.isFinite(value) || value <= 0) return none;
+  let currency: string | null = null;
+  const code = text.match(/\b(USD|GBP|EUR|CNY|GHS|CAD|AUD)\b/i)?.[1];
+  if (code) currency = code.toUpperCase();
+  else {
+    const sym = text.match(/US\$|GH₵|[£$€¥₵]/)?.[0];
+    if (sym) currency = PRICE_SYMBOL_CURRENCY[sym] ?? null;
+  }
+  return { price: Math.round(value * 100) / 100, currency, hasCents };
+}
 
 /** Read a JS value as a non-empty trimmed string, or null. */
 export function cleanString(v: unknown): string | null {

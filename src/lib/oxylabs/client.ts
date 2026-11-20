@@ -119,9 +119,23 @@ async function query<T>(body: Record<string, unknown>, label: string, signal?: A
   }
 }
 
-/** `domain` is the marketplace suffix ("com", "co.uk"). */
-export async function fetchOxylabsAmazonProduct(asin: string, domain: string, signal?: AbortSignal): Promise<OxylabsAmazonProduct | null> {
-  const data = await query<OxylabsAmazonProduct>({ source: "amazon_product", query: asin, domain, parse: true }, asin, signal);
+/**
+ * `domain` is the marketplace suffix ("com", "co.uk"). `geoLocation` is the
+ * delivery postcode Amazon prices for: without one Oxylabs reads the page for
+ * whatever location its proxy lands in, where many items "cannot be shipped"
+ * and the buy box carries no price. Oxylabs produced no priced Amazon result in
+ * 30 days of prod (to 2026-11-20); this is the likeliest cause, unverified live.
+ */
+export async function fetchOxylabsAmazonProduct(
+  asin: string,
+  domain: string,
+  signal?: AbortSignal,
+  geoLocation: string = domain === "co.uk" ? "SW1A 1AA" : "10001",
+): Promise<OxylabsAmazonProduct | null> {
+  const data = await query<OxylabsAmazonProduct>({ source: "amazon_product", query: asin, domain, geo_location: geoLocation, parse: true }, asin, signal);
+  if (data && (data.title || data.product_name) && !(typeof data.price === "number" && data.price > 0) && !(typeof data.price_buybox === "number" && data.price_buybox > 0)) {
+    logger.warn("oxylabs: amazon product without a price", { asin, stock: data.stock ?? null, geoLocation });
+  }
   return data?.title || data?.product_name ? data : null;
 }
 

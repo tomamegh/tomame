@@ -1,6 +1,7 @@
 import type { ExtractionSource } from "@/config/extraction";
 import type { ScrapedProduct } from "../scrapers";
-import { addVariant, cleanTitle, normalizeImageUrl } from "../scrapers/parse";
+import { logger } from "@/lib/logger";
+import { addVariant, cleanTitle, looksLikeScript, normalizeImageUrl } from "../scrapers/parse";
 import type { PartialProduct, ResolverResult } from "./types";
 
 type Field = keyof ScrapedProduct;
@@ -15,6 +16,19 @@ export interface MergeState {
   product: ScrapedProduct;
   confidence: Partial<Record<Field, number>>;
   sources: Partial<Record<Field, ExtractionSource>>;
+  /** Fields refused because the value was script or JSON, not copy (A2). Counted in daily health. */
+  leaked?: Array<{ field: string; source: ExtractionSource }>;
+}
+
+/** Metadata about the offer a price was read from; it travels with the winning price only. */
+const PRICE_METADATA = ["listPrice", "priceSource", "priceFlags", "pagePrices", "priceVia", "geoBlocked", "pageOfferAgrees", "asinMismatch"];
+
+/** Shopper-facing text fields the script guard checks. */
+const TEXT_FIELDS = new Set<Field>(["title", "description", "brand", "size", "weight", "dimensions", "seller", "condition", "availability"]);
+
+function noteLeak(state: MergeState, field: string, source: ExtractionSource, value: string): void {
+  (state.leaked ??= []).push({ field, source });
+  logger.warn("extraction: dropped a scraped field that is script, not text", { field, source, sample: value.slice(0, 80) });
 }
 
 function isPresent(v: unknown): boolean {
@@ -57,6 +71,10 @@ export function mergeResult(state: MergeState, source: ExtractionSource, result:
     let value = incoming[field];
     if (field === "title" && typeof value === "string") value = cleanTitle(value);
     if (!isPresent(value) || !sane(field, value)) continue;
+    if (TEXT_FIELDS.has(field) && looksLikeScript(value)) {
+      noteLeak(state, field, source, String(value));
+      continue;
+    }
     const conf = result.confidence?.[field] ?? defaultConfidence;
     const existing = state.confidence[field] ?? -1;
     if (!isPresent(state.product[field]) || conf > existing) {
@@ -68,19 +86,27 @@ export function mergeResult(state: MergeState, source: ExtractionSource, result:
 
   if (incoming.specifications) {
     for (const [k, v] of Object.entries(incoming.specifications)) {
-      if (k && isPresent(v) && !(k in state.product.specifications)) state.product.specifications[k] = v;
+      if (!k || !isPresent(v) || k in state.product.specifications) continue;
+      if (looksLikeScript(v)) {
+        noteLeak(state, `specifications.${k}`, source, String(v));
+        continue;
+      }
+      state.product.specifications[k] = v;
     }
   }
   if (incoming.metadata) {
     // The strike-through price and the price's provenance follow the price:
     // a vendor's listPrice must not sit beside the page's own offer.
-    if (state.sources.price === source && isPresent(incoming.price)) {
-      for (const k of ["listPrice", "priceSource"]) {
+    const ownsPrice = state.sources.price === source && isPresent(incoming.price);
+    if (ownsPrice) {
+      for (const k of PRICE_METADATA) {
         if (k in incoming.metadata) state.product.metadata[k] = incoming.metadata[k];
         else delete state.product.metadata[k];
       }
     }
     for (const [k, v] of Object.entries(incoming.metadata)) {
+      // One tier's offer facts (its page's coupon, its geo) never describe another tier's price.
+      if (PRICE_METADATA.includes(k) && !ownsPrice) continue;
       if (k && isPresent(v) && !(k in state.product.metadata)) state.product.metadata[k] = v;
     }
   }

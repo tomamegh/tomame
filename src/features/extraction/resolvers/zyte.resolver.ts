@@ -140,6 +140,9 @@ export const zyteResolver: ExtractionResolver = {
         if (own?.price != null) {
           confidence.price = PAGE_OFFER_CONFIDENCE;
           confidence.currency = PAGE_OFFER_CONFIDENCE;
+          // Two independent reads of the same offer (Zyte's AI and the page's own
+          // JSON-LD) agreed: the price is confirmed (price-confidence.ts).
+          if (product.metadata?.priceSource !== "page-offer") product.metadata = { ...(product.metadata ?? {}), pageOfferAgrees: true };
         }
         // The page is already in hand: the free parsers can read it now rather
         // than wait on (or pay for) a second fetch.

@@ -1,7 +1,7 @@
 import type { CheerioAPI } from "cheerio";
 import type { HtmlAttemptName, PlatformScraper, ScrapedProduct } from "./types";
 import { emptyProduct } from "./types";
-import { cleanString } from "./parse";
+import { cleanString, textOf } from "./parse";
 
 /**
  * Etsy listing pages. Price, title and images come from the page's JSON-LD
@@ -35,7 +35,7 @@ export function parseEtsyShippingText(text: string | null | undefined): number |
  */
 export function etsyShippingText($: CheerioAPI): string | null {
   const lines = $("li, p")
-    .map((_, el) => $(el).text().replace(/\s+/g, " ").trim())
+    .map((_, el) => textOf($(el)).replace(/\s+/g, " ").trim())
     .get()
     .filter((t) => t.length <= 80 && /^(cost to ship|free shipping|free delivery)\b/i.test(t))
     .sort((a, b) => a.length - b.length);
@@ -74,10 +74,10 @@ export class EtsyScraper implements PlatformScraper {
 
   public extract($: CheerioAPI): ScrapedProduct {
     const shippingText = etsyShippingText($);
-    const shop = cleanString($("[data-shop-name], a[href*='/shop/'] p, a[href*='/shop/']").first().text());
+    const shop = cleanString(textOf($("[data-shop-name], a[href*='/shop/'] p, a[href*='/shop/']").first()));
     return {
       ...emptyProduct(),
-      title: cleanString($("h1").first().text()),
+      title: cleanString(textOf($("h1").first())),
       seller: shop && shop.length < 80 ? shop : null,
       store_shipping: parseEtsyShippingText(shippingText),
       metadata: { storeShippingText: shippingText, images: [] },

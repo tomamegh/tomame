@@ -274,3 +274,30 @@ describe("resolveProduct — unavailable items", () => {
     expect(out.product.title).toBe("Case with MagSafe");
   });
 });
+
+describe("price readings and the HTML price guard (A0, A3)", () => {
+  it("records every tier's price reading, not just the winner", async () => {
+    const vendor = resolver("scraperapi", { title: "Desk", price: 149.98, currency: "USD", category: "Furniture" }, { defaultConfidence: 0.95 });
+    const page = resolver("structured-data", { price: 150, currency: "USD" }, { defaultConfidence: 0.7 });
+    const out = await resolveProduct({ ...base, resolvers: [vendor, page], fetchHtml: async () => null });
+    expect(out.priceReads.map((r) => [r.source, r.price])).toEqual([["scraperapi", 149.98], ["structured-data", 150]]);
+    expect(out.priceRejected).toBeNull();
+  });
+
+  it("throws out an HTML-only price its own page contradicts, and says why", async () => {
+    const page = resolver("platform-html", { title: "Drone", price: 8355, currency: "USD", category: "Toys & Games", metadata: { pagePrices: [{ via: "twister", price: 83.55 }] } });
+    const out = await resolveProduct({ ...base, resolvers: [page], fetchHtml: async () => null, stopWhenRequired: true });
+    expect(out.product.price).toBeNull();
+    expect(out.priceRejected).toMatchObject({ price: 8355, source: "platform-html", reason: "page_disagrees" });
+    expect(out.messages.join(" ")).toMatch(/couldn't confirm the price/);
+    expect(out.messages.join(" ")).not.toMatch(/could not load this product page/);
+  });
+
+  it("enrichment keeps the first pass's readings", async () => {
+    const vendor = resolver("zyte", { title: "Lamp", price: 40, currency: "USD", category: "Lighting & Ceiling Fans" });
+    const later = resolver("structured-data", { price: 40, weight_lbs: 3 });
+    const first = await resolveProduct({ ...base, resolvers: [vendor], fetchHtml: async () => null, stopWhenRequired: true });
+    const next = await continueResolve({ ...base, resolvers: [vendor, later], fetchHtml: async () => null }, { ...first, skipped: ["structured-data"] });
+    expect(next.priceReads.map((r) => r.source)).toEqual(["zyte", "structured-data"]);
+  });
+});

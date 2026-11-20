@@ -154,8 +154,10 @@ export async function fetchZyteProduct(
 }
 
 /** Browser-rendered HTML — the JS-heavy-store HTML source for the free parsers. */
-export async function fetchZyteBrowserHtml(url: string, timeoutMs: number, signal?: AbortSignal): Promise<string | null> {
-  const data = await post({ url, browserHtml: true }, timeoutMs, "browserHtml", signal);
+export async function fetchZyteBrowserHtml(url: string, timeoutMs: number, signal?: AbortSignal, geolocation?: string): Promise<string | null> {
+  // Without a geolocation Zyte may render from anywhere, and Amazon then
+  // prices for that country and says it "cannot be shipped" (Ruko, 2026-11-19).
+  const data = await post({ url, browserHtml: true, ...(geolocation ? { geolocation } : {}) }, timeoutMs, "browserHtml", signal);
   const html = data?.browserHtml;
   return typeof html === "string" && html.length > 500 ? html : null;
 }
