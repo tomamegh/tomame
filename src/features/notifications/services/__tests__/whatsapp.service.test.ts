@@ -27,7 +27,13 @@ vi.mock("@/db/queries/whatsapp-notifications", () => ({
   updateWhatsAppDelivery: vi.fn(),
 }));
 
+vi.mock("@/db/queries/order-whatsapp", () => ({
+  getOrdersWhatsAppConsent: vi.fn(async () => []),
+  markOrdersWhatsAppFailed: vi.fn(),
+}));
+
 import * as q from "@/db/queries/whatsapp-notifications";
+import * as ow from "@/db/queries/order-whatsapp";
 import {
   applyWhatsAppStatuses,
   dispatchDueWhatsApp,
@@ -43,9 +49,11 @@ const claim = vi.mocked(q.claimWhatsAppNotification);
 const updatePending = vi.mocked(q.updatePendingWhatsAppNotification);
 const findByWamid = vi.mocked(q.findWhatsAppNotificationByMessageId);
 const updateDelivery = vi.mocked(q.updateWhatsAppDelivery);
+const orderConsent = vi.mocked(ow.getOrdersWhatsAppConsent);
+const flagFailed = vi.mocked(ow.markOrdersWhatsAppFailed);
 
 const USER = "11111111-1111-1111-1111-111111111111";
-const paid = whatsappMessages.orderStatus({ orderId: "o1", productName: "Nike Air Max 90", status: "paid" });
+const paid = whatsappMessages.orderStatus({ orderId: "o1", productName: "Nike Air Max 90", status: "paid", trackingNumber: "TM-00042" });
 
 function configure(on: boolean) {
   process.env.WHATSAPP_ACCESS_TOKEN = on ? "token" : "";
@@ -59,6 +67,7 @@ beforeEach(() => {
   insert.mockResolvedValue({ id: "n1" });
   claim.mockResolvedValue(true);
   updatePending.mockResolvedValue(undefined);
+  orderConsent.mockResolvedValue([]);
 });
 
 describe("queueWhatsApp gating", () => {
@@ -96,14 +105,41 @@ describe("queueWhatsApp gating", () => {
       event: "order_paid",
       dedupe_key: "order_status:o1:paid",
       payload: {
-        template_key: "order_paid",
-        template: "tomame_order_paid",
+        template_key: "stage_paid",
+        template: "tomame_stage_paid",
         language: "en",
-        params: ["Ama", "Nike Air Max 90"],
+        params: ["Ama", "Nike Air Max 90", "TM-00042"],
         button_path: "/app/orders/o1",
-        preview: "Hi Ama, payment received for Nike Air Max 90. Thank you! Our buyers are on it, and we'll update you at every step.",
+        preview:
+          "Hi Ama, Paid — order confirmed. We have your payment for Nike Air Max 90 (order TM-00042) and our buyers are placing it with the store now.",
       },
     });
+  });
+
+  it("follows the checkout tick for order messages: unticked sends nothing, even with the profile opted in", async () => {
+    orderConsent.mockResolvedValue([{ id: "o1", whatsapp_updates: false }]);
+    expect(await queueWhatsApp({ userId: USER, event: "order_paid", message: paid, orderIds: ["o1"] })).toBe("opted_out");
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("queues for a ticked order even when the account-level opt-in is off, and records why", async () => {
+    recipient.mockResolvedValue({ first_name: "Ama", phone: "024 412 3456", whatsapp_opt_in: false });
+    orderConsent.mockResolvedValue([{ id: "o1", whatsapp_updates: true }]);
+    expect(await queueWhatsApp({ userId: USER, event: "order_paid", message: paid, orderIds: ["o1"] })).toBe("queued");
+    expect(insert.mock.calls[0]![0].payload).toMatchObject({ order_ids: ["o1"], consent: "order" });
+  });
+
+  it("falls back to the profile for orders from before the tick", async () => {
+    orderConsent.mockResolvedValue([{ id: "o1", whatsapp_updates: null }]);
+    expect(await queueWhatsApp({ userId: USER, event: "order_paid", message: paid, orderIds: ["o1"] })).toBe("queued");
+    expect(insert.mock.calls[0]![0].payload).toMatchObject({ consent: "profile" });
+  });
+
+  it("flags a ticked order for manual follow-up when there is no usable number", async () => {
+    recipient.mockResolvedValue({ first_name: "Ama", phone: null, whatsapp_opt_in: false });
+    orderConsent.mockResolvedValue([{ id: "o1", whatsapp_updates: true }]);
+    expect(await queueWhatsApp({ userId: USER, event: "order_paid", message: paid, orderIds: ["o1"] })).toBe("no_phone");
+    expect(flagFailed).toHaveBeenCalledWith(["o1"], expect.stringContaining("number"), expect.any(String));
   });
 
   it("reports a duplicate and never throws on a database error", async () => {
@@ -127,7 +163,7 @@ function row(over: Partial<q.WhatsAppNotificationRow> = {}): q.WhatsAppNotificat
     provider_message_id: null,
     delivery_status: null,
     created_at: NOW.toISOString(),
-    payload: { template_key: "order_paid", params: ["Ama", "Nike Air Max 90"], button_path: "/app/orders/o1" },
+    payload: { template_key: "stage_paid", params: ["Ama", "Nike Air Max 90", "TM-00042"], button_path: "/app/orders/o1" },
     ...over,
   };
 }
@@ -195,8 +231,17 @@ describe("dispatchDueWhatsApp", () => {
     expect(updatePending).toHaveBeenCalledWith("n1", expect.objectContaining({ status: "failed", error_code: "opted_out" }));
   });
 
+  it("flags a ticked order for same-day follow-up when the send fails for good", async () => {
+    listDue.mockResolvedValue([
+      row({ payload: { ...row().payload, order_ids: ["o1"], consent: "order" } }),
+    ]);
+    orderConsent.mockResolvedValue([{ id: "o1", whatsapp_updates: true }]);
+    await dispatchDueWhatsApp({ now: NOW, fetchImpl: metaError(400, 132001) as unknown as typeof fetch });
+    expect(flagFailed).toHaveBeenCalledWith(["o1"], expect.any(String), expect.any(String));
+  });
+
   it("fails a row whose params no longer match the template", async () => {
-    listDue.mockResolvedValue([row({ payload: { template_key: "order_paid", params: ["Ama"] } })]);
+    listDue.mockResolvedValue([row({ payload: { template_key: "stage_paid", params: ["Ama"] } })]);
     const fetchImpl = metaOk();
     await dispatchDueWhatsApp({ now: NOW, fetchImpl: fetchImpl as unknown as typeof fetch });
     expect(fetchImpl).not.toHaveBeenCalled();

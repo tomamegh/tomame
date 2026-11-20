@@ -98,12 +98,12 @@ export function useSetBagDelivery() {
  */
 export function useCheckout() {
   const queryClient = useQueryClient();
-  return useMutation<CheckoutResult, Error, void>({
-    mutationFn: async () => {
+  return useMutation<CheckoutResult, Error, { whatsapp_updates: boolean } | void>({
+    mutationFn: async (input) => {
       const res = await apiFetch<ApiSuccessResponse<CheckoutResult>>("/api/cart/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(input ?? {}),
       });
       return res.data;
     },

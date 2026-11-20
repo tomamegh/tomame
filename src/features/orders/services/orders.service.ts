@@ -262,6 +262,8 @@ export async function sendOrderStatusEmail(
       userId,
       event: `order_${newStatus}`,
       dedupeKey: `order_status:${order.id}:${newStatus}`,
+      // The checkout tick on this order decides (104).
+      orderIds: [order.id],
       message: whatsappMessages.orderStatus({
         orderId: order.id,
         productName: order.product_name,

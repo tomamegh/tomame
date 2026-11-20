@@ -9,6 +9,7 @@ import { requireContactDetails } from "@/features/account/services/contact-detai
 import { getDeliveryAddressById } from "@/db/queries/delivery-addresses";
 import { listOrdersByGroup } from "@/db/queries/orders";
 import { setCartStatus } from "@/db/queries/carts";
+import { setOrderGroupWhatsAppUpdates, setOrdersWhatsAppUpdates } from "@/db/queries/order-whatsapp";
 import {
   findLatestPendingGroupForUser,
   insertOrderGroup,
@@ -55,7 +56,11 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
   const bag = cart ? (delivered ?? (await getBag(viewer))) : null;
   if (!cart || !bag || bag.lines.length === 0) {
     const pending = await findLatestPendingGroupForUser(user.id);
-    if (pending) return toCheckoutResult(pending, await listOrdersByGroup(createAdminClient(), pending.id));
+    if (pending) {
+      const pendingOrders = await listOrdersByGroup(createAdminClient(), pending.id);
+      await recordWhatsAppChoice(pending.id, pendingOrders, input.whatsapp_updates === true);
+      return toCheckoutResult(pending, pendingOrders);
+    }
     throw new APIError(400, "Your bag is empty");
   }
   if (!bag.delivery) throw new APIError(400, "Choose where to deliver first");
@@ -145,6 +150,7 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
   }
 
   const settled = await reconcileTotals(group, bag, orders);
+  await recordWhatsAppChoice(group.id, orders, input.whatsapp_updates === true);
 
   if (!(await setCartStatus(cart.id, "open", "checked_out", { order_group_id: group.id }))) {
     logger.warn("checkout: cart was no longer open when flipping it", { cartId: cart.id, orderGroupId: group.id });
@@ -170,6 +176,24 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * The checkout tick, on the group and each of its orders (104). An unticked
+ * box is recorded as false, not left null: null means "from before the tick",
+ * which falls back to the account opt-in, and an unticked checkout must not.
+ * Never fails a checkout: the worst case is the account opt-in deciding.
+ */
+async function recordWhatsAppChoice(groupId: string, orders: readonly Order[], value: boolean): Promise<void> {
+  try {
+    await setOrderGroupWhatsAppUpdates(groupId, value);
+    await setOrdersWhatsAppUpdates(orders.map((o) => o.id), value);
+  } catch (error) {
+    logger.error("checkout: could not record the WhatsApp choice", {
+      orderGroupId: groupId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 

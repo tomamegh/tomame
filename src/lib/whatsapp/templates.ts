@@ -31,6 +31,58 @@ export interface WhatsAppTemplateDef {
 const orderButton = (text: string) => ({ text, sampleSuffix: "app/orders/3f2a9c1e-7b4d-4e0a-9f61-2c8d5b7a1e90" });
 
 export const WHATSAPP_TEMPLATES = {
+  // ── The brief's stage updates (2026-11-20). Each body opens with the
+  // customer-facing stage name (`config/tracking-copy.ts`). Variables, in
+  // order: first name, item name, order ID, then the date or area. ──────────
+  stage_paid: {
+    name: "tomame_stage_paid",
+    category: "UTILITY",
+    body: "Hi {{1}}, Paid — order confirmed. We have your payment for {{2}} (order {{3}}) and our buyers are placing it with the store now.",
+    samples: ["Ama", "Oraimo BoomPop N headphones", "TM-00042"],
+    button: orderButton("Track order"),
+  },
+  stage_purchased: {
+    name: "tomame_stage_purchased",
+    category: "UTILITY",
+    body: "Hi {{1}}, Purchased from the store: {{2}} (order {{3}}) is on its way to our US hub.",
+    samples: ["Ama", "Oraimo BoomPop N headphones", "TM-00042"],
+    button: orderButton("Track order"),
+  },
+  stage_us_hub: {
+    name: "tomame_stage_us_hub",
+    category: "UTILITY",
+    body: "Hi {{1}}, Arrived at our US hub: {{2}} (order {{3}}) is checked and waiting for the next flight to Accra.",
+    samples: ["Kofi", "Instant Pot Duo 7-in-1", "TM-00042"],
+    button: orderButton("Track order"),
+  },
+  stage_in_flight: {
+    name: "tomame_stage_in_flight",
+    category: "UTILITY",
+    body: "Hi {{1}}, In flight to Accra: {{2}} (order {{3}}) left our US hub on {{4}}. We'll message you when it lands.",
+    samples: ["Kofi", "Instant Pot Duo 7-in-1", "TM-00042", "Fri 21 Nov"],
+    button: orderButton("Track order"),
+  },
+  stage_accra_cleared: {
+    name: "tomame_stage_accra_cleared",
+    category: "UTILITY",
+    body: "Hi {{1}}, Arrived in Accra — cleared: {{2}} (order {{3}}) has landed and cleared customs, with nothing extra to pay. We're getting it ready for delivery.",
+    samples: ["Esi", "Sony WH-1000XM5 headphones", "TM-00042"],
+    button: orderButton("Track order"),
+  },
+  stage_out_for_delivery: {
+    name: "tomame_stage_out_for_delivery",
+    category: "UTILITY",
+    body: "Hi {{1}}, Out for delivery: {{2}} (order {{3}}) is with our rider and on the way to {{4}} today. Keep your phone close.",
+    samples: ["Esi", "Sony WH-1000XM5 headphones", "TM-00042", "East Legon"],
+    button: orderButton("Track order"),
+  },
+  stage_delivered: {
+    name: "tomame_stage_delivered",
+    category: "UTILITY",
+    body: "Hi {{1}}, Delivered: {{2}} (order {{3}}) has been delivered. Thank you for shopping with Tomame!",
+    samples: ["Esi", "Sony WH-1000XM5 headphones", "TM-00042"],
+    button: orderButton("View order"),
+  },
   order_placed: {
     name: "tomame_order_placed",
     category: "UTILITY",
@@ -43,34 +95,6 @@ export const WHATSAPP_TEMPLATES = {
     category: "UTILITY",
     body: "Hi {{1}}, thanks for your order for {{2}}. Our team is checking a few details first, so there's nothing to pay yet. We'll message you as soon as it's ready.",
     samples: ["Ama", "Dyson V8 cordless vacuum"],
-    button: orderButton("View order"),
-  },
-  order_paid: {
-    name: "tomame_order_paid",
-    category: "UTILITY",
-    body: "Hi {{1}}, payment received for {{2}}. Thank you! Our buyers are on it, and we'll update you at every step.",
-    samples: ["Kofi", "Apple AirPods Pro (2nd generation)"],
-    button: orderButton("Track order"),
-  },
-  order_processing: {
-    name: "tomame_order_processing",
-    category: "UTILITY",
-    body: "Hi {{1}}, we're buying {{2}} from the store now. Once it reaches our hub and heads for Ghana, you'll get the tracking details.",
-    samples: ["Kofi", "Apple AirPods Pro (2nd generation)"],
-    button: orderButton("Track order"),
-  },
-  order_shipped: {
-    name: "tomame_order_shipped",
-    category: "UTILITY",
-    body: "Hi {{1}}, {{2}} has left our hub and is on its way to Ghana. Tracking: {{3}}. We'll let you know the moment it arrives.",
-    samples: ["Esi", "Instant Pot Duo 7-in-1", "DHL 1234567890"],
-    button: orderButton("Track order"),
-  },
-  order_delivered: {
-    name: "tomame_order_delivered",
-    category: "UTILITY",
-    body: "Hi {{1}}, {{2}} has been delivered. We hope you love it! Thank you for shopping with Tomame.",
-    samples: ["Esi", "Instant Pot Duo 7-in-1"],
     button: orderButton("View order"),
   },
   order_cancelled: {
@@ -210,6 +234,56 @@ export function formatGhsAmount(amount: number): string {
 
 const orderPath = (orderId: string) => `/app/orders/${orderId}`;
 
+/** The brief's stage templates, keyed by the internal stage that sends each. */
+export const STAGE_TEMPLATE: Record<string, WhatsAppTemplateKey> = {
+  paid: "stage_paid",
+  purchased: "stage_purchased",
+  hub_received: "stage_us_hub",
+  departed: "stage_in_flight",
+  arrived_country: "stage_accra_cleared",
+  ghana_warehouse: "stage_accra_cleared",
+  out_for_delivery: "stage_out_for_delivery",
+  delivered: "stage_delivered",
+};
+
+/** `orders.status` → the stage its change announces. */
+const STATUS_STAGE: Record<string, string> = {
+  paid: "paid",
+  processing: "purchased",
+  in_transit: "departed",
+  delivered: "delivered",
+};
+
+/** "Fri 21 Nov", Accra time — the {{4}} of the in-flight message. */
+export function formatStageDate(at: Date | string): string {
+  const date = typeof at === "string" ? new Date(at) : at;
+  if (Number.isNaN(date.getTime())) return "today";
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Accra" }).format(date);
+}
+
+export interface StageMessageInput {
+  /** Internal stage key (`shipments/stages.ts`). */
+  stage: string;
+  orderId: string;
+  /** TM-00042; "TM-00042 and 2 more" for a package. */
+  orderNo: string | null;
+  itemName: string;
+  /** When the stage happened (the in-flight date). Defaults to now. */
+  at?: Date | string | null;
+  /** Delivery area for "Out for delivery". */
+  area?: string | null;
+}
+
+/** The brief's message for a stage, or null for a stage it has none for (pickup). */
+export function stageMessage(d: StageMessageInput): WhatsAppMessage | null {
+  const template = STAGE_TEMPLATE[d.stage];
+  if (!template) return null;
+  const params = [d.itemName.trim() || "your item", d.orderNo?.trim() || "on your order page"];
+  if (template === "stage_in_flight") params.push(formatStageDate(d.at ?? new Date()));
+  if (template === "stage_out_for_delivery") params.push(d.area?.trim() || "your address");
+  return { template, params, buttonPath: orderPath(d.orderId) };
+}
+
 // ── Builders: one per event, so call sites cannot put {{3}} where {{2}} goes ──
 
 export const whatsappMessages = {
@@ -227,22 +301,14 @@ export const whatsappMessages = {
     trackingNumber?: string | null;
   }): WhatsAppMessage | null {
     const button = orderPath(d.orderId);
-    switch (d.status) {
-      case "paid":
-        return { template: "order_paid", params: [d.productName], buttonPath: button };
-      case "processing":
-        return { template: "order_processing", params: [d.productName], buttonPath: button };
-      case "in_transit": {
-        // Tomame's own number only; carrier numbers never reach the customer.
-        return { template: "order_shipped", params: [d.productName, d.trackingNumber?.trim() || "on your order page"], buttonPath: button };
-      }
-      case "delivered":
-        return { template: "order_delivered", params: [d.productName], buttonPath: button };
-      case "cancelled":
-        return { template: "order_cancelled", params: [d.productName], buttonPath: button };
-      default:
-        return null;
+    // Paid, purchased, in flight and delivered speak in the brief's stage
+    // templates; Tomame's own number only, carrier numbers never reach the customer.
+    const stage = STATUS_STAGE[d.status];
+    if (stage) {
+      return stageMessage({ stage, orderId: d.orderId, orderNo: d.trackingNumber ?? null, itemName: d.productName });
     }
+    if (d.status === "cancelled") return { template: "order_cancelled", params: [d.productName], buttonPath: button };
+    return null;
   },
 
   orderReviewed(d: { orderId: string; productName: string; approved: boolean; totalGhs: number; reason?: string | null }): WhatsAppMessage {

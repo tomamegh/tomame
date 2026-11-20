@@ -27,6 +27,9 @@ export interface BagPayment {
   payBag: () => void;
   /** Re-open a transaction for an order group that was checked out but never paid. */
   payGroup: (orderGroupId: string) => void;
+  /** The checkout tick: "Send me WhatsApp updates about my order". Off until ticked. */
+  whatsappUpdates: boolean;
+  setWhatsappUpdates: (value: boolean) => void;
 }
 
 /**
@@ -53,6 +56,8 @@ export function useBagPayment({
   const [channelId, setChannelId] = useState<string | null>(
     channels[0]?.id ?? null,
   );
+  // Consent is explicit: unticked by default, and unticked means no automated WhatsApp.
+  const [whatsappUpdates, setWhatsappUpdates] = useState(false);
 
   const onError = useCallback(
     (title: string) => (error: Error) => {
@@ -85,11 +90,11 @@ export function useBagPayment({
       router.push(LOGIN_HREF);
       return;
     }
-    checkout.mutate(undefined, {
+    checkout.mutate({ whatsapp_updates: whatsappUpdates }, {
       onSuccess: (result) => openTransaction(result.order_group_id),
       onError: onError("Could not start checkout"),
     });
-  }, [checkout, isSignedIn, onError, openTransaction, router]);
+  }, [checkout, isSignedIn, onError, openTransaction, router, whatsappUpdates]);
 
   return {
     channelId,
@@ -97,5 +102,7 @@ export function useBagPayment({
     busy: checkout.isPending || initializePayment.isPending,
     payBag,
     payGroup: openTransaction,
+    whatsappUpdates,
+    setWhatsappUpdates,
   };
 }

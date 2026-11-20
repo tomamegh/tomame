@@ -8,6 +8,7 @@ import {
   greetingName,
   placeholderCount,
   renderTemplateBody,
+  stageMessage,
   whatsappMessages,
   type WhatsAppMessage,
   type WhatsAppTemplateKey,
@@ -67,6 +68,9 @@ describe("builders fill every placeholder", () => {
     ["quote", whatsappMessages.quoteReady({ productName: "Shoes", reviewPath: "/app/orders/review/c1" })],
     ["shipment", whatsappMessages.shipmentUpdate({ orderId: "o1", what: "order TM-1", update: "Arrived in Ghana. Landed and clearing customs" })],
     ["delay", whatsappMessages.shipmentDelay({ orderId: "o1", what: "order TM-1", reason: "customs needs one more day" })],
+    ...(["hub_received", "arrived_country", "out_for_delivery"] as const).map(
+      (stage) => [stage, stageMessage({ stage, orderId: "o1", orderNo: "TM-00042", itemName: "Shoes", area: "East Legon" })] as [string, WhatsAppMessage | null],
+    ),
   ];
 
   it.each(built)("%s", (_label, message) => {
@@ -81,6 +85,17 @@ describe("builders fill every placeholder", () => {
   it("covers every template", () => {
     const used = new Set(built.map(([, m]) => m!.template));
     expect([...used].sort()).toEqual(entries.map(([k]) => k).sort());
+  });
+
+  it("speaks the brief's stage names, with the order ID, date and area", () => {
+    const flight = whatsappMessages.orderStatus({ orderId: "o1", productName: "Shoes", status: "in_transit", trackingNumber: "TM-00042" });
+    expect(flight?.template).toBe("stage_in_flight");
+    expect(renderTemplateBody(flight!.template, ["Ama", ...flight!.params])).toMatch(
+      /^Hi Ama, In flight to Accra: Shoes \(order TM-00042\) left our US hub on \w{3} \d{1,2} \w{3}\. /,
+    );
+    const door = stageMessage({ stage: "out_for_delivery", orderId: "o1", orderNo: "TM-00042", itemName: "Shoes", area: "East Legon" });
+    expect(renderTemplateBody(door!.template, ["Ama", ...door!.params])).toContain("Out for delivery: Shoes (order TM-00042) is with our rider and on the way to East Legon today.");
+    expect(stageMessage({ stage: "ready_for_pickup", orderId: "o1", orderNo: null, itemName: "Shoes" })).toBeNull();
   });
 
   it("renders a rider message with sensible fallbacks", () => {

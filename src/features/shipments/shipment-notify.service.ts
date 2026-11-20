@@ -12,7 +12,7 @@ import { sendEmail } from "@/lib/email/transport";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
-import { whatsappMessages } from "@/lib/whatsapp/templates";
+import { stageMessage, whatsappMessages } from "@/lib/whatsapp/templates";
 
 import type { Contact } from "./stages";
 
@@ -43,6 +43,8 @@ export interface ShipmentNotifyInput {
    * for the whole package, instead of the generic step update.
    */
   orderStatus?: "in_transit" | "delivered";
+  /** Delivery area for the "Out for delivery" message ("East Legon"). */
+  area?: string | null;
 }
 
 export async function notifyShipmentUpdate(input: ShipmentNotifyInput, now: Date = new Date()): Promise<void> {
@@ -75,23 +77,33 @@ export async function notifyShipmentUpdate(input: ShipmentNotifyInput, now: Date
       .join(", ");
     const packageName =
       input.orders.length === 1 ? first.productName : `your package of ${input.orders.length} items`;
+    const orderNos =
+      input.orders.length === 1 ? first.orderNo : `${first.orderNo} and ${input.orders.length - 1} more`;
+    // A step the brief names speaks in its stage template; pickup has none.
+    const stage =
+      input.kind === "stage"
+        ? stageMessage({
+            stage: input.stageKey,
+            orderId: first.id,
+            orderNo: orderNos,
+            itemName: packageName,
+            at: now,
+            area: input.area ?? null,
+          })
+        : null;
     await queueWhatsApp({
       userId: input.userId,
       event,
-      message: input.orderStatus
-        ? whatsappMessages.orderStatus({
-            orderId: first.id,
-            productName: packageName,
-            status: input.orderStatus,
-            trackingNumber: first.orderNo,
-          })
-        : input.kind === "delay"
+      orderIds: input.orders.map((o) => o.id),
+      message:
+        input.kind === "delay"
           ? whatsappMessages.shipmentDelay({ orderId: first.id, what, reason: trimSentence(reason) })
-          : whatsappMessages.shipmentUpdate({
+          : (stage ??
+            whatsappMessages.shipmentUpdate({
               orderId: first.id,
               what,
               update: trimSentence(`${input.stageTitle}. ${input.message?.trim() || input.description}`),
-            }),
+            })),
       dedupeKey: `${event}:${first.id}:${input.stageKey}:${now.toISOString().slice(0, 16)}`,
     });
 
