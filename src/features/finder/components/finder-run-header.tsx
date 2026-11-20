@@ -16,11 +16,13 @@ interface FinderRunHeaderProps {
   phase: Exclude<FinderPhase, "asking">;
   query: string;
   elapsedMs: number;
+  /** False when there is no address to email the result to, so the copy promises none. */
+  notifies?: boolean;
 }
 
 /** The request, and how long the run has taken. The h1 takes focus when a run starts. */
 export const FinderRunHeader = forwardRef<HTMLHeadingElement, FinderRunHeaderProps>(function FinderRunHeader(
-  { phase, query, elapsedMs },
+  { phase, query, elapsedMs, notifies = true },
   ref,
 ) {
   return (
@@ -77,7 +79,9 @@ export const FinderRunHeader = forwardRef<HTMLHeadingElement, FinderRunHeaderPro
         {phase === "working" && (
           <span className="text-[13px] text-muted-foreground">
             {elapsedMs > SLOW_AFTER_MS
-              ? "Taking longer than usual. We are still on it and will email you."
+              ? notifies
+                ? "Taking longer than usual. We are still on it and will email you."
+                : "Taking longer than usual. We are still on it."
               : "This usually takes about a minute."}
           </span>
         )}

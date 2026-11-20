@@ -13,6 +13,7 @@ import {
   LinkSimple,
   MagnifyingGlass,
   Plus,
+  Sparkle,
   Storefront,
   Tote,
   WarningCircle,
@@ -29,7 +30,8 @@ import { describePendingWait, hostOf, type PendingWait } from "@/features/bag/co
 import type { BagLinePending } from "@/features/bag/types";
 import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
-import { CATALOG_SEARCH } from "@/config/catalog";
+import { FINDER } from "@/config/finder";
+import { useStartFinder } from "@/features/finder/hooks/useFinder";
 import { cn } from "@/lib/utils";
 import { useAddPasteToBag, useCreatePaste, usePastes } from "../hooks/usePastes";
 import type { PasteStatus } from "../services/paste-status";
@@ -330,35 +332,30 @@ export function PasteQueueView({
   );
 
   const typed = url.trim();
-  // WHICH BRANCH THE ONE BOX TAKES. A link is read; anything else is searched
-  // against the catalogue. The customer is told which before they press it —
-  // the icon, the placeholder and the button label all follow this, so the box
-  // never silently does the other thing.
+  // WHICH BRANCH THE ONE BOX TAKES. A link is read; anything else is a
+  // description, and "Find it for me" starts a price finder run (105). The
+  // customer is told which before they press it — the icon, the placeholder
+  // and the button label all follow this, so the box never silently does the
+  // other thing.
   const isLink = looksLikeUrl(typed);
-  // There is no point offering to search an empty catalogue, so with nothing
-  // priced the box goes back to being a paste box and says so.
+  const finder = useStartFinder();
+  const isDescription = typed.length > 0 && !isLink;
+  // The catalogue search stays one tap away beneath the box: what we have
+  // already priced answers some requests instantly and for free.
   const canSearch = catalogueCount > 0;
-  const searchable = canSearch && !isLink && typed.length >= CATALOG_SEARCH.minQueryLength;
 
   const onSubmitTerm = useCallback(() => {
     if (!typed) return;
-    if (isLink || !canSearch) {
+    if (!isDescription) {
       onPaste();
       return;
     }
-    if (typed.length < CATALOG_SEARCH.minQueryLength) {
-      toast.error({
-        title: "Add a few more words",
-        description: `Type at least ${CATALOG_SEARCH.minQueryLength} characters, or paste a product link.`,
-      });
+    if (typed.length < FINDER.minQueryLength) {
+      toast.error({ title: "Add a few more words", description: "Say what you want in a few words, or paste a product link." });
       return;
     }
-    // A search is a navigation, not client state: the browse half renders it on
-    // the server, where the pricing engine lives. The box is not cleared — the
-    // term is about to appear in the search field over there, and clearing it
-    // here would make the back button land on an empty box.
-    router.push(buyForMeHref("browse", { q: typed }));
-  }, [typed, isLink, canSearch, onPaste, router]);
+    finder.start(typed);
+  }, [typed, isDescription, onPaste, finder]);
 
   // The batch's own rows are drawn by the batch panel; everything else keeps
   // its place in "Reading now" or "Recently pasted".
@@ -398,7 +395,7 @@ export function PasteQueueView({
   });
 
   const typedLinks = isLink ? splitLinks(typed) : [];
-  const submitLabel = queueing ? "Adding" : searchable ? "Search" : batch.length > 0 ? "Add" : "Get price";
+  const submitLabel = queueing ? "Adding" : isDescription ? (finder.pending ? "Starting" : "Find it for me") : batch.length > 0 ? "Add" : "Get price";
 
   return (
     <div className="flex flex-col gap-6">
@@ -427,7 +424,7 @@ export function PasteQueueView({
           className="tm-up flex flex-col gap-2 [animation-delay:0.08s] [animation-duration:0.5s]"
         >
           <label className="sr-only" htmlFor="paste-url">
-            {canSearch ? "Product link, or what you are looking for" : "Product link"}
+            Product link, or what you are looking for
           </label>
           <div className="flex flex-col gap-2.5 sm:flex-row">
             {/*
@@ -435,8 +432,8 @@ export function PasteQueueView({
               collapses the box's height. 16px text below `sm`, or iOS zooms in.
             */}
             <div className="flex min-h-[56px] items-center gap-2 rounded-[16px] border border-border bg-card pr-1.5 pl-4 transition-colors focus-within:border-tm-coral/60 sm:h-[56px] sm:flex-1">
-              {searchable ? (
-                <MagnifyingGlass weight="bold" className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
+              {isDescription ? (
+                <Sparkle weight="fill" className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
               ) : (
                 <LinkSimple weight="bold" className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
               )}
@@ -447,10 +444,10 @@ export function PasteQueueView({
                 onChange={(e) => setUrl(e.target.value)}
                 onPaste={onClipboardPaste}
                 // `url` only while it still could be one: a URL keyboard has no space bar.
-                inputMode={canSearch && !isLink ? "search" : "url"}
+                inputMode={isLink ? "url" : "search"}
                 autoComplete="off"
-                enterKeyHint={searchable ? "search" : "go"}
-                placeholder={canSearch ? "Paste a link or describe it" : "Paste a product link"}
+                enterKeyHint={isDescription ? "search" : "go"}
+                placeholder="Paste a link or describe what you want"
                 className="min-w-0 flex-1 bg-transparent text-base leading-none text-foreground outline-none placeholder:text-muted-foreground sm:text-[15px]"
               />
               {/* "+" is always there on the link tab so it can be found; it wakes up once
@@ -469,18 +466,45 @@ export function PasteQueueView({
                 </Button>
               )}
             </div>
-            <Button type="submit" variant="primary" size="lg" className="sm:min-w-[148px]" disabled={!typed || batchFull} loading={queueing}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              className="sm:min-w-[164px]"
+              disabled={!typed || batchFull || finder.pending}
+              loading={queueing || finder.pending}
+            >
               {submitLabel}
-              {!queueing && <ArrowRight weight="bold" className="size-4" aria-hidden />}
+              {!queueing && !finder.pending && <ArrowRight weight="bold" className="size-4" aria-hidden />}
             </Button>
           </div>
-          <p className="tm-caption px-1 text-muted-foreground">
-            {batchFull
-              ? `That's ${PASTE_BATCH_MAX} links, the most for one batch. Add them to your bag, then start another.`
-              : batch.length > 0
-                ? `${batch.length} of ${PASTE_BATCH_MAX} links. Paste the next one, or several at once.`
-                : `Have several? Tap + after each link, or paste them all at once (up to ${PASTE_BATCH_MAX}).`}
-          </p>
+          {finder.error && (
+            <p role="alert" className="tm-caption px-1 font-medium text-destructive">
+              {finder.error}
+            </p>
+          )}
+          {isDescription ? (
+            <p className="tm-caption flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-muted-foreground">
+              <span>We search the US stores we buy from and show the best price landed in Accra. About a minute.</span>
+              {canSearch && typed.length >= FINDER.minQueryLength && (
+                <Link
+                  href={buyForMeHref("browse", { q: typed })}
+                  className="inline-flex items-center gap-1 rounded font-semibold text-tm-coral-strong underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-tm-coral/40 dark:text-tm-coral"
+                >
+                  <MagnifyingGlass weight="bold" className="size-3.5" aria-hidden />
+                  Or search what we have already priced
+                </Link>
+              )}
+            </p>
+          ) : (
+            <p className="tm-caption px-1 text-muted-foreground">
+              {batchFull
+                ? `That's ${PASTE_BATCH_MAX} links, the most for one batch. Add them to your bag, then start another.`
+                : batch.length > 0
+                  ? `${batch.length} of ${PASTE_BATCH_MAX} links. Paste the next one, or several at once.`
+                  : `Have several? Tap + after each link, or paste them all at once (up to ${PASTE_BATCH_MAX}).`}
+            </p>
+          )}
         </form>
       )}
 

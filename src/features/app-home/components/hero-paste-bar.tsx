@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { ArrowRight, LinkSimple, MagnifyingGlass } from "@phosphor-icons/react/ssr";
+import { ArrowRight, LinkSimple, Sparkle } from "@phosphor-icons/react/ssr";
 
 import { StoreCycler } from "@/components/marketing/landing/store-cycler";
 import { buyForMeHref, looksLikeUrl } from "@/features/extraction/components/buy-for-me-mode";
+import { useStartFinder } from "@/features/finder/hooks/useFinder";
 import { cn } from "@/lib/utils";
 
 /** The public quote flow. It reads `?url=`, extracts and prices server-side. */
@@ -61,7 +63,9 @@ export function HeroPasteBar({ stores, catalogueCount = 0, className }: HeroPast
   const isEmpty = typed.length === 0;
   const isLink = looksLikeUrl(typed);
   const canSearch = catalogueCount > 0;
-  const searching = canSearch && !isEmpty && !isLink;
+  // Words, not a link: "Find it for me" starts a price finder run (105).
+  const describing = !isEmpty && !isLink;
+  const finder = useStartFinder();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -69,102 +73,111 @@ export function HeroPasteBar({ stores, catalogueCount = 0, className }: HeroPast
       router.push(QUOTE_ROUTE);
       return;
     }
-    if (searching) {
-      // A search is a navigation, not client state: browse mode renders it on
-      // the server, which is where the pricing engine lives. Below the minimum
-      // the term still goes over — the browse screen has the "a little more to
-      // go on" copy for it, and bouncing somebody here with a toast would be a
-      // second place to maintain the same sentence.
-      router.push(buyForMeHref("browse", { q: typed }));
+    if (describing) {
+      finder.start(typed);
       return;
     }
     router.push(`${QUOTE_ROUTE}?url=${encodeURIComponent(typed)}`);
   }
 
   return (
-    <form
-      id="onboarding-tour-ask"
-      onSubmit={handleSubmit}
-      className={cn(
-        "flex flex-col gap-2 rounded-[18px] border-[1.5px] border-tm-border bg-card p-1.5",
-        "shadow-[0_8px_30px_-12px_rgba(242,91,61,0.25)] focus-within:border-tm-coral/50",
-        "sm:h-[62px] sm:flex-row sm:items-center sm:gap-0 sm:pl-[18px]",
-        className,
-      )}
-    >
-      <div className="flex min-w-0 flex-1 items-center gap-0 px-3 py-2 sm:px-0 sm:py-0">
-        {searching ? (
-          <MagnifyingGlass
-            weight="bold"
-            className="size-[22px] shrink-0 text-tm-coral"
-            aria-hidden
-          />
-        ) : (
-          <LinkSimple
-            weight="duotone"
-            className="size-[22px] shrink-0 text-tm-coral"
-            aria-hidden
-          />
-        )}
-        <div className="relative min-w-0 flex-1 px-3.5">
-          <label htmlFor="home-product-url" className="sr-only">
-            {canSearch ? "Product link, or what you are looking for" : "Product link"}
-          </label>
-          <input
-            id="home-product-url"
-            name="url"
-            // Deliberately `text`, not `url`: a mistyped link should reach the
-            // server and come back with our own error message, rather than
-            // being stopped by a native validation bubble the design never
-            // accounted for.
-            type="text"
-            // `url` only while it still could be one. Locking the keyboard to a
-            // URL layout would put somebody typing "wireless earbuds" behind a
-            // `.com` key and no space bar.
-            inputMode={searching ? "search" : "url"}
-            autoComplete="off"
-            spellCheck={false}
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            className="w-full min-w-0 bg-transparent text-base leading-none text-tm-ink outline-none"
-          />
-          {isEmpty && (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 flex items-center gap-1.5 overflow-hidden px-3.5 text-base leading-none whitespace-nowrap text-tm-text-3"
-            >
-              Paste a link from
-              <StoreCycler
-                stores={stores}
-                rowHeight={WORD_ROW_HEIGHT}
-                className="text-base"
-              />
-              {/*
-                The mock's tail here was "— or describe it", and it was dropped
-                because the extractor takes a product URL and rejects free text,
-                so the offer was false. This tail is a different promise and the
-                catalogue backs it: words go to the search over the products we
-                have already read and priced. It is drawn only when there is a
-                catalogue to search, for the same reason the old one was cut.
-              */}
-              {canSearch && (
-                <span className="hidden truncate sm:inline">or search by name</span>
-              )}
-            </span>
-          )}
-        </div>
-      </div>
-      <button
-        type="submit"
+    <div className={cn("flex flex-col gap-2", className)}>
+      <form
+        id="onboarding-tour-ask"
+        onSubmit={handleSubmit}
         className={cn(
-          "tm-cta-gradient inline-flex h-[50px] shrink-0 items-center justify-center gap-2 rounded-[13px] px-[22px]",
-          "text-[15px] leading-none font-bold transition-transform hover:scale-[1.02] active:scale-[0.99]",
-          "outline-none focus-visible:ring-3 focus-visible:ring-tm-coral/40 focus-visible:ring-offset-1 focus-visible:ring-offset-card",
+          "flex flex-col gap-2 rounded-[18px] border-[1.5px] border-tm-border bg-card p-1.5",
+          "shadow-[0_8px_30px_-12px_rgba(242,91,61,0.25)] focus-within:border-tm-coral/50",
+          "sm:h-[62px] sm:flex-row sm:items-center sm:gap-0 sm:pl-[18px]",
         )}
       >
-        {searching ? "Search" : "Get landed price"}
-        <ArrowRight weight="bold" className="size-4" aria-hidden />
-      </button>
-    </form>
+        <div className="flex min-w-0 flex-1 items-center gap-0 px-3 py-2 sm:px-0 sm:py-0">
+          {describing ? (
+            <Sparkle
+              weight="fill"
+              className="size-[22px] shrink-0 text-tm-coral"
+              aria-hidden
+            />
+          ) : (
+            <LinkSimple
+              weight="duotone"
+              className="size-[22px] shrink-0 text-tm-coral"
+              aria-hidden
+            />
+          )}
+          <div className="relative min-w-0 flex-1 px-3.5">
+            <label htmlFor="home-product-url" className="sr-only">
+              Product link, or what you are looking for
+            </label>
+            <input
+              id="home-product-url"
+              name="url"
+              // Deliberately `text`, not `url`: a mistyped link should reach the
+              // server and come back with our own error message, rather than
+              // being stopped by a native validation bubble the design never
+              // accounted for.
+              type="text"
+              // `url` only while it still could be one. Locking the keyboard to a
+              // URL layout would put somebody typing "wireless earbuds" behind a
+              // `.com` key and no space bar.
+              inputMode={describing ? "search" : "url"}
+              autoComplete="off"
+              spellCheck={false}
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              className="w-full min-w-0 bg-transparent text-base leading-none text-tm-ink outline-none"
+            />
+            {isEmpty && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 flex items-center gap-1.5 overflow-hidden px-3.5 text-base leading-none whitespace-nowrap text-tm-text-3"
+              >
+                Paste a link from
+                <StoreCycler
+                  stores={stores}
+                  rowHeight={WORD_ROW_HEIGHT}
+                  className="text-base"
+                />
+                {/*
+                  The mock's tail here was "— or describe it", and it was dropped
+                  because the extractor takes a product URL and rejects free text,
+                  so the offer was false. This tail is a different promise and the
+                  catalogue backs it: words go to the search over the products we
+                  have already read and priced. It is drawn only when there is a
+                  catalogue to search, for the same reason the old one was cut.
+                */}
+                <span className="hidden truncate sm:inline">or describe it</span>
+              </span>
+            )}
+          </div>
+        </div>
+        <button
+          type="submit"
+          disabled={finder.pending}
+          aria-busy={finder.pending || undefined}
+          className={cn(
+            "tm-cta-gradient inline-flex h-[50px] shrink-0 items-center justify-center gap-2 rounded-[13px] px-[22px]",
+            "text-[15px] leading-none font-bold transition-transform hover:scale-[1.02] active:scale-[0.99]",
+            "outline-none focus-visible:ring-3 focus-visible:ring-tm-coral/40 focus-visible:ring-offset-1 focus-visible:ring-offset-card",
+            "disabled:cursor-wait disabled:opacity-80 disabled:hover:scale-100",
+          )}
+        >
+          {describing ? (finder.pending ? "Starting" : "Find it for me") : "Get landed price"}
+          <ArrowRight weight="bold" className="size-4" aria-hidden />
+        </button>
+      </form>
+      {finder.error ? (
+        <p role="alert" className="px-2 text-[13px] font-medium text-destructive">
+          {finder.error}
+        </p>
+      ) : (
+        describing &&
+        canSearch && (
+          <Link href={buyForMeHref("browse", { q: typed })} className="w-fit rounded px-2 text-[13px] font-semibold text-tm-coral-strong underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-tm-coral/40">
+            Or search what we have already priced
+          </Link>
+        )
+      )}
+    </div>
   );
 }

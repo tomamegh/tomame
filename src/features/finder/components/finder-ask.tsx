@@ -26,9 +26,11 @@ interface FinderAskProps {
   /** Disables the form while a run is being created. */
   pending?: boolean;
   defaultQuery?: string;
+  /** False for a visitor with no address yet: the copy then promises no email. */
+  notifies?: boolean;
 }
 
-export function FinderAsk({ onSubmit, pending = false, defaultQuery = "" }: FinderAskProps) {
+export function FinderAsk({ onSubmit, pending = false, defaultQuery = "", notifies = true }: FinderAskProps) {
   const queryId = useId();
   const budgetId = useId();
   const errorId = useId();
@@ -165,7 +167,10 @@ export function FinderAsk({ onSubmit, pending = false, defaultQuery = "" }: Find
       </motion.div>
 
       <motion.p variants={riseIn} className="text-sm leading-relaxed text-muted-foreground">
-        It takes about a minute. You can close the page; we email you the result. Every price includes US sales tax,
+        {notifies
+          ? "It takes about a minute. You can close the page; we email you the result."
+          : "It takes about a minute. You can add your email on the next screen and close the page."}{" "}
+        Every price includes US sales tax,
         our 4% fee and freight to Accra with customs.
       </motion.p>
     </motion.form>

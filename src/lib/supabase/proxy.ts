@@ -146,6 +146,8 @@ export async function updateSession(request: NextRequest) {
     "/app/bag",
     "/app/products",
     "/app/cars",
+    // 105: a price finder run, viewer-scoped by the quote-session cookie like a paste.
+    "/app/find",
   ];
 
   const isPublic = publicRoutes.some((p) => pathname.startsWith(p));

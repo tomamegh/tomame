@@ -32,6 +32,14 @@ export interface FinderExperienceProps {
   onAddToBag?: (candidate: FinderCandidateState) => Promise<void> | void;
   /** Tomame's buyer line, national or international form; null hides the WhatsApp handoff. */
   buyerWhatsappNumber: string | null;
+  /** A visitor's address form in the leave-anytime card (see FinderLeaveAnytime). */
+  onEmailSubmit?: (email: string) => Promise<void>;
+  /** The customer tapped the WhatsApp hand-off on a run that found nothing. */
+  onHandoff?: () => void;
+  /** Hide the WhatsApp switch when there is no number to send to. */
+  whatsappAvailable?: boolean;
+  /** Drop the screen's own side padding when the page around it already has a gutter. */
+  flush?: boolean;
   className?: string;
 }
 
@@ -52,6 +60,10 @@ export function FinderExperience({
   onReset,
   onAddToBag,
   buyerWhatsappNumber,
+  onEmailSubmit,
+  onHandoff,
+  whatsappAvailable,
+  flush = false,
   className,
 }: FinderExperienceProps) {
   const headerRef = useRef<HTMLHeadingElement>(null);
@@ -86,6 +98,10 @@ export function FinderExperience({
             onReset={onReset}
             onAddToBag={onAddToBag}
             buyerWhatsappNumber={buyerWhatsappNumber}
+            onEmailSubmit={onEmailSubmit}
+            onHandoff={onHandoff}
+            whatsappAvailable={whatsappAvailable}
+            flush={flush}
             headerRef={headerRef}
             resultRef={resultRef}
             nothingRef={nothingRef}
@@ -98,6 +114,7 @@ export function FinderExperience({
 
 interface FinderRunProps
   extends Omit<FinderExperienceProps, "onSubmit" | "className"> {
+  flush: boolean;
   headerRef: React.RefObject<HTMLHeadingElement | null>;
   resultRef: React.RefObject<HTMLHeadingElement | null>;
   nothingRef: React.RefObject<HTMLHeadingElement | null>;
@@ -112,6 +129,10 @@ function FinderRun({
   onReset,
   onAddToBag,
   buyerWhatsappNumber,
+  onEmailSubmit,
+  onHandoff,
+  whatsappAvailable,
+  flush,
   headerRef,
   resultRef,
   nothingRef,
@@ -128,12 +149,13 @@ function FinderRun({
     <LayoutGroup>
       <div
         className={cn(
-          "mx-auto flex w-full max-w-[1120px] flex-col gap-5 px-4 py-6 @md:px-6",
+          "mx-auto flex w-full max-w-[1120px] flex-col gap-5",
+          flush ? "py-2" : "px-4 py-6 @md:px-6",
           "@4xl:grid @4xl:grid-cols-[minmax(0,1fr)_360px] @4xl:grid-rows-[auto_auto_1fr] @4xl:gap-x-8 @4xl:gap-y-5 @4xl:py-10",
         )}
       >
         <div className="@4xl:col-span-2">
-          <FinderRunHeader ref={headerRef} phase={phase} query={state.query ?? ""} elapsedMs={elapsedMs} />
+          <FinderRunHeader ref={headerRef} phase={phase} query={state.query ?? ""} elapsedMs={elapsedMs} notifies={customerEmail != null} />
         </div>
 
         {/* On a phone the steps lead while working and step aside once there is an answer.
@@ -150,6 +172,7 @@ function FinderRun({
               whatsappText={state.nothingFound.whatsappText}
               whatsappHref={buyerWhatsappNumber ? buyerWhatsappHref(buyerWhatsappNumber, state.nothingFound.whatsappText) : null}
               onSearchAgain={onReset}
+              onHandoff={onHandoff}
             />
           )}
         </div>
@@ -162,6 +185,8 @@ function FinderRun({
             email={customerEmail}
             whatsappOptIn={whatsappOptIn}
             onWhatsappOptInChange={onWhatsappOptInChange}
+            onEmailSubmit={onEmailSubmit}
+            whatsappAvailable={whatsappAvailable}
           />
         </div>
       </div>

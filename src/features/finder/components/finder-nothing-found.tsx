@@ -14,11 +14,13 @@ interface FinderNothingFoundProps {
   /** wa.me link with `whatsappText` prefilled; null when no number is configured. */
   whatsappHref: string | null;
   onSearchAgain: () => void;
+  /** Called as the WhatsApp link opens: the run records the hand-off for the buyers' queue. */
+  onHandoff?: () => void;
 }
 
 /** No match we can stand behind: say so plainly and hand the request to a person. */
 export const FinderNothingFound = forwardRef<HTMLHeadingElement, FinderNothingFoundProps>(function FinderNothingFound(
-  { message, whatsappText, whatsappHref, onSearchAgain },
+  { message, whatsappText, whatsappHref, onSearchAgain, onHandoff },
   ref,
 ) {
   const headingId = useId();
@@ -63,7 +65,7 @@ export const FinderNothingFound = forwardRef<HTMLHeadingElement, FinderNothingFo
               asChild
               className="h-12 rounded-xl bg-tm-green text-[15px] text-white hover:bg-tm-green-ink @md:flex-1"
             >
-              <a href={whatsappHref} target="_blank" rel="noopener noreferrer">
+              <a href={whatsappHref} target="_blank" rel="noopener noreferrer" onClick={() => onHandoff?.()}>
                 <WhatsappLogo size={20} weight="fill" aria-hidden />
                 Ask a buyer on WhatsApp
                 <span className="sr-only">(opens WhatsApp)</span>

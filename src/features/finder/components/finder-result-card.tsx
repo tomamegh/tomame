@@ -42,6 +42,8 @@ export function FinderResultCard({ candidate, featured = false, onAddToBag }: Fi
     try {
       await onAddToBag?.(candidate);
       setAdded(true);
+    } catch {
+      // The caller has already said what went wrong; the button stays ready to try again.
     } finally {
       setAdding(false);
     }
