@@ -58,6 +58,8 @@ export const checkoutSchema = z
   .object({
     delivery_address_id: z.uuid("Unknown address").optional(),
     delivery_zone_id: z.uuid("Unknown pickup point").optional(),
+    /** "Send me WhatsApp updates about my order" (104). Absent or false: no automated WhatsApp. */
+    whatsapp_updates: z.boolean().optional(),
   })
   .refine((v) => !(v.delivery_address_id && v.delivery_zone_id), { message: "Choose an address or a pickup point, not both" });
 export type CheckoutInput = z.infer<typeof checkoutSchema>;

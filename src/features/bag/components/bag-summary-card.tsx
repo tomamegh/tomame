@@ -6,6 +6,7 @@ import { ArrowRight, CreditCard, LockSimple } from "@phosphor-icons/react/ssr";
 import { formatGhs, formatUsd } from "@/features/marketing/format";
 import type { PaymentChannel } from "@/features/payments/types";
 import { cn } from "@/lib/utils";
+import { WHATSAPP_OPT_IN_LABEL } from "@/config/tracking-copy";
 import type { BagPayment } from "../hooks/useBagPayment";
 import type { BagView } from "../types";
 import { buildBagSummaryRows, formatLockCountdown } from "./format";
@@ -136,6 +137,17 @@ export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, pa
           </div>
         </div>
       )}
+
+      {/* The checkout tick (104). Shared with the 390px bar through `payment`. */}
+      <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-[1.4] font-medium text-tm-text-2">
+        <input
+          type="checkbox"
+          checked={payment.whatsappUpdates}
+          onChange={(event) => payment.setWhatsappUpdates(event.target.checked)}
+          className="mt-0.5 size-4 shrink-0 accent-tm-coral"
+        />
+        {WHATSAPP_OPT_IN_LABEL}
+      </label>
 
       {/* Below `lg` this button is `BagPayBar`, pinned to the bottom edge. */}
       <button

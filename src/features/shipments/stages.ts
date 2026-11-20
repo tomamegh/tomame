@@ -12,6 +12,8 @@
  * logged). An event can move a parcel AHEAD of its status, never behind it.
  */
 
+import { CUSTOMER_STAGE_NAMES } from "@/config/tracking-copy";
+
 // ── The steps ───────────────────────────────────────────────────────────────
 
 /** Every step a stage setting exists for, in walking order. */
@@ -111,18 +113,35 @@ export interface StageSetting {
   typical_days: number | null;
 }
 
-/** The seed in 098, used when the table cannot be read. Wording only, no numbers. */
+/**
+ * The seed (098, titles renamed in 104), used when the table cannot be read.
+ * Titles are the customer-facing stage names (`config/tracking-copy.ts`).
+ */
 export const DEFAULT_STAGE_SETTINGS: Record<ShipmentStageKey, StageSetting> = {
-  paid: blank("paid", "Order confirmed", "Payment received. Our buyers are placing your order with the store.", 2),
-  purchased: blank("purchased", "Bought from the store", "The store is sending it to our US hub.", 7),
-  hub_received: blank("hub_received", "At our US hub", "Checked, photographed and waiting for the next flight to Ghana.", 7),
-  departed: blank("departed", "Dispatched to Ghana", "On its way to Accra.", 5),
-  arrived_country: blank("arrived_country", "Arrived in Ghana", "Landed and clearing customs.", 3),
-  ghana_warehouse: blank("ghana_warehouse", "Processing at our warehouse", "At our Accra warehouse, being sorted for delivery.", 2),
-  ready_for_pickup: blank("ready_for_pickup", "Ready for pickup", "Waiting for you at the pickup point.", 7),
-  out_for_delivery: blank("out_for_delivery", "Out for delivery", "With our rider and on the way to you.", 1),
-  delivered: blank("delivered", "Delivered", "Delivered. Enjoy it!", null),
+  paid: blank("paid", CUSTOMER_STAGE_NAMES.paid, "Payment received. Our buyers are placing your order with the store.", 2),
+  purchased: blank("purchased", CUSTOMER_STAGE_NAMES.purchased, "The store is sending it to our US hub.", 7),
+  hub_received: blank("hub_received", CUSTOMER_STAGE_NAMES.hub_received, "Checked, photographed and waiting for the next flight to Ghana.", 7),
+  departed: blank("departed", CUSTOMER_STAGE_NAMES.departed, "On its way to Accra.", 5),
+  arrived_country: blank(
+    "arrived_country",
+    CUSTOMER_STAGE_NAMES.arrived_country,
+    "Landed in Accra. Customs and clearance are included in your freight, so there is nothing to pay.",
+    3,
+  ),
+  ghana_warehouse: blank("ghana_warehouse", CUSTOMER_STAGE_NAMES.ghana_warehouse, "At our Accra warehouse, being sorted for delivery.", 2),
+  ready_for_pickup: blank("ready_for_pickup", CUSTOMER_STAGE_NAMES.ready_for_pickup, "Waiting for you at the pickup point.", 7),
+  out_for_delivery: blank("out_for_delivery", CUSTOMER_STAGE_NAMES.out_for_delivery, "With our rider and on the way to you.", 1),
+  delivered: blank("delivered", CUSTOMER_STAGE_NAMES.delivered, "Delivered. Enjoy it!", null),
 };
+
+/**
+ * The customer-facing name of where an order is: the brief's stage names on
+ * /track, in emails and on WhatsApp. Null before payment and when cancelled.
+ */
+export function customerStageName(status: string, events: readonly StageEvent[]): string | null {
+  const key = currentStageKey(status, events);
+  return key ? CUSTOMER_STAGE_NAMES[key] : null;
+}
 
 function blank(stage: ShipmentStageKey, title: string, description: string, typicalDays: number | null): StageSetting {
   return {

@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import type { ApiSuccessResponse } from "@/types/api";
 import { AdminButton, AdminConfirm, AdminInput } from "@/components/layout/admin";
 import { formatConstant, fromInputValue, inputSuffix, toInputValue } from "./constant-format";
+import { feeSentence, formatFeePercent } from "@/config/price-story";
+import type { FeePromiseBreak } from "../fee-promise";
 
 /**
  * The pricing console: the constants, and what they do to a real basket.
@@ -35,6 +37,9 @@ export interface AdminPricingConsoleProps {
   constants: AdminPricingConstantRow[];
   /** Required keys with no usable row — a real hole in the configuration. */
   missingKeys: string[];
+  /** Active groups whose fee differs from `default_value_fee_pct` (fee-promise.ts). */
+  feeBreaks?: FeePromiseBreak[];
+  defaultFeePct?: number | null;
   /** The example priced at the values currently stored. Null when it could not be priced. */
   example: WorkedExample | null;
   /** Why the example could not be priced, in the engine's own words. */
@@ -67,6 +72,8 @@ const SECTIONS: { title: string; blurb: string; keys: string[] }[] = [
 export function AdminPricingConsole({
   constants,
   missingKeys,
+  feeBreaks = [],
+  defaultFeePct = null,
   example,
   exampleError,
 }: AdminPricingConsoleProps) {
@@ -247,6 +254,21 @@ export function AdminPricingConsole({
                   no row: <span className="font-mono">{missingKeys.join(", ")}</span>. Quotes are
                   falling back to a literal written in the code, which is not what this screen
                   says is configured.
+                </p>
+              </div>
+            ) : null}
+
+            {feeBreaks.length > 0 && defaultFeePct != null ? (
+              <div role="alert" className="flex items-start gap-2.5 rounded-[14px] bg-tm-amber-bg px-4 py-3">
+                <WarningCircle size={16} weight="fill" className="mt-0.5 shrink-0 text-tm-amber" />
+                <p className="text-[13px] leading-[1.5] font-medium text-[#7a4a06]">
+                  The site promises &ldquo;{feeSentence(defaultFeePct)}&rdquo; but{" "}
+                  {feeBreaks.length === 1 ? "one active group charges" : `${feeBreaks.length} active groups charge`}{" "}
+                  a different fee:{" "}
+                  {feeBreaks.map((b) => `${b.group} ${formatFeePercent(b.percentage)}`).join(", ")}. Customers
+                  quoted in {feeBreaks.length === 1 ? "that group" : "those groups"} are charged something the
+                  public promise says they will not be. Set every group to {formatFeePercent(defaultFeePct)}, or
+                  change the promise first.
                 </p>
               </div>
             ) : null}

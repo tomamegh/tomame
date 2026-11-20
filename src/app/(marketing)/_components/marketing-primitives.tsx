@@ -145,8 +145,8 @@ export interface FigureNoteProps {
 }
 
 /**
- * The qualifier that keeps a headline figure honest. The engine charges 4–8%
- * by category, so "5%" alone would be false — the note is not decoration.
+ * The qualifier that keeps a headline figure honest ("1 lb minimum", "flat on
+ * the item price") — the note is not decoration.
  */
 export function FigureNote({ note, className }: FigureNoteProps) {
   if (!note) return null;

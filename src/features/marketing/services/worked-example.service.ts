@@ -3,12 +3,12 @@ import "server-only";
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
 import type { PricingBreakdown } from "@/lib/pricing";
 import { taxRowLabel } from "@/lib/pricing/tax-label";
+import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, feeRowLabel } from "@/config/price-story";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { logger } from "@/lib/logger";
 import { workedExampleInputSchema } from "../schema";
 import {
   formatGhs,
-  formatPercent,
   formatUsd,
   formatUsdCompact,
   toBarPct,
@@ -124,7 +124,7 @@ export function buildWorkedExample(
     },
     {
       key: "fee",
-      label: `Tomame fee ${formatPercent(breakdown.value_fee_percentage)}`,
+      label: feeRowLabel(breakdown.value_fee_percentage),
       value: formatUsd(breakdown.value_fee_usd),
       bar_pct: toBarPct(breakdown.value_fee_usd, subtotalUsd),
       tone: "accent",
@@ -134,6 +134,14 @@ export function buildWorkedExample(
       label: freightLabel(input, breakdown),
       value: `${formatGhs(breakdown.flat_rate_ghs)} (≈ ${formatUsd(freightUsd)})`,
       bar_pct: toBarPct(freightUsd, subtotalUsd),
+      tone: "muted",
+    },
+    {
+      // Display only: customs is inside the freight above, and adds nothing.
+      key: "customs",
+      label: CUSTOMS_ROW_LABEL,
+      value: CUSTOMS_ROW_VALUE,
+      bar_pct: 0,
       tone: "muted",
     },
     {
@@ -170,7 +178,7 @@ function freightLabel(
 ): string {
   const weight = breakdown.weight_lbs ?? input.weight_lbs;
   const region = REGION_SHORT[input.region];
-  return weight != null ? `Freight · ${weight} lb, ${region}` : `Freight · ${region}`;
+  return weight != null ? `${FREIGHT_ROW_LABEL} · ${weight} lb, ${region}` : `${FREIGHT_ROW_LABEL} · ${region}`;
 }
 
 // ── Input loading ────────────────────────────────────────────────────────────

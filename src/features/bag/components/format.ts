@@ -1,5 +1,6 @@
 import { formatGhs, formatUsd } from "@/features/marketing/format";
 import { taxGroupRowLabel, type TaxFacts } from "@/lib/pricing/tax-label";
+import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, feeRowLabel } from "@/config/price-story";
 import type { BagBox, BagLine, BagLinePending, BagView } from "../types";
 
 /** "Fri 12 Sep" — the box's departure day. Null when the region has no schedule. */
@@ -112,10 +113,6 @@ function taxFactsOf(lines: BagLine[]): TaxFacts[] {
     .map((p) => ({ subtotal_usd: p.subtotal_usd, tax_percentage: p.tax_percentage, tax_usd: p.tax_usd }));
 }
 
-function pctLabel(base: string, pct: number | null): string {
-  return pct == null ? base : `${base} ${Math.round(pct * 1000) / 10}%`;
-}
-
 /**
  * The right-rail rows, in the mock's order: items, tax, fee, freight (with the
  * box count and weight), the saving (only when non-zero), and the delivery the
@@ -137,13 +134,15 @@ export function buildBagSummaryRows(view: BagView): BagSummaryRow[] {
     label: taxGroupRowLabel(taxFactsOf(view.lines), sharedPercent(view.lines, (p) => p.tax_percentage), "sales tax"),
     value: formatUsd(view.tax_usd),
   });
-  rows.push({ key: "fee", label: pctLabel("Tomame fee", sharedPercent(view.lines, (p) => p.value_fee_percentage)), value: formatUsd(view.fee_usd) });
+  rows.push({ key: "fee", label: feeRowLabel(sharedPercent(view.lines, (p) => p.value_fee_percentage)), value: formatUsd(view.fee_usd) });
   if (view.store_shipping_usd > 0) {
     rows.push({ key: "store_shipping", label: "Store shipping", value: formatUsd(view.store_shipping_usd) });
   }
   const boxes = view.boxes.length;
-  const freightLabel = boxes > 0 ? `Freight · ${boxes} box${boxes === 1 ? "" : "es"}, ${formatLbs(view.boxed_weight_lbs)}` : "Freight";
+  const freightLabel = boxes > 0 ? `${FREIGHT_ROW_LABEL} · ${boxes} box${boxes === 1 ? "" : "es"}, ${formatLbs(view.boxed_weight_lbs)}` : FREIGHT_ROW_LABEL;
   rows.push({ key: "freight", label: freightLabel, value: formatGhs(view.freight_ghs) });
+  // Display only: customs sits inside the freight above.
+  rows.push({ key: "customs", label: CUSTOMS_ROW_LABEL, value: CUSTOMS_ROW_VALUE, tone: "muted" });
   if (view.consolidation_saving_ghs > 0) {
     rows.push({ key: "saving", label: "Consolidation saving", value: `− ${formatGhs(view.consolidation_saving_ghs)}`, tone: "saving" });
   }

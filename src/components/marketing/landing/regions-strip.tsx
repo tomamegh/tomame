@@ -9,7 +9,7 @@ import type { RegionRow } from "@/db/queries/regions";
 
 export interface RegionsStripProps {
   regions: readonly RegionRow[];
-  /** "from GH₵74 / lb" — the live freight rate, for lanes that are open. */
+  /** The shared freight label (`config/price-story.ts`), for lanes that are open. */
   freightLabel: string;
   /** Headline built from the live region set, e.g. "From the USA today. UK and China next." */
   headline: string;

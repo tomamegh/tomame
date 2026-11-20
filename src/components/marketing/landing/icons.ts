@@ -65,5 +65,6 @@ export const RECEIPT_ROW_ICONS: Record<WorkedExampleRowKey, Icon> = {
   tax: Bank,
   fee: HandHeart,
   freight: AirplaneTilt,
+  customs: ShieldCheck,
   exchange_rate: ArrowsLeftRight,
 };

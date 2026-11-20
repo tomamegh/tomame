@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { Eyebrow, MARKETING_GUTTER } from "../_components/marketing-primitives";
 import { TrackLookup } from "@/features/tracking/components/track-lookup";
+import { getMarketingSettings } from "@/features/marketing/services";
 
 export const metadata: Metadata = {
   title: "Track a shipment",
@@ -22,7 +23,7 @@ interface Props {
  * through with no session, like every marketing page.
  */
 export default async function TrackPage({ searchParams }: Props) {
-  const { q } = await searchParams;
+  const [{ q }, settings] = await Promise.all([searchParams, getMarketingSettings()]);
   const initial = typeof q === "string" ? q.slice(0, 120) : "";
   return (
     <div className={`${MARKETING_GUTTER} flex max-w-[960px] flex-col gap-8 py-10 md:py-16`}>
@@ -32,10 +33,11 @@ export default async function TrackPage({ searchParams }: Props) {
           Where is my order?
         </h1>
         <p className="max-w-[60ch] text-[15px] leading-[1.55] text-tm-text-2">
-          Enter your Tomame number. It is on your receipt and in every message we send, and starts with TM-.
+          Enter your order ID. It is on your payment confirmation and in every message we send, and starts with
+          TM-.
         </p>
       </header>
-      <TrackLookup initialQuery={initial} />
+      <TrackLookup initialQuery={initial} whatsappNumber={settings.whatsappNumber} />
     </div>
   );
 }

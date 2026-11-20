@@ -11,6 +11,7 @@ import {
   type WhatsAppDeliveryStatus,
   type WhatsAppNotificationRow,
 } from "@/db/queries/whatsapp-notifications";
+import { getOrdersWhatsAppConsent, markOrdersWhatsAppFailed } from "@/db/queries/order-whatsapp";
 import { logger } from "@/lib/logger";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { sendTemplateMessage } from "@/lib/whatsapp/client";
@@ -45,9 +46,15 @@ import type { WhatsAppStatusUpdate } from "@/lib/whatsapp/webhook";
  * `delivery_status` (`applyWhatsAppStatuses`), forward-only.
  *
  * GATES, all at queue time, all silent: the channel is configured
- * (`whatsappConfig()`), the customer opted in (`profiles.whatsapp_opt_in`) and
- * their number normalises. Opt-in and phone are checked AGAIN at send time — a
- * customer who switches WhatsApp off a minute after paying must not get it.
+ * (`whatsappConfig()`), the customer opted in and their number normalises.
+ * Opt-in and phone are checked AGAIN at send time — a customer who switches
+ * WhatsApp off a minute after paying must not get it.
+ *
+ * WHICH OPT-IN (104). A message about orders (`orderIds`) follows the checkout
+ * tick on those orders: ticked is consent for them, unticked means no
+ * automated WhatsApp at all. Orders from before the tick (NULL) and messages
+ * about no order fall back to `profiles.whatsapp_opt_in`. A send that fails for
+ * an opted-in order stamps it for same-day manual follow-up.
  *
  * NO audit_logs rows: CLAUDE.md scopes auditing to payment, order, role and job
  * state; a notification's delivery is none of those (the same call
@@ -83,6 +90,8 @@ export async function queueWhatsApp(input: {
   message: WhatsAppMessage | null;
   /** One message per fact, e.g. `order_status:<id>:paid`. */
   dedupeKey?: string | null;
+  /** The orders this message is about: their checkout tick decides (104). */
+  orderIds?: readonly string[];
 }): Promise<QueueOutcome> {
   if (!whatsappConfig()) return "not_configured";
   if (!input.message) return "no_message";
@@ -91,8 +100,13 @@ export async function queueWhatsApp(input: {
   try {
     const recipient = await getWhatsAppRecipient(input.userId);
     if (!recipient) return "no_account";
-    if (!recipient.whatsapp_opt_in) return "opted_out";
-    if (!normaliseWhatsAppPhone(recipient.phone)) return "no_phone";
+    const orderIds = [...(input.orderIds ?? [])];
+    const consent = await consentFor(orderIds, recipient.whatsapp_opt_in);
+    if (!consent) return "opted_out";
+    if (!normaliseWhatsAppPhone(recipient.phone)) {
+      if (consent === "order") await flagFollowUp(orderIds, "No usable WhatsApp number on the customer's profile");
+      return "no_phone";
+    }
 
     const def = WHATSAPP_TEMPLATES[input.message.template];
     const params = [greetingName(recipient.first_name), ...input.message.params];
@@ -107,6 +121,7 @@ export async function queueWhatsApp(input: {
         params,
         button_path: input.message.buttonPath,
         preview: renderTemplateBody(input.message.template, params),
+        ...(orderIds.length > 0 ? { order_ids: orderIds, consent } : {}),
       },
     });
     return row ? "queued" : "duplicate";
@@ -119,6 +134,37 @@ export async function queueWhatsApp(input: {
     });
     return "error";
   }
+}
+
+/**
+ * "order" when the orders' checkout tick allows it, "profile" when they predate
+ * the tick (or there are none) and the account opt-in allows it, else null.
+ */
+async function consentFor(orderIds: string[], profileOptIn: boolean): Promise<"order" | "profile" | null> {
+  if (orderIds.length > 0) {
+    const flags = (await getOrdersWhatsAppConsent(orderIds)).map((o) => o.whatsapp_updates);
+    if (flags.some((f) => f === true)) return "order";
+    if (flags.some((f) => f === false)) return null;
+  }
+  return profileOptIn ? "profile" : null;
+}
+
+/** Stamp opted-in orders for a same-day manual message. Never throws. */
+async function flagFollowUp(orderIds: readonly string[], reason: string): Promise<void> {
+  if (orderIds.length === 0) return;
+  try {
+    await markOrdersWhatsAppFailed(orderIds, reason, new Date().toISOString());
+  } catch (error) {
+    logger.error("whatsapp: could not flag orders for follow-up", {
+      orderIds,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+function payloadOrders(payload: Record<string, unknown>): { orderIds: string[]; consent: string | null } {
+  const ids = Array.isArray(payload.order_ids) ? payload.order_ids.filter((v): v is string => typeof v === "string") : [];
+  return { orderIds: ids, consent: typeof payload.consent === "string" ? payload.consent : null };
 }
 
 export interface DispatchSummary {
@@ -183,6 +229,9 @@ export async function dispatchDueWhatsApp(
       });
       summary.failed += 1;
       logger.warn("whatsapp: message failed", { notificationId: row.id, event: row.event, code: outcome.code, attempt });
+      // The customer asked for these updates and will not get this one.
+      const { orderIds, consent } = payloadOrders(row.payload);
+      if (consent === "order" && outcome.code !== "opted_out") await flagFollowUp(orderIds, outcome.reason);
       continue;
     }
 
@@ -220,7 +269,12 @@ async function deliverOne(
 
   // Re-read at send time: the opt-in can be withdrawn, the number changed.
   const recipient = await getWhatsAppRecipient(row.user_id);
-  if (!recipient?.whatsapp_opt_in) {
+  const { orderIds, consent } = payloadOrders(row.payload);
+  const stillAllowed =
+    consent === "order"
+      ? (await getOrdersWhatsAppConsent(orderIds)).some((o) => o.whatsapp_updates === true)
+      : !!recipient?.whatsapp_opt_in;
+  if (!recipient || !stillAllowed) {
     return { ok: false, retryable: false, code: "opted_out", reason: "Customer turned WhatsApp off before it was sent" };
   }
   const to = normaliseWhatsAppPhone(recipient.phone);

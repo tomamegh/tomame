@@ -28,6 +28,10 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { OrderInboundPanel } from "@/features/warehouse/components/inbound";
 import { listInboundForOrder } from "@/features/warehouse/services/inbound.service";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getOrderWhatsAppState, listOrderWhatsAppSends } from "@/db/queries/order-whatsapp";
+import { AdminWhatsAppPanel } from "@/features/notifications/components/admin-whatsapp-panel";
+import { deliveryArea, manualWhatsAppEntries } from "@/features/notifications/manual-whatsapp";
+import { logger } from "@/lib/logger";
 
 export const metadata: Metadata = { title: "Order · Admin" };
 
@@ -56,7 +60,7 @@ export default async function AdminOrderDetailPage({
 
   // Six independent reads; none of them depends on another's result, so they go
   // out together rather than in a waterfall six round trips deep.
-  const [customer, payment, delivery, group, siblings, events, auditLogs, courier, inbound] = await Promise.all([
+  const [customer, payment, delivery, group, siblings, events, auditLogs, courier, inbound, whatsapp] = await Promise.all([
     getOrderCustomer(order.user_id),
     getOrderPayment(order),
     getDeliveryRecord(order.id),
@@ -75,7 +79,21 @@ export default async function AdminOrderDetailPage({
     getAuthenticatedUser()
       .then((user) => (user ? listInboundForOrder(user, order.id) : []))
       .catch(() => []),
+    // Phase 1 WhatsApp (104). A failed read hides the panel, never the page.
+    Promise.all([getOrderWhatsAppState(order.id), listOrderWhatsAppSends(order.id)]).catch((error: unknown) => {
+      logger.warn("admin order: WhatsApp state unavailable", { orderId: order.id, error: String(error) });
+      return null;
+    }),
   ]);
+  const whatsappEntries = whatsapp
+    ? manualWhatsAppEntries({
+        order,
+        customer: { firstName: customer?.name ?? null, phone: customer?.phone ?? null },
+        events,
+        sends: whatsapp[1],
+        area: deliveryArea(group?.delivery_address as Record<string, unknown> | null | undefined),
+      })
+    : null;
   // From purchase onwards the store's tracking belongs on this page too.
   const showInbound = order.status === "processing" || inbound.length > 0;
 
@@ -144,6 +162,20 @@ export default async function AdminOrderDetailPage({
         status={order.status}
         index={order.needs_review ? 2 : 1}
       />
+
+      {whatsapp && whatsappEntries ? (
+        <AdminWhatsAppPanel
+          orderId={order.id}
+          entries={whatsappEntries}
+          optIn={whatsapp[0]?.whatsapp_updates ?? null}
+          failed={
+            whatsapp[0]?.whatsapp_failed_at
+              ? { at: whatsapp[0].whatsapp_failed_at, reason: whatsapp[0].whatsapp_failed_reason }
+              : null
+          }
+          index={order.needs_review ? 3 : 2}
+        />
+      ) : null}
 
       <AdminOrderDetail
         order={order}

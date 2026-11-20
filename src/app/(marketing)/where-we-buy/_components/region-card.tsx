@@ -8,6 +8,7 @@ import type { MediaOverrideMap } from "@/db/queries/media-overrides";
 
 import type { RegionRow } from "@/db/queries/regions";
 import { cn } from "@/lib/utils";
+import { FREIGHT_ROW_LABEL } from "@/config/price-story";
 import { StatusPill } from "../../_components/marketing-primitives";
 import { transitBand } from "../_lib/lane-map-nodes";
 import { WaitlistForm } from "./waitlist-form";
@@ -25,7 +26,7 @@ import { WaitlistForm } from "./waitlist-form";
 
 export interface RegionCardProps {
   region: RegionRow;
-  /** "GH₵72/lb" — the live freight rate, shown on open lanes only. */
+  /** "By category & weight" — freight's rule; `freightNote` carries the engine-priced examples. */
   freightDisplay: string;
   /** "1 lb minimum". */
   freightNote: string | null;
@@ -101,7 +102,7 @@ export function RegionCard({
           </div>
           <div className="rounded-xl bg-card p-3">
             <dt className="text-[11px] font-medium leading-none text-tm-text-3">
-              Freight from
+              {FREIGHT_ROW_LABEL}
             </dt>
             <dd
               className={cn(

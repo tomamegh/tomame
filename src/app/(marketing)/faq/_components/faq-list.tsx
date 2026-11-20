@@ -34,7 +34,8 @@ export function FaqList({ faqs }: FaqListProps) {
       {faqs.map((faq, index) => (
         <li
           key={faq.id}
-          className="tm-up [animation-duration:0.5s]"
+          id={faq.slug}
+          className="tm-up scroll-mt-24 [animation-duration:0.5s]"
           style={{ animationDelay: ROW_DELAYS[index] ?? "0.36s" }}
         >
           <details

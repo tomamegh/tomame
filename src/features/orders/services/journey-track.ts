@@ -23,6 +23,7 @@
  */
 
 import type { OrderEventKind } from "@/db/queries/order-events";
+import { CUSTOMER_STAGE_NAMES } from "@/config/tracking-copy";
 
 // ── Inputs ──────────────────────────────────────────────────────────────────
 
@@ -92,15 +93,17 @@ export interface JourneyTrack {
 
 // ── The ladder ──────────────────────────────────────────────────────────────
 
+/**
+ * The customer-facing stage names (`config/tracking-copy.ts`, the WhatsApp &
+ * tracking brief). The last stop reads "Out for delivery" until the parcel is
+ * delivered.
+ */
 const STOP_LABELS: Record<TrackStopKey, string> = {
-  paid: "Paid",
-  purchased: "Purchased",
-  // The mock says "US hub". The lane is USA-only today (`regions`), but the
-  // wording is deliberately origin-free: a UK lane opening must not turn this
-  // label into a lie, and the hub's actual city rides in the sub-line.
-  hub: "Our hub",
-  in_the_air: "In the air",
-  your_door: "Your door",
+  paid: CUSTOMER_STAGE_NAMES.paid,
+  purchased: CUSTOMER_STAGE_NAMES.purchased,
+  hub: CUSTOMER_STAGE_NAMES.hub_received,
+  in_the_air: CUSTOMER_STAGE_NAMES.departed,
+  your_door: CUSTOMER_STAGE_NAMES.out_for_delivery,
 };
 
 const STOP_ORDER: readonly TrackStopKey[] = [
@@ -178,7 +181,7 @@ export function deriveJourneyTrack(input: TrackInput): JourneyTrack {
 
     return {
       key,
-      label: STOP_LABELS[key],
+      label: isFinal && isComplete ? CUSTOMER_STAGE_NAMES.delivered : STOP_LABELS[key],
       state: stateFor(index, reached, isComplete, isCancelled),
       // `delivered_at` is the one pre-`order_events` timestamp worth honouring:
       // orders delivered before migration 050 have it and nothing else.

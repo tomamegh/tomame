@@ -8,6 +8,7 @@ import {
   greetingName,
   placeholderCount,
   renderTemplateBody,
+  stageMessage,
   whatsappMessages,
   type WhatsAppMessage,
   type WhatsAppTemplateKey,
@@ -30,7 +31,8 @@ describe("template definitions obey Meta's rules", () => {
     // Meta: lowercase, digits and underscores; UTILITY; within length.
     expect(def.name).toMatch(/^[a-z0-9_]{1,512}$/);
     expect(def.body.length).toBeLessThanOrEqual(1024);
-    expect(def.body.startsWith("Hi {{1}},")).toBe(true);
+    // {{1}} is always the first name (the service prepends it).
+    expect(def.body).toContain("{{1}}");
     if (def.button) expect(def.button.text.length).toBeLessThanOrEqual(25);
   });
 
@@ -67,6 +69,9 @@ describe("builders fill every placeholder", () => {
     ["quote", whatsappMessages.quoteReady({ productName: "Shoes", reviewPath: "/app/orders/review/c1" })],
     ["shipment", whatsappMessages.shipmentUpdate({ orderId: "o1", what: "order TM-1", update: "Arrived in Ghana. Landed and clearing customs" })],
     ["delay", whatsappMessages.shipmentDelay({ orderId: "o1", what: "order TM-1", reason: "customs needs one more day" })],
+    ...(["hub_received", "arrived_country", "out_for_delivery"] as const).map(
+      (stage) => [stage, stageMessage({ stage, orderId: "o1", orderNo: "TM-00042", itemName: "Shoes", area: "East Legon" })] as [string, WhatsAppMessage | null],
+    ),
   ];
 
   it.each(built)("%s", (_label, message) => {
@@ -81,6 +86,41 @@ describe("builders fill every placeholder", () => {
   it("covers every template", () => {
     const used = new Set(built.map(([, m]) => m!.template));
     expect([...used].sort()).toEqual(entries.map(([k]) => k).sort());
+  });
+
+  it("renders the brief's stage messages word for word", () => {
+    const paid = whatsappMessages.orderStatus({ orderId: "o1", productName: "Oraimo BoomPop N", status: "paid", trackingNumber: "TM-00042" });
+    expect(renderTemplateBody(paid!.template, ["Ama", ...paid!.params])).toBe(
+      "Hi Ama, thank you for shopping with Tomame.\nPayment received — your order is confirmed.\nItem: Oraimo BoomPop N\nOrder: TM-00042\nExpected delivery: 5–7 days from today.\nWe will message you here at every step. Track anytime: tomame.ca/track\n— Tomame",
+    );
+    const flight = whatsappMessages.orderStatus({
+      orderId: "o1",
+      productName: "Shoes",
+      status: "in_transit",
+      trackingNumber: "TM-00042",
+      expectedOn: "2026-11-27",
+    });
+    expect(renderTemplateBody(flight!.template, ["Ama", ...flight!.params])).toBe(
+      "Hi Ama, your box is on its way to Accra.\nOrder: TM-00042\nExpected in Accra: Fri 27 Nov.\nWe will message you here as soon as it lands and clears.\n— Tomame",
+    );
+    const door = stageMessage({ stage: "out_for_delivery", orderId: "o1", orderNo: "TM-00042", itemName: "Shoes", area: "East Legon" });
+    expect(renderTemplateBody(door!.template, ["Ama", ...door!.params])).toBe(
+      "Hi Ama, your order is out for delivery today.\nOrder: TM-00042\nDelivering to: East Legon\nPlease be available to receive it. Questions? Reply here, or call us on +233 59 442 4746 (8am–10pm).\n— Tomame",
+    );
+    const done = whatsappMessages.orderStatus({ orderId: "o1", productName: "Shoes", status: "delivered", trackingNumber: "TM-00042" });
+    expect(renderTemplateBody(done!.template, ["Ama", ...done!.params])).toBe(
+      "Delivered — thank you, Ama.\nOrder TM-00042 was handed over today.\nWe hope you enjoy your Shoes. If anything is wrong with it, reply here within 24 hours and we will help.\n— Tomame",
+    );
+  });
+
+  it("never sends 'Out for delivery' without an area, and has nothing for pickup", () => {
+    expect(stageMessage({ stage: "out_for_delivery", orderId: "o1", orderNo: "TM-00042", itemName: "Shoes", area: null })).toBeNull();
+    expect(stageMessage({ stage: "ready_for_pickup", orderId: "o1", orderNo: null, itemName: "Shoes" })).toBeNull();
+  });
+
+  it("falls back to departure + 5 days for 'Expected in Accra' when the order has no window", () => {
+    const m = stageMessage({ stage: "departed", orderId: "o1", orderNo: "TM-1", itemName: "x", at: "2026-11-20T10:00:00.000Z" });
+    expect(m!.params).toEqual(["TM-1", "Wed 25 Nov"]);
   });
 
   it("renders a rider message with sensible fallbacks", () => {

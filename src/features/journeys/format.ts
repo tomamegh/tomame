@@ -3,8 +3,9 @@ import type {
   OrderFeedbackVerdict,
 } from "@/db/queries/order-feedback";
 import type { OrderPhotoKind } from "@/db/queries/order-photos";
-import { formatGhs, formatPercent, formatUsd } from "@/features/marketing/format";
+import { formatGhs, formatUsd } from "@/features/marketing/format";
 import { taxRowLabel } from "@/lib/pricing/tax-label";
+import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, feeRowLabel } from "@/config/price-story";
 import type { OrderPricingBreakdown } from "@/features/orders/types";
 import type { JourneyCtaKind, JourneyEta } from "./types";
 
@@ -189,7 +190,7 @@ export function paidRows(pricing: OrderPricingBreakdown): PaidRow[] {
   if (pricing.value_fee_usd > 0) {
     rows.push({
       key: "fee",
-      label: `Tomame fee ${formatPercent(pricing.value_fee_percentage)}`,
+      label: feeRowLabel(pricing.value_fee_percentage),
       value: formatUsd(pricing.value_fee_usd),
     });
   }
@@ -205,10 +206,13 @@ export function paidRows(pricing: OrderPricingBreakdown): PaidRow[] {
   if (pricing.flat_rate_ghs > 0) {
     rows.push({
       key: "freight",
-      label: "Freight",
+      label: FREIGHT_ROW_LABEL,
       value: formatGhs(pricing.flat_rate_ghs),
     });
   }
+
+  // Display only, on every receipt even at zero: customs sits inside freight.
+  rows.push({ key: "customs", label: CUSTOMS_ROW_LABEL, value: CUSTOMS_ROW_VALUE });
 
   rows.push({
     key: "rate",

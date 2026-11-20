@@ -6,9 +6,9 @@ import { MarketingIcon } from "../../_components/marketing-icon";
  * One fee row — design/Tomame - Marketing v2.dc.html #mk-fees.
  *
  * The figure is never copy: `FeeLine.figure` is the engine's live value
- * (`resolveMarketingFigures`). Its `note` renders too — the service publishes
- * "5%" with "from 4%" precisely because the engine charges 4–8% by category,
- * and dropping the note would make the row false.
+ * (`resolveMarketingFigures`). Its `secondary` and `note` render too: for
+ * freight they are the engine-priced worked examples that make the rule
+ * ("by category & weight") concrete.
  */
 
 export interface FeeRowProps {

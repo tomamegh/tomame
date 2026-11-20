@@ -120,8 +120,8 @@ export default async function WhereWeBuyPage() {
               mediaOverrides={mediaOverrides}
                 key={region.code}
                 region={region}
-                freightDisplay={`from ${freight.display}`}
-                freightNote={freight.note}
+                freightDisplay={freight.display}
+                freightNote={[freight.secondary, freight.note].filter(Boolean).join(" · ") || null}
                 animationDelay={CARD_DELAYS[index] ?? `${0.1 + index * 0.1}s`}
               />
             ))}

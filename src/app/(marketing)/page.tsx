@@ -18,9 +18,9 @@ import {
   getFeesWorkedExample,
   getLandingContent,
   getMarketingSettings,
-  resolveMarketingFigures,
 } from "@/features/marketing/services";
 import { DEFAULT_FX_BUFFER_PCT } from "@/config/pricing";
+import { FREIGHT_LABEL, HERO_PRICE_PARTS } from "@/config/price-story";
 import { getGhsRate } from "@/lib/exchange-rates/service";
 import { getSharedMediaOverrides } from "@/features/marketing/services/media-overrides.service";
 import { isAuthenticated } from "@/lib/supabase/current-user";
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   // Absolute: it already carries the brand, so the root "%s · Tomame" template must not add it again.
   title: { absolute: "Tomame: Shop the world. Pay in cedis." },
   description:
-    "Paste a link from any US store and see the full price at your door before you pay: item, tax, fee, freight. Mobile Money or card, delivered in Ghana.",
+    `Paste a link from any US store and see the full price at your door before you pay: ${HERO_PRICE_PARTS}. Mobile Money or card, delivered in Ghana.`,
 };
 
 /**
@@ -68,7 +68,6 @@ export default async function HomePage() {
   const [
     content,
     regions,
-    figures,
     example,
     settings,
     midMarketRate,
@@ -78,7 +77,6 @@ export default async function HomePage() {
     await Promise.all([
       getLandingContent(),
       listRegions(),
-      resolveMarketingFigures(),
       getFeesWorkedExample(),
       getMarketingSettings(),
       getGhsRate("USD"),
@@ -134,7 +132,7 @@ export default async function HomePage() {
       <RegionsStrip
         mediaOverrides={mediaOverrides}
         regions={regions}
-        freightLabel={`from ${figures.freight_rate_per_lb.display}`}
+        freightLabel={FREIGHT_LABEL}
         headline={
           soonLabels.length > 0
             ? `From ${joinLabels(liveLabels)} today. ${sentenceCase(joinLabels(soonLabels))} next.`

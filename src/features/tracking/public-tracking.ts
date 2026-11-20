@@ -34,7 +34,8 @@
 
 import type { OrderEventKind } from "@/db/queries/order-events";
 import { journeyStageFor, type JourneyTone } from "@/features/orders/services/journey-stage";
-import { transitLabel } from "@/features/shipments/stages";
+import { customerStageName } from "@/features/shipments/stages";
+import { normaliseGhanaPhone } from "@/features/order-delivery/schema";
 import { deriveJourneyTrack, type JourneyTrack } from "@/features/orders/services/journey-track";
 import type { JourneyEta } from "@/features/journeys/types";
 
@@ -69,13 +70,17 @@ export function looksLikeTomameNumber(raw: string): boolean {
 
 // ── The second factor ───────────────────────────────────────────────────────
 
-export type Verifier = { kind: "phone_last4"; digits: string } | { kind: "email"; email: string };
+export type Verifier =
+  | { kind: "phone_last4"; digits: string }
+  | { kind: "phone_full"; e164: string }
+  | { kind: "email"; email: string };
 
 /**
- * An email, or a phone number of which only the last four digits are compared:
- * "0192", "024 555 0192" and "+233 24 555 0192" all read as 0192. Fewer than
- * four digits, or anything with letters in it, is no verifier at all, and the
- * service does not count it as an attempt.
+ * An email; the full Ghana number given at checkout ("024 555 0192", "+233 24
+ * 555 0192", normalised with `normaliseGhanaPhone` and compared whole); or the
+ * last four digits ("0192"). A long number that is not a Ghana number falls
+ * back to its last four. Fewer than four digits, or anything with letters in
+ * it, is no verifier at all, and the service does not count it as an attempt.
  */
 export function parseVerifier(raw: string | null | undefined): Verifier | null {
   const value = raw?.trim() ?? "";
@@ -86,6 +91,10 @@ export function parseVerifier(raw: string | null | undefined): Verifier | null {
   }
   if (!/^[\d\s()+.-]+$/.test(value)) return null;
   const digits = value.replace(/\D/g, "");
+  if (digits.length >= 9) {
+    const e164 = normaliseGhanaPhone(value);
+    if (e164) return { kind: "phone_full", e164 };
+  }
   return digits.length >= 4 && digits.length <= 15 ? { kind: "phone_last4", digits: digits.slice(-4) } : null;
 }
 
@@ -95,6 +104,9 @@ export function verifierMatches(
 ): boolean {
   if (verifier.kind === "email") {
     return !!onFile.email && onFile.email.trim().toLowerCase() === verifier.email;
+  }
+  if (verifier.kind === "phone_full") {
+    return onFile.phones.some((phone) => normaliseGhanaPhone(phone) === verifier.e164);
   }
   return onFile.phones.some((phone) => {
     const digits = phone.replace(/\D/g, "");
@@ -204,7 +216,8 @@ export function shapePublicTracking(
     found: true,
     reference: order.order_no,
     status: order.status,
-    stageLabel: transitLabel(order.status, events, stage.label),
+    // The brief's customer stage names; "Awaiting payment" / "Cancelled" otherwise.
+    stageLabel: customerStageName(order.status, events) ?? stage.label,
     tone: stage.tone,
     track:
       level === "full"

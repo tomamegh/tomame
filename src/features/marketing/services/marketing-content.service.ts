@@ -16,14 +16,13 @@ import {
 import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
 import {
   getAllPricingGroups,
+  getCategoryPricingMap,
   type PricingGroupRow,
 } from "@/db/queries/pricing-groups";
+import { PricingCalculator, type PricingConstants } from "@/lib/pricing";
+import { FREIGHT_LABEL, FREIGHT_ROW_SUBLINE, PRICE_FAQS, feeRowLabel } from "@/config/price-story";
 import { getGhsRate } from "@/lib/exchange-rates/service";
-import {
-  DEFAULT_FX_BUFFER_PCT,
-  DEFAULT_FREIGHT_RATE_PER_LB,
-  TAX_PERCENTAGE,
-} from "@/config/pricing";
+import { DEFAULT_FX_BUFFER_PCT, TAX_PERCENTAGE } from "@/config/pricing";
 import { logger } from "@/lib/logger";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import {
@@ -33,7 +32,6 @@ import {
   formatPercentDelta,
   formatUsd,
   formatUsdCompact,
-  roundTo2,
 } from "../format";
 import {
   fillContentTokens,
@@ -72,6 +70,8 @@ interface FigureInputs {
   zones: DeliveryZoneRow[];
   /** Mid-market USD→GHS, or null when no rate is stored. */
   midMarketRate: number | null;
+  /** Category → pricing group, for the freight examples priced by the engine. */
+  categories: Map<string, PricingGroupRow>;
 }
 
 /**
@@ -81,7 +81,7 @@ interface FigureInputs {
  * queries plus the FX read, not one per row.
  */
 export async function resolveMarketingFigures(): Promise<MarketingFigures> {
-  const [constants, groups, zones, midMarketRate] = await Promise.all([
+  const [constants, groups, zones, midMarketRate, categories] = await Promise.all([
     getPricingConstantsMap().catch((error: unknown) => {
       rethrowIfSchemaMissing(error);
       logger.warn("Marketing: pricing constants unavailable, using defaults", {
@@ -104,91 +104,60 @@ export async function resolveMarketingFigures(): Promise<MarketingFigures> {
       return [] as DeliveryZoneRow[];
     }),
     safeGhsRate("USD"),
+    getCategoryPricingMap().catch((error: unknown) => {
+      rethrowIfSchemaMissing(error);
+      logger.warn("Marketing: category pricing unavailable, freight examples skipped", {
+        error: String(error),
+      });
+      return new Map<string, PricingGroupRow>();
+    }),
   ]);
 
-  const inputs: FigureInputs = { constants, groups, zones, midMarketRate };
+  const inputs: FigureInputs = { constants, groups, zones, midMarketRate, categories };
 
   return {
     value_fee_pct: resolveServiceFee(inputs),
     tax_pct_usa: resolveTaxPct(inputs),
-    freight_rate_per_lb: resolveFreightRate(inputs),
+    freight_rate_per_lb: await resolveFreightExamples(inputs),
     fx_buffer_pct: resolveFxBuffer(inputs),
     delivery_from_ghs: resolveDeliveryFrom(inputs),
   };
 }
 
 /**
- * The headline service fee.
+ * The headline service fee: `default_value_fee_pct`, published as "4% flat".
  *
- * There is no single "the fee" in the engine. `pricing_groups.value_percentage`
- * is 4–8% by category, and each group may drop to `value_percentage_high`
- * above `value_threshold_usd` (seeds 030 and 032). The only admin-set scalar is
- * `pricing_constants.default_value_fee_pct` (migration 035, 0.05), which the
- * calculator uses when a fixed-freight item matches no pricing group
- * (`src/lib/pricing/calculator.ts`).
- *
- * Choice: publish `default_value_fee_pct` as the headline, and carry the real
- * min/max off the active groups in `range` and in the note.
- *
- * THE NOTE MUST NAME THE CEILING. It used to say only "from 4%" — the floor —
- * while the same function computed `range.max` and threw it away. "5%, from
- * 4%" is each word true and the whole thing misleading: nobody reads it and
- * concludes they might be charged 8%, which six categories do charge (Car
- * Parts, Shoes, Fashion, Furniture, Collectibles, Fashion Accessories).
- * Release QA, 2026-09-15, priced a 6% item against this page and filed it as
- * the fee exceeding the published schedule; they were right, and the true
- * spread is wider than the 6% they happened to hit.
- *
- * So the note states the span. It is derived, not written, so an admin editing
- * a group re-publishes the page with no code change — which is the whole
- * reason the ceiling was reachable here in the first place.
+ * The page promises "Tomame fee – 4% flat on the item price. No category
+ * tiers." (`config/price-story.ts`). There is no "x%–y%, depending on the
+ * category" qualifier any more: prod set every group to the default on
+ * 2026-11-19, and a group that drifts from it is flagged in the admin pricing
+ * console (`features/settings/fee-promise.ts`) rather than re-worded here.
+ * `range` still carries the real spread of the active groups.
  */
 function resolveServiceFee({ constants, groups }: FigureInputs): ResolvedFigure {
   const defaultPct = constants.default_value_fee_pct ?? 0.05;
 
   const percentages: number[] = [];
   for (const group of groups) {
+    if (group.is_active === false) continue;
     percentages.push(group.value_percentage);
     if (group.value_percentage_high != null) {
       percentages.push(group.value_percentage_high);
     }
   }
 
-  const range =
-    percentages.length > 0
-      ? { min: Math.min(...percentages), max: Math.max(...percentages) }
-      : null;
-
-  const note = describeFeeSpread(range, defaultPct);
-
   return {
     source: "value_fee_pct",
     display: formatPercent(defaultPct),
     secondary: null,
-    note,
+    note: "flat on the item price",
     value: defaultPct,
     unit: "percent",
-    range,
+    range:
+      percentages.length > 0
+        ? { min: Math.min(...percentages), max: Math.max(...percentages) }
+        : null,
   };
-}
-
-/**
- * The qualifier beside the headline fee: "4%–8%, depending on the category".
- *
- * Null only when every active group charges exactly the headline — there is
- * then nothing the single number leaves out, and a qualifier would be noise.
- *
- * Pure. Exported for its test — the resolver around it reaches the database.
- */
-export function describeFeeSpread(
-  range: { min: number; max: number } | null,
-  defaultPct: number,
-): string | null {
-  if (!range) return null;
-  if (range.min === range.max) {
-    return range.min === defaultPct ? null : `${formatPercent(range.min)} on every category`;
-  }
-  return `${formatPercent(range.min)}–${formatPercent(range.max)}, depending on the category`;
 }
 
 /**
@@ -214,45 +183,81 @@ function resolveTaxPct({ constants }: FigureInputs): ResolvedFigure {
   };
 }
 
+/** The category the per-lb worked example prefers, when its group is weight-based. */
+const WEIGHT_EXAMPLE_CATEGORY = "Headphones";
+/** The flat-rate group the second worked example prefers. */
+const FLAT_EXAMPLE_GROUP = "baby_kids";
+
 /**
- * Freight, as the GH₵/lb the customer actually pays: the admin's USD rate at
- * today's buffered rate. GH₵ leads, the USD rate is the echo.
+ * Freight, as worked examples rather than a per-lb claim.
+ *
+ * No single per-lb figure is true for most quotes: a few groups price by
+ * weight ($/lb x lb + handling per item, with a minimum weight), a dozen charge
+ * a flat GH₵ rate, and the rest an expression. "GH₵74/lb" was the rate alone,
+ * without the handling fee, so it was below what a 1 lb item actually pays.
+ * The figure is now two quotes the real engine prices: a 1 lb item in a
+ * weight-based group and one flat-rate group. Nothing is hard-coded: change a
+ * constant, a group or today's rate and the examples move.
  */
-function resolveFreightRate({
-  constants,
-  midMarketRate,
-}: FigureInputs): ResolvedFigure {
-  const ratePerLbUsd =
-    constants.freight_rate_per_lb ?? DEFAULT_FREIGHT_RATE_PER_LB;
-  const appliedRate = appliedFxRate(midMarketRate, constants);
-  const minimumWeight = constants.minimum_chargeable_weight_lbs;
+async function resolveFreightExamples(inputs: FigureInputs): Promise<ResolvedFigure> {
+  const { constants, categories, midMarketRate } = inputs;
+  const empty: ResolvedFigure = {
+    source: "freight_rate_per_lb",
+    display: "On every quote",
+    secondary: null,
+    note: FREIGHT_ROW_SUBLINE,
+    value: 0,
+    unit: "ghs",
+    range: null,
+  };
+  if (midMarketRate == null || categories.size === 0) return empty;
 
-  const note =
-    minimumWeight != null && minimumWeight > 0
-      ? `${trimNumber(minimumWeight)} lb minimum`
-      : null;
+  const calculator = new PricingCalculator();
+  calculator.setConstants(constants as Partial<PricingConstants>);
+  if (calculator.missingConstants.length > 0) return empty;
+  calculator.setCategoryPricing(categories);
+  calculator.useGhsRates({ USD: midMarketRate });
 
-  // No stored FX rate: print the USD rate rather than a made-up cedi figure.
-  if (appliedRate == null) {
-    return {
-      source: "freight_rate_per_lb",
-      display: `${formatUsdCompact(ratePerLbUsd)}/lb`,
-      secondary: null,
-      note,
-      value: ratePerLbUsd,
-      unit: "ghs_per_lb",
-      range: null,
-    };
-  }
+  const entries = [...categories.entries()].filter(([, group]) => group.is_active !== false);
+  const weightEntry =
+    entries.find(([category, group]) => category === WEIGHT_EXAMPLE_CATEGORY && group.flat_rate_expression != null) ??
+    entries.find(([, group]) => group.flat_rate_expression != null);
+  const isFlat = (group: PricingGroupRow) => group.flat_rate_ghs != null && group.flat_rate_expression == null;
+  const flatEntry =
+    entries.find(([, group]) => group.slug === FLAT_EXAMPLE_GROUP && isFlat(group)) ??
+    entries.find(([, group]) => isFlat(group));
 
-  const ghsPerLb = roundTo2(ratePerLbUsd * appliedRate);
+  const freightFor = async (category: string, weightLbs: number | null): Promise<number | null> => {
+    try {
+      const breakdown = await calculator.calculate(
+        { itemPriceUsd: 50, quantity: 1, category, weightLbs, region: "usa", fixedFreightItemId: null },
+        null,
+      );
+      return breakdown.pricing_method === "needs_review" ? null : breakdown.flat_rate_ghs;
+    } catch (error: unknown) {
+      logger.warn("Marketing: freight example could not be priced", { category, error: String(error) });
+      return null;
+    }
+  };
+
+  const [weightGhs, flatGhs] = await Promise.all([
+    weightEntry ? freightFor(weightEntry[0], 1) : Promise.resolve(null),
+    flatEntry ? freightFor(flatEntry[0], null) : Promise.resolve(null),
+  ]);
+
+  const weightLine =
+    weightEntry && weightGhs != null ? `1 lb ${weightEntry[0].toLowerCase()}: ${formatGhs(weightGhs)}` : null;
+  const flatLine =
+    flatEntry && flatGhs != null ? `${flatEntry[1].name}: flat ${formatGhsCompact(flatGhs)}` : null;
+  if (!weightLine && !flatLine) return empty;
+
   return {
     source: "freight_rate_per_lb",
-    display: `${formatGhsCompact(Math.round(ghsPerLb))}/lb`,
-    secondary: `${formatUsdCompact(ratePerLbUsd)}/lb`,
-    note,
-    value: ghsPerLb,
-    unit: "ghs_per_lb",
+    display: "By category & weight",
+    secondary: weightLine ?? flatLine,
+    note: weightLine ? flatLine : null,
+    value: weightGhs ?? flatGhs ?? 0,
+    unit: "ghs",
     range: null,
   };
 }
@@ -312,14 +317,33 @@ export async function getFeeLines(): Promise<FeeLine[]> {
     const source = readValueSource(row);
     return {
       slug: row.slug,
-      title: row.title ?? "",
-      body: row.body ?? "",
+      title: priceStoryTitle(source, row.title ?? "", figures),
+      body: source === "freight_rate_per_lb" ? FREIGHT_ROW_BODY : (row.body ?? ""),
       icon: readString(row.data.icon),
       accent: row.data.accent === true,
       positive: row.data.positive === true,
       figure: source ? figures[source] : null,
     };
   });
+}
+
+/** The freight row's body: the headline's rule, in a sentence. */
+const FREIGHT_ROW_BODY =
+  "Set by category and weight, shown on every quote before you pay. Boxes consolidate, so freight per item falls as you add.";
+
+/**
+ * The fee and freight rows' titles are the shared price-story copy, not the
+ * admin's `site_content` title: the wording is fixed and verbatim everywhere,
+ * and the fee's percentage comes from the engine.
+ */
+function priceStoryTitle(
+  source: MarketingValueSource | null,
+  title: string,
+  figures: MarketingFigures,
+): string {
+  if (source === "freight_rate_per_lb") return FREIGHT_LABEL;
+  if (source === "value_fee_pct") return feeRowLabel(figures.value_fee_pct.value);
+  return title;
 }
 
 // ── Page payloads ────────────────────────────────────────────────────────────
@@ -335,7 +359,7 @@ export async function getLandingContent(): Promise<LandingContent> {
   ]);
   const fill = (rows: SiteContentRow[]) => fillRowsTokens(rows, tokens);
   return {
-    faqs: fill(byKind.faq),
+    faqs: withPriceFaqs(fill(byKind.faq)),
     testimonials: fill(byKind.testimonial),
     processSteps: fill(byKind.process_step),
     valueProps: fill(byKind.value_prop),
@@ -343,6 +367,29 @@ export async function getLandingContent(): Promise<LandingContent> {
     stats: fill(byKind.stat),
     trustChips: fill(byKind.trust_chip),
   };
+}
+
+/**
+ * The two price questions, word for word (`config/price-story.ts`), ahead of
+ * the admin's own FAQ rows. They are code, not `site_content`, because the
+ * wording is a fixed promise: a row with the same slug is replaced by it rather
+ * than allowed to drift. Pure; exported for its test.
+ */
+export function withPriceFaqs(rows: readonly SiteContentRow[]): SiteContentRow[] {
+  const fixed = PRICE_FAQS.map(
+    (faq, index): SiteContentRow => ({
+      id: `price-faq-${faq.slug}`,
+      kind: "faq",
+      slug: faq.slug,
+      locale: "en",
+      title: faq.question,
+      body: faq.answer,
+      data: {},
+      sort_order: index - PRICE_FAQS.length,
+    }),
+  );
+  const slugs = new Set(PRICE_FAQS.map((faq) => faq.slug));
+  return [...fixed, ...rows.filter((row) => !slugs.has(row.slug))];
 }
 
 // ── Content tokens ───────────────────────────────────────────────────────────
@@ -487,15 +534,6 @@ function readValueSource(row: SiteContentRow): MarketingValueSource | null {
   return raw as MarketingValueSource;
 }
 
-function appliedFxRate(
-  midMarketRate: number | null,
-  constants: Record<string, number>,
-): number | null {
-  if (midMarketRate == null) return null;
-  const buffer = constants.fx_buffer_pct ?? DEFAULT_FX_BUFFER_PCT;
-  return roundTo2(midMarketRate * (1 + buffer));
-}
-
 async function safeGhsRate(currency: string): Promise<number | null> {
   try {
     return await getGhsRate(currency);
@@ -528,10 +566,6 @@ function readStringArray(value: unknown): string[] {
     }
   }
   return out;
-}
-
-function trimNumber(value: number): string {
-  return Number.isInteger(value) ? String(value) : String(roundTo2(value));
 }
 
 // ── Landing feature-card demonstrations ──────────────────────────────────────

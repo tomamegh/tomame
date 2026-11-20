@@ -11,6 +11,7 @@ import {
   orderShippedTemplate,
   orderDeliveredTemplate,
   orderCancelledTemplate,
+  type PricingBreakdownData,
 } from "@/lib/email/templates/order-status";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -27,7 +28,7 @@ import { isSchemaMissingError } from "@/lib/supabase/errors";
 import type { Viewer } from "@/features/quotes/types";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
-import { whatsappMessages } from "@/lib/whatsapp/templates";
+import { stageDedupeKey, whatsappMessages } from "@/lib/whatsapp/templates";
 import { notifyStaff } from "@/features/staff-alerts/notify";
 import { closePackageIfAllDelivered } from "@/features/warehouse/services/package-close.service";
 
@@ -224,6 +225,23 @@ async function getOrderAuditLogs(
   return (data ?? []) as AuditLog[];
 }
 
+/** The stored breakdown in the shape the order emails print. Undefined when it is not a price. */
+export function emailPricing(p: Order["pricing"] | null | undefined): PricingBreakdownData | undefined {
+  if (!p || p.pricing_method === "needs_review" || !Number.isFinite(p.total_ghs)) return undefined;
+  return {
+    itemPriceUsd: p.item_price_usd,
+    subtotalUsd: p.subtotal_usd,
+    taxPercentage: p.tax_percentage,
+    taxUsd: p.tax_usd,
+    valueFeePercentage: p.value_fee_percentage,
+    valueFeeUsd: p.value_fee_usd,
+    storeShippingUsd: p.store_shipping_usd ?? 0,
+    flatRateGhs: p.flat_rate_ghs,
+    exchangeRate: p.exchange_rate,
+    totalGhs: p.total_ghs,
+  };
+}
+
 export async function sendOrderStatusEmail(
   userId: string,
   order: Order,
@@ -240,16 +258,23 @@ export async function sendOrderStatusEmail(
     // WhatsApp is its own channel with its own opt-in, so it is queued before the
     // email preference is consulted. Deduped per order and status: the Paystack
     // webhook and the browser verify can both reach "paid".
+    const whatsapp = whatsappMessages.orderStatus({
+      orderId: order.id,
+      productName: order.product_name,
+      status: newStatus,
+      trackingNumber: order.order_no,
+      expectedOn: order.eta_to ?? trackingData?.estimatedDeliveryDate ?? order.estimated_delivery_date ?? null,
+    });
     await queueWhatsApp({
       userId,
       event: `order_${newStatus}`,
-      dedupeKey: `order_status:${order.id}:${newStatus}`,
-      message: whatsappMessages.orderStatus({
-        orderId: order.id,
-        productName: order.product_name,
-        status: newStatus,
-        trackingNumber: order.order_no,
-      }),
+      // One message per stage, whichever path announces it (104).
+      dedupeKey: whatsapp?.template.startsWith("stage_")
+        ? stageDedupeKey(order.id, whatsapp.template)
+        : `order_status:${order.id}:${newStatus}`,
+      // The checkout tick on this order decides (104).
+      orderIds: [order.id],
+      message: whatsapp,
     });
 
     // `profiles.notify_email` — the account screen's "Email" toggle, whose own
@@ -275,7 +300,12 @@ export async function sendOrderStatusEmail(
 
     switch (newStatus) {
       case "paid":
-        template = orderPaidTemplate(emailData);
+        // An order paid on its own carries its breakdown; a bag's first order
+        // is not the bag, so a grouped one gets the customs line alone.
+        template = orderPaidTemplate({
+          ...emailData,
+          pricing: !order.order_group_id ? emailPricing(order.pricing) : undefined,
+        });
         break;
       case "processing":
         template = orderProcessingTemplate(emailData);

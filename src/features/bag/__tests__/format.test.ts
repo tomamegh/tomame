@@ -52,7 +52,8 @@ describe("buildBagSummaryRows", () => {
       ["2 items", "$817.00"],
       ["Sales tax", "$65.36"],
       ["Tomame fee", "$40.85"],
-      ["Freight · 1 box, 5.4 lb", "GH₵264.00"],
+      ["Freight, incl. customs & clearance · 1 box, 5.4 lb", "GH₵264.00"],
+      ["Customs & clearance – Included in freight", "GH₵0 extra"],
       ["Consolidation saving", "− GH₵96.00"],
       ["Door delivery · Greater Accra", "Free"],
     ]);

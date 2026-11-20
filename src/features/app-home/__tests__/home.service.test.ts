@@ -307,7 +307,7 @@ describe("getHomeView — your orders", () => {
       productImageUrl: "https://img.example/boompop.jpg",
       store: "Amazon",
       // 098: an order on its way is labelled by its leg, not "In the air".
-      stageLabel: "Dispatched to Ghana",
+      stageLabel: "In flight to Accra",
       totalGhs: 5041.16,
       latest: { kind: "event", title: "On its way to Accra", note: "New York", at: "2026-09-06T10:00:00.000Z" },
     });

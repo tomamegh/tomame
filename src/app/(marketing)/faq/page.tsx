@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, WhatsappLogo } from "@phosphor-icons/react/ssr";
 
 import { whatsappHref } from "@/components/layout/marketing/links";
-import { getMarketingSettings, getPublishedContent } from "@/features/marketing/services";
+import { getMarketingSettings, getPublishedContent, withPriceFaqs } from "@/features/marketing/services";
 import { cn } from "@/lib/utils";
 import { Eyebrow, MARKETING_GUTTER } from "../_components/marketing-primitives";
 import { FaqList } from "./_components/faq-list";
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
  */
 export default async function FaqPage() {
   const [faqs, settings] = await Promise.all([
-    getPublishedContent("faq"),
+    getPublishedContent("faq").then(withPriceFaqs),
     getMarketingSettings(),
   ]);
 

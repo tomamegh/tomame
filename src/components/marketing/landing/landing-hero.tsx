@@ -6,6 +6,7 @@ import type { MediaOverrideMap } from "@/db/queries/media-overrides";
 import type { SiteContentRow } from "@/db/queries/site-content";
 import { MARKETING_IMAGES, applyImageOverride, getProductImage , imagePosition } from "@/config/marketing-images";
 import type { WorkedExample } from "@/features/marketing/types";
+import { HERO_PRICE_PARTS } from "@/config/price-story";
 
 import { LandedReceipt } from "./landed-receipt";
 import { PasteBar } from "./paste-bar";
@@ -102,7 +103,7 @@ export function LandingHero({
           <p className="max-w-[520px] text-[17px] leading-[27px] text-tm-text-2 md:text-[18px]">
             Paste a link from{" "}
             <StoreCycler stores={cyclerStores} rowHeight={27} /> and see the
-            full price at your door before you pay: item, tax, fee, freight.
+            full price at your door before you pay: {HERO_PRICE_PARTS}.
             MoMo or card. We buy it, fly it, deliver it.
           </p>
 
