@@ -1,0 +1,475 @@
+{
+  "meta": {
+    "producedBy": "scripts/finder-record-fixture.ts",
+    "producedAt": "2026-11-20T13:40:30.965Z",
+    "howProduced": [
+      "Listings: 39 catalog_products rows in category \"Headphones\" from the local Supabase DB (last seen 2026-09-14). Titles, stores, URLs, listed prices, conditions and store shipping are as stored; eBay thumbnails are requested at 500 px instead of 140 px.",
+      "Prices: every GH₵ figure is PricingCalculator.calculate() over the local DB's pricing_constants, category_pricing_map, fixed_freight_items and USD rate.",
+      "Override: the Tomame fee is 4% on every group, as production has charged since 2026-11-19; the local DB still holds older per-group percentages.",
+      "Not real yet: the shortlist is plain title/condition rules standing in for the Haiku step, and event timings are scripted to the plan's 30–90 s estimate. The nothing-found run reflects a catalogue with no PS5 listings."
+    ],
+    "exchangeRate": {
+      "usdGhsMidMarket": 14.43,
+      "provider": "local-seed",
+      "fetchedAt": "2026-09-12T02:47:54.636553+00:00",
+      "applied": 15.01
+    },
+    "catalogueRowIds": [
+      "b2b231a6-683f-4c5c-b60f-38ab5c680144",
+      "c359dc25-c99b-483f-aef2-ff94cda11f59",
+      "e2a38150-adba-49f9-9e30-69468bbbfd7a"
+    ],
+    "shortlist": {
+      "listings": 39,
+      "matches": 6,
+      "withinBudget": 4,
+      "dropped": {
+        "notNew": 25,
+        "noAnc": 1,
+        "notOverEar": 6,
+        "unbranded": 1,
+        "overBudget": 2
+      }
+    }
+  },
+  "runs": {
+    "found": [
+      {
+        "type": "run_started",
+        "at": 0,
+        "query": "Noise-cancelling headphones under GH₵1,500",
+        "budgetGhs": 1500
+      },
+      {
+        "type": "step_started",
+        "at": 300,
+        "step": "understand",
+        "label": "Reading your request"
+      },
+      {
+        "type": "spec_parsed",
+        "at": 2600,
+        "spec": {
+          "product": "Noise-cancelling headphones",
+          "mustHaves": [
+            "Over-ear",
+            "Active noise cancelling"
+          ],
+          "budgetGhs": 1500,
+          "newOnly": true
+        }
+      },
+      {
+        "type": "step_done",
+        "at": 2700,
+        "step": "understand",
+        "summary": "Over-ear, noise-cancelling, new, up to GH₵1,500 landed"
+      },
+      {
+        "type": "step_started",
+        "at": 3000,
+        "step": "search",
+        "label": "Searching Amazon, Walmart and eBay"
+      },
+      {
+        "type": "store_search_started",
+        "at": 3200,
+        "store": {
+          "id": "amazon",
+          "name": "Amazon"
+        }
+      },
+      {
+        "type": "store_search_started",
+        "at": 3700,
+        "store": {
+          "id": "walmart",
+          "name": "Walmart"
+        }
+      },
+      {
+        "type": "store_search_started",
+        "at": 4200,
+        "store": {
+          "id": "ebay",
+          "name": "eBay"
+        }
+      },
+      {
+        "type": "store_search_done",
+        "at": 9000,
+        "storeId": "amazon",
+        "listings": 0
+      },
+      {
+        "type": "store_search_done",
+        "at": 11600,
+        "storeId": "walmart",
+        "listings": 0
+      },
+      {
+        "type": "store_search_done",
+        "at": 14200,
+        "storeId": "ebay",
+        "listings": 39
+      },
+      {
+        "type": "step_done",
+        "at": 14600,
+        "step": "search",
+        "summary": "Found 39 listings across 3 stores"
+      },
+      {
+        "type": "step_started",
+        "at": 14900,
+        "step": "shortlist",
+        "label": "Setting aside anything that is not an exact match"
+      },
+      {
+        "type": "candidate_found",
+        "at": 18500,
+        "candidate": {
+          "id": "b2b231a6-683f-4c5c-b60f-38ab5c680144",
+          "title": "Soundcore by Anker Q20i Hybrid Active Noise Cancelling Headphones, Big Bass",
+          "store": {
+            "id": "ebay",
+            "name": "eBay"
+          },
+          "productUrl": "https://www.ebay.com/itm/335394957507",
+          "imageUrl": "https://i.ebayimg.com/images/g/ZwUAAOSwlU5mRW6f/s-l500.webp",
+          "condition": "New",
+          "listingPriceUsd": 39.98,
+          "seller": "ankerdirect"
+        }
+      },
+      {
+        "type": "candidate_found",
+        "at": 19900,
+        "candidate": {
+          "id": "c359dc25-c99b-483f-aef2-ff94cda11f59",
+          "title": "TRON Hybrid Noise Cancelling Headphones, OverEar Wireless Bluetooth Transparency",
+          "store": {
+            "id": "ebay",
+            "name": "eBay"
+          },
+          "productUrl": "https://www.ebay.com/itm/206020833146",
+          "imageUrl": "https://i.ebayimg.com/images/g/KnwAAeSwWm5pdBH4/s-l500.webp",
+          "condition": "New",
+          "listingPriceUsd": 41.59,
+          "seller": null
+        }
+      },
+      {
+        "type": "candidate_found",
+        "at": 21300,
+        "candidate": {
+          "id": "e2a38150-adba-49f9-9e30-69468bbbfd7a",
+          "title": "Belkin ANC Over-Ear Bluetooth Headphones Fast Charge | 60Hr Battery | Black",
+          "store": {
+            "id": "ebay",
+            "name": "eBay"
+          },
+          "productUrl": "https://www.ebay.com/itm/127625193325",
+          "imageUrl": "https://i.ebayimg.com/images/g/hnIAAeSwIwdpaNMy/s-l500.webp",
+          "condition": "New",
+          "listingPriceUsd": 59.99,
+          "seller": "belkin-official-store"
+        }
+      },
+      {
+        "type": "step_done",
+        "at": 22400,
+        "step": "shortlist",
+        "summary": "6 of 39 are new, over-ear and noise-cancelling",
+        "details": [
+          "25 not sold as new",
+          "7 earbuds, on-ear or no noise cancelling",
+          "1 unbranded"
+        ]
+      },
+      {
+        "type": "step_started",
+        "at": 22700,
+        "step": "price",
+        "label": "Checking each price at the store"
+      },
+      {
+        "type": "price_check_started",
+        "at": 23000,
+        "candidateId": "b2b231a6-683f-4c5c-b60f-38ab5c680144"
+      },
+      {
+        "type": "step_started",
+        "at": 30000,
+        "step": "freight",
+        "label": "Working out freight to Accra"
+      },
+      {
+        "type": "candidate_priced",
+        "at": 31500,
+        "candidateId": "b2b231a6-683f-4c5c-b60f-38ab5c680144",
+        "quote": {
+          "totalGhs": 934.16,
+          "totalUsd": 62.24,
+          "exchangeRate": 15.01,
+          "rows": [
+            {
+              "key": "item",
+              "label": "Item",
+              "amountGhs": 600.1,
+              "note": "$39.98 at GH₵15.01 to the dollar"
+            },
+            {
+              "key": "tax",
+              "label": "US sales tax",
+              "amountGhs": 60.04,
+              "note": "$4.00"
+            },
+            {
+              "key": "fee",
+              "label": "Tomame fee – 4% flat on the item price",
+              "amountGhs": 24.02,
+              "note": "$1.60"
+            },
+            {
+              "key": "freight",
+              "label": "Freight, incl. customs & clearance",
+              "amountGhs": 250,
+              "note": "Flat rate for headphones"
+            },
+            {
+              "key": "customs",
+              "label": "Customs & clearance – Included in freight – GH₵0 extra",
+              "amountGhs": 0
+            }
+          ]
+        },
+        "stockCheck": false
+      },
+      {
+        "type": "price_check_started",
+        "at": 32000,
+        "candidateId": "c359dc25-c99b-483f-aef2-ff94cda11f59"
+      },
+      {
+        "type": "candidate_priced",
+        "at": 40500,
+        "candidateId": "c359dc25-c99b-483f-aef2-ff94cda11f59",
+        "quote": {
+          "totalGhs": 961.62,
+          "totalUsd": 64.07,
+          "exchangeRate": 15.01,
+          "rows": [
+            {
+              "key": "item",
+              "label": "Item",
+              "amountGhs": 624.26,
+              "note": "$41.59 at GH₵15.01 to the dollar"
+            },
+            {
+              "key": "tax",
+              "label": "US sales tax",
+              "amountGhs": 62.44,
+              "note": "$4.16"
+            },
+            {
+              "key": "fee",
+              "label": "Tomame fee – 4% flat on the item price",
+              "amountGhs": 24.92,
+              "note": "$1.66"
+            },
+            {
+              "key": "freight",
+              "label": "Freight, incl. customs & clearance",
+              "amountGhs": 250,
+              "note": "Flat rate for headphones"
+            },
+            {
+              "key": "customs",
+              "label": "Customs & clearance – Included in freight – GH₵0 extra",
+              "amountGhs": 0
+            }
+          ]
+        },
+        "stockCheck": false
+      },
+      {
+        "type": "price_check_started",
+        "at": 41000,
+        "candidateId": "e2a38150-adba-49f9-9e30-69468bbbfd7a"
+      },
+      {
+        "type": "candidate_priced",
+        "at": 49500,
+        "candidateId": "e2a38150-adba-49f9-9e30-69468bbbfd7a",
+        "quote": {
+          "totalGhs": 1276.53,
+          "totalUsd": 85.05,
+          "exchangeRate": 15.01,
+          "rows": [
+            {
+              "key": "item",
+              "label": "Item",
+              "amountGhs": 900.45,
+              "note": "$59.99 at GH₵15.01 to the dollar"
+            },
+            {
+              "key": "tax",
+              "label": "US sales tax",
+              "amountGhs": 90.06,
+              "note": "$6.00"
+            },
+            {
+              "key": "fee",
+              "label": "Tomame fee – 4% flat on the item price",
+              "amountGhs": 36.02,
+              "note": "$2.40"
+            },
+            {
+              "key": "freight",
+              "label": "Freight, incl. customs & clearance",
+              "amountGhs": 250,
+              "note": "Flat rate for headphones"
+            },
+            {
+              "key": "customs",
+              "label": "Customs & clearance – Included in freight – GH₵0 extra",
+              "amountGhs": 0
+            }
+          ]
+        },
+        "stockCheck": false
+      },
+      {
+        "type": "step_done",
+        "at": 50000,
+        "step": "price",
+        "summary": "All 3 prices confirmed at the store"
+      },
+      {
+        "type": "step_done",
+        "at": 50200,
+        "step": "freight",
+        "summary": "Headphones ship at a flat GH₵250, customs and clearance included"
+      },
+      {
+        "type": "step_started",
+        "at": 50500,
+        "step": "compare",
+        "label": "Comparing landed totals"
+      },
+      {
+        "type": "step_done",
+        "at": 55800,
+        "step": "compare",
+        "summary": "4 fit your budget, 2 were over it. Ranked by landed total."
+      },
+      {
+        "type": "result_ready",
+        "at": 56000,
+        "bestId": "b2b231a6-683f-4c5c-b60f-38ab5c680144",
+        "alternativeIds": [
+          "c359dc25-c99b-483f-aef2-ff94cda11f59",
+          "e2a38150-adba-49f9-9e30-69468bbbfd7a"
+        ],
+        "why": {
+          "b2b231a6-683f-4c5c-b60f-38ab5c680144": "Lowest landed total of the 4 new noise-cancelling over-ear pairs within your budget. The TRON pair is GH₵27.46 more with the same freight. Sold by the brand's own eBay store.",
+          "c359dc25-c99b-483f-aef2-ff94cda11f59": "GH₵27.46 more than the Soundcore by Anker Q20i. Same flat freight, so the difference is the store price.",
+          "e2a38150-adba-49f9-9e30-69468bbbfd7a": "GH₵342.37 more than the lowest. Sold by the brand's own eBay store. The JBL Tune 780NC came next at GH₵1,484.12: its seller adds $8.13 shipping."
+        }
+      }
+    ],
+    "notFound": [
+      {
+        "type": "run_started",
+        "at": 0,
+        "query": "PS5 Slim digital",
+        "budgetGhs": null
+      },
+      {
+        "type": "step_started",
+        "at": 300,
+        "step": "understand",
+        "label": "Reading your request"
+      },
+      {
+        "type": "spec_parsed",
+        "at": 2400,
+        "spec": {
+          "product": "PlayStation 5 Slim",
+          "mustHaves": [
+            "Digital Edition"
+          ],
+          "budgetGhs": null,
+          "newOnly": true
+        }
+      },
+      {
+        "type": "step_done",
+        "at": 2500,
+        "step": "understand",
+        "summary": "PS5 Slim, Digital Edition, new"
+      },
+      {
+        "type": "step_started",
+        "at": 2800,
+        "step": "search",
+        "label": "Searching Amazon, Walmart and eBay"
+      },
+      {
+        "type": "store_search_started",
+        "at": 3000,
+        "store": {
+          "id": "amazon",
+          "name": "Amazon"
+        }
+      },
+      {
+        "type": "store_search_started",
+        "at": 3500,
+        "store": {
+          "id": "walmart",
+          "name": "Walmart"
+        }
+      },
+      {
+        "type": "store_search_started",
+        "at": 4000,
+        "store": {
+          "id": "ebay",
+          "name": "eBay"
+        }
+      },
+      {
+        "type": "store_search_done",
+        "at": 8000,
+        "storeId": "amazon",
+        "listings": 0
+      },
+      {
+        "type": "store_search_done",
+        "at": 10200,
+        "storeId": "walmart",
+        "listings": 0
+      },
+      {
+        "type": "store_search_done",
+        "at": 12400,
+        "storeId": "ebay",
+        "listings": 0
+      },
+      {
+        "type": "step_done",
+        "at": 12600,
+        "step": "search",
+        "summary": "No listings in any of the 3 stores"
+      },
+      {
+        "type": "nothing_found",
+        "at": 13000,
+        "message": "We searched Amazon, Walmart and eBay and found no new PS5 Slim Digital Edition we can buy and ship for you.",
+        "whatsappText": "Hi Tomame, please help me find this: PS5 Slim digital (new)."
+      }
+    ]
+  }
+}

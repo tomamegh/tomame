@@ -1,0 +1,89 @@
+import {
+  appUrl,
+  button,
+  callout,
+  divider,
+  EMAIL_COLORS,
+  escapeHtml,
+  eyebrow,
+  heading,
+  infoRow,
+  infoTable,
+  muted,
+  paragraph,
+  renderEmail,
+  summaryCard,
+  type RenderedEmail,
+} from "@/lib/email/templates/layout";
+
+import { formatGhs } from "../format";
+import type { FinderCandidateState } from "../types";
+
+/**
+ * "Your best price is ready": the email a finder run promises the customer
+ * when it tells them they can close the page.
+ *
+ * Figures are the run's own (the calculator's totals and rows, as streamed);
+ * nothing is recomputed here. The buttons go into the normal quote flow,
+ * which prices again under the customer's own rate lock before they pay, so
+ * the email says that rather than promising the number holds forever.
+ */
+export interface FinderResultEmailData {
+  query: string;
+  best: FinderCandidateState;
+  alternatives: FinderCandidateState[];
+}
+
+/** The quote flow for one listing: `/app/orders/new?url=` prices it and opens it. */
+export function finderQuoteUrl(productUrl: string): string {
+  return `${appUrl()}/app/orders/new?url=${encodeURIComponent(productUrl)}`;
+}
+
+export function finderResultTemplate({ query, best, alternatives }: FinderResultEmailData): RenderedEmail {
+  const q = escapeHtml(query);
+  const bestQuote = best.quote;
+  const bestTotal = bestQuote ? formatGhs(bestQuote.totalGhs) : null;
+
+  const breakdown = bestQuote
+    ? summaryCard({
+        label: `Best price · ${escapeHtml(best.store.name)} · ${best.condition}`,
+        title: escapeHtml(best.title),
+        rows: bestQuote.rows.map((r) => [escapeHtml(r.label), formatGhs(r.amountGhs)] as const),
+        total: ["Landed in Accra", formatGhs(bestQuote.totalGhs)],
+      })
+    : "";
+
+  const others = alternatives.filter((c) => c.quote && c.status === "priced");
+  const othersBlock =
+    others.length > 0
+      ? `${divider()}
+      <p class="tm-ink" style="margin:0 0 4px; font-size:16px; line-height:24px; font-weight:700; color:${EMAIL_COLORS.ink};">Other options</p>
+      ${infoTable(
+        others
+          .map((c) =>
+            infoRow(
+              `${escapeHtml(c.title)}<br /><span class="tm-text3" style="font-size:12px; color:${EMAIL_COLORS.text3};">${escapeHtml(c.store.name)} · ${c.condition}</span>`,
+              `<a href="${escapeHtml(finderQuoteUrl(c.productUrl))}" class="tm-coral-text" style="color:${EMAIL_COLORS.coralStrong}; text-decoration:none;">${formatGhs(c.quote!.totalGhs)}</a>`,
+            ),
+          )
+          .join(""),
+      )}`
+      : "";
+
+  return renderEmail(bestTotal ? `Best price for "${query}": ${bestTotal} landed` : `Your price finder results for "${query}"`, {
+    preheader: bestTotal
+      ? `${best.store.name}, new, ${bestTotal} landed in Accra with freight, customs and our fee included.`
+      : "We found matches and are confirming their prices with the stores.",
+    body: `
+      ${eyebrow("Price finder", "green")}
+      ${heading("Your best price is ready")}
+      ${paragraph(`You asked us to find <strong>${q}</strong>. Here is the lowest landed price we found, with everything to Accra included.`)}
+      ${breakdown}
+      ${best.why ? callout(`<strong>Why this one:</strong> ${escapeHtml(best.why)}`, "neutral") : ""}
+      ${button(finderQuoteUrl(best.productUrl), "Add it to your bag")}
+      ${muted("We check the price with the store again before you pay, and nothing is charged until you approve it.")}
+      ${othersBlock}
+    `,
+    reason: `You are getting this because you asked Tomame's price finder to look for &ldquo;${q}&rdquo; and we said we would email you the result.`,
+  });
+}
