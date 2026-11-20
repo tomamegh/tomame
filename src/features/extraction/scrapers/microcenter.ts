@@ -3,13 +3,13 @@ import type { HtmlAttemptName, PlatformScraper, ScrapedProduct } from "./types";
 import { TomameCategory, MICROCENTER_CATEGORY_MAP } from "@/config/categories";
 import type { ApifyMicrocenterProduct } from "@/lib/apify/client";
 import { parseWeightLbs } from "../weight";
-import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition, salePrice } from "./parse";
+import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition, salePrice, textOf } from "./parse";
 
 type JsonLdNode = Record<string, unknown>;
 
 function text($: CheerioAPI, selector: string): string | null {
   const el = $(selector).first();
-  const t = el.text().trim().replace(/\s+/g, " ");
+  const t = textOf(el).trim().replace(/\s+/g, " ");
   return t || null;
 }
 

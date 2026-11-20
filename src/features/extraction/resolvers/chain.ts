@@ -16,9 +16,10 @@ import { zyteResolver } from "./zyte.resolver";
 import { categoryResolver } from "./category.resolver";
 import { ebayResolver } from "./ebay.resolver";
 import { shopifyResolver } from "./shopify.resolver";
-import type { ChainOutcome, ExtractionResolver, HtmlFetch, ResolveContext } from "./types";
+import type { ChainOutcome, ExtractionResolver, HtmlFetch, ResolveContext, ResolverResult } from "./types";
 import { WEIGHT_NOT_LISTED_MESSAGE } from "./messages";
 import { PAGE_OFFER_CONFIDENCE } from "./structured-data.resolver";
+import { guardHtmlPrice, PRICE_REJECTED_MESSAGE, type PriceRead } from "../price-confidence";
 
 /** Every resolver, by name. A store's `providers` list picks and orders them. */
 export const RESOLVERS: Record<ExtractionSource, ExtractionResolver> = {
@@ -127,6 +128,7 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     ? { product: { ...input.seed.product }, confidence: { ...input.seed.confidence }, sources: { ...input.seed.fieldSources } }
     : { product: emptyProduct(), confidence: {}, sources: {} };
   const messages: string[] = [];
+  const priceReads: PriceRead[] = [];
   const ran: ExtractionSource[] = [];
   const skipped: ExtractionSource[] = [];
   const timings: ChainOutcome["timings"] = {};
@@ -199,6 +201,8 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
         if (closed) return; // lost the race; the outcome is already sealed
         ran.push(resolver.name);
         mergeResult(state, resolver.name, result, resolver.defaultConfidence);
+        const read = priceReadOf(resolver.name, result);
+        if (read) priceReads.push(read);
         if (result.messages?.length) messages.push(...result.messages);
         logger.info("chain: resolver done", {
           url: input.url,
@@ -341,9 +345,13 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
   // Started but not finished → treat as not run, so enrichment can retry them.
   skipped.push(...[...pending.keys()].filter((n) => !skipped.includes(n)));
 
+  // A3: an HTML-only price its own page contradicts is never quoted.
+  const priceRejected = rejectHtmlPrice(state, store, priceReads, input.url);
+  if (priceRejected) messages.push(PRICE_REJECTED_MESSAGE);
+
   if (unavailable()) {
     messages.push("The store lists this item as unavailable right now. You can still enter a price and our team will check it.");
-  } else if (!hasRequiredFields(state.product)) {
+  } else if (!hasRequiredFields(state.product) && !priceRejected) {
     if (html.attempted && !html.result) messages.push("We could not load this product page. You can still continue and enter the details yourself.");
     else if (!state.product.title) messages.push("Product name could not be read from the page.");
     else if (state.product.price == null) messages.push("Price could not be read from the page. Enter it below and our team will verify it.");
@@ -366,7 +374,37 @@ export async function resolveProduct(input: ResolveInput): Promise<ChainOutcome>
     messages: Array.from(new Set(messages)),
     durationMs: Date.now() - started,
     timings,
+    priceReads,
+    leaked: state.leaked ?? [],
+    priceRejected,
   };
+}
+
+/** A tier's own price reading, before the merge picked a winner. */
+function priceReadOf(source: ExtractionSource, result: ResolverResult): PriceRead | null {
+  const p = result.product ?? {};
+  if (typeof p.price !== "number" || !Number.isFinite(p.price) || p.price <= 0) return null;
+  const meta = p.metadata ?? {};
+  const via = typeof meta.priceSource === "string" ? meta.priceSource : typeof meta.priceVia === "string" ? meta.priceVia : null;
+  return { source, price: p.price, currency: typeof p.currency === "string" ? p.currency : null, via };
+}
+
+/**
+ * Clear the merged price when `guardHtmlPrice` refuses it. The rejected figure
+ * is kept on the outcome (not the product) for daily health and the log.
+ */
+function rejectHtmlPrice(state: MergeState, store: StoreDefinition, reads: PriceRead[], url: string): ChainOutcome["priceRejected"] {
+  const source = state.sources.price ?? null;
+  const price = state.product.price;
+  if (!source || price == null) return null;
+  const reason = guardHtmlPrice({ storeCurrency: store.currency, product: state.product, priceSource: source, reads });
+  if (!reason) return null;
+  logger.warn("extraction: html price rejected", { url, source, price, currency: state.product.currency, reason });
+  const rejected = { price, currency: state.product.currency, source, reason };
+  state.product.price = null;
+  delete state.confidence.price;
+  delete state.sources.price;
+  return rejected;
 }
 
 /**
@@ -380,10 +418,17 @@ export async function continueResolve(
   const all = input.resolvers ?? resolversForStore(storeFor(input));
   const remaining = all.filter((r) => previous.skipped.includes(r.name));
   if (remaining.length === 0) return previous;
-  return resolveProduct({
+  const next = await resolveProduct({
     ...input,
     resolvers: remaining,
     seed: previous,
     initialHtml: previous.html,
   });
+  // The first pass's readings still count towards the price's confidence.
+  return {
+    ...next,
+    priceReads: [...previous.priceReads, ...next.priceReads],
+    leaked: [...previous.leaked, ...next.leaked],
+    priceRejected: next.priceRejected ?? previous.priceRejected,
+  };
 }

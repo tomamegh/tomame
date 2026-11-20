@@ -25,7 +25,9 @@ export type StaffAlertTrigger =
   | { kind: "contact_message"; messageId: string }
   | { kind: "car_enquiry"; enquiryId: string; carTitle: string }
   /** 101: a customer is sending (or called off) their own rider to the Accra warehouse. */
-  | { kind: "customer_ride"; orderId: string; action: "requested" | "cancelled"; at: string };
+  | { kind: "customer_ride"; orderId: string; action: "requested" | "cancelled"; at: string }
+  /** 103: a price or stock check needs a person before the customer can pay (or a customer reported a wrong price). */
+  | { kind: "quote_check"; checkId: string };
 
 /** Which toggle a trigger belongs to. */
 export function eventOf(t: StaffAlertTrigger): StaffAlertEvent {
@@ -53,6 +55,8 @@ export function eventOf(t: StaffAlertTrigger): StaffAlertEvent {
     case "car_enquiry":
     case "customer_ride":
       return "customer_message";
+    case "quote_check":
+      return "quote_check";
   }
 }
 
@@ -91,6 +95,8 @@ export function eventKeyOf(t: StaffAlertTrigger): string {
     case "customer_ride":
       // A changed request is news too, so the key carries when it was made.
       return `customer_message:ride:${t.orderId}:${t.action}:${t.at}`;
+    case "quote_check":
+      return `quote_check:${t.checkId}`;
   }
 }
 
@@ -121,6 +127,8 @@ export function entityOf(t: StaffAlertTrigger): { entity_type: string; entity_id
       return { entity_type: "contact_message", entity_id: t.messageId };
     case "car_enquiry":
       return { entity_type: "car_enquiry", entity_id: t.enquiryId };
+    case "quote_check":
+      return { entity_type: "quote_check", entity_id: t.checkId };
   }
 }
 

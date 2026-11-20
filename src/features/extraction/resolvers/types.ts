@@ -2,6 +2,7 @@ import type { ExtractionSource } from "@/config/extraction";
 import type { PlatformScraper, ScrapedProduct } from "../scrapers";
 import type { StoreDefinition } from "../stores";
 import type { Region } from "../url";
+import type { HtmlPriceRejection, PriceRead } from "../price-confidence";
 
 export type PartialProduct = Partial<ScrapedProduct>;
 
@@ -92,4 +93,10 @@ export interface ChainOutcome {
   durationMs: number;
   /** Per-resolver wall time, for the bench and logs. */
   timings: Partial<Record<ExtractionSource, number>>;
+  /** Every tier's reading of the price, in merge order (price-confidence.ts). */
+  priceReads: PriceRead[];
+  /** Fields refused because they held script, not text. */
+  leaked: Array<{ field: string; source: ExtractionSource }>;
+  /** An HTML-only price thrown out by the A3 guard; `product.price` is null when set. */
+  priceRejected: { price: number; currency: string | null; source: ExtractionSource; reason: HtmlPriceRejection } | null;
 }

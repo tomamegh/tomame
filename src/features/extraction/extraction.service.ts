@@ -9,6 +9,7 @@ import { reviveRegion } from "./region-revive";
 import { storeForUrl, type StoreDefinition } from "./stores";
 import { resolveProduct, continueResolve, type ChainOutcome } from "./resolvers";
 import { hasRequiredFields, hasWeight } from "./resolvers/merge";
+import { extractionQualityOf } from "./quality";
 import { classifyCategory } from "./category.service";
 import { inspectFreight, planFreightInspection } from "@/features/pricing/services/freight-inspector.service";
 import { freightCheckDue } from "@/features/pricing/freight-inspection";
@@ -198,6 +199,7 @@ function toResult(prepared: PreparedUrl, outcome: ChainOutcome, sourcesRan: Chai
     sources: sourcesRan,
     confidence: outcome.confidence,
     fetched_at: new Date().toISOString(),
+    ...extractionQualityOf(outcome, prepared.store),
   };
 }
 

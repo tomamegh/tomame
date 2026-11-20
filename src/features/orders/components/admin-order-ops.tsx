@@ -100,6 +100,10 @@ function TransitionControl({
   const [storeOrderRef, setStoreOrderRef] = useState("");
   const [shareTracking, setShareTracking] = useState(false);
   const filledTracking = storeTracking.map((t) => t.trim()).filter(Boolean);
+  // 103 (A0b): what the store charged per item — the ground truth quotes are measured against.
+  const [storePaid, setStorePaid] = useState("");
+  const [storePaidCurrency, setStorePaidCurrency] = useState(order.origin_country === "UK" ? "GBP" : "USD");
+  const storePaidValid = Number(storePaid) > 0;
 
   const busy = saving || pending;
 
@@ -115,6 +119,10 @@ function TransitionControl({
           store_order_ref: storeOrderRef.trim() || null,
         }));
         body.share_store_tracking = shareTracking;
+      }
+      if (isPurchase) {
+        body.store_paid_price = Number(storePaid);
+        body.store_paid_currency = storePaidCurrency;
       }
       if (transition.carriesTracking) {
         if (carrier.trim()) body.carrier = carrier.trim();
@@ -174,6 +182,33 @@ function TransitionControl({
           share={shareTracking}
           onShare={setShareTracking}
         />
+      ) : null}
+
+      {isPurchase ? (
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <Field label="Store charged, per item (before tax and shipping)" id={`store-paid-${order.id}`}>
+            <input
+              id={`store-paid-${order.id}`}
+              inputMode="decimal"
+              value={storePaid}
+              onChange={(event) => setStorePaid(event.target.value)}
+              placeholder={order.extraction_metadata?.product?.price != null ? `Quoted ${order.extraction_metadata.product.price}` : "0.00"}
+              className={cn(INPUT, "tm-nums")}
+            />
+          </Field>
+          <Field label="Currency" id={`store-paid-currency-${order.id}`}>
+            <select
+              id={`store-paid-currency-${order.id}`}
+              value={storePaidCurrency}
+              onChange={(event) => setStorePaidCurrency(event.target.value)}
+              className={INPUT}
+            >
+              <option value="USD">USD</option>
+              <option value="GBP">GBP</option>
+              <option value="CNY">CNY</option>
+            </select>
+          </Field>
+        </div>
       ) : null}
 
       {transition.carriesTracking ? (
@@ -242,7 +277,7 @@ function TransitionControl({
           <button
             type="button"
             onClick={submit}
-            disabled={busy}
+            disabled={busy || (isPurchase && !storePaidValid)}
             aria-busy={busy}
             className={transition.destructive ? BUTTON_DANGER : BUTTON_PRIMARY}
           >

@@ -19,6 +19,7 @@ import {
   type StaffOrderRow,
   type StaffPaymentRow,
 } from "@/db/queries/staff-alerts";
+import { getStaffQuoteCheck } from "@/db/queries/quote-checks";
 import { alertsEnabled, environmentLabel } from "@/features/ops/alert-recipients";
 import { sendEmail } from "@/lib/email/transport";
 import {
@@ -596,6 +597,38 @@ export async function buildAlert(t: StaffAlertTrigger, environment: string | nul
         tone: "amber",
         headline: `${offer ? "Offer" : "Price request"} on ${t.carTitle}`,
         summary: `${customer.name ?? customer.email ?? "A customer"} ${what} ${t.carTitle}.`,
+        facts,
+      };
+    }
+    case "quote_check": {
+      const check = await getStaffQuoteCheck(t.checkId);
+      if (!check) throw new Error(`quote check ${t.checkId} not found`);
+      const customer = check.user_id ? await customerOf(check.user_id) : { name: null, email: null, phone: null };
+      const stock = check.kind === "stock";
+      const report = check.origin === "customer";
+      const title = check.product_title ?? hostLabel(check.product_url);
+      const quoted = check.quoted_price != null ? `${check.quoted_currency ?? ""} ${check.quoted_price}`.trim() : "not read";
+      const facts: [string, string][] = [["Link", check.product_url], ["Quoted price", quoted]];
+      if (check.reasons.length) facts.push(["Why", check.reasons.join("; ").slice(0, 500)]);
+      if (check.reported_price != null) facts.push(["Customer says", String(check.reported_price)]);
+      if (check.customer_note) facts.push(["Customer note", check.customer_note.slice(0, 500)]);
+      if (check.reread_price != null) facts.push(["Re-read", `${check.reread_currency ?? ""} ${check.reread_price} via ${check.reread_source ?? "?"}`.trim()]);
+      const href = stock ? "/admin/stock-checks" : "/admin/price-checks";
+      return {
+        customer,
+        items: [{ name: title, quantity: 1, reference: null, href }],
+        totalGhs: null,
+        payment: null,
+        adminHref: href,
+        adminLabel: stock ? "Open stock checks" : "Open price checks",
+        environment,
+        subject: `${p} ${report ? "Wrong price reported" : stock ? "Stock check" : "Price check"}: ${title.slice(0, 80)}`,
+        eyebrow: stock ? "Stock check" : "Price check",
+        tone: "amber",
+        headline: report ? "A customer says this price is wrong" : stock ? "Confirm stock and condition before this can be paid" : "Confirm this price before it can be paid",
+        summary: report
+          ? `${customer.name ?? customer.email ?? "A visitor"} reported the quoted price for ${title}.`
+          : `Pay is blocked on ${title} until someone checks it on the store.`,
         facts,
       };
     }

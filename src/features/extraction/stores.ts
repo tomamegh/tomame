@@ -49,8 +49,15 @@ export interface StoreDefinition {
 
 export const GENERIC_STORE_SLUG = "generic";
 
-/** Plans shared by several stores. */
-const AMAZON_PLAN: ProviderPlanEntry[] = ["scraperapi", "oxylabs", "zyte", "rainforest", "category-map", "platform-html", "structured-data", "llm"];
+/**
+ * Plans shared by several stores.
+ *
+ * Amazon has no Oxylabs tier (2026-11-20): in 30 days of prod it produced no
+ * priced Amazon result, and because it failed fastest it labelled the "read
+ * nothing" rows as its own. The `geo_location` fix in lib/oxylabs is untested
+ * live; put it back after `scripts/extraction-accuracy-audit.ts` shows it pricing.
+ */
+const AMAZON_PLAN: ProviderPlanEntry[] = ["scraperapi", "zyte", "rainforest", "category-map", "platform-html", "structured-data", "llm"];
 /**
  * Stores without their own scraper. Zyte's AI product read starts first; the
  * page's own JSON-LD/OpenGraph is read in parallel (hedged 2 s behind, through

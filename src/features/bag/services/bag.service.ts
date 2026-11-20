@@ -11,6 +11,9 @@ import { getExtractionSnapshot } from "@/features/extraction/extraction.service"
 import { type PriceOverrides, gapFillOverrides } from "@/features/extraction/quote.service";
 import { FREIGHT_CHECKING_MESSAGE } from "@/features/extraction/resolvers/messages";
 import { freightCheckPending } from "@/features/pricing/freight-inspection";
+import { checksNeeded, payHoldOf, type PayHold } from "@/features/extraction/pay-gate";
+import { checksByExtraction, ensureQuoteChecks } from "@/features/quote-checks/services/quote-checks.service";
+import type { QuoteCheckRow } from "@/db/queries/quote-checks";
 import { isPayablePricing } from "@/lib/pricing/payable";
 import { applyRateLock } from "@/features/quotes/services/quote-lock.service";
 import { pickProductColour } from "@/features/quotes/components/format";
@@ -79,7 +82,9 @@ export async function getBag(viewer: Viewer): Promise<BagView> {
   if (!cart) return emptyBag();
   const [allRows, delivery] = await Promise.all([listCartItems(cart.id), resolveDelivery(viewer, cart)]);
   const rows = await reconcilePendingLines(allRows);
-  const lines = await Promise.all(rows.map((row) => priceLine(viewer, row)));
+  // One read of every line's price/stock checks, for the pay gate (103).
+  const checks = await checksByExtraction(rows.map((r) => r.extraction_cache_id).filter((id): id is string => !!id));
+  const lines = await Promise.all(rows.map((row) => priceLine(viewer, row, checks)));
   await attachSourcing(lines);
   const packed = await packIntoBoxes(rows, lines);
   return summarize(cart.id, lines, packed, delivery);
@@ -131,7 +136,11 @@ export async function addToBag(viewer: Viewer, input: AddToBagInput): Promise<Ad
       });
   await touchCart(cart.id);
 
-  const line = toLine(row, snapshot, priced);
+  // The line is in the bag: open the price/stock checks Pay will wait on, so
+  // staff hear about it now rather than at checkout (103).
+  await ensureQuoteChecks(viewer, input.extraction_cache_id!, snapshot.productUrl, snapshot.result);
+  const checks = (await checksByExtraction([input.extraction_cache_id!])).get(input.extraction_cache_id!) ?? [];
+  const line = toLine(row, snapshot, { ...priced, payHold: payHoldOf({ extraction: snapshot.result, checks }) });
   return { line, item_count: await countBagItems(viewer), created: !existing };
 }
 
@@ -349,6 +358,8 @@ interface Priced {
   reason: string | null;
   /** True when the line is unpriced only because its freight is still being checked. */
   freightChecking?: boolean;
+  /** 103: the pay gate's answer for this line. */
+  payHold?: PayHold | null;
 }
 
 /** The customer's chosen store shipping service, added to the price overrides; null stays null when there is nothing to override. */
@@ -441,7 +452,7 @@ async function priceSnapshot(
   }
 }
 
-async function priceLine(viewer: Viewer, row: CartItemRow): Promise<BagLine> {
+async function priceLine(viewer: Viewer, row: CartItemRow, checks: Map<string, QuoteCheckRow[]> = new Map()): Promise<BagLine> {
   // Graduation already happened in `reconcilePendingLines`; a row still without
   // an extraction here is genuinely still being read.
   if (!row.extraction_cache_id) {
@@ -454,7 +465,12 @@ async function priceLine(viewer: Viewer, row: CartItemRow): Promise<BagLine> {
     return toLine(row, null, { pricing: null, reason: "This quote has expired. Remove the line and paste the link again." });
   }
   const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, row.quantity, row.gap_price_usd, row.gap_origin_country, row.sourced_price_usd, row.store_shipping_code);
-  return toLine(row, snapshot, priced);
+  const lineChecks = checks.get(row.extraction_cache_id) ?? [];
+  // A line added before 103, or whose confirmation expired, gets its checks opened here.
+  const needed = checksNeeded({ extraction: snapshot.result, checks: lineChecks });
+  if (needed.price || needed.stock) await ensureQuoteChecks(viewer, row.extraction_cache_id, snapshot.productUrl, snapshot.result);
+  const fresh = needed.price || needed.stock ? (await checksByExtraction([row.extraction_cache_id])).get(row.extraction_cache_id) ?? [] : lineChecks;
+  return toLine(row, snapshot, { ...priced, payHold: payHoldOf({ extraction: snapshot.result, checks: fresh }) });
 }
 
 /**
@@ -766,6 +782,7 @@ function toLine(row: CartItemRow, snapshot: Snapshot, priced: Priced): BagLine {
     // Attached by `getBag` in one query for the whole bag, never per line.
     sourcing: null,
     freight_checking: priced.freightChecking === true,
+    pay_hold: priced.payHold ?? null,
   };
 }
 
@@ -805,6 +822,7 @@ export function summarize(cartId: string | null, lines: BagLine[], packed: Packe
     has_unpriced_lines: priced.length < lines.length,
     has_pending_lines: lines.some((l) => l.pending != null),
     has_freight_checks: lines.some((l) => l.freight_checking),
+    has_pay_holds: lines.some((l) => l.pay_hold != null && l.pay_hold.kind !== "freight_check"),
     // `unavailable` counts too: a buyer has said we cannot get it, so the line
     // is not merely unpriced — it is not coming, and the bag must say so rather
     // than leaving it looking like something that might still resolve.

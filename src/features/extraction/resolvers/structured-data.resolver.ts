@@ -2,7 +2,7 @@ import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import { logger } from "@/lib/logger";
 import { parseWeightLbs, unitOf } from "../weight";
-import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition, salePrice } from "../scrapers/parse";
+import { cleanString, normalizeImages, parseAggregateRating, parseSchemaAvailability, parseSchemaCondition, salePrice, textOf } from "../scrapers/parse";
 import type { PartialProduct, ExtractionResolver, ResolveContext, ResolverResult } from "./types";
 
 type Node = Record<string, unknown>;
@@ -231,7 +231,7 @@ export function extractFromMeta($: CheerioAPI): PartialProduct {
   const meta = (sel: string) => str($(`meta[property='${sel}'], meta[name='${sel}']`).first().attr("content"));
   const out: PartialProduct = {};
 
-  out.title = meta("og:title") ?? meta("twitter:title") ?? str($("title").first().text());
+  out.title = meta("og:title") ?? meta("twitter:title") ?? str(textOf($("title").first()));
   const ogImages: unknown[] = [];
   $("meta[property='og:image'], meta[property='og:image:url'], meta[property='og:image:secure_url'], meta[name='twitter:image']").each((_, el) => {
     ogImages.push($(el).attr("content"));
@@ -263,20 +263,20 @@ export function extractFromMeta($: CheerioAPI): PartialProduct {
   // Microdata itemprop fallbacks
   if (!out.price) {
     const priceEl = $("[itemprop='price']").first();
-    const p = num(priceEl.attr("content") ?? priceEl.text());
+    const p = num(priceEl.attr("content") ?? textOf(priceEl));
     if (p) {
       out.price = p;
       out.currency = str($("[itemprop='priceCurrency']").first().attr("content"))?.toUpperCase() ?? null;
     }
   }
   if (!out.price) {
-    const parsed = parsePriceText(str($("[itemprop='price'], .price, [class*='price']").first().text()));
+    const parsed = parsePriceText(str(textOf($("[itemprop='price'], .price, [class*='price']").first())));
     if (parsed.price) {
       out.price = parsed.price;
       out.currency = parsed.currency;
     }
   }
-  if (!out.title) out.title = str($("[itemprop='name']").first().text()) ?? str($("h1").first().text());
+  if (!out.title) out.title = str(textOf($("[itemprop='name']").first())) ?? str(textOf($("h1").first()));
 
   return out;
 }

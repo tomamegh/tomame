@@ -4,6 +4,8 @@ import { getExtractionSnapshot } from "@/features/extraction/extraction.service"
 import { gapFillOverrides, priceExtractionWith, type PriceOverrides } from "@/features/extraction/quote.service";
 import { FREIGHT_CHECKING_MESSAGE } from "@/features/extraction/resolvers/messages";
 import { freightCheckPending } from "@/features/pricing/freight-inspection";
+import { payHoldRefusal } from "@/features/extraction/pay-gate";
+import { payHoldFor } from "@/features/quote-checks/services/quote-checks.service";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { resolvePlatform } from "@/features/extraction/scrapers";
 import { hashUrl, regionForUrl } from "@/features/extraction/url";
@@ -79,6 +81,11 @@ export async function buildOrderIntake(
   // The freight weight is still being checked; the price may move in seconds.
   if (freightCheckPending(extraction?.freight_inspection)) {
     throw new APIError(409, FREIGHT_CHECKING_MESSAGE);
+  }
+  // The one pay rule (103): price or stock not yet confirmed, or unavailable.
+  if (extraction && snapshot) {
+    const hold = await payHoldFor(snapshot.id, extraction);
+    if (hold) throw new APIError(409, payHoldRefusal(hold, extraction.product.title));
   }
 
   const reasons: string[] = [];

@@ -90,6 +90,10 @@ export const AUDIT_ENTITY_TYPES = {
    * is one filter on the audit log.
    */
   FIXED_FREIGHT_ITEM: "fixed_freight_item",
+  /** 103. A price or stock check that holds Pay: opened, re-read, decided. */
+  QUOTE_CHECK: "quote_check",
+  /** 103. A quote's server snapshot, when staff correct its price. */
+  EXTRACTION: "extraction",
 } as const;
 
 export type AuditEntityType =

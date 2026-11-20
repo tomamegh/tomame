@@ -2,6 +2,8 @@ import type { ScrapedProduct } from "../scrapers/types";
 import type { ExtractionSource } from "@/config/extraction";
 import type { PricingBreakdown } from "@/lib/pricing";
 import type { FreightInspection } from "@/features/pricing/freight-inspection";
+import type { HtmlPriceRejection, PriceConfidence, PriceRead, PriceVerdict } from "../price-confidence";
+import type { PayHold } from "../pay-gate";
 
 export type { ScrapedProduct };
 export { withProductDefaults, emptyProduct } from "../scrapers/types";
@@ -36,6 +38,14 @@ export interface ExtractionResult {
    * Never shown to customers.
    */
   freight_inspection?: FreightInspection;
+  /** Every tier's price reading (A0). Absent on rows cached before 2026-11-20. */
+  price_reads?: PriceRead[];
+  /** Tier the quoted price came from; `"staff"` once a buyer corrected it. */
+  price_source?: ExtractionSource | "staff" | null;
+  /** How far the quoted price can be trusted, judged at extraction (price-confidence.ts). */
+  price_confidence?: PriceVerdict | null;
+  /** What the chain refused, for daily health (A2, A3). */
+  quality?: ExtractionQuality;
   /** ID of the extraction_cache row — present when returned from the API */
   extraction_cache_id?: string | null;
   /** True when served from cache rather than a fresh extraction. */
@@ -58,6 +68,31 @@ export interface Quote extends ExtractionResult {
    * or paid until it clears; the quote screen polls until it does.
    */
   freight_check: FreightCheck | null;
+  /** How far the price can be trusted; null when there is no price. */
+  price_status: PriceConfidence | null;
+  /** Non-null when stock or condition must be confirmed before payment (A7). */
+  stock_check: StockCheckView | null;
+  /** Why this line cannot be paid for yet, or null when it can (pay-gate.ts). */
+  pay_hold: PayHold | null;
+}
+
+export interface ExtractionQuality {
+  leaked: Array<{ field: string; source: ExtractionSource }>;
+  price_rejected: { price: number; currency: string | null; source: ExtractionSource; reason: HtmlPriceRejection } | null;
+}
+
+/** The customer's view of a stock check. */
+export interface StockCheckView {
+  /** What triggered it, in customer words ("Renewed item", "Only 2 left"). */
+  reasons: string[];
+  status: "needed" | "requested" | "confirmed" | "unavailable";
+  /** Until when a confirmation holds. */
+  valid_until: string | null;
+  substitute_url: string | null;
+  /** `wa.me` link with the item and quote reference filled in; null when no number is set. */
+  whatsapp_url: string | null;
+  /** Short reference the customer and staff both see. */
+  reference: string;
 }
 
 export interface FreightCheck {

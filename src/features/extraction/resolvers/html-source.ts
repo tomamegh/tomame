@@ -5,6 +5,7 @@ import { fetchZyteBrowserHtml, isZyteConfigured } from "@/lib/zyte/client";
 import { fetchOxylabsRenderedHtml, isOxylabsConfigured } from "@/lib/oxylabs/client";
 import { fetchScraperApiHtml, isScraperApiConfigured } from "@/lib/scraperapi/client";
 import type { PlatformScraper } from "../scrapers";
+import { regionForUrl } from "../url";
 import type { HtmlAttemptName } from "../scrapers/types";
 import type { HtmlFetch } from "./types";
 
@@ -89,7 +90,9 @@ export async function fetchProductHtml(
       minRemainingMs: 6_000,
       retries: 0,
       run: async (t) => {
-        const html = await fetchZyteBrowserHtml(url, Math.min(t, EXTRACTION.zyteBrowserTimeoutMs));
+        const region = regionForUrl(url);
+        const geolocation = region === "USA" ? "US" : region === "UK" ? "GB" : undefined;
+        const html = await fetchZyteBrowserHtml(url, Math.min(t, EXTRACTION.zyteBrowserTimeoutMs), undefined, geolocation);
         return { success: !!html, html, error: html ? null : "zyte returned no page" };
       },
     },

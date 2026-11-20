@@ -33,6 +33,8 @@ import {
 import { alertsEnabled, environmentLabel, resolveRecipients } from "./alert-recipients";
 import { accraDate, buildDailySummary, dailySummaryDue, dailySummarySubject, type DailySummary } from "./daily-summary";
 import { getOpsOverview, type OpsOverview } from "./ops.service";
+import { buildQuoteHealth, QUOTE_HEALTH_RULES, quoteHealthCandidates, type QuoteHealth } from "./quote-health";
+import { readQuoteHealthInput } from "@/db/queries/quote-health";
 
 /**
  * The two jobs that email a person (083): alerts every five minutes, the
@@ -89,20 +91,41 @@ async function deliver(send: SendFn, recipients: string[], mail: { subject: stri
   return failed;
 }
 
+// ── Quote correctness (A6) ──────────────────────────────────────────────────
+
+/** Quote health for the window ending `now`; null when it could not be read. */
+export async function collectQuoteHealth(now: Date): Promise<QuoteHealth | null> {
+  const R = QUOTE_HEALTH_RULES;
+  const input = await degrade(
+    readQuoteHealthInput({
+      now,
+      since: minutesBefore(now, R.windowHours * 60),
+      stuckBefore: minutesBefore(now, R.stuckPasteMinutes),
+      driftSince: minutesBefore(now, R.drift.windowDays * 24 * 60),
+      notificationsBefore: minutesBefore(now, R.notificationPendingMinutes),
+    }),
+    null,
+    "quote health",
+  );
+  return input ? buildQuoteHealth(input) : null;
+}
+
 // ── Alerts ──────────────────────────────────────────────────────────────────
 
 export async function gatherAlertCandidates(now: Date): Promise<AlertCandidate[]> {
-  const [events, hourly, notifications, overview] = await Promise.all([
+  const [events, hourly, notifications, overview, quotes] = await Promise.all([
     degrade(listErrorEventsSeenSince(minutesBefore(now, ALERT_RULES.newErrorWindowMinutes)), [], "recent errors"),
     degrade(listHourlyCountsSince(minutesBefore(now, 26 * 60)), [], "hourly counts"),
     degrade(readNotificationOutcomesSince(minutesBefore(now, 60)), { failed: 0, sent: 0 }, "notification outcomes"),
     getOpsOverview(now),
+    collectQuoteHealth(now),
   ]);
   return [
     ...errorEventCandidates(events, now),
     ...spikeCandidates(hourly, now),
     ...notificationCandidates({ failedLastHour: notifications.failed, sentLastHour: notifications.sent }),
     ...opsSnapshotCandidates(overview.alerts),
+    ...(quotes ? quoteHealthCandidates(quotes) : []),
   ];
 }
 
@@ -151,12 +174,13 @@ export async function runOpsAlerts(deps: NotifyDeps = defaultNotifyDeps()): Prom
 
 export async function collectDailySummary(now: Date, known?: OpsOverview): Promise<DailySummary> {
   const dayAgo = minutesBefore(now, 24 * 60);
-  const [overview, hourly, activity, recentEvents, alertEmails24h] = await Promise.all([
+  const [overview, hourly, activity, recentEvents, alertEmails24h, quotes] = await Promise.all([
     known ? Promise.resolve(known) : getOpsOverview(now),
     degrade(listHourlyCountsSince(minutesBefore(now, 25 * 60)), [], "hourly counts"),
     degrade(readDayActivity(dayAgo), { orders: [], payments: [], notifications: [], warehouseActions: null }, "day activity"),
     degrade(listErrorEventsSeenSince(dayAgo), [], "recent errors"),
     degrade(countAlertSendsSince("alert", dayAgo), 0, "alert sends"),
+    collectQuoteHealth(now),
   ]);
 
   // The wording for every fingerprint the hourly table names, including ones
@@ -176,6 +200,7 @@ export async function collectDailySummary(now: Date, known?: OpsOverview): Promi
     alerts: overview.alerts,
     warehouseActions: activity.warehouseActions,
     alertEmails24h,
+    quotes,
   });
 }
 

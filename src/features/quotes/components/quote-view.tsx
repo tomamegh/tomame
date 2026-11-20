@@ -43,6 +43,15 @@ const QUANTITY_MAX = 100;
  * re-price of one line.
  */
 const FREIGHT_POLL_MS = 2_500;
+/**
+ * A4: the quote is re-read while the screen stays open. It used to be fetched
+ * once, so a tab opened before an admin pricing change kept showing the old fee
+ * for hours (the Ruko quote at 5% after the 4% change, 2026-11-19) — the
+ * server prices every read live; only the screen was stale.
+ */
+const QUOTE_REFRESH_MS = 120_000;
+/** While an automatic price re-read runs (103), the screen asks as often as for freight. */
+const PRICE_CHECK_POLL_MS = 5_000;
 /** Mirrors `addToBagSchema.special_instructions` (src/features/bag/schema.ts), which the bag route enforces. It was 2000 here, so 1001 to 2000 characters were refused with a 400. */
 const INSTRUCTIONS_MAX = 1000;
 
@@ -183,6 +192,9 @@ export function QuoteView({
       });
   }, [extractionId, quantity, shippingCode]);
   useVisibleInterval(pollFreight, FREIGHT_POLL_MS, checkingFreight);
+  const checkingPrice = quote?.pay_hold?.kind === "price_check" && !quote.pay_hold.needs_staff;
+  useVisibleInterval(pollFreight, PRICE_CHECK_POLL_MS, checkingPrice && !checkingFreight);
+  useVisibleInterval(pollFreight, QUOTE_REFRESH_MS, quote != null && !checkingFreight && !checkingPrice);
 
   const signIn = useCallback(() => {
     const next = `/app/orders/review/${extractionId}`;
