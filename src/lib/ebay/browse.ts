@@ -150,3 +150,50 @@ export async function fetchEbayItem(legacyItemId: string, opts: FetchEbayItemOpt
     return null;
   }
 }
+
+/** One row of `item_summary/search`. */
+export interface EbayItemSummary {
+  itemId?: string;
+  legacyItemId?: string;
+  title?: string;
+  price?: EbayMoney;
+  condition?: string;
+  conditionId?: string;
+  image?: { imageUrl?: string };
+  itemWebUrl?: string;
+  seller?: { username?: string; feedbackPercentage?: string; feedbackScore?: number };
+  buyingOptions?: string[];
+  [key: string]: unknown;
+}
+
+export interface SearchEbayOptions {
+  marketplace: string;
+  shipTo: EbayShipTo;
+  limit?: number;
+  timeoutMs?: number;
+}
+
+/**
+ * eBay's own search: new, buy-it-now listings located in and shipping to the
+ * ship-to country. Free and about a second, where the scraped search page
+ * took 25-60 s and timed out. THROWS on a failure, so the caller can say the
+ * store did not answer.
+ * https://developer.ebay.com/api-docs/buy/browse/resources/item_summary/methods/search
+ */
+export async function searchEbayItems(query: string, opts: SearchEbayOptions, config: EbayConfig | null = ebayConfig()): Promise<EbayItemSummary[]> {
+  if (!config) throw new Error("eBay is not configured");
+  const token = await getEbayAppToken(config);
+  if (!token) throw new Error("eBay token unavailable");
+  const country = opts.shipTo.country;
+  const filter = `conditionIds:{1000},buyingOptions:{FIXED_PRICE},deliveryCountry:${country},itemLocationCountry:${country}`;
+  const qs = new URLSearchParams({ q: query, limit: String(opts.limit ?? 50), filter });
+  const t0 = Date.now();
+  const res = await get<{ itemSummaries?: EbayItemSummary[]; total?: number }>(
+    `${config.apiBase}/buy/browse/v1/item_summary/search?${qs.toString()}`,
+    token,
+    { marketplace: opts.marketplace, shipTo: opts.shipTo, timeoutMs: opts.timeoutMs ?? 10_000 },
+  );
+  if (!res.body) throw new Error(`eBay search failed (${res.status}): ${res.errors[0]?.message ?? "no body"}`);
+  logger.info("ebay: search", { results: res.body.itemSummaries?.length ?? 0, total: res.body.total ?? 0, ms: Date.now() - t0 });
+  return res.body.itemSummaries ?? [];
+}

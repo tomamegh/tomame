@@ -3,14 +3,17 @@ import { EXTRACTION } from "@/config/extraction";
 import {
   fetchAmazonProductStructured,
   fetchEbayProductStructured,
+  fetchWalmartProductStructured,
   isScraperApiConfigured,
   type ScraperApiAmazonProduct,
   type ScraperApiEbayProduct,
+  type ScraperApiWalmartProduct,
 } from "@/lib/scraperapi/client";
 import { TomameCategory, AMAZON_CATEGORY_MAP, EBAY_CATEGORY_MAP } from "@/config/categories";
 import { cleanSpecValue, dimensionsFromSpecs, parseWeightLbs, weightFromSpecs, weightInDimensions } from "../weight";
 import { amazonAsinOf, amazonDomainOf, defaultCurrencyForUrl, ebayItemIdOf } from "../url";
 import { fetchTargetProduct } from "./target-redsky";
+import { walmartProductIdOf } from "./oxylabs.resolver";
 import { cleanString, normalizeImages, parseRating, parseReviewCount, parseStoreShipping, salePrice } from "../scrapers/parse";
 import { hasRequiredFields } from "./merge";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
@@ -187,6 +190,47 @@ export function mapScraperApiEbay(item: ScraperApiEbayProduct, sourceUrl: string
   };
 }
 
+const WALMART_AVAILABILITY: Record<string, string> = { IN_STOCK: "In stock", OUT_OF_STOCK: "Out of stock" };
+
+export function mapScraperApiWalmart(item: ScraperApiWalmartProduct, sourceUrl: string): PartialProduct {
+  const specs: Record<string, string> = {};
+  for (const s of item.specifications ?? []) if (s?.name && s?.value) specs[s.name] = s.value;
+  const weight = weightFromSpecs(specs);
+  const raw = typeof item.price === "string" ? parseFloat(item.price.replace(/[^\d.]/g, "")) : item.price;
+  const price = typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? raw : null;
+  const images = normalizeImages(item.images ?? []);
+  const availability = item.product_availability ? WALMART_AVAILABILITY[item.product_availability] ?? cleanString(item.product_availability) : null;
+  return {
+    title: cleanString(item.product_name),
+    image: images[0] ?? null,
+    price,
+    currency: price != null ? normalizeCurrency(item.price_currency, "USD") : null,
+    description: item.product_highlights?.length ? item.product_highlights.join("\n") : cleanString(item.product_short_description),
+    brand: cleanString(item.brand) ?? specs["Brand"] ?? null,
+    category: null, // Walmart's own label ("Electronics Accessories") is too loose; category-map reads the title
+    size: specs["Size"] ?? null,
+    weight: weight.text,
+    weight_lbs: weight.lbs,
+    dimensions: dimensionsFromSpecs(specs),
+    specifications: specs,
+    seller: cleanString(item.sold_by),
+    condition: null,
+    rating: parseRating(item.average_rating),
+    review_count: parseReviewCount(item.total_reviews),
+    images,
+    variants: {},
+    availability,
+    metadata: {
+      images: item.images ?? [],
+      productId: walmartProductIdOf(sourceUrl),
+      soldBy: item.sold_by ?? null,
+      sellerType: item.seller_type ?? null,
+      availability: item.product_availability ?? null,
+      source: "scraperapi",
+    },
+  };
+}
+
 /** ScraperAPI's Amazon marketplace (`tld`) and proxy country for a link. */
 export function marketplace(url: string): { tld: string; country: string } {
   const domain = amazonDomainOf(url); // amazon.com | amazon.co.uk
@@ -196,7 +240,7 @@ export function marketplace(url: string): { tld: string; country: string } {
 }
 
 /**
- * Tier 0 for Amazon and eBay — structured product JSON in a few seconds, no
+ * Tier 0 for Amazon, eBay and Walmart — structured product JSON in a few seconds, no
  * browser. The browser tiers remain the fallback and cover the other stores.
  */
 export const scraperApiResolver: ExtractionResolver = {
@@ -207,7 +251,7 @@ export const scraperApiResolver: ExtractionResolver = {
   // Target is here too (2026-09-30): its product API, direct or through
   // ScraperAPI, is the only place its price exists (see target-redsky.ts).
   available: (ctx) =>
-    ctx.platform === "target" || (isScraperApiConfigured() && (ctx.platform === "amazon" || ctx.platform === "ebay")),
+    ctx.platform === "target" || (isScraperApiConfigured() && (ctx.platform === "amazon" || ctx.platform === "ebay" || ctx.platform === "walmart")),
   shouldRun: (ctx) => !hasRequiredFields(ctx.current),
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {
     if (ctx.deadline - Date.now() < 3_000) return { product: {} };
@@ -233,6 +277,14 @@ export const scraperApiResolver: ExtractionResolver = {
         if (product.price == null && item.availability_status && !/in stock/i.test(item.availability_status)) {
           messages.push(`Amazon lists this item as "${item.availability_status}".`);
         }
+        return { product, messages };
+      }
+      if (ctx.platform === "walmart") {
+        const id = walmartProductIdOf(ctx.url);
+        const item = id ? await fetchWalmartProductStructured(id) : null;
+        if (!item) return { product: {} };
+        const product = mapScraperApiWalmart(item, ctx.url);
+        const messages = product.availability === "Out of stock" ? ["Walmart lists this item as out of stock."] : [];
         return { product, messages };
       }
       const itemId = ebayItemIdOf(ctx.url);

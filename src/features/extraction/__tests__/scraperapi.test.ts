@@ -6,7 +6,7 @@ vi.mock("@/lib/env", () => ({
   env: { extraction: { anthropicApiKey: null, apifyApiToken: null, browserlessApiKey: null, rainforestApiKey: null, scraperApiKey: "sa-test-key" } },
 }));
 
-import { mapScraperApiAmazon, mapScraperApiEbay, normalizeCurrency, parseMoney, scraperApiResolver } from "../resolvers/scraperapi.resolver";
+import { mapScraperApiAmazon, mapScraperApiEbay, mapScraperApiWalmart, normalizeCurrency, parseMoney, scraperApiResolver } from "../resolvers/scraperapi.resolver";
 import { resolveProduct } from "../resolvers/chain";
 import { emptyProduct, SupportedPlatform, getScraperByPlatform } from "../scrapers";
 import { TomameCategory } from "@/config/categories";
@@ -313,3 +313,33 @@ describe("eBay store shipping (live shape 2026-09-30, item 406597496856)", () =>
     expect(listing({ value: "$12.50" }).store_shipping).toBe(12.5);
   });
 });
+
+describe("mapScraperApiWalmart (live shape, 2026-11-20)", () => {
+  it("maps price, seller, weight and availability", () => {
+    const p = mapScraperApiWalmart(
+      {
+        product_name: "Sony PlayStation 5 Pro Console",
+        product_availability: "IN_STOCK",
+        sold_by: "Min Max",
+        seller_type: "EXTERNAL",
+        brand: "Sony",
+        price: 1699.98,
+        price_currency: "USD",
+        images: ["https://i5.walmartimages.com/seo/a.png"],
+        specifications: [
+          { name: "Brand", value: "Sony" },
+          { name: "Assembled product weight", value: "10.91 lb" },
+        ],
+      },
+      "https://www.walmart.com/ip/18235967161",
+    );
+    expect(p).toMatchObject({ title: "Sony PlayStation 5 Pro Console", price: 1699.98, currency: "USD", seller: "Min Max", availability: "In stock", brand: "Sony" });
+    expect(p.weight_lbs).toBeCloseTo(10.91);
+    expect(p.metadata?.productId).toBe("18235967161");
+  });
+
+  it("has no price when Walmart gives none", () => {
+    expect(mapScraperApiWalmart({ product_name: "x", product_availability: "OUT_OF_STOCK" }, "https://www.walmart.com/ip/1").price).toBeNull();
+  });
+});
+

@@ -39,7 +39,8 @@ export function FinderCandidateCard({ candidate }: { candidate: FinderCandidateS
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{candidate.title}</h3>
         <p className="truncate text-xs text-muted-foreground">
-          {candidate.store.name} · {candidate.condition} · {formatUsd(candidate.listingPriceUsd)} listed
+          {candidate.store.name} · {candidate.condition}
+          {candidate.listingPriceUsd > 0 ? ` · ${formatUsd(candidate.listingPriceUsd)} listed` : " · price on the store page"}
         </p>
       </div>
       <div className="flex w-[6.5rem] shrink-0 flex-col items-end gap-1 text-right">

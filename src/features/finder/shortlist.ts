@@ -24,10 +24,12 @@ export interface FinderListing {
   /** The store's own condition text, when the search returns one (eBay). */
   condition: string | null;
   seller: string | null;
+  /** eBay's seller record, when the search returns one. */
+  sellerFeedback?: { percent: number | null; score: number | null } | null;
   source: "catalogue" | "live";
 }
 
-export type DropReason = "not_new" | "accessory" | "multipack" | "store" | "no_price" | "wrong_item" | "over_budget";
+export type DropReason = "weak_seller" | "not_new" | "accessory" | "multipack" | "store" | "no_price" | "wrong_item" | "over_budget";
 
 export const DROP_REASON_LABEL: Record<DropReason, (n: number) => string> = {
   not_new: (n) => `${n} not sold as new`,
@@ -37,10 +39,24 @@ export const DROP_REASON_LABEL: Record<DropReason, (n: number) => string> = {
   no_price: (n) => `${n} with no listed price`,
   wrong_item: (n) => `${n} ${n === 1 ? "is a different item" : "are different items"}`,
   over_budget: (n) => `${n} clearly over your budget`,
+  weak_seller: (n) => `${n} from sellers with little or poor feedback`,
 };
 
 const NOT_NEW_TITLE = /\b(renewed|refurb(?:ished)?|re-?certified|used|pre-?owned|open[\s-]?box|for parts|not working|like new|second[\s-]?hand|grade [abc]|scratch(?:ed)? (?:and|&) dent)\b/i;
 const NEW_CONDITION = /^\s*(brand\s+)?new\b(?!.*\b(other|open|defects?|imperfections?)\b)/i;
+
+/** Below this, a seller's record is too thin or too poor to buy a customer's order from. */
+export const SELLER_MIN_FEEDBACK_PCT = 97;
+export const SELLER_MIN_FEEDBACK_SCORE = 20;
+
+/** True when the store reports the seller's feedback and it falls short. Unknown is not weak. */
+export function isWeakSeller(listing: Pick<FinderListing, "sellerFeedback">): boolean {
+  const f = listing.sellerFeedback;
+  if (!f) return false;
+  if (f.percent != null && f.percent < SELLER_MIN_FEEDBACK_PCT) return true;
+  if (f.score != null && f.score < SELLER_MIN_FEEDBACK_SCORE) return true;
+  return false;
+}
 
 /** True when a listing is not new stock, by its title or by the store's own condition text. */
 export function isNotNew(listing: Pick<FinderListing, "title" | "condition">): boolean {
@@ -81,6 +97,9 @@ export function isUnwantedMultipack(title: string, spec: Pick<ParsedFinderSpec, 
   return Number.isFinite(n) && n > 1;
 }
 
+/** Stores whose search page can leave a price out while the product page has one. */
+const PRICE_ON_PAGE_STORES: ReadonlySet<CatalogStore> = new Set<CatalogStore>(["amazon", "walmart"]);
+
 export interface PostFilterResult {
   kept: FinderListing[];
   dropped: Partial<Record<DropReason, number>>;
@@ -91,7 +110,9 @@ function count(dropped: Partial<Record<DropReason, number>>, reason: DropReason)
 }
 
 /**
- * The hard rules: a store we buy from, a listed price, new, not an accessory
+ * The hard rules: a store we buy from, a listed price (or a live Amazon or
+ * Walmart row, whose page is read for it), new, a seller with a
+ * sound record (where the store reports one), not an accessory
  * for the thing asked about, not a multipack nobody asked for.
  */
 export function postFilterListings(
@@ -103,8 +124,10 @@ export function postFilterListings(
   const dropped: Partial<Record<DropReason, number>> = {};
   for (const l of listings) {
     if (!allowedStores.has(l.store)) count(dropped, "store");
-    else if (l.priceUsd == null || !(l.priceUsd > 0)) count(dropped, "no_price");
+    // Amazon hides the price of some items in search (consoles, "see options"); the store read prices those.
+    else if ((l.priceUsd == null || !(l.priceUsd > 0)) && !(l.source === "live" && PRICE_ON_PAGE_STORES.has(l.store))) count(dropped, "no_price");
     else if (isNotNew(l)) count(dropped, "not_new");
+    else if (isWeakSeller(l)) count(dropped, "weak_seller");
     else if (isAccessoryFor(l.title, spec)) count(dropped, "accessory");
     else if (isUnwantedMultipack(l.title, spec)) count(dropped, "multipack");
     else kept.push(l);

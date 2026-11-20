@@ -218,6 +218,20 @@ export async function handOffFinderRun(id: string, viewer: RequestViewer): Promi
   return { whatsappHref: request.whatsapp_href };
 }
 
+/**
+ * The matches to read at the store: the cheapest listed ones, keeping one slot
+ * for the model's best match among those whose search row had no price (Amazon
+ * hides some, and its own offer is often the cheapest).
+ */
+export function pickPriceCandidates(ranked: readonly FinderListing[], n: number): FinderListing[] {
+  const priced = ranked.filter((l) => l.priceUsd != null && l.priceUsd > 0);
+  const unpriced = ranked.filter((l) => !(l.priceUsd != null && l.priceUsd > 0));
+  if (unpriced.length === 0 || n < 2) return ranked.slice(0, n);
+  const out = [...priced.slice(0, n - 1), unpriced[0]!];
+  for (const l of [...priced.slice(n - 1), ...unpriced.slice(1)]) if (out.length < n) out.push(l);
+  return out;
+}
+
 // ── The job ─────────────────────────────────────────────────────────────────
 
 /** Writes the narration in order: each write carries every event so far, one write at a time. */
@@ -373,7 +387,7 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
     const eb = estimates.get(b.id) ?? Number.POSITIVE_INFINITY;
     return ea === eb ? order.get(a.id)! - order.get(b.id)! : ea - eb;
   });
-  const top = ranked.slice(0, FINDER.priceCandidates);
+  const top = pickPriceCandidates(ranked, FINDER.priceCandidates);
   for (const l of top) {
     narrator.emit({
       type: "candidate_found",
@@ -447,9 +461,10 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
       narrator.emit({ type: "price_confirming", candidateId: l.id });
       continue;
     }
-    const lowPrice = hold?.kind !== "stock_check" && isSuspiciouslyLow(l.priceUsd, reference);
+    const judged = l.priceUsd ?? (snapshot.product.currency === "USD" ? snapshot.product.price : null);
+    const lowPrice = hold?.kind !== "stock_check" && isSuspiciouslyLow(judged, reference);
     if (lowPrice) {
-      await openSellerCheck({ userId: run.user_id, sessionId: run.session_id }, e.cacheId!, l.productUrl, snapshot, [outlierReason(l.priceUsd!, reference!.priceUsd)]);
+      await openSellerCheck({ userId: run.user_id, sessionId: run.session_id }, e.cacheId!, l.productUrl, snapshot, [outlierReason(judged!, reference!.priceUsd)]);
     }
     const stockCheck = hold?.kind === "stock_check" || lowPrice;
     priced.push({ listing: l, cacheId: e.cacheId, quote, state: stockCheck ? "stock_check" : "priced" });

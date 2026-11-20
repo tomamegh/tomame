@@ -57,6 +57,28 @@ export interface ScraperApiEbayProduct {
   [key: string]: unknown;
 }
 
+/** `structured/walmart/product` (measured 1.4 s, 2026-11-20). */
+export interface ScraperApiWalmartProduct {
+  product_name?: string;
+  product_category?: string;
+  product_url?: string;
+  /** "IN_STOCK", "OUT_OF_STOCK" */
+  product_availability?: string;
+  sold_by?: string;
+  /** "INTERNAL" (Walmart itself) or "EXTERNAL" (a marketplace seller) */
+  seller_type?: string;
+  brand?: string;
+  images?: string[];
+  price?: number | string;
+  price_currency?: string;
+  product_highlights?: string[];
+  product_short_description?: string;
+  specifications?: Array<{ name?: string; value?: string }>;
+  average_rating?: number;
+  total_reviews?: number;
+  [key: string]: unknown;
+}
+
 async function get<T>(path: string, params: Record<string, string>, label: string): Promise<T | null> {
   const apiKey = env.extraction.scraperApiKey;
   if (!apiKey) return null;
@@ -125,6 +147,11 @@ export async function fetchAmazonOffersStructured(asin: string, tld: string, cou
 export async function fetchEbayProductStructured(productId: string, country: string): Promise<ScraperApiEbayProduct | null> {
   const data = await get<ScraperApiEbayProduct>("ebay/product", { product_id: productId, country }, productId);
   return data?.title ? data : null;
+}
+
+export async function fetchWalmartProductStructured(productId: string): Promise<ScraperApiWalmartProduct | null> {
+  const data = await get<ScraperApiWalmartProduct>("walmart/product", { product_id: productId, country_code: "us" }, productId);
+  return data?.product_name ? data : null;
 }
 
 /**

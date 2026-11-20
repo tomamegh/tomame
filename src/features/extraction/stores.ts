@@ -167,7 +167,8 @@ export const STORES: StoreDefinition[] = [
   },
   {
     slug: "walmart", name: "Walmart", domains: ["walmart.com"], region: "USA", currency: "USD",
-    providers: ["oxylabs", "zyte", "category-map", "structured-data", "llm"], htmlAttempts: ["zyte-browser", "oxylabs-render"],
+    // ScraperAPI first (2026-11-20): dev's Oxylabs login 401s and its Zyte account is suspended, so Walmart read nothing.
+    providers: ["scraperapi", "oxylabs", "zyte", "category-map", "structured-data", "llm"], htmlAttempts: ["zyte-browser", "oxylabs-render"],
     status: "live", productPath: /\/ip\/(?:[^/]+\/)?\d{6,}/,
   },
   {

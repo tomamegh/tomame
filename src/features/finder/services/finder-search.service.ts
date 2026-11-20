@@ -8,6 +8,10 @@ import { strikeLandedTotal } from "@/features/catalog/services/catalog-search.se
 import { configuredSearchVendors, fetchCatalogStoreSearch } from "@/features/catalog/services/catalog-vendors";
 import type { PricingCalculator } from "@/lib/pricing/calculator";
 import { logger } from "@/lib/logger";
+import { searchEbayItems, type EbayItemSummary } from "@/lib/ebay/browse";
+import { isEbayConfigured } from "@/lib/ebay/config";
+import { hashUrl } from "@/features/extraction/url";
+import { hubDestinationFor } from "@/features/extraction/hub-destination";
 
 import type { FinderListing } from "../shortlist";
 import { planStoreSearches, type StorePlan } from "../stores";
@@ -53,6 +57,37 @@ export function listingFromVendorRow(row: CatalogProductInput): FinderListing {
   };
 }
 
+function num(v: unknown): number | null {
+  const n = typeof v === "number" ? v : typeof v === "string" ? parseFloat(v) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
+/** A row of eBay's own search. Null when it has no item id or no US-dollar price. */
+export function listingFromEbaySummary(item: EbayItemSummary): FinderListing | null {
+  const legacy = item.legacyItemId ?? item.itemId?.split("|")[1];
+  if (!legacy || !item.title) return null;
+  const productUrl = `https://www.ebay.com/itm/${legacy}`;
+  const price = item.price?.currency === "USD" ? num(item.price.value) : null;
+  return {
+    id: hashUrl(productUrl),
+    store: "ebay",
+    title: item.title,
+    productUrl,
+    imageUrl: item.image?.imageUrl ?? null,
+    priceUsd: price != null && price > 0 ? price : null,
+    currency: price != null ? "USD" : null,
+    condition: str(item.condition),
+    seller: str(item.seller?.username),
+    sellerFeedback: item.seller ? { percent: num(item.seller.feedbackPercentage), score: num(item.seller.feedbackScore) } : null,
+    source: "live",
+  };
+}
+
+/** Stores searched through their own free API: no vendor key, no budget. */
+export function freeSearchStores(): Set<CatalogStore> {
+  return new Set<CatalogStore>(isEbayConfigured() ? ["ebay"] : []);
+}
+
 /** What we already hold for this search. A failed read is an empty shelf, never a failed run. */
 export async function searchFinderCatalogue(searchQuery: string): Promise<FinderListing[]> {
   try {
@@ -66,7 +101,7 @@ export async function searchFinderCatalogue(searchQuery: string): Promise<Finder
 
 export async function planFinderStores(wanted: readonly CatalogStore[], now: Date = new Date()): Promise<StorePlan> {
   const budget = await readJobBudget(FINDER.jobName, FINDER.monthlyCaps, budgetPeriodOf(now));
-  return planStoreSearches(wanted, configuredSearchVendors(), budget.cap - budget.used);
+  return planStoreSearches(wanted, configuredSearchVendors(), budget.cap - budget.used, freeSearchStores());
 }
 
 export type StoreSearchResult = { store: CatalogStore; listings: FinderListing[]; failed: false } | { store: CatalogStore; listings: []; failed: true };
@@ -77,6 +112,7 @@ export type StoreSearchResult = { store: CatalogStore; listings: FinderListing[]
  * failed vendor call still costs).
  */
 export async function searchFinderStore(store: CatalogStore, query: string, now: Date = new Date()): Promise<StoreSearchResult> {
+  if (freeSearchStores().has(store)) return searchEbayFree(query);
   const period = budgetPeriodOf(now);
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -95,6 +131,17 @@ export async function searchFinderStore(store: CatalogStore, query: string, now:
     } catch (error) {
       logger.warn("finder: budget spend not recorded", { store, error: error instanceof Error ? error.message : String(error) });
     }
+  }
+}
+
+async function searchEbayFree(query: string): Promise<StoreSearchResult> {
+  try {
+    const shipTo = await hubDestinationFor("USA");
+    const items = await searchEbayItems(query, { marketplace: "EBAY_US", shipTo, limit: 50, timeoutMs: 15_000 });
+    return { store: "ebay", listings: items.flatMap((i) => listingFromEbaySummary(i) ?? []), failed: false };
+  } catch (error) {
+    logger.warn("finder: eBay search failed", { error: error instanceof Error ? error.message : String(error) });
+    return { store: "ebay", listings: [], failed: true };
   }
 }
 

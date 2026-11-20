@@ -233,3 +233,16 @@ describe("startFinderRun", () => {
     });
   });
 });
+
+describe("which matches are read at the store", () => {
+  const l = (id: string, priceUsd: number | null) =>
+    ({ id, store: "amazon", title: id, productUrl: id, imageUrl: null, priceUsd, currency: "USD", condition: null, seller: null, source: "live" }) as const;
+
+  it("keeps a slot for the best unpriced match", async () => {
+    const { pickPriceCandidates } = await import("../services/finder-run.service");
+    expect(pickPriceCandidates([l("a", 10), l("b", 11), l("c", 12), l("x", null), l("y", null)], 3).map((c) => c.id)).toEqual(["a", "b", "x"]);
+    expect(pickPriceCandidates([l("a", 10), l("x", null), l("y", null)], 3).map((c) => c.id)).toEqual(["a", "x", "y"]);
+    expect(pickPriceCandidates([l("a", 10), l("b", 11), l("c", 12), l("d", 13)], 3).map((c) => c.id)).toEqual(["a", "b", "c"]);
+  });
+});
+

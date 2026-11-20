@@ -94,7 +94,7 @@ describe("postFilterListings", () => {
         listing({ id: "renewed", title: "PS5 Slim Digital (Renewed)" }),
         listing({ id: "used", store: "ebay", condition: "Pre-owned" }),
         listing({ id: "case", title: "Skin for PS5 Slim Digital" }),
-        listing({ id: "noprice", priceUsd: null }),
+        listing({ id: "noprice", store: "ebay", priceUsd: null }),
         listing({ id: "pack", title: "PS5 Slim Digital 2-pack" }),
       ],
       spec,

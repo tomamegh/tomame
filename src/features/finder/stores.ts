@@ -55,19 +55,23 @@ export interface StorePlan {
 
 /**
  * Which of the wanted stores this run may actually search: the vendor key is
- * present and the month's budget has room for one call each. Pure.
+ * present and the month's budget has room for one call each, or the store is
+ * in `free`. Pure.
  */
 export function planStoreSearches(
   wanted: readonly CatalogStore[],
   configured: Record<CatalogSearchVendor, boolean>,
   budgetLeft: number,
+  free: ReadonlySet<CatalogStore> = new Set(),
 ): StorePlan {
   const search: CatalogStore[] = [];
   const skipped: StorePlan["skipped"] = [];
   let left = Math.max(0, budgetLeft);
   for (const store of wanted) {
     const spec = CATALOG_STORE_SEARCH[store];
-    if (!spec.enabled || !configured[spec.vendor]) skipped.push({ store, reason: "no_key" });
+    // A store searched through its own free API (eBay Browse) needs no vendor key and spends no budget.
+    if (free.has(store)) search.push(store);
+    else if (!spec.enabled || !configured[spec.vendor]) skipped.push({ store, reason: "no_key" });
     else if (left <= 0) skipped.push({ store, reason: "budget" });
     else {
       search.push(store);
