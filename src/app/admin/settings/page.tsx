@@ -19,6 +19,7 @@ import {
 import { collectMissingConstants } from "@/features/pricing/services/pricing-constant-keys";
 import { AdminExchangeRatesCard } from "@/features/settings/components/admin-exchange-rates-card";
 import { AdminPricingConsole } from "@/features/settings/components/admin-pricing-console";
+import { feePromiseBreaks } from "@/features/settings/fee-promise";
 import { getAllRates } from "@/lib/exchange-rates/service";
 
 export const metadata: Metadata = {
@@ -63,6 +64,8 @@ export default async function AdminSettingsPage() {
   const values = Object.fromEntries(constants.map((row) => [row.key, row.value]));
   const missingKeys = collectMissingConstants(values);
   const bufferPct = typeof values.fx_buffer_pct === "number" ? values.fx_buffer_pct : null;
+  const defaultFeePct = typeof values.default_value_fee_pct === "number" ? values.default_value_fee_pct : null;
+  const feeBreaks = feePromiseBreaks(groups, defaultFeePct);
 
   return (
     <AdminPage
@@ -89,6 +92,8 @@ export default async function AdminSettingsPage() {
       <AdminPricingConsole
         constants={constants}
         missingKeys={missingKeys}
+        feeBreaks={feeBreaks}
+        defaultFeePct={defaultFeePct}
         example={example.value}
         exampleError={example.error}
       />

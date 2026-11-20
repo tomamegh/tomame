@@ -10,8 +10,11 @@ import {
   steps,
   escapeHtml,
   appUrl,
+  link,
 } from "./layout";
 import { taxRowLabel } from "@/lib/pricing/tax-label";
+import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, feeRowLabel } from "@/config/price-story";
+import { CUSTOMER_STAGE_NAMES } from "@/config/tracking-copy";
 
 interface OrderEmailData {
   productName: string;
@@ -25,9 +28,15 @@ interface OrderEmailData {
    * default customers see Tomame's number alone.
    */
   storeTracking?: Array<{ carrier: string; number: string }>;
+  /**
+   * The order's own breakdown, for the payment confirmation. Only for an order
+   * paid on its own: a bag's first order is not the bag, so a grouped order
+   * passes none and the card carries the customs line alone.
+   */
+  pricing?: PricingBreakdownData;
 }
 
-interface PricingBreakdownData {
+export interface PricingBreakdownData {
   itemPriceUsd: number;
   subtotalUsd: number;
   taxPercentage: number;
@@ -63,8 +72,13 @@ interface OrderPlacedEmailData {
   paymentUrl?: string;
 }
 
-/** The journey every paid order walks, as the customer reads it. */
-const JOURNEY = ["Paid", "Purchased", "On the way", "Delivered"] as const;
+/** The journey every paid order walks, in the customer-facing stage names. */
+const JOURNEY = [
+  CUSTOMER_STAGE_NAMES.paid,
+  CUSTOMER_STAGE_NAMES.purchased,
+  CUSTOMER_STAGE_NAMES.departed,
+  CUSTOMER_STAGE_NAMES.delivered,
+] as const;
 
 const ORDER_REASON = "You are getting this because you placed an order on Tomame.";
 
@@ -96,6 +110,37 @@ function orderCard(
 
 type SummaryRows = Array<readonly [string, string] | false | null | undefined>;
 
+/** Customs is inside freight: a display row on every emailed breakdown, adding nothing. */
+const CUSTOMS_ROW = [escapeHtml(CUSTOMS_ROW_LABEL), escapeHtml(CUSTOMS_ROW_VALUE)] as const;
+
+/** The breakdown rows every priced email prints, in the shared price-story wording. */
+export function breakdownRows(p: PricingBreakdownData): SummaryRows {
+  return [
+    ["Item price", usd(p.subtotalUsd)],
+    [
+      escapeHtml(taxRowLabel({ subtotal_usd: p.subtotalUsd, tax_percentage: p.taxPercentage, tax_usd: p.taxUsd }, "tax")),
+      usd(p.taxUsd),
+    ],
+    [escapeHtml(feeRowLabel(p.valueFeePercentage)), usd(p.valueFeeUsd)],
+    p.storeShippingUsd ? ["Store shipping", usd(p.storeShippingUsd)] : null,
+    [escapeHtml(FREIGHT_ROW_LABEL), ghs(p.flatRateGhs)],
+    CUSTOMS_ROW,
+    ["Rate", `1 USD = ${p.exchangeRate} GHS`],
+  ];
+}
+
+/** `/track?q=TM-00042`, the public lookup every confirmation links to. */
+function trackUrl(reference: string | undefined): string {
+  return reference?.trim() ? `${appUrl()}/track?q=${encodeURIComponent(reference.trim())}` : `${appUrl()}/track`;
+}
+
+/** The /track line on every order confirmation: no sign-in needed. */
+function trackLine(reference: string | undefined): string {
+  return muted(
+    `You can also follow it without signing in: ${link(trackUrl(reference), "track your order")} with your order ID${reference?.trim() ? ` <strong>${escapeHtml(reference.trim())}</strong>` : ""} and your phone number.`,
+  );
+}
+
 export function orderPaidTemplate(data: OrderEmailData) {
   return renderEmail("Payment confirmed: your Tomame order is being prepared", {
     preheader: `We have your payment for ${data.productName}. Our buyers are on it.`,
@@ -104,9 +149,10 @@ export function orderPaidTemplate(data: OrderEmailData) {
       ${heading("You're all paid up")}
       ${paragraph(`Thank you. Your payment for <strong>${escapeHtml(data.productName)}</strong> is in, and your order is in the queue for our buyers.`)}
       ${steps(JOURNEY, 0)}
-      ${orderCard(data)}
+      ${orderCard(data, data.pricing ? breakdownRows(data.pricing) : [CUSTOMS_ROW], data.pricing ? ["Total paid", ghs(data.pricing.totalGhs)] : undefined)}
       ${paragraph("Next, we buy it from the store. We will write at every step, so there is nothing you need to do.")}
       ${button(orderUrl(data.orderId), "Track your order")}
+      ${trackLine(data.trackingNumber)}
     `,
     reason: ORDER_REASON,
   });
@@ -188,8 +234,9 @@ export function orderPlacedTemplate(data: OrderPlacedEmailData) {
       ${eyebrow("Order received")}
       ${heading("We've got your order")}
       ${body}
-      ${orderCard(data, [], ["Total", ghs(data.totalGhs)])}
+      ${orderCard(data, [CUSTOMS_ROW], ["Total", ghs(data.totalGhs)])}
       ${cta}
+      ${trackLine(data.trackingNumber)}
       ${muted("Pay by Mobile Money or card through Paystack. Nothing is charged until you pay.")}
     `,
     reason: ORDER_REASON,
@@ -218,21 +265,7 @@ export function orderApprovedTemplate(data: OrderReviewEmailData) {
 
   const p = data.pricing;
   const card = p
-    ? orderCard(
-        data,
-        [
-          ["Item price", usd(p.subtotalUsd)],
-          [
-            escapeHtml(taxRowLabel({ subtotal_usd: p.subtotalUsd, tax_percentage: p.taxPercentage, tax_usd: p.taxUsd }, "tax")),
-            usd(p.taxUsd),
-          ],
-          [`Value fee (${(p.valueFeePercentage * 100).toFixed(0)}%)`, usd(p.valueFeeUsd)],
-          ...(p.storeShippingUsd ? [["Store shipping", usd(p.storeShippingUsd)] as [string, string]] : []),
-          ["Freight", ghs(p.flatRateGhs)],
-          ["Rate", `1 USD = ${p.exchangeRate} GHS`],
-        ],
-        ["Total", ghs(p.totalGhs)],
-      )
+    ? orderCard(data, breakdownRows(p), ["Total", ghs(p.totalGhs)])
     : orderCard(data, [], data.totalGhs !== undefined ? ["Total", ghs(data.totalGhs)] : undefined);
 
   return renderEmail("Your Tomame order has been approved", {

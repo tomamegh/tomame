@@ -155,8 +155,9 @@ describe("buildReceiptRows", () => {
     expect(rows.map((row) => row.label)).toEqual([
       "Item",
       "7.5% sales tax",
-      "4% Tomame fee",
-      "Freight",
+      "Tomame fee – 4% flat",
+      "Freight, incl. customs & clearance",
+      "Customs & clearance – Included in freight",
       "Rate",
     ]);
   });
@@ -181,6 +182,7 @@ describe("buildReceiptRows", () => {
       "$23.84",
       "$17.88",
       "GH₵240.00",
+      "GH₵0 extra",
       "$1 = GH₵14.43",
     ]);
   });
@@ -193,7 +195,7 @@ describe("buildReceiptRows", () => {
 
   it("prints a Store shipping row only when the store charges shipping", () => {
     const rows = buildReceiptRows(breakdown({ store_shipping_usd: 48 }));
-    expect(rows.map((row) => row.key)).toEqual(["item", "tax", "fee", "shipping", "freight", "rate"]);
+    expect(rows.map((row) => row.key)).toEqual(["item", "tax", "fee", "shipping", "freight", "customs", "rate"]);
     expect(rows.find((row) => row.key === "shipping")).toMatchObject({ label: "Store shipping", value: "$48.00" });
     expect(buildReceiptRows(breakdown()).some((row) => row.key === "shipping")).toBe(false);
   });
@@ -202,7 +204,7 @@ describe("buildReceiptRows", () => {
     const rows = buildReceiptRows(
       breakdown({ tax_usd: Number.NaN, exchange_rate: 0 }),
     );
-    expect(rows.map((row) => row.key)).toEqual(["item", "fee", "freight"]);
+    expect(rows.map((row) => row.key)).toEqual(["item", "fee", "freight", "customs"]);
   });
 
   it("drops the percentage prefix rather than labelling a row 'NaN%'", () => {

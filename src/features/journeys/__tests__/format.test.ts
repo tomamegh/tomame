@@ -120,8 +120,9 @@ describe("paidRows — read from the stored breakdown, never recomputed", () => 
       // Noun-last now, matching the live receipt and the bag: every money
       // surface builds this label from one helper so they cannot drift apart.
       { key: "tax", label: "8% US sales tax", value: "$23.84" },
-      { key: "fee", label: "Tomame fee 5%", value: "$14.90" },
-      { key: "freight", label: "Freight", value: "GH₵180.00" },
+      { key: "fee", label: "Tomame fee – 5% flat", value: "$14.90" },
+      { key: "freight", label: "Freight, incl. customs & clearance", value: "GH₵180.00" },
+      { key: "customs", label: "Customs & clearance – Included in freight", value: "GH₵0 extra" },
       { key: "rate", label: "Rate", value: "1 USD = 14.43", tone: "muted" },
     ]);
   });
@@ -135,11 +136,11 @@ describe("paidRows — read from the stored breakdown, never recomputed", () => 
     });
   });
 
-  it("omits a zero line rather than printing '$0.00'", () => {
+  it("omits a zero line rather than printing '$0.00', except the display-only customs line", () => {
     const keys = paidRows(pricing({ tax_usd: 0, value_fee_usd: 0, flat_rate_ghs: 0 })).map(
       (row) => row.key,
     );
-    expect(keys).toEqual(["item", "rate"]);
+    expect(keys).toEqual(["item", "customs", "rate"]);
   });
 
   it("quotes the rate at the same two decimals as the nav pill", () => {

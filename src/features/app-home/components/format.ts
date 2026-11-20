@@ -12,11 +12,11 @@
  */
 
 import { taxRowLabel } from "@/lib/pricing/tax-label";
+import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, feeRowLabel } from "@/config/price-story";
 import type { PricingBreakdown } from "@/lib/pricing";
 import { formatRatePill } from "@/components/layout/app/links";
 import {
   formatGhs,
-  formatPercent,
   formatUsd,
 } from "@/features/marketing/format";
 import { formatEtaWindow, formatShortDay } from "@/features/journeys/format";
@@ -175,7 +175,7 @@ export function safeImageSrc(url: string | null): string | null {
 
 // ── Receipt ──────────────────────────────────────────────────────────────────
 
-export type ReceiptRowIcon = "item" | "tax" | "fee" | "shipping" | "freight" | "rate";
+export type ReceiptRowIcon = "item" | "tax" | "fee" | "shipping" | "freight" | "customs" | "rate";
 
 export interface ReceiptRow {
   key: ReceiptRowIcon;
@@ -195,38 +195,20 @@ export const RECEIPT_ROW_DELAYS = [
   "0.7s",
   "0.85s",
   "1s",
+  "1.15s",
 ] as const;
 
 /**
  * The receipt lines, built from the server-priced breakdown.
  *
- * Every percentage comes off the breakdown: the engine charges 4–8% by
- * category and a hardcoded "5%" — the number the mock happens to show — would
- * be false for most orders. The freight line is already in GH₵ because that is
+ * Every percentage comes off the breakdown, so the fee label can never state a
+ * rate the engine did not charge. Labels are the shared price-story copy. The freight line is already in GH₵ because that is
  * what the customer is charged in; the rate line is the last row because it is
  * the thing that turns the dollars above it into the cedis below.
  *
  * A row is omitted rather than guessed when its figure is not a finite number,
  * so a partial breakdown renders a shorter honest receipt instead of "$NaN".
  */
-/**
- * "10% value fee", or just "Value fee" when the rate is missing.
- *
- * The amount and the percentage are two different fields, so a row can carry a
- * real figure with no usable rate beside it. Dropping the prefix is honest;
- * `formatPercent(NaN)` would print "NaN% value fee" next to a correct amount.
- *
- * NOT USED FOR TAX. The tax row goes through `taxRowLabel`, because the tax
- * charge is `max(rate, floor)` and this helper would print the rate beside a
- * figure the floor decided.
- */
-function labelWithPercent(fraction: number, noun: string): string {
-  if (!Number.isFinite(fraction)) {
-    return noun.charAt(0).toUpperCase() + noun.slice(1);
-  }
-  return `${formatPercent(fraction)} ${noun}`;
-}
-
 export function buildReceiptRows(pricing: PricingBreakdown): ReceiptRow[] {
   const rows: ReceiptRow[] = [];
 
@@ -252,7 +234,7 @@ export function buildReceiptRows(pricing: PricingBreakdown): ReceiptRow[] {
     rows.push({
       key: "fee",
       icon: "fee",
-      label: labelWithPercent(pricing.value_fee_percentage, "Tomame fee"),
+      label: feeRowLabel(pricing.value_fee_percentage),
       value: formatUsd(pricing.value_fee_usd),
     });
   }
@@ -272,15 +254,17 @@ export function buildReceiptRows(pricing: PricingBreakdown): ReceiptRow[] {
 
   if (pricing.pricing_method === "needs_review") {
     // Freight is 0 only because no rule priced it; "GH₵0.00" would read as free.
-    rows.push({ key: "freight", icon: "freight", label: "Freight", value: "To confirm" });
+    rows.push({ key: "freight", icon: "freight", label: FREIGHT_ROW_LABEL, value: "To confirm" });
   } else if (Number.isFinite(pricing.flat_rate_ghs)) {
     rows.push({
       key: "freight",
       icon: "freight",
-      label: "Freight",
+      label: FREIGHT_ROW_LABEL,
       value: formatGhs(pricing.flat_rate_ghs),
     });
   }
+  // Display only, on every breakdown: customs sits inside the freight above.
+  rows.push({ key: "customs", icon: "customs", label: CUSTOMS_ROW_LABEL, value: CUSTOMS_ROW_VALUE });
 
   // Always USD: `exchange_rate` is the buffered USD→GHS rate the total is
   // struck at, whatever currency the store listed the item in.

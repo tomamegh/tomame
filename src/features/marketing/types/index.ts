@@ -20,7 +20,7 @@ export const MARKETING_VALUE_SOURCES = [
 
 export type MarketingValueSource = (typeof MARKETING_VALUE_SOURCES)[number];
 
-export type MarketingFigureUnit = "percent" | "ghs_per_lb" | "ghs";
+export type MarketingFigureUnit = "percent" | "ghs";
 
 /**
  * One resolved figure, ready to render. `display` is the big number in the
@@ -119,6 +119,7 @@ export type WorkedExampleRowKey =
   | "tax"
   | "fee"
   | "freight"
+  | "customs"
   | "exchange_rate";
 
 export interface WorkedExampleRow {

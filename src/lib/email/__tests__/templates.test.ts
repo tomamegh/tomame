@@ -88,7 +88,7 @@ describe("every email", () => {
   });
 
   it("shows order progress in plain text", () => {
-    expect(ALL.orderProcessing.text).toContain("Progress: Paid > [Purchased] > On the way > Delivered");
+    expect(ALL.orderProcessing.text).toContain("Progress: Paid — order confirmed > [Purchased from the store] > In flight to Accra > Delivered");
   });
 
   it("leaves the preheader out of the plain text", () => {

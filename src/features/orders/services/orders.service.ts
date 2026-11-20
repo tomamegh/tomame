@@ -11,6 +11,7 @@ import {
   orderShippedTemplate,
   orderDeliveredTemplate,
   orderCancelledTemplate,
+  type PricingBreakdownData,
 } from "@/lib/email/templates/order-status";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -224,6 +225,23 @@ async function getOrderAuditLogs(
   return (data ?? []) as AuditLog[];
 }
 
+/** The stored breakdown in the shape the order emails print. Undefined when it is not a price. */
+export function emailPricing(p: Order["pricing"] | null | undefined): PricingBreakdownData | undefined {
+  if (!p || p.pricing_method === "needs_review" || !Number.isFinite(p.total_ghs)) return undefined;
+  return {
+    itemPriceUsd: p.item_price_usd,
+    subtotalUsd: p.subtotal_usd,
+    taxPercentage: p.tax_percentage,
+    taxUsd: p.tax_usd,
+    valueFeePercentage: p.value_fee_percentage,
+    valueFeeUsd: p.value_fee_usd,
+    storeShippingUsd: p.store_shipping_usd ?? 0,
+    flatRateGhs: p.flat_rate_ghs,
+    exchangeRate: p.exchange_rate,
+    totalGhs: p.total_ghs,
+  };
+}
+
 export async function sendOrderStatusEmail(
   userId: string,
   order: Order,
@@ -275,7 +293,12 @@ export async function sendOrderStatusEmail(
 
     switch (newStatus) {
       case "paid":
-        template = orderPaidTemplate(emailData);
+        // An order paid on its own carries its breakdown; a bag's first order
+        // is not the bag, so a grouped one gets the customs line alone.
+        template = orderPaidTemplate({
+          ...emailData,
+          pricing: !order.order_group_id ? emailPricing(order.pricing) : undefined,
+        });
         break;
       case "processing":
         template = orderProcessingTemplate(emailData);
