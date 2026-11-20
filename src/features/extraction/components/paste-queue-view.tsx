@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AssistedRequestDialog } from "@/features/assisted/components";
 import { PASTE_BATCH_MAX } from "../services/paste-batch";
-import { splitLinks } from "./batch-format";
+import { linksInText } from "./batch-format";
 import { readBatch, writeBatch } from "./batch-storage";
 import { PasteBatchPanel } from "./paste-batch-panel";
 import { describePendingWait, hostOf, type PendingWait } from "@/features/bag/components/format";
@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 import { useAddPasteToBag, useCreatePaste, usePastes } from "../hooks/usePastes";
 import type { PasteStatus } from "../services/paste-status";
 import { AskPanel } from "./ask-panel";
-import { buyForMeHref, looksLikeUrl, type BuyForMeMode } from "./buy-for-me-mode";
+import { buyForMeHref, type BuyForMeMode } from "./buy-for-me-mode";
 import { ReadingIndicator } from "./reading-indicator";
 
 export interface PasteQueueViewProps {
@@ -271,13 +271,13 @@ export function PasteQueueView({
     if (!trimmed) return;
     // Something that is not obviously a link still goes to the server, which
     // says what is wrong with it better than a client-side guess can.
-    const links = splitLinks(trimmed);
-    void queueLinks(links.length > 0 ? links : [trimmed], { follow: batchIds.length === 0 });
+    const links = linksInText(trimmed);
+    void queueLinks(links.length > 0 ? links : [trimmed], { follow: batchIds.length === 0 && links.length <= 1 });
   }, [batchIds.length, queueLinks, url]);
 
   /** "+": take this link and get ready for the next one. */
   const onAddAnother = useCallback(() => {
-    const links = splitLinks(url);
+    const links = linksInText(url);
     if (links.length === 0) return;
     void queueLinks(links, { follow: false }).then(() => inputRef.current?.focus());
   }, [queueLinks, url]);
@@ -285,7 +285,7 @@ export function PasteQueueView({
   /** Pasting several links at once splits them into rows straight away. */
   const onClipboardPaste = useCallback(
     (event: React.ClipboardEvent<HTMLInputElement>) => {
-      const links = splitLinks(event.clipboardData.getData("text"));
+      const links = linksInText(event.clipboardData.getData("text"));
       if (links.length < 2) return;
       event.preventDefault();
       void queueLinks(links, { follow: false });
@@ -337,7 +337,8 @@ export function PasteQueueView({
   // customer is told which before they press it — the icon, the placeholder
   // and the button label all follow this, so the box never silently does the
   // other thing.
-  const isLink = looksLikeUrl(typed);
+  const textLinks = linksInText(typed);
+  const isLink = textLinks.length > 0;
   const finder = useStartFinder();
   const isDescription = typed.length > 0 && !isLink;
   // The catalogue search stays one tap away beneath the box: what we have
@@ -394,7 +395,7 @@ export function PasteQueueView({
     retrying: retryingId === paste.id,
   });
 
-  const typedLinks = isLink ? splitLinks(typed) : [];
+  const typedLinks = textLinks;
   const submitLabel = queueing ? "Adding" : isDescription ? (finder.pending ? "Starting" : "Find it for me") : batch.length > 0 ? "Add" : "Get price";
 
   return (

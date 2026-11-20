@@ -6,7 +6,9 @@ import { useState, type FormEvent } from "react";
 import { ArrowRight, LinkSimple, Sparkle } from "@phosphor-icons/react/ssr";
 
 import { StoreCycler } from "@/components/marketing/landing/store-cycler";
-import { buyForMeHref, looksLikeUrl } from "@/features/extraction/components/buy-for-me-mode";
+import { buyForMeHref } from "@/features/extraction/components/buy-for-me-mode";
+import { linksInText } from "@/features/extraction/components/batch-format";
+import { PASTE_BATCH_MAX } from "@/features/extraction/services/paste-batch";
 import { useStartFinder } from "@/features/finder/hooks/useFinder";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +63,8 @@ export function HeroPasteBar({ stores, catalogueCount = 0, className }: HeroPast
 
   const typed = value.trim();
   const isEmpty = typed.length === 0;
-  const isLink = looksLikeUrl(typed);
+  const typedLinks = linksInText(typed);
+  const isLink = typedLinks.length > 0;
   const canSearch = catalogueCount > 0;
   // Words, not a link: "Find it for me" starts a price finder run (105).
   const describing = !isEmpty && !isLink;
@@ -77,7 +80,9 @@ export function HeroPasteBar({ stores, catalogueCount = 0, className }: HeroPast
       finder.start(typed);
       return;
     }
-    router.push(`${QUOTE_ROUTE}?url=${encodeURIComponent(typed)}`);
+    const params = new URLSearchParams();
+    for (const link of typedLinks.slice(0, PASTE_BATCH_MAX)) params.append("url", link);
+    router.push(`${QUOTE_ROUTE}?${params.toString()}`);
   }
 
   return (

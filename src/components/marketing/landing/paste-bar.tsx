@@ -5,7 +5,7 @@ import { useState, type FormEvent } from "react";
 import { ArrowRight, LinkSimple, Sparkle } from "@phosphor-icons/react/ssr";
 
 import { Button } from "@/components/ui/button";
-import { splitLinks } from "@/features/extraction/components/batch-format";
+import { linksInText } from "@/features/extraction/components/batch-format";
 import { buyForMeHref, looksLikeUrl } from "@/features/extraction/components/buy-for-me-mode";
 import { useStartFinder } from "@/features/finder/hooks/useFinder";
 import { PASTE_BATCH_MAX } from "@/features/extraction/services/paste-batch";
@@ -24,7 +24,7 @@ export function PasteBar({ className }: PasteBarProps) {
   const router = useRouter();
   const [value, setValue] = useState("");
   const typed = value.trim();
-  const links = splitLinks(typed);
+  const links = linksInText(typed);
   const isText = typed.length > 0 && links.length === 0 && !looksLikeUrl(typed);
   // Words, not a link: "Find it for me" starts a price finder run (105).
   const finder = useStartFinder();

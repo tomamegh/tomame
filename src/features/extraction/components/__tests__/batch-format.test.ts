@@ -4,7 +4,7 @@ import { PRICE_CONFIRMING_MESSAGE } from "@/features/extraction/price-confidence
 import { STOCK_CHECK_MESSAGE, STOCK_UNAVAILABLE_MESSAGE } from "@/features/extraction/stock-signals";
 import type { PasteBatchLine } from "../../services/paste-batch";
 import type { PasteStatus } from "../../services/paste-status";
-import { batchRowStatus, splitLinks } from "../batch-format";
+import { batchRowStatus, linksInText, splitLinks } from "../batch-format";
 
 describe("splitLinks", () => {
   it("splits several links pasted at once, in order, without repeats", () => {
@@ -80,5 +80,26 @@ describe("batchRowStatus", () => {
   it("keeps a priced link on Pricing while its total is still settling", () => {
     expect(batchRowStatus(paste(), line({ total_ghs: null, pricing_unavailable_reason: null }))).toMatchObject({ kind: "pricing", label: "Pricing", askable: false });
     expect(batchRowStatus(paste({ assisted: { status: "open", requested_at: "2026-11-20T10:01:00Z" } }), null).label).toBe("With a buyer");
+  });
+});
+
+describe("links inside typed or pasted text", () => {
+  it("reads several links typed with spaces as links, not a description", () => {
+    expect(
+      linksInText("https://www.amazon.com/-/en/dp/B0DJ1C3J2B?language=en_US&currency=GHS https://www.amazon.com/dp/B07Q31WX1C https://www.amazon.com/dp/B08CH4TFC6"),
+    ).toHaveLength(3);
+  });
+
+  it("finds the link in an app's share text", () => {
+    expect(linksInText("Check out this item on Amazon https://a.co/d/abc123")).toEqual(["https://a.co/d/abc123"]);
+  });
+
+  it("keeps a sentence that only names a store as a description", () => {
+    expect(linksInText("Samsung S24 at walmart.com")).toEqual([]);
+    expect(linksInText("Oraimo FreePods 4 earbuds")).toEqual([]);
+  });
+
+  it("still takes a single bare link", () => {
+    expect(linksInText("amazon.com/dp/B07Q31WX1C")).toEqual(["amazon.com/dp/B07Q31WX1C"]);
   });
 });

@@ -25,6 +25,20 @@ export function splitLinks(text: string): string[] {
   return out;
 }
 
+/**
+ * The links inside whatever was typed or pasted. One token is a link when it
+ * looks like one. In a sentence (an app's "Check out this item on Amazon
+ * https://a.co/d/…" share text, or several links pasted together) only
+ * explicit links count, a scheme or a host with a path, so "Samsung S24 at
+ * walmart.com" stays a description for the price finder.
+ */
+export function linksInText(text: string): string[] {
+  const t = text.trim();
+  if (!t) return [];
+  if (!/\s/.test(t)) return looksLikeUrl(t) ? splitLinks(t) : [];
+  return splitLinks(t).filter((l) => /^https?:\/\//i.test(l) || /^[^/\s]+\.[a-z]{2,}\/\S+/i.test(l));
+}
+
 export type BatchRowKind = "reading" | "pricing" | "ready" | "held" | "unavailable" | "failed" | "assisted";
 
 export interface BatchRowStatus {
