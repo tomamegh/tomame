@@ -102,7 +102,7 @@ export function WarehouseShell({
       <header className="tm-safe-top sticky top-0 z-40 border-b border-tm-hairline bg-card/90 backdrop-blur-[14px] print:hidden">
         <div className="mx-auto flex h-16 w-full max-w-[1320px] items-center gap-4 px-4 md:px-8">
           <Link href={driver ? "/warehouse/deliveries" : "/warehouse"} className="flex shrink-0 items-center gap-2.5" aria-label="Warehouse home">
-            <Logo variant="mark" height={24} decorative />
+            <Logo variant="symbol" height={24} decorative />
             <span className="flex flex-col leading-none">
               <Logo variant="wordmark" height={14} decorative />
               <span className="mt-1 text-[10px] font-bold tracking-[0.16em] text-tm-text-3 uppercase">

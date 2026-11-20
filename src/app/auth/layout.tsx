@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Check } from "@phosphor-icons/react/ssr";
 
 import { Logo } from "@/components/brand/logo";
+import { CompactFooter } from "@/components/layout/marketing/compact-footer";
 import { DEFAULT_MARKETING_TAGLINE } from "@/components/layout/marketing/marketing-footer";
 import { formatPaymentChannels } from "@/components/layout/marketing/links";
 import { getMarketingSettings } from "@/features/marketing/services";
@@ -115,21 +116,24 @@ export default async function AuthLayout({
         status bar is translucent there. Without the inset the clock is drawn
         over the logo. No-op in a browser.
       */}
-      <div className="tm-safe-top flex flex-col items-center gap-2 border-b border-tm-hairline bg-tm-paper px-6 py-6 [--tm-safe-top-base:1.5rem] text-center lg:hidden">
-        <Link href="/" aria-label="Tomame home" className="rounded-sm">
-          <Logo variant="horizontal" height={22} decorative priority />
-        </Link>
-        <p className="text-sm leading-[1.4] text-tm-text-2">
-          Shop the world.{" "}
-          <span className="bg-[image:var(--tm-gradient)] bg-clip-text font-semibold text-transparent">
-            Pay in cedis.
-          </span>
-        </p>
-      </div>
+      {/*
+        The same header bar as the marketing site and the app (2026-11-20): the
+        lockup on the left of a 64px bar, not a centred logo and tagline.
+      */}
+      <header className="tm-safe-top border-b border-border bg-card lg:hidden">
+        <div className="flex h-16 items-center px-5">
+          <Link href="/" aria-label="Tomame home" className="rounded-sm focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:outline-none">
+            <Logo variant="horizontal" height={22} decorative priority />
+          </Link>
+        </div>
+      </header>
 
       {/* ── Form ────────────────────────────────────────────────────────── */}
-      <div className="flex flex-1 items-center justify-center bg-card px-8 py-10 lg:px-12 lg:py-14">
-        <div className="w-full max-w-md">{children}</div>
+      <div className="flex flex-1 flex-col bg-card">
+        <div className="flex flex-1 items-center justify-center px-5 py-8 sm:px-8 lg:px-12 lg:py-14">
+          <div className="w-full max-w-md">{children}</div>
+        </div>
+        <CompactFooter />
       </div>
     </main>
   );

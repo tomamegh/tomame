@@ -64,7 +64,7 @@ export default function AppSidebar(props: { className?: string }) {
                   collapses to icons, where the wordmark would be clipped.
                 */}
                 <Logo
-                  variant="mark"
+                  variant="symbol"
                   height={22}
                   decorative
                   className="shrink-0 group-data-[collapsible=icon]:mx-auto"

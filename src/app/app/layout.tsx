@@ -1,4 +1,5 @@
 import { AppBottomTabs, AppNav } from "@/components/layout/app";
+import { CompactFooter } from "@/components/layout/marketing/compact-footer";
 import { APP_BOTTOM_TABS_PADDING } from "@/components/layout/app/styles";
 import { appNavItems } from "@/components/layout/app/links";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,13 @@ export default async function AppDashboardLayout({
       >
         {children}
       </main>
+
+      {/*
+        The one footer row, from `lg`: below it the tab bar (or a screen's own
+        pinned action) holds the bottom edge, and a footer under it would only
+        be half visible.
+      */}
+      <CompactFooter className="hidden lg:block" />
 
       {/*
         Only for signed-in customers. Three of the four tabs point at routes

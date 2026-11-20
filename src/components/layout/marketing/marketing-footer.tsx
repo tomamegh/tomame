@@ -141,7 +141,7 @@ export function MarketingFooter({
             aria-label="Tomame home"
             className={cn("w-fit rounded-sm", FOCUS_RING)}
           >
-            <Logo variant="lockup" height={110} decorative />
+            <Logo variant="horizontal" height={22} decorative />
           </Link>
 
           <p className="max-w-[260px]">{tagline}</p>

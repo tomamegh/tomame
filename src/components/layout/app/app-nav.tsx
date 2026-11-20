@@ -87,42 +87,24 @@ export function AppNav({
           className={cn("w-fit rounded-sm", FOCUS_RING)}
         >
           {/*
-            The REAL logo, not gradient-styled text. This was `tm-wordmark` on
-            the literal word "Tomame" — the brand mark was simply absent from
-            every signed-in screen while the marketing site carried it. `Logo`
-            is the one place the artwork lives (`components/brand/logo.tsx`);
-            `priority` because this is above the fold on every app route.
+            The same lockup as the marketing and auth headers: the vector tile
+            and the wordmark (2026-11-20). ~170px wide, so it fits beside the
+            bag, bell and avatar at 375px; below that, and between `lg` and
+            `xl` when the Cars tab crowds the five pills, the tile stands alone.
           */}
-          {/*
-            Two spellings, one per breakpoint. At 390px the full lockup plus the
-            right cluster (bag, bell, avatar — or bag and "Sign in") did not fit:
-            the bag's badge sat on top of the wordmark's last letter in Kelvin's
-            screenshot. The mark alone below `md` gives the row back ~130px; the
-            wordmark returns from `md` up. The mark is the same file in both, so
-            the phone downloads nothing extra.
-          */}
-          {/*
-            With the Cars tab the five pills need the room: between `lg` and
-            `xl` the full lockup (260px) was measured overlapping the Home pill
-            at 1024px, so the mark stands in for it across that band too.
-          */}
-          <Logo
-            variant="mark"
-            height={34}
-            decorative
-            priority
-            className={cn("md:hidden", isAuthenticated && withCarsTab && "lg:inline-flex xl:hidden")}
-          />
-          <Logo
-            variant="horizontal"
-            height={24}
-            decorative
-            priority
-            className={cn(
-              "hidden md:inline-flex",
-              isAuthenticated && withCarsTab && "lg:hidden xl:inline-flex",
-            )}
-          />
+          <span className="inline-flex items-center gap-2">
+            <Logo variant="symbol" height={26} decorative />
+            <Logo
+              variant="wordmark"
+              height={19}
+              decorative
+              priority
+              className={cn(
+                "hidden min-[370px]:block",
+                isAuthenticated && withCarsTab && "lg:hidden xl:block",
+              )}
+            />
+          </span>
         </Link>
 
         {/*

@@ -77,8 +77,8 @@ export default function LoginForm() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-stone-800">Welcome back</h1>
-        <p className="text-stone-400 mt-2">Sign in to access your dashboard</p>
+        <h1 className="tm-title-1 text-foreground">Welcome back</h1>
+        <p className="mt-2 text-muted-foreground">Sign in to see your quotes, bag and orders.</p>
       </div>
 
       <form id="signin-form">

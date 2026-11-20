@@ -8,6 +8,8 @@ import { MARKETING_IMAGES, applyImageOverride, getProductImage , imagePosition }
 import type { WorkedExample } from "@/features/marketing/types";
 import { HERO_PRICE_PARTS } from "@/config/price-story";
 
+import { PriceDisplay } from "@/components/price/price-display";
+
 import { LandedReceipt } from "./landed-receipt";
 import { PasteBar } from "./paste-bar";
 import { StoreCycler } from "./store-cycler";
@@ -101,13 +103,21 @@ export function LandingHero({
           </h1>
 
           <p className="max-w-[520px] text-[17px] leading-[27px] text-tm-text-2 md:text-[18px]">
-            Paste a link from{" "}
-            <StoreCycler stores={cyclerStores} rowHeight={27} /> and see the
-            full price at your door before you pay: {HERO_PRICE_PARTS}.
+            See the full price at your door before you pay: {HERO_PRICE_PARTS}.
             MoMo or card. We buy it, fly it, deliver it.
           </p>
 
-          <PasteBar />
+          {/*
+            The rotating store name ends its line, so the window's fixed width
+            (the longest name) never leaves a gap before the next word, and
+            nothing around it moves as the names change.
+          */}
+          <div className="flex flex-col gap-2.5">
+            <p className="text-[14px] leading-[22px] font-medium text-tm-text-2">
+              Paste a link from <StoreCycler stores={cyclerStores} rowHeight={22} />
+            </p>
+            <PasteBar />
+          </div>
 
           {trustChips.length > 0 && (
             <ul className="flex flex-wrap gap-x-[18px] gap-y-2 text-[13px] font-medium text-tm-text-2">
@@ -162,15 +172,20 @@ export function LandingHero({
 
             <LandedReceipt example={example} motion="print" />
 
-            <div className="flex items-baseline justify-between border-t border-dashed border-tm-border pt-3">
-              <span className="text-sm font-semibold">At your door</span>
-              <span className="tm-nums tm-pop text-[26px] leading-none font-bold tracking-[-0.02em] [animation-delay:1.2s] [animation-duration:0.6s]">
-                {example.total_ghs_display}
-              </span>
-            </div>
+            {/* The shared price display: the same figure, overline and echo the quote uses. */}
+            <PriceDisplay
+              amount={example.total_ghs_display}
+              usd={example.total_usd_display}
+              overline="At your door in Accra"
+              className="border-t border-dashed border-tm-border pt-3"
+            />
 
-            <span className="tm-cta-gradient flex h-11 items-center justify-center rounded-xl text-sm font-bold">
-              Pay with MoMo
+            {/*
+              An illustration of the step, not a control: solid and quiet, so
+              the paste box stays the one primary action on the screen.
+            */}
+            <span aria-hidden className="flex h-11 items-center justify-center rounded-xl bg-muted text-sm font-semibold text-foreground">
+              Pay with MoMo or card
             </span>
           </div>
 
