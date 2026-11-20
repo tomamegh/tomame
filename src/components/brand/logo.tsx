@@ -1,7 +1,6 @@
 import Image from "next/image";
 
 import { cn } from "@/lib/utils";
-import { BrandMark } from "./brand-mark";
 
 /**
  * The Tomame logo, in the three forms the brand actually has.
@@ -12,12 +11,12 @@ import { BrandMark } from "./brand-mark";
  * that shows the logo should render this.
  *
  * Variants:
- *   symbol     — the vector tile (`BrandMark`): the mark at small sizes.
- *   horizontal — symbol beside the wordmark. The default, and the one header
- *                treatment across marketing, app and auth (2026-11-20).
+ *   symbol     — the illustrated mark alone, for compact headers (an alias of
+ *                `mark`; the approved artwork is the only mark).
+ *   horizontal — the illustrated mark beside the wordmark. The default, and
+ *                the one header treatment across marketing, app and auth.
  *   wordmark   — the "tomame" lettering alone.
- *   mark       — the illustrated globe, plane and container. Big moments only
- *                (splash, empty hero): it blurs below about 60 px.
+ *   mark       — globe, plane and container alone.
  *   lockup     — the artwork as supplied: mark over wordmark over tagline.
  *                Needs real height (100px+) to be legible.
  *
@@ -96,24 +95,25 @@ export function Logo({
   priority = false,
 }: LogoProps) {
   if (variant === "symbol") {
-    return <BrandMark size={height ?? 28} className={className} decorative={decorative} />;
+    // The approved illustrated mark. Its artwork is ~2.2:1, so a compact slot
+    // sized by height gets the same visual weight as the old app header.
+    return <Logo variant="mark" height={height ?? 28} className={className} decorative={decorative} priority={priority} />;
   }
 
   if (variant === "horizontal") {
-    // The vector mark, not the illustration: the globe/plane/container artwork
-    // blurs at header sizes (2026-11-20). The tile is ~1.3x the lettering's
-    // height so the two read as one lockup.
-    const h = height ?? 22;
+    // The mark is rendered ~1.55x the wordmark's height so the lettering
+    // optically matches the artwork rather than being dwarfed by it.
+    const h = height ?? 26;
     return (
       <span
         className={cn("inline-flex items-center gap-2", className)}
-        // A single accessible name for the pair; the parts are decorative so a
-        // screen reader announces "Tomame" once, not twice.
+        // A single accessible name for the pair; the images themselves are
+        // decorative so a screen reader announces "Tomame" once, not twice.
         role="img"
         aria-label={decorative ? undefined : "Tomame"}
         aria-hidden={decorative || undefined}
       >
-        <BrandMark size={Math.round(h * 1.3)} decorative />
+        <Logo variant="mark" height={Math.round(h * 1.55)} decorative priority={priority} />
         <Logo variant="wordmark" height={h} decorative priority={priority} />
       </span>
     );

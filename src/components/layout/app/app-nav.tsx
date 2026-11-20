@@ -93,7 +93,7 @@ export function AppNav({
             `xl` when the Cars tab crowds the five pills, the tile stands alone.
           */}
           <span className="inline-flex items-center gap-2">
-            <Logo variant="symbol" height={26} decorative />
+            <Logo variant="symbol" height={29} decorative />
             <Logo
               variant="wordmark"
               height={19}
