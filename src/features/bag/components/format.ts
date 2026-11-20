@@ -214,38 +214,93 @@ export function describePendingWait(
     return {
       phase: "assisted",
       title: "A buyer is on it",
-      detail: "We have your description. Someone will message you on WhatsApp.",
+      detail: "We have your description. A buyer will message you on WhatsApp.",
     };
   }
 
   if (pending.status === "failed") {
     return {
       phase: "failed",
-      title: "We could not read this page",
-      detail: pending.error ?? "Tell us what you want instead and a buyer will sort it out.",
+      title: "We couldn't read this page",
+      detail: pending.error ?? "Describe what you want and a buyer will find it for you.",
     };
   }
 
   const elapsed = now.getTime() - new Date(pending.queued_at).getTime();
   const followUp = options.notifies
-    ? "we'll tell you the moment it's done."
-    : "the price appears here the moment it's done.";
+    ? "we'll tell you when it's priced."
+    : "the price will appear here when it's ready.";
 
+  // Plain status, no personality: a wait is information, not a joke (2026-11-20).
   if (elapsed >= PENDING_STUCK_MS) {
     return {
       phase: "stuck",
-      title: "This one is being stubborn",
-      detail: `We're still trying. Carry on shopping and ${followUp} Or tell us what you want and a buyer will sort it out on WhatsApp.`,
+      title: "Still reading this page",
+      detail: `Some stores take longer to read. You can carry on and ${followUp} Or describe it and a buyer will find it for you on WhatsApp.`,
     };
   }
   if (elapsed >= PENDING_SLOW_MS) {
     return {
       phase: "slow",
-      title: "Taking longer than usual",
-      detail: `Carry on shopping and ${followUp}`,
+      title: "Reading this page",
+      detail: `This one is taking a little longer. You can carry on and ${followUp}`,
     };
   }
-  return { phase: "reading", title: "Reading this page…", detail: null };
+  return { phase: "reading", title: "Reading this page", detail: null };
+}
+
+// ── Why Pay is waiting ──────────────────────────────────────────────────────
+
+export interface PayBlockContext {
+  isSignedIn: boolean;
+  /** The signed-in viewer has a name and phone on file. */
+  hasContact: boolean;
+}
+
+function countItems(n: number): string {
+  return n === 1 ? "1 item" : `${n} items`;
+}
+
+/** "it" / "them", "it's" / "they're". */
+function pronoun(n: number, one: string, many: string): string {
+  return n === 1 ? one : many;
+}
+
+/**
+ * Why the bag's Pay button is waiting, in one plain sentence, or null when it
+ * is not. Reads and checks that finish on their own come first, then what only
+ * the customer can fix. Shown beside the button so a held line explains itself
+ * instead of checkout answering with a bare 409.
+ */
+export function payBlockReason(view: BagView, ctx: PayBlockContext): string | null {
+  const lines = view.lines;
+  if (lines.length === 0) return null;
+
+  const reading = lines.filter((l) => l.pending != null).length;
+  if (reading > 0) return `Reading ${countItems(reading)}. Pay opens once ${pronoun(reading, "it's", "they're")} priced.`;
+
+  const freight = lines.filter((l) => l.freight_checking).length;
+  if (freight > 0) return `Checking the freight on ${countItems(freight)}. This usually takes a few seconds.`;
+
+  const sourcing = lines.filter((l) => l.sourcing != null && l.sourcing.status !== "available");
+  const notComing = sourcing.filter((l) => l.sourcing?.status === "unavailable").length;
+  if (notComing > 0) return `We can't get ${countItems(notComing)}. Remove ${pronoun(notComing, "it", "them")} to pay for the rest.`;
+  if (sourcing.length > 0) return `A buyer is pricing ${countItems(sourcing.length)}. Pay opens once ${pronoun(sourcing.length, "it's", "they're")} priced.`;
+
+  const held = lines.map((l) => l.pay_hold).filter((h): h is NonNullable<BagLine["pay_hold"]> => h != null && h.kind !== "freight_check");
+  const gone = held.filter((h) => h.kind === "unavailable").length;
+  if (gone > 0) return `${pronoun(gone, "1 item is", `${gone} items are`)} no longer available. Remove ${pronoun(gone, "it", "them")} to pay for the rest.`;
+  const price = held.filter((h) => h.kind === "price_check").length;
+  if (price > 0) return `We're confirming the price of ${countItems(price)}. Pay opens once it's confirmed.`;
+  const stock = held.filter((h) => h.kind === "stock_check").length;
+  if (stock > 0) return `We're confirming stock and condition for ${countItems(stock)}. Pay opens once it's confirmed.`;
+
+  const unpriced = lines.filter((l) => l.pricing == null).length;
+  if (unpriced > 0) return `${pronoun(unpriced, "1 item can't", `${unpriced} items can't`)} be priced right now. Remove ${pronoun(unpriced, "it", "them")} to pay for the rest.`;
+
+  if (ctx.isSignedIn && !view.delivery) return "Choose how you'd like it delivered to pay.";
+  if (ctx.isSignedIn && !ctx.hasContact) return "Add your name and phone number to pay.";
+  return null;
 }
 
 /** "microcenter.com" — what a customer recognises when there is no product name yet. */

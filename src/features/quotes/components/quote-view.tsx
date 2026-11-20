@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, WarningCircle } from "@phosphor-icons/react/ssr";
+import { ArrowLeft } from "@phosphor-icons/react/ssr";
+
+import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/empty-state";
 
 import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { Quote } from "@/features/extraction/types";
@@ -367,9 +370,9 @@ export function QuoteView({
           setContactOpen(false);
           setAddedCount(result.item_count);
           toast.success({
-            title: "We are on it",
+            title: "Sent to our team",
             description:
-              "This one needs a person. We will price it and tell you as soon as you can pay for it.",
+              "A buyer will price it by hand. We'll let you know as soon as you can pay for it.",
           });
           router.refresh();
         },
@@ -453,17 +456,20 @@ export function QuoteView({
       : [];
   const hasRail = gallery.length > 1;
   const store = storeForUrl(quote.product_url);
+  const payHold = quote.pay_hold ?? null;
+  const unavailable = payHold?.kind === "unavailable";
+  // The bar's one-line reason while a price or stock check holds payment.
+  const holdNote =
+    payHold && payHold.kind !== "freight_check" && !unavailable ? `${payHold.message}. You can still add it to your bag.` : null;
+  const currencySymbol = quote.product.currency?.toUpperCase() === "GBP" ? "£" : "$";
 
   return (
     /*
-      `pb-[95px]` is the height of the action bar, which is `fixed` and so out
-      of flow: 12 + 52 + 30 plus its hairline, the literal the artboard gives.
-      `main` already carries the page's own 64px bottom padding, so the gap the
-      customer sees under the last card stays the usual one — the bar covers
-      the space reserved here. Nothing is reserved from `lg` up, where the bar
-      does not render.
+      The phone reserves the height of the fixed action bar (12 + 52 + 16 and
+      the hairline, plus a hold line when there is one). Nothing is reserved
+      from `lg` up, where the bar does not render.
     */
-    <div className="flex flex-col gap-[18px] pb-[95px] lg:gap-[22px] lg:pb-0">
+    <div className={cn("flex flex-col gap-[18px] lg:gap-[22px] lg:pb-0", holdNote ? "pb-[120px]" : "pb-[92px]")}>
       <QuoteMobileHeader
         backHref={backHref}
         storeLabel={formatStorePillLabel(store?.name ?? null, quote.product_url)}
@@ -542,6 +548,10 @@ export function QuoteView({
             onShippingChange={setShippingCode}
             repricing={repricing}
             freightCheckSeenAt={checkingFreight ? (freightCheckSeenAt ?? receivedAt.getTime()) : null}
+            payHold={payHold}
+            stockCheck={quote.stock_check ?? null}
+            extractionId={quote.extraction_cache_id ?? null}
+            currencySymbol={currencySymbol}
             onContinue={addLineToBag}
             canContinue={canContinue && !!quote.extraction_cache_id}
             continuePending={addingToBag}
@@ -598,6 +608,9 @@ export function QuoteView({
         addedCount={addedCount}
         repricing={repricing}
         freightChecking={checkingFreight}
+        unavailable={unavailable}
+        holdNote={holdNote}
+        totalGhs={quote.pricing && quote.pricing.pricing_method !== "needs_review" ? quote.pricing.total_ghs : null}
         onContinue={addLineToBag}
         needsSourcing={sourcingNeeded}
         onAskToSource={askToSource}
@@ -626,29 +639,20 @@ export function QuoteView({
  */
 function QuoteLoadError({ message }: { message: string }) {
   return (
-    <section className="tm-up mx-auto flex max-w-[520px] flex-col items-center gap-4 rounded-[24px] border border-tm-border bg-card px-6 py-12 text-center">
-      <span className="flex size-14 items-center justify-center rounded-full bg-tm-amber-bg">
-        <WarningCircle
-          weight="duotone"
-          className="size-7 text-tm-amber"
-          aria-hidden
-        />
-      </span>
-      <h1 className="font-display text-[20px] leading-[1.2] font-bold">
-        This quote is no longer available
-      </h1>
-      <p className="text-sm leading-[1.5] font-medium text-tm-text-2">
-        {message}
-      </p>
-      {/* The paste screen itself, not Home — "paste the link again" should land on the paste bar. */}
-      <Link
-        href="/app/orders/new"
-        className="inline-flex items-center gap-2 rounded-[14px] border-[1.5px] border-tm-border bg-card px-4 py-3 text-sm leading-none font-semibold transition-colors hover:border-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:outline-none"
-      >
-        <ArrowLeft className="size-4" aria-hidden />
-        Paste the link again
-      </Link>
-    </section>
+    <ErrorState
+      title="This quote is no longer available"
+      description={message}
+      className="tm-up mx-auto w-full max-w-[520px]"
+      action={
+        /* The paste screen itself, not Home: "paste the link again" should land on the paste box. */
+        <Button asChild variant="outline" size="touch">
+          <Link href="/app/orders/new">
+            <ArrowLeft className="size-4" aria-hidden />
+            Paste the link again
+          </Link>
+        </Button>
+      }
+    />
   );
 }
 

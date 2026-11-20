@@ -2,6 +2,7 @@
 
 import type { Icon } from "@phosphor-icons/react";
 import {
+  CheckCircle,
   Scales,
   SealCheck,
   Star,
@@ -11,7 +12,8 @@ import {
 } from "@phosphor-icons/react/ssr";
 
 import type { ScrapedProduct } from "@/features/extraction/types";
-import { buildSpecChips, pickProductColour, type SpecChipIcon } from "./format";
+import { cn } from "@/lib/utils";
+import { availabilityNotice, buildSpecChips, pickProductColour, type SpecChipIcon } from "./format";
 
 /** One duotone glyph per spec chip, keyed by the fact the builder emitted. */
 const CHIP_ICONS: Record<SpecChipIcon, Icon> = {
@@ -42,15 +44,33 @@ export function ProductFacts({
   messages,
 }: ProductFactsProps) {
   const chips = buildSpecChips(product);
-  const availability = product.availability?.trim();
+  const availability = availabilityNotice(product.availability);
+  const title = product.title ?? productUrl;
 
   return (
-    <div className="flex flex-col gap-3.5 lg:gap-2.5">
-      <h1 className="font-display text-[20px] leading-[1.2] font-bold sm:text-[24px] sm:leading-[1.15] lg:text-[30px] lg:leading-[1.15]">
-        {product.title ?? productUrl}
+    <div className="flex flex-col gap-3 lg:gap-3.5">
+      {/* Two lines at most: a store's 200-character title is not a headline. The full text is the tooltip. */}
+      <h1 title={title} className="tm-title-2 line-clamp-2 break-words text-foreground lg:text-[28px]">
+        {title}
       </h1>
 
-      {(chips.length > 0 || availability) && (
+      {availability && (
+        <p
+          className={cn(
+            "flex items-center gap-1.5 text-[13px] leading-none font-semibold",
+            availability.tone === "success" ? "text-tm-green-ink dark:text-tm-green" : "text-tm-amber",
+          )}
+        >
+          {availability.tone === "success" ? (
+            <CheckCircle weight="fill" className="size-4 shrink-0" aria-hidden />
+          ) : (
+            <Warning weight="fill" className="size-4 shrink-0" aria-hidden />
+          )}
+          {availability.label}
+        </p>
+      )}
+
+      {chips.length > 0 && (
         <ul className="flex flex-wrap gap-1.5 lg:gap-2">
           {chips.map((chip) => {
             const ChipIcon = CHIP_ICONS[chip.icon];
@@ -63,7 +83,7 @@ export function ProductFacts({
               */
               <li
                 key={chip.key}
-                className="inline-flex items-center gap-1.5 rounded-full border border-tm-border bg-card px-2.5 py-1.5 text-[12px] leading-none font-medium text-tm-text-2 lg:px-3 lg:py-2 lg:text-[13px] lg:leading-none"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1.5 text-[12px] leading-none font-medium text-muted-foreground lg:px-3 lg:py-2 lg:text-[13px] lg:leading-none"
               >
                 <ChipIcon
                   weight="duotone"
@@ -71,34 +91,21 @@ export function ProductFacts({
                   aria-hidden
                 />
                 <span className="hidden lg:inline">{chip.label} </span>
-                <b className="tm-nums font-medium text-tm-text-2 lg:font-semibold lg:text-tm-ink">
+                <b className="tm-nums font-medium text-muted-foreground lg:font-semibold lg:text-foreground">
                   {chip.value}
                 </b>
               </li>
             );
           })}
-
-          {/*
-            The store's own availability phrase, verbatim — "In Stock",
-            "Only 3 left in stock". The artboard puts it only on the 390px
-            view, where it is the one fact a customer checks before paying and
-            there is no room for a labelled chip; the desktop mock has no such
-            chip and keeps its labelled row unchanged.
-          */}
-          {availability && (
-            <li className="inline-flex items-center rounded-full bg-tm-green-bg px-2.5 py-1.5 text-[12px] leading-none font-semibold text-tm-green-ink lg:hidden">
-              {availability}
-            </li>
-          )}
         </ul>
       )}
 
       {messages.length > 0 && (
-        <ul className="flex flex-col gap-1.5 rounded-[14px] bg-tm-amber-bg px-3.5 py-3">
+        <ul className="flex flex-col gap-1.5 rounded-[14px] bg-tm-amber-bg px-3.5 py-3 dark:bg-tm-amber/15">
           {messages.map((message) => (
             <li
               key={message}
-              className="flex items-start gap-2 text-[13px] leading-[1.45] font-medium text-tm-text-2"
+              className="flex items-start gap-2 text-[13px] leading-[1.45] font-medium text-muted-foreground"
             >
               <Warning
                 weight="duotone"
@@ -132,7 +139,7 @@ export function ProductColourCard({ product }: ProductColourCardProps) {
   if (!colour) return null;
 
   return (
-    <section className="flex flex-col gap-3 rounded-[18px] border border-tm-border bg-card p-[18px]">
+    <section className="flex flex-col gap-3 rounded-[18px] border border-border bg-card p-[18px]">
       <h2 className="text-sm leading-none font-semibold">
         Colour
         {colour.selected && (
@@ -152,7 +159,7 @@ export function ProductColourCard({ product }: ProductColourCardProps) {
                 className={
                   isSelected
                     ? "rounded-full border border-tm-coral bg-tm-tint px-3 py-1.5 text-xs leading-none font-semibold text-tm-coral-strong"
-                    : "rounded-full border border-tm-border bg-[var(--tm-pill-bg)] px-3 py-1.5 text-xs leading-none font-medium text-tm-text-2"
+                    : "rounded-full border border-border bg-[var(--tm-pill-bg)] px-3 py-1.5 text-xs leading-none font-medium text-muted-foreground"
                 }
               >
                 {option}
@@ -191,7 +198,7 @@ export function BuyerNoteCard({
   maxLength,
 }: BuyerNoteCardProps) {
   return (
-    <section className="flex flex-col gap-3 rounded-[18px] border border-tm-border bg-card p-[18px]">
+    <section className="flex flex-col gap-3 rounded-[18px] border border-border bg-card p-[18px]">
       <label
         htmlFor="quote-buyer-note"
         className="text-sm leading-none font-semibold"
@@ -205,7 +212,7 @@ export function BuyerNoteCard({
         maxLength={maxLength}
         rows={3}
         placeholder="e.g. only if sold by Amazon, not a 3rd-party seller"
-        className="w-full resize-none rounded-[12px] border border-dashed border-[#E8DDD6] bg-card px-3.5 py-3 text-[14px] leading-[1.5] font-normal text-tm-ink placeholder:text-tm-text-3 focus-visible:border-tm-coral focus-visible:outline-none"
+        className="w-full resize-none rounded-[12px] border border-dashed border-border bg-card px-3.5 py-3 text-[14px] leading-[1.5] font-normal text-foreground placeholder:text-muted-foreground focus-visible:border-tm-coral focus-visible:outline-none"
       />
     </section>
   );

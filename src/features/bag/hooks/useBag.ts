@@ -32,6 +32,13 @@ export function useBag(initialData: BagView) {
   const pending = query.data.has_pending_lines || query.data.has_freight_checks;
   const { refetch } = query;
   useVisibleInterval(() => void refetch(), BAG_POLL_MS, pending);
+  // A price re-read (103) finishes on its own within a minute; a staff check
+  // takes longer, so the bag asks rarely while one is open and Pay unlocks
+  // without a reload when it clears.
+  const holds = query.data.lines.map((l) => l.pay_hold).filter((h) => h != null && h.kind !== "freight_check");
+  const autoHold = holds.some((h) => h!.kind === "price_check" && !h!.needs_staff);
+  useVisibleInterval(() => void refetch(), HOLD_AUTO_POLL_MS, autoHold && !pending);
+  useVisibleInterval(() => void refetch(), HOLD_STAFF_POLL_MS, holds.length > 0 && !autoHold && !pending);
 
   return query;
 }
@@ -44,6 +51,10 @@ export function useBag(initialData: BagView) {
  * full re-price of the bag.
  */
 export const BAG_POLL_MS = 2_000;
+/** While an automatic price re-read runs: the same cadence as the quote screen. */
+export const HOLD_AUTO_POLL_MS = 5_000;
+/** While a line waits on a person (price or stock check): once a minute. */
+export const HOLD_STAFF_POLL_MS = 60_000;
 
 export function useUpdateBagLine() {
   const queryClient = useQueryClient();

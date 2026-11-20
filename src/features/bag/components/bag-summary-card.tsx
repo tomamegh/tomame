@@ -5,6 +5,7 @@ import { ArrowRight, CreditCard, LockSimple } from "@phosphor-icons/react/ssr";
 
 import { formatGhs, formatUsd } from "@/features/marketing/format";
 import type { PaymentChannel } from "@/features/payments/types";
+import { InlineStatus } from "@/components/ui/inline-status";
 import { cn } from "@/lib/utils";
 import { WHATSAPP_OPT_IN_LABEL } from "@/config/tracking-copy";
 import type { BagPayment } from "../hooks/useBagPayment";
@@ -22,6 +23,8 @@ export interface BagSummaryCardProps {
   payment: BagPayment;
   /** True when nothing here may start a payment — no lines, an unpriced line, no delivery chosen, or no name and phone on the account. */
   blocked: boolean;
+  /** Why `blocked`, in one sentence (`payBlockReason`). */
+  blockedReason?: string | null;
 }
 
 /**
@@ -35,7 +38,7 @@ export interface BagSummaryCardProps {
  * checkout builds the order group, initialize opens the Paystack transaction —
  * and the browser only ever carries ids between them.
  */
-export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, payment, blocked }: BagSummaryCardProps) {
+export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, payment, blocked, blockedReason = null }: BagSummaryCardProps) {
   const rows = buildBagSummaryRows(view);
   const countdown = formatLockCountdown(view.rate_locked_until, now);
   const { channelId, setChannelId, busy, payBag } = payment;
@@ -87,23 +90,18 @@ export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, pa
         "could not be priced" reads as something the customer should go and fix,
         which would send them round a loop that ends back here.
       */}
-      {view.has_freight_checks ? (
-        <p role="status" className="text-xs leading-[1.5] font-medium text-tm-text-2">
-          We are checking the freight weight on one of your items. You can pay
-          as soon as it is done, usually in a few seconds.
-        </p>
-      ) : view.has_sourcing_lines ? (
-        <p className="text-xs leading-[1.5] font-medium text-tm-amber">
-          One of your items is with our team. We are pricing it by hand, and you
-          can pay for everything together as soon as it is done.
-        </p>
-      ) : (
-        view.has_unpriced_lines && (
-          <p className="text-xs leading-[1.5] font-medium text-tm-amber">
-            One or more lines could not be priced right now, so the total leaves them out.
-          </p>
-        )
-      )}
+      {/*
+        One sentence for why Pay is waiting, from `payBlockReason`: the same
+        line the 390 px bar shows, so the two never disagree. The unpriced note
+        stays because the total above leaves those lines out.
+      */}
+      {blockedReason ? (
+        <InlineStatus tone={view.has_freight_checks || view.has_pending_lines ? "progress" : "neutral"} title={blockedReason}>
+          {view.has_unpriced_lines && !view.has_pending_lines && !view.has_freight_checks
+            ? "The total above leaves out anything we couldn't price."
+            : undefined}
+        </InlineStatus>
+      ) : null}
 
       {paymentChannels.length > 0 && (
         <div role="group" aria-labelledby="bag-pay-with" className="flex flex-col gap-2">
@@ -157,7 +155,7 @@ export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, pa
         aria-busy={busy}
         className={cn(
           "tm-cta-gradient hidden h-[54px] items-center justify-center gap-2 rounded-[14px] text-base leading-none font-bold text-white lg:flex",
-          "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-opacity disabled:cursor-not-allowed disabled:opacity-50",
+          "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter] hover:brightness-105 disabled:cursor-not-allowed",
         )}
       >
         {busy ? (

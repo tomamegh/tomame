@@ -28,7 +28,7 @@ import { BagPasteLinkBar, BagPayBar } from "./bag-pay-bar";
 import { BagPendingGroupCard } from "./bag-pending-group-card";
 import { BagLineRow } from "./bag-line-row";
 import { BagSummaryCard } from "./bag-summary-card";
-import { formatLockCountdown } from "./format";
+import { formatLockCountdown, payBlockReason } from "./format";
 
 export interface BagViewProps {
   initialBag: BagViewData;
@@ -124,12 +124,18 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   // unanswered line has no price — but it is named here anyway: the day a buyer
   // answers one and the re-price lands in the same read, the two stop agreeing,
   // and the pay button must follow the request's state rather than the price's.
+  const hasContact = !!(contact && hasContactDetails(contact));
   const blocked =
     bag.lines.length === 0 ||
     bag.has_unpriced_lines ||
     bag.has_sourcing_lines ||
+    // A held line (price or stock being confirmed, or unavailable) cannot be
+    // paid for; checkout would refuse it with a 409 (pay-gate.ts).
+    bag.has_pay_holds === true ||
     (isSignedIn && !bag.delivery) ||
-    (isSignedIn && !(contact && hasContactDetails(contact)));
+    (isSignedIn && !hasContact);
+  // Said beside the button, so a waiting Pay is never a mystery.
+  const blockedReason = blocked ? payBlockReason(bag, { isSignedIn, hasContact }) : null;
 
   const linesById = useMemo(() => new Map(bag.lines.map((l) => [l.id, l])), [bag.lines]);
   const unboxed = bag.unboxed_line_ids.map((id) => linesById.get(id)).filter((l): l is BagLine => !!l);
@@ -324,6 +330,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
           paymentHoldNote={paymentHoldNote}
           payment={payment}
           blocked={blocked}
+          blockedReason={blockedReason}
         />
       </div>
 
@@ -334,6 +341,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
         disabled={blocked}
         onPay={payment.payBag}
         countdown={formatLockCountdown(bag.rate_locked_until, now)}
+        reason={blockedReason}
       />
 
       {/*

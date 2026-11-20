@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, LockSimple } from "@phosphor-icons/react/ssr";
+import { ArrowRight, Info, LockSimple } from "@phosphor-icons/react/ssr";
 
 import { formatGhs } from "@/features/marketing/format";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,8 @@ export interface BagPayBarProps {
   onPay: () => void;
   /** "23h 12m", or null when nothing is locked. Shown above the button, never computed here. */
   countdown: string | null;
+  /** Why the button is waiting (`payBlockReason`); replaces the countdown line while it does. */
+  reason?: string | null;
 }
 
 const BUTTON = cn(
@@ -50,10 +52,17 @@ export function BagPayBar({
   disabled,
   onPay,
   countdown,
+  reason = null,
 }: BagPayBarProps) {
+  const waiting = disabled && !!reason;
   return (
     <BarShell>
-      {countdown && (
+      {waiting ? (
+        <p role="status" className="flex items-start justify-center gap-1.5 pb-2.5 text-center text-[12.5px] leading-[1.4] font-medium text-muted-foreground">
+          <Info weight="fill" className="mt-px size-3.5 shrink-0 text-tm-coral" aria-hidden />
+          {reason}
+        </p>
+      ) : countdown && (
         <p className="tm-nums flex items-center justify-center gap-1 pb-2 text-xs leading-none font-medium text-tm-text-3">
           <LockSimple className="size-3 shrink-0" aria-hidden />
           rate locked {countdown}

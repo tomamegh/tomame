@@ -3,29 +3,31 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  HandWaving,
   BookmarkSimple,
-  LockSimple,
+  HandWaving,
   Minus,
   Plus,
   Tote,
   Truck,
 } from "@phosphor-icons/react/ssr";
 
-import {
-  buildReceiptRows,
-  RECEIPT_ROW_DELAYS,
-  splitGhsTotal,
-} from "@/features/app-home/components/format";
+import { PriceBreakdownList, PriceBreakdownSheet, type PriceBreakdownRow } from "@/components/price/price-breakdown";
+import { PriceDisplay } from "@/components/price/price-display";
+import { Button } from "@/components/ui/button";
+import { HERO_PRICE_PARTS } from "@/config/price-story";
+import { buildReceiptRows } from "@/features/app-home/components/format";
 import { RECEIPT_ROW_ICONS } from "@/features/app-home/components/receipt-icons";
-import { formatGhsCompact, formatUsd } from "@/features/marketing/format";
 import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
+import type { PayHold } from "@/features/extraction/pay-gate";
 import type { StoreShippingOption } from "@/features/extraction/store-shipping";
+import type { StockCheckView } from "@/features/extraction/types";
+import { formatGhs, formatGhsCompact, formatUsd } from "@/features/marketing/format";
+import { PayHoldNotice } from "@/features/quote-checks/components/pay-hold-notice";
+import { ReportPriceLink } from "@/features/quote-checks/components/report-price-dialog";
 import type { PricingBreakdown } from "@/lib/pricing";
-import { formatEtaRange } from "./format";
-import { FreightCheckNotice } from "./freight-check-notice";
 import { cn } from "@/lib/utils";
-import { formatDoorDeliveryLabel, formatRateLockDeadline } from "./format";
+import { formatDoorDeliveryLabel, formatEtaRange, formatRateLockDeadline } from "./format";
+import { FreightCheckNotice } from "./freight-check-notice";
 
 export interface QuoteReceiptCardProps {
   /** Server-priced breakdown, or null when the line cannot be priced. */
@@ -40,34 +42,31 @@ export interface QuoteReceiptCardProps {
   minQuantity: number;
   maxQuantity: number;
   onQuantityChange: (quantity: number) => void;
-  /**
-   * The shipping services the store offers to our hub, when it offers more
-   * than one (eBay). The breakdown's `store_shipping_option` says which is
-   * priced; choosing another re-prices on the server.
-   */
+  /** The store's shipping services to our hub when it offers more than one (eBay). */
   shippingOptions?: StoreShippingOption[];
   onShippingChange?: (code: string) => void;
   /** True while a quantity change is being re-priced by the server. */
   repricing: boolean;
   /**
-   * Non-null while the freight weight is being checked in the background: when
-   * this screen first saw it, in the browser's clock. The freight row and the
-   * total are provisional meanwhile and the CTA waits.
+   * Non-null while the freight weight is being checked: when this screen
+   * first saw it, in the browser's clock. The total is provisional meanwhile.
    */
   freightCheckSeenAt?: number | null;
+  /** Why this item cannot be paid for yet (pay-gate.ts); null when it can. */
+  payHold?: PayHold | null;
+  /** The stock check, when the item needs one (A7). */
+  stockCheck?: StockCheckView | null;
+  /** The quote's extraction id, for the stock check and "Report a wrong price". */
+  extractionId?: string | null;
+  /** "$" or "£", the listing currency, for the price report form. */
+  currencySymbol?: string;
   onContinue: () => void;
   /** Bag count once THIS screen added the line; the CTA then hands off to the bag. */
   addedCount: number | null;
   /** False when a gap is unfilled or the last re-price failed. */
   canContinue: boolean;
-  /**
-   * True when nobody has confirmed we can buy this (065). The CTA then asks a
-   * person instead of promising a price, and "Watch price instead" stands down:
-   * there is no price to watch on a store we have not confirmed, and the cron
-   * would never check it anyway.
-   */
+  /** Nobody has confirmed we can buy this (065): the CTA asks a person instead. */
   needsSourcing?: boolean;
-  /** Fires the sourcing request. Only used when `needsSourcing`. */
   onAskToSource?: () => void;
   sourcePending?: boolean;
   continuePending: boolean;
@@ -77,14 +76,12 @@ export interface QuoteReceiptCardProps {
 }
 
 /**
- * The right rail: the landed total, the rate lock, the printed receipt, the
- * delivery line and the two actions.
+ * The landed-price card: the total and the rate lock first, what's included
+ * one tap away (a bottom sheet on phones, inline from `lg`), then anything
+ * holding payment, then the options and the action.
  *
- * Every figure is rendered from the server's `PricingBreakdown` — the rows come
- * from the one shared `buildReceiptRows`, the percentages off the breakdown
- * (the engine charges 4–8% by category and 10% US tax, not the mock's sample
- * 5% and 8%), and the lock deadline is the server's `rate_locked_until`. There
- * is no arithmetic in this file.
+ * Every figure is the server's `PricingBreakdown`; rows come from the shared
+ * `buildReceiptRows` with the price-story labels. No arithmetic here.
  */
 export function QuoteReceiptCard({
   pricing,
@@ -99,6 +96,10 @@ export function QuoteReceiptCard({
   onShippingChange,
   repricing,
   freightCheckSeenAt = null,
+  payHold = null,
+  stockCheck = null,
+  extractionId = null,
+  currencySymbol = "$",
   onContinue,
   addedCount,
   canContinue,
@@ -110,152 +111,80 @@ export function QuoteReceiptCard({
   watchPending,
   onToggleWatch,
 }: QuoteReceiptCardProps) {
-  const rows = pricing ? buildReceiptRows(pricing) : [];
   const checking = freightCheckSeenAt != null;
   // A needs_review breakdown carries total_ghs 0 — not a price (the bag treats it the same way).
   const needsReview = pricing?.pricing_method === "needs_review";
-  const total =
-    pricing && !needsReview && Number.isFinite(pricing.total_ghs)
-      ? splitGhsTotal(pricing.total_ghs)
-      : null;
+  const priced = pricing != null && !needsReview && Number.isFinite(pricing.total_ghs);
+  const total = priced ? formatGhs(pricing.total_ghs) : null;
+  const lockDeadline = pricing?.rate_locked_until ? formatRateLockDeadline(pricing.rate_locked_until, now) : null;
+  const unavailable = payHold?.kind === "unavailable";
 
-  const lockDeadline = pricing?.rate_locked_until
-    ? formatRateLockDeadline(pricing.rate_locked_until, now)
-    : null;
+  const rows: PriceBreakdownRow[] = pricing
+    ? buildReceiptRows(pricing).map((row) => ({
+        key: row.key,
+        label: row.label,
+        value: row.value,
+        icon: RECEIPT_ROW_ICONS[row.icon],
+        pending: checking && row.key === "freight" ? "Checking" : null,
+      }))
+    : [];
+  const note = needsReview
+    ? "Our team will price the freight for this item before you pay."
+    : checking
+      ? null
+      : (pricing?.fee_calculation_note ?? null);
+  const summary = `Includes ${HERO_PRICE_PARTS}`;
 
   return (
     <section
       aria-label="Landed price"
       aria-busy={repricing || checking}
-      className="overflow-hidden rounded-[20px] border border-tm-border bg-card lg:rounded-[24px]"
+      className="flex flex-col gap-4 rounded-[24px] border border-border bg-card p-4 sm:p-5 lg:p-[22px]"
     >
-      <header className="flex flex-col gap-1.5 bg-[linear-gradient(160deg,#FFF1EC,#FFF7EA)] px-4 py-3.5 lg:px-[22px] lg:pt-[22px] lg:pb-4">
-        <span className="text-[10px] leading-none font-semibold tracking-[0.14em] text-tm-coral-strong uppercase lg:text-[11px] lg:leading-none">
-          Landed in Accra
-        </span>
+      {total && pricing ? (
+        <PriceDisplay
+          amount={total}
+          size="lg"
+          usd={pricing.total_usd != null && Number.isFinite(pricing.total_usd) ? `≈ ${formatUsd(pricing.total_usd)}` : null}
+          lock={lockDeadline ? `Rate ${pricing.exchange_rate.toFixed(2)} locked until ${lockDeadline}` : null}
+          provisional={checking || repricing}
+          roll={!repricing}
+        />
+      ) : (
+        <div className="flex flex-col gap-2">
+          <span className="tm-overline text-tm-coral-strong dark:text-tm-coral">Landed in Accra</span>
+          <p className="tm-title-2 text-foreground">{needsReview ? "Freight to confirm" : "Not priced yet"}</p>
+          {!pricing && (
+            <p className="tm-body text-muted-foreground">{unavailableReason ?? "We couldn't read a price for this link yet."}</p>
+          )}
+        </div>
+      )}
 
-        {total ? (
-          /*
-            GH₵ leads and the dollar echo follows, on one baseline as the mock
-            has it. `total_usd` is the SERVER's division of the landed total by
-            the rate it actually applied -- doing that arithmetic here would be
-            money maths in the browser, and would drift from the receipt above
-            the moment the two used different rates. Older stored breakdowns do
-            not carry the field, so the echo is simply omitted for them.
-          */
-          <div
-            className={cn(
-              "flex flex-wrap items-baseline gap-2.5 transition-opacity duration-300",
-              // Provisional while the freight is checked: it may still move.
-              checking && "opacity-55",
-            )}
-          >
-            <p className="tm-pop tm-nums text-[28px] leading-none font-bold tracking-[-0.03em] sm:text-[34px] sm:leading-none lg:text-[40px] lg:leading-none [animation-delay:1.2s] [animation-duration:0.6s]">
-              {total.whole}
-              {total.fraction && (
-                <span className="text-[20px] text-tm-text-3 sm:text-[24px] lg:text-[28px]">
-                  {total.fraction}
-                </span>
-              )}
-            </p>
-            {pricing?.total_usd != null && Number.isFinite(pricing.total_usd) && (
-              <span className="tm-nums text-sm leading-none font-medium text-tm-text-3">
-                ≈ {formatUsd(pricing.total_usd)}
-              </span>
-            )}
-          </div>
-        ) : (
-          <p className="text-[20px] leading-[1.2] font-bold">
-            {needsReview ? "Freight to confirm" : "Not priced yet"}
-          </p>
-        )}
+      {rows.length > 0 && (
+        <>
+          <PriceBreakdownSheet rows={rows} note={note} summary={summary} total={total} className="lg:hidden" />
+          <PriceBreakdownList rows={rows} note={note} className="hidden border-t border-dashed border-border pt-4 lg:flex" />
+        </>
+      )}
 
-        {lockDeadline && pricing && (
-          <span className="tm-nums flex items-center gap-1.5 text-xs leading-none font-medium text-tm-text-2">
-            <LockSimple className="size-4 shrink-0" aria-hidden />
-            Rate {pricing.exchange_rate.toFixed(2)} locked until {lockDeadline}
+      {checking && freightCheckSeenAt != null && <FreightCheckNotice seenAt={freightCheckSeenAt} />}
+      <PayHoldNotice hold={payHold} stockCheck={stockCheck} extractionId={extractionId} />
+
+      {deliveryZone && (
+        <div className="flex items-start justify-between gap-3 text-[13px] leading-[1.35] font-medium text-muted-foreground">
+          <span className="flex min-w-0 items-start gap-2">
+            <Truck weight="duotone" className="mt-px size-4 shrink-0 text-tm-green" aria-hidden />
+            <span className="min-w-0">{formatDoorDeliveryLabel(deliveryZone.name)}</span>
           </span>
-        )}
-      </header>
+          {deliveryZone.fee_ghs > 0 ? (
+            <span className="tm-nums shrink-0 text-right">from {formatGhsCompact(deliveryZone.fee_ghs)}</span>
+          ) : (
+            <span className="shrink-0 font-semibold text-tm-green">Free</span>
+          )}
+        </div>
+      )}
 
-      <div className="flex flex-col gap-2 px-4 py-3 lg:gap-2.5 lg:px-[22px] lg:py-4">
-        {rows.length > 0 ? (
-          <>
-            <dl className="tm-nums flex flex-col gap-2 text-[12px] leading-none font-medium text-tm-text-2 lg:gap-2.5 lg:text-[13px] lg:leading-none">
-              {rows.map((row, index) => {
-                const RowIcon = RECEIPT_ROW_ICONS[row.icon];
-                return (
-                  <div
-                    key={row.key}
-                    className="tm-up flex items-center justify-between gap-3 [animation-duration:0.45s]"
-                    style={{
-                      animationDelay: RECEIPT_ROW_DELAYS[index] ?? "0.85s",
-                    }}
-                  >
-                    <dt className="flex items-center gap-2">
-                      <RowIcon
-                        weight="duotone"
-                        className="size-3.5 shrink-0 text-tm-coral lg:size-4"
-                        aria-hidden
-                      />
-                      {row.label}
-                    </dt>
-                    {checking && row.key === "freight" ? (
-                      <dd className="flex items-center gap-1.5 text-tm-text-3">
-                        <span className="tm-pulse-dot size-1.5 rounded-full bg-tm-coral" aria-hidden />
-                        Checking…
-                      </dd>
-                    ) : (
-                      <dd className="text-tm-ink">{row.value}</dd>
-                    )}
-                  </div>
-                );
-              })}
-            </dl>
-
-            {checking ? (
-              <FreightCheckNotice seenAt={freightCheckSeenAt} className="mt-1" />
-            ) : needsReview ? (
-              <p className="text-[11px] leading-[1.4] font-medium text-tm-text-3">
-                Our team will price the freight for this item before you pay.
-              </p>
-            ) : (
-              pricing?.fee_calculation_note && (
-                <p className="text-[11px] leading-[1.4] font-medium text-tm-text-3">
-                  {pricing.fee_calculation_note}
-                </p>
-              )
-            )}
-          </>
-        ) : (
-          <p className="rounded-[14px] bg-tm-amber-bg px-3.5 py-3 text-[13px] leading-[1.45] font-medium text-tm-text-2">
-            {unavailableReason ??
-              "We could not read a price for this link yet."}
-          </p>
-        )}
-
-        {deliveryZone && (
-          <div className="flex items-center justify-between gap-3 border-t border-dashed border-[#E8DDD6] pt-2.5 text-[12px] leading-none font-medium text-tm-text-2 lg:text-[13px] lg:leading-none">
-            <span className="flex items-center gap-2">
-              <Truck
-                weight="duotone"
-                className="size-4 shrink-0 text-tm-green"
-                aria-hidden
-              />
-              {formatDoorDeliveryLabel(deliveryZone.name)}
-            </span>
-            {deliveryZone.fee_ghs > 0 ? (
-              <span className="tm-nums text-right text-tm-text-3">
-                from {formatGhsCompact(deliveryZone.fee_ghs)}, chosen at checkout
-              </span>
-            ) : (
-              <span className="font-bold text-tm-green">Free</span>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-3 px-4 pt-1.5 pb-4 lg:px-[22px] lg:pb-[22px]">
+      <div className="flex flex-col gap-3 border-t border-border pt-4">
         {shippingOptions.length > 1 && pricing && onShippingChange && (
           <ShippingOptionPicker
             options={shippingOptions}
@@ -266,138 +195,93 @@ export function QuoteReceiptCard({
         )}
 
         <div className="flex items-center justify-between gap-3">
-          <span id="quote-quantity-label" className="text-sm leading-none font-semibold">
+          <span id="quote-quantity-label" className="text-sm leading-none font-semibold text-foreground">
             Quantity
           </span>
-          <div className="flex h-10 items-center rounded-full border border-tm-border px-1">
-            <StepperButton
-              label="Decrease quantity"
-              disabled={quantity <= minQuantity}
-              onClick={() => onQuantityChange(quantity - 1)}
-            >
+          <div className="flex h-11 items-center rounded-full border border-border px-1">
+            <StepperButton label="Decrease quantity" disabled={quantity <= minQuantity} onClick={() => onQuantityChange(quantity - 1)}>
               <Minus className="size-4" aria-hidden />
             </StepperButton>
-            <output
-              aria-labelledby="quote-quantity-label"
-              aria-live="polite"
-              className="tm-nums w-9 text-center text-[15px] leading-none font-semibold"
-            >
+            <output aria-labelledby="quote-quantity-label" aria-live="polite" className="tm-nums w-9 text-center text-[15px] leading-none font-semibold">
               {quantity}
             </output>
-            <StepperButton
-              label="Increase quantity"
-              disabled={quantity >= maxQuantity}
-              onClick={() => onQuantityChange(quantity + 1)}
-            >
+            <StepperButton label="Increase quantity" disabled={quantity >= maxQuantity} onClick={() => onQuantityChange(quantity + 1)}>
               <Plus className="size-4" aria-hidden />
             </StepperButton>
           </div>
         </div>
 
-        {/*
-          Desktop only. Below `lg` these two live in `QuoteActionBar`, pinned to
-          the bottom edge as the 390px artboard has them — rendering both would
-          give the screen two "Add to bag" buttons.
-        */}
-        {addedCount != null ? (
-          <div className="hidden flex-col gap-2 lg:flex">
-            <Link
-              href="/app/bag"
-              className={cn(
-                "tm-cta-gradient flex h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
-                "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
-                "hover:brightness-105 focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-              )}
+        {/* Desktop only: below `lg` the action lives in `QuoteActionBar`, pinned above the safe area. */}
+        <div className="hidden flex-col gap-2 lg:flex">
+          {addedCount != null ? (
+            <>
+              <Button asChild variant="primary" size="lg" className="w-full">
+                <Link href="/app/bag">
+                  <Tote weight="bold" className="size-[18px]" aria-hidden />
+                  View bag · {addedCount}
+                  <ArrowRight weight="bold" className="size-4" aria-hidden />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="touch" className="w-full">
+                <Link href="/app/orders/new">
+                  <Plus weight="bold" className="size-4" aria-hidden />
+                  Add another item
+                </Link>
+              </Button>
+            </>
+          ) : needsSourcing ? (
+            <>
+              <Button variant="primary" size="lg" className="w-full" onClick={onAskToSource} loading={sourcePending}>
+                {!sourcePending && <HandWaving weight="bold" className="size-[18px]" aria-hidden />}
+                {sourcePending ? "Sending to our team" : "Ask us to source this"}
+              </Button>
+              <p className="tm-caption text-center text-muted-foreground">
+                It goes in your bag while a buyer checks it. You pay nothing until we&apos;ve confirmed we can get it.
+              </p>
+            </>
+          ) : (
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={onContinue}
+              loading={continuePending}
+              disabled={!canContinue || repricing || checking || unavailable}
             >
-              <Tote weight="bold" className="size-[18px]" aria-hidden />
-              View bag · {addedCount}
-              <ArrowRight weight="bold" className="size-4" aria-hidden />
-            </Link>
-            {/* The next item — a bag is for several things bought the same week. */}
-            <Link
-              href="/app/orders/new"
-              className="flex h-11 w-full items-center justify-center gap-1.5 rounded-[14px] border-[1.5px] border-tm-border bg-card text-sm leading-none font-semibold transition-colors hover:bg-tm-tint focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none"
-            >
-              <Plus weight="bold" className="size-4" aria-hidden />
-              Add another item
-            </Link>
-          </div>
-        ) : needsSourcing ? (
-          /*
-            THE UNPRICEABLE ITEM'S OWN CTA (065). Not a disabled "Add to bag"
-            over a total nobody stood behind — a live button that does the one
-            thing that can actually move this forward. The sentence under it is
-            the honest version of what the receipt above is saying.
-          */
-          <div className="hidden flex-col gap-2 lg:flex">
-            <button
-              type="button"
-              onClick={onAskToSource}
-              disabled={sourcePending}
-              className={cn(
-                "tm-cta-gradient flex h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
-                "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
-                "hover:brightness-105 focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-                "disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none",
-              )}
-            >
-              <HandWaving weight="bold" className="size-[18px]" aria-hidden />
-              {sourcePending ? "Sending to our team…" : "Ask us to source this"}
-            </button>
-            <p className="text-center text-[12px] leading-[1.45] font-medium text-tm-text-3">
-              It goes in your bag while a buyer checks it. You pay nothing until
-              we have confirmed we can get it.
-            </p>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={onContinue}
-            disabled={!canContinue || continuePending || repricing || checking}
-            className={cn(
-              "tm-cta-gradient hidden h-[50px] w-full items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold lg:flex",
-              "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter,opacity]",
-              "hover:brightness-105 focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-              "disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none",
-            )}
-          >
-            <Tote weight="bold" className="size-[18px]" aria-hidden />
-            {continuePending ? "Adding to your bag…" : checking ? "Checking freight…" : "Add to bag"}
-          </button>
-        )}
-
-        {/*
-          No "watch this price" on a sourcing item. There is no price to watch —
-          that is the whole reason it is here — and the nightly job is explicitly
-          kept off these rows (065), so the button would promise a check that
-          will never run.
-        */}
-        {!needsSourcing && (
-        <button
-          type="button"
-          onClick={onToggleWatch}
-          // Disabled once watching: there is no unwatch endpoint, and a live
-          // button that does nothing is worse than a clearly spent one.
-          disabled={watchPending || watching}
-          aria-pressed={watching}
-          className={cn(
-            "hidden h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border-[1.5px] bg-card text-sm leading-none font-semibold lg:flex",
-            "transition-colors hover:border-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-            "disabled:cursor-not-allowed disabled:opacity-60",
-            watching ? "border-tm-coral text-tm-coral-strong" : "border-tm-border",
+              {!continuePending && <Tote weight="bold" className="size-[18px]" aria-hidden />}
+              {ctaLabel({ continuePending, checking, unavailable })}
+            </Button>
           )}
-        >
-          <BookmarkSimple
-            weight={watching ? "fill" : "regular"}
-            className="size-4"
-            aria-hidden
-          />
-          {watching ? "Watching this price" : "Watch price instead"}
-        </button>
+
+          {!needsSourcing && (
+            <Button
+              variant="outline"
+              size="touch"
+              className={cn("w-full", watching && "border-tm-coral text-tm-coral-strong dark:text-tm-coral")}
+              onClick={onToggleWatch}
+              disabled={watchPending || watching}
+              aria-pressed={watching}
+            >
+              <BookmarkSimple weight={watching ? "fill" : "regular"} className="size-4" aria-hidden />
+              {watching ? "Watching this price" : "Watch the price instead"}
+            </Button>
+          )}
+        </div>
+
+        {pricing && extractionId && !needsSourcing && (
+          <ReportPriceLink extractionId={extractionId} currencySymbol={currencySymbol} className="self-center" />
         )}
       </div>
     </section>
   );
+}
+
+/** The add-to-bag label for the state the line is in. Shared with `QuoteActionBar`. */
+export function ctaLabel({ continuePending, checking, unavailable }: { continuePending: boolean; checking: boolean; unavailable: boolean }): string {
+  if (continuePending) return "Adding to your bag";
+  if (checking) return "Checking freight";
+  if (unavailable) return "No longer available";
+  return "Add to bag";
 }
 
 function StepperButton({
@@ -417,7 +301,7 @@ function StepperButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex size-8 items-center justify-center rounded-full bg-[var(--tm-pill-bg)] transition-colors hover:text-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex size-9 items-center justify-center rounded-full bg-muted text-foreground transition-colors hover:text-tm-coral focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
     >
       {children}
     </button>
@@ -449,7 +333,7 @@ function ShippingOptionPicker({
 }) {
   return (
     <fieldset className="flex flex-col gap-2" disabled={disabled}>
-      <legend className="mb-2 text-sm leading-none font-semibold">Store shipping to our hub</legend>
+      <legend className="mb-2 text-sm leading-none font-semibold text-foreground">Store shipping to our hub</legend>
       {options.map((option) => {
         const selected = option.code === selectedCode;
         const eta = option.eta_min && option.eta_max ? formatEtaRange(option.eta_min, option.eta_max) : null;
@@ -457,8 +341,8 @@ function ShippingOptionPicker({
           <label
             key={option.code}
             className={cn(
-              "flex cursor-pointer items-center justify-between gap-3 rounded-[14px] border px-3.5 py-2.5 text-[13px] leading-none transition-colors",
-              selected ? "border-tm-coral bg-tm-coral/5" : "border-tm-border hover:border-tm-text-3",
+              "flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-[14px] border px-3.5 py-2.5 text-[13px] leading-none transition-colors",
+              selected ? "border-tm-coral bg-tm-coral/5" : "border-border hover:border-muted-foreground/40",
               disabled && "cursor-default opacity-70",
             )}
           >
@@ -472,11 +356,11 @@ function ShippingOptionPicker({
                 className="size-4 accent-tm-coral"
               />
               <span className="flex flex-col gap-1">
-                <span className="font-semibold text-tm-ink">{option.label}</span>
-                {eta && <span className="text-[11px] text-tm-text-3">at our hub {eta}</span>}
+                <span className="font-semibold text-foreground">{option.label}</span>
+                {eta && <span className="text-[11px] text-muted-foreground">at our hub {eta}</span>}
               </span>
             </span>
-            <span className={cn("tm-nums font-semibold", option.cost <= 0 ? "text-tm-green" : "text-tm-ink")}>{formatOptionCost(option)}</span>
+            <span className={cn("tm-nums font-semibold", option.cost <= 0 ? "text-tm-green" : "text-foreground")}>{formatOptionCost(option)}</span>
           </label>
         );
       })}

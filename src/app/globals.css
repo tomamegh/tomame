@@ -805,6 +805,65 @@
 @utility tm-cta-gradient {
   background: var(--tm-gradient-cta);
   color: #fff;
+  /*
+   * A disabled primary action is a solid muted fill, not a faded gradient: the
+   * washed-out pink read as broken (2026-11-20). One rule here covers every
+   * hand-rolled gradient button. `!important` on opacity because those buttons
+   * also carry `disabled:opacity-60`, which would fade the grey too.
+   */
+  &:disabled,
+  &[aria-disabled="true"] {
+    background: var(--muted);
+    color: var(--muted-foreground);
+    box-shadow: none;
+    filter: none;
+    opacity: 1 !important;
+  }
+}
+
+/* ── Type scale (2026-11-20) ────────────────────────────────────────────────
+ * Five steps for the customer site. Display steps use the display face; the
+ * rest inherit the body face. Sizes step at 390 px and again from `lg`.
+ */
+@utility tm-title-1 {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  @media (min-width: 1024px) {
+    font-size: 36px;
+  }
+}
+@utility tm-title-2 {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  @media (min-width: 1024px) {
+    font-size: 24px;
+  }
+}
+@utility tm-title-3 {
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.3;
+}
+@utility tm-body {
+  font-size: 14px;
+  line-height: 1.5;
+}
+@utility tm-caption {
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+@utility tm-overline {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 /* ── Installed-app surfaces (PWA) ───────────────────────────────────────────

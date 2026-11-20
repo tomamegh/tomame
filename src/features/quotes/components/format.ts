@@ -410,3 +410,29 @@ export function needsSourcing(input: SourcingGateInput): boolean {
   if (!input.hasPricing && !input.priceMissing) return true;
   return false;
 }
+
+// ── Availability ─────────────────────────────────────────────────────────────
+
+export interface AvailabilityNotice {
+  tone: "success" | "warning";
+  label: string;
+}
+
+/**
+ * The store's availability as one calm line, never the raw scraped phrase.
+ *
+ * Stores publish anything from "In Stock." to a paragraph of delivery
+ * promises; printing it verbatim put a green blob of somebody else's copy on
+ * our quote. Only three readings are shown (in stock, a low count, out of
+ * stock) and anything else is left out. Low counts and slow dispatch also
+ * open a stock check (stock-signals.ts), which explains the rest.
+ */
+export function availabilityNotice(availability: string | null | undefined): AvailabilityNotice | null {
+  const text = availability?.trim();
+  if (!text) return null;
+  const left = text.match(/\bonly\s+(\d+)\s+left\b/i);
+  if (left?.[1]) return { tone: "warning", label: `Only ${left[1]} left at the store` };
+  if (/\b(out of stock|unavailable|sold out|no longer available)\b/i.test(text)) return { tone: "warning", label: "Out of stock at the store" };
+  if (/\bin[\s-]?stock\b|\bavailable\b/i.test(text)) return { tone: "success", label: "In stock at the store" };
+  return null;
+}

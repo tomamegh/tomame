@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { ArrowRight, BookmarkSimple, HandWaving, Plus, Tote } from "@phosphor-icons/react/ssr";
 
+import { Button } from "@/components/ui/button";
+import { formatGhs } from "@/features/marketing/format";
 import { cn } from "@/lib/utils";
+import { ctaLabel } from "./quote-receipt-card";
 
 export interface QuoteActionBarProps {
   /** False while the line has no server price — there is nothing to pay for. */
@@ -13,6 +16,12 @@ export interface QuoteActionBarProps {
   repricing: boolean;
   /** True while the freight weight is being checked; the CTA waits for it. */
   freightChecking?: boolean;
+  /** The store no longer has it (pay-gate `unavailable`): nothing to add. */
+  unavailable?: boolean;
+  /** One short line above the button while a price or stock check holds payment. */
+  holdNote?: string | null;
+  /** The server's landed total, repeated beside the action so the price stays in view. */
+  totalGhs?: number | null;
   onContinue: () => void;
   /** Bag count once THIS screen added the line; the CTA then hands off to the bag. */
   addedCount: number | null;
@@ -26,23 +35,22 @@ export interface QuoteActionBarProps {
 }
 
 /**
- * The 390px sticky action bar.
+ * The phone's sticky action bar: the price's one action within thumb reach,
+ * pinned above the home indicator. Below `lg` the receipt's own buttons stand
+ * down and these take their place; once the line is in the bag it hands off to
+ * the bag so a second tap cannot add it twice.
  *
- * Below `lg` the receipt's own two buttons are hidden and these take their
- * place, so the price is always one thumb-reach from the thing that acts on it.
- * `fixed` rather than `sticky`: the bar must hold the bottom edge regardless of
- * how tall the page's own scroll container ends up, and the spacer the caller
- * reserves keeps the content clear of it.
- *
- * The CTA is the artboard's "Add to bag" (`ph-bold ph-tote`, line 411). Once
- * the line is in the bag it becomes a link to the bag, so a second tap cannot
- * add the product twice. No shadow at this width, per the artboard.
+ * The safe-area padding is a literal class, never passed through `cn()`,
+ * which drops `pb-[calc(…env…)]`-shaped arbitrary values.
  */
 export function QuoteActionBar({
   canContinue,
   continuePending,
   repricing,
   freightChecking = false,
+  unavailable = false,
+  holdNote = null,
+  totalGhs = null,
   onContinue,
   addedCount,
   watching,
@@ -53,107 +61,66 @@ export function QuoteActionBar({
   sourcePending = false,
 }: QuoteActionBarProps) {
   return (
-    <div
-      className={cn(
-        "fixed inset-x-0 bottom-0 z-40 border-t border-tm-border bg-card px-5 pt-3 lg:hidden",
-        // 30px in the artboard is the home-indicator inset; on a device with a
-        // real one, clear that instead.
-        "pb-[max(30px,env(safe-area-inset-bottom))]",
-      )}
-    >
-      <div className="mx-auto flex w-full max-w-[1280px] items-center gap-2.5">
-        {/*
-          No watch button on a sourcing item: there is no price to watch, and
-          the nightly job is kept off these rows entirely (065).
-        */}
-        {!needsSourcing && (
-        <button
-          type="button"
-          onClick={onToggleWatch}
-          // Disabled once watching: there is no unwatch endpoint yet, so a
-          // still-live button would do nothing when pressed.
-          disabled={watchPending || watching}
-          aria-pressed={watching}
-          aria-label={watching ? "Watching this price" : "Watch this price"}
-          className={cn(
-            "flex size-[52px] shrink-0 items-center justify-center rounded-[14px] border-[1.5px] bg-card",
-            "transition-colors focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-            "disabled:cursor-not-allowed disabled:opacity-60",
-            watching ? "border-tm-coral text-tm-coral" : "border-tm-border",
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))] backdrop-blur-[12px] lg:hidden">
+      <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2.5">
+        {holdNote && addedCount == null && (
+          <p role="status" className="tm-caption text-center font-medium text-muted-foreground">
+            {holdNote}
+          </p>
+        )}
+        <div className="flex items-center gap-2.5">
+          {!needsSourcing && addedCount == null && (
+            <Button
+              variant="outline"
+              size="icon-lg"
+              onClick={onToggleWatch}
+              disabled={watchPending || watching}
+              aria-pressed={watching}
+              aria-label={watching ? "Watching this price" : "Watch this price"}
+              className={cn("size-[52px]", watching && "border-tm-coral text-tm-coral")}
+            >
+              <BookmarkSimple weight={watching ? "fill" : "regular"} className="size-5" aria-hidden />
+            </Button>
           )}
-        >
-          <BookmarkSimple
-            weight={watching ? "fill" : "regular"}
-            className="size-5"
-            aria-hidden
-          />
-        </button>
-        )}
 
-        {addedCount != null ? (
-          <>
-            {/*
-              The line is in the bag; the two things a customer does next are
-              add the NEXT item or go and pay. Both are offered — "explicit load
-              more products after adding to cart" was Kelvin's ask, and a bag is
-              for several things bought the same week.
-            */}
-            <Link
-              href="/app/orders/new"
-              className={cn(
-                "flex h-[52px] flex-1 items-center justify-center gap-1.5 rounded-[14px] border-[1.5px] border-tm-border bg-card text-[14px] leading-none font-semibold",
-                "transition-colors hover:bg-tm-tint",
-                "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-              )}
+          {addedCount != null ? (
+            <>
+              <Button asChild variant="outline" size="lg" className="flex-1 px-3 text-[14px] font-semibold">
+                <Link href="/app/orders/new">
+                  <Plus weight="bold" className="size-4" aria-hidden />
+                  Add another
+                </Link>
+              </Button>
+              <Button asChild variant="primary" size="lg" className="flex-1 px-3">
+                <Link href="/app/bag">
+                  <Tote weight="bold" className="size-[18px]" aria-hidden />
+                  View bag · {addedCount}
+                  <ArrowRight weight="bold" className="size-4" aria-hidden />
+                </Link>
+              </Button>
+            </>
+          ) : needsSourcing ? (
+            <Button variant="primary" size="lg" className="flex-1" onClick={onAskToSource} loading={sourcePending}>
+              {!sourcePending && <HandWaving weight="bold" className="size-[18px]" aria-hidden />}
+              {sourcePending ? "Sending" : "Ask us to source this"}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              size="lg"
+              className="min-w-0 flex-1 px-4"
+              onClick={onContinue}
+              loading={continuePending}
+              disabled={!canContinue || repricing || freightChecking || unavailable}
             >
-              <Plus weight="bold" className="size-4" aria-hidden />
-              Add another
-            </Link>
-            <Link
-              href="/app/bag"
-              className={cn(
-                "tm-cta-gradient flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
-                "transition-[filter,opacity] hover:brightness-105",
-                "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
+              {!continuePending && <Tote weight="bold" className="size-[18px]" aria-hidden />}
+              <span className="truncate">{ctaLabel({ continuePending, checking: freightChecking, unavailable })}</span>
+              {totalGhs != null && !continuePending && !freightChecking && !unavailable && (
+                <span className="tm-nums shrink-0 font-semibold opacity-90">· {formatGhs(totalGhs)}</span>
               )}
-            >
-              <Tote weight="bold" className="size-[18px]" aria-hidden />
-              View bag · {addedCount}
-              <ArrowRight weight="bold" className="size-4" aria-hidden />
-            </Link>
-          </>
-        ) : needsSourcing ? (
-          /* The unpriceable item's CTA, in the thumb position. */
-          <button
-            type="button"
-            onClick={onAskToSource}
-            disabled={sourcePending}
-            className={cn(
-              "tm-cta-gradient flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
-              "transition-[filter,opacity] hover:brightness-105",
-              "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-              "disabled:cursor-not-allowed disabled:opacity-60",
-            )}
-          >
-            <HandWaving weight="bold" className="size-[18px]" aria-hidden />
-            {sourcePending ? "Sending…" : "Ask us to source this"}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onContinue}
-            disabled={!canContinue || continuePending || repricing || freightChecking}
-            className={cn(
-              "tm-cta-gradient flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] text-[15px] leading-none font-bold",
-              "transition-[filter,opacity] hover:brightness-105",
-              "focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none",
-              "disabled:cursor-not-allowed disabled:opacity-60",
-            )}
-          >
-            <Tote weight="bold" className="size-[18px]" aria-hidden />
-            {continuePending ? "Adding to your bag…" : freightChecking ? "Checking freight…" : "Add to bag"}
-          </button>
-        )}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

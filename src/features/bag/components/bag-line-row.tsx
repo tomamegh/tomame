@@ -4,6 +4,7 @@ import { StoreImage as Image } from "@/components/store-image";
 import { BookmarkSimple, ChatCircleText, CheckCircle, CircleNotch, Minus, Plus, X } from "@phosphor-icons/react/ssr";
 
 import { safeImageSrc } from "@/features/app-home/components/format";
+import { PayHoldNotice } from "@/features/quote-checks/components/pay-hold-notice";
 import { formatGhs } from "@/features/marketing/format";
 import { cn } from "@/lib/utils";
 import type { BagLine } from "../types";
@@ -244,6 +245,20 @@ export function BagLineRow({
           Remove
         </button>
       </div>
+
+      {/*
+        The pay gate's answer for this line (103): it stays in the bag, priced,
+        and says why Pay waits for it. Freight is already said in the price
+        column, so it is not repeated here.
+      */}
+      {!line.pending && line.pay_hold && line.pay_hold.kind !== "freight_check" && (
+        <PayHoldNotice
+          hold={line.pay_hold}
+          extractionId={line.extraction_cache_id}
+          compact
+          className="lg:col-span-2 lg:col-start-2 lg:row-start-3"
+        />
+      )}
     </li>
   );
 }
