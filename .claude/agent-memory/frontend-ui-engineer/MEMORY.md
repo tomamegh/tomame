@@ -1,2 +1,3 @@
 - [Dark mode and tm-* tokens](project-dark-mode-tokens.md) — tm-* never flip under .dark; use semantic tokens + dark: pairs
 - [Shared motion presets](project-motion-presets.md) — src/lib/motion/presets.ts + NumberRoll; MotionConfig reducedMotion="user"; tm-sweep not tm-shimmer
+- [Customer UI system](project-customer-ui-system.md) — BrandMark/horizontal logo, gradient = one primary action, InlineStatus/PriceDisplay atoms, plain status copy
