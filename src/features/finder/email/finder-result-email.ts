@@ -8,6 +8,7 @@ import {
   eyebrow,
   heading,
   infoRow,
+  link,
   infoTable,
   muted,
   paragraph,
@@ -32,6 +33,8 @@ export interface FinderResultEmailData {
   query: string;
   best: FinderCandidateState;
   alternatives: FinderCandidateState[];
+  /** The run page, where every option and the narration stay. */
+  runUrl?: string;
 }
 
 /** The quote flow for one listing: `/app/orders/new?url=` prices it and opens it. */
@@ -39,7 +42,7 @@ export function finderQuoteUrl(productUrl: string): string {
   return `${appUrl()}/app/orders/new?url=${encodeURIComponent(productUrl)}`;
 }
 
-export function finderResultTemplate({ query, best, alternatives }: FinderResultEmailData): RenderedEmail {
+export function finderResultTemplate({ query, best, alternatives, runUrl }: FinderResultEmailData): RenderedEmail {
   const q = escapeHtml(query);
   const bestQuote = best.quote;
   const bestTotal = bestQuote ? formatGhs(bestQuote.totalGhs) : null;
@@ -76,13 +79,43 @@ export function finderResultTemplate({ query, best, alternatives }: FinderResult
       : "We found matches and are confirming their prices with the stores.",
     body: `
       ${eyebrow("Price finder", "green")}
-      ${heading("Your best price is ready")}
-      ${paragraph(`You asked us to find <strong>${q}</strong>. Here is the lowest landed price we found, with everything to Accra included.`)}
+      ${heading(bestTotal ? "Your best price is ready" : "We found matches for you")}
+      ${paragraph(
+        bestTotal
+          ? `You asked us to find <strong>${q}</strong>. Here is the lowest landed price we found, with everything to Accra included.`
+          : `You asked us to find <strong>${q}</strong>. We found matches and are confirming their prices with the stores. The total appears as soon as a price is confirmed.`,
+      )}
       ${breakdown}
       ${best.why ? callout(`<strong>Why this one:</strong> ${escapeHtml(best.why)}`, "neutral") : ""}
       ${button(finderQuoteUrl(best.productUrl), "Add it to your bag")}
       ${muted("We check the price with the store again before you pay, and nothing is charged until you approve it.")}
       ${othersBlock}
+      ${runUrl ? `${divider()}${paragraph(link(runUrl, "See everything we found"))}` : ""}
+    `,
+    reason: `You are getting this because you asked Tomame's price finder to look for &ldquo;${q}&rdquo; and we said we would email you the result.`,
+  });
+}
+
+export interface FinderNoMatchEmailData {
+  query: string;
+  message: string;
+  runUrl: string;
+  /** wa.me link to a buyer with the request typed in; null when no number is set. */
+  buyerHref: string | null;
+}
+
+/** Nothing we could stand behind: say so, and hand the request to a person. */
+export function finderNoMatchTemplate({ query, message, runUrl, buyerHref }: FinderNoMatchEmailData): RenderedEmail {
+  const q = escapeHtml(query);
+  return renderEmail(`We couldn't find "${query}" ourselves`, {
+    preheader: "A Tomame buyer can look for it by hand and reply with a landed price in cedis.",
+    body: `
+      ${eyebrow("Price finder", "coral")}
+      ${heading("We couldn't find this one")}
+      ${paragraph(`You asked us to find <strong>${q}</strong>. ${escapeHtml(message)}`)}
+      ${paragraph("A Tomame buyer can search by hand, including stores we do not search automatically, and reply with a landed price in cedis.")}
+      ${buyerHref ? button(buyerHref, "Ask a buyer on WhatsApp") : button(runUrl, "See your search")}
+      ${muted(`Your search stays here: ${link(runUrl, "open it")}.`)}
     `,
     reason: `You are getting this because you asked Tomame's price finder to look for &ldquo;${q}&rdquo; and we said we would email you the result.`,
   });

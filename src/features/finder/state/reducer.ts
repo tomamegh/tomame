@@ -53,20 +53,21 @@ function closeActiveSteps(steps: FinderStepState[]): FinderStepState[] {
 }
 
 /**
- * The best pick must carry a confirmed total. If the job names one that does
- * not, the cheapest confirmed candidate it listed takes its place, and the
- * named one stays an alternative.
+ * The best pick must carry a confirmed total and need no stock check. If the
+ * job names one that does not, the cheapest such candidate it listed takes its
+ * place, and the named one stays an alternative.
  */
 function resolveResult(candidates: FinderCandidateState[], bestId: string, alternativeIds: string[]): FinderResult {
   const byId = new Map(candidates.map((c) => [c.id, c]));
   const listed = [bestId, ...alternativeIds].filter((id, i, all) => byId.has(id) && all.indexOf(id) === i);
   const named = byId.get(bestId);
 
-  let best: string | null = named?.status === "priced" ? bestId : null;
+  const eligible = (c: FinderCandidateState | undefined) => c?.status === "priced" && c.quote != null && !c.stockCheck;
+  let best: string | null = eligible(named) ? bestId : null;
   if (best == null) {
     const priced = listed
       .map((id) => byId.get(id)!)
-      .filter((c) => c.status === "priced" && c.quote != null)
+      .filter((c) => eligible(c))
       .sort((a, b) => a.quote!.totalGhs - b.quote!.totalGhs);
     best = priced[0]?.id ?? null;
   }
@@ -152,6 +153,7 @@ export function finderReducer(state: FinderState, event: FinderEvent): FinderSta
         status: "priced",
         quote: event.quote,
         stockCheck: event.stockCheck,
+        extractionCacheId: event.extractionCacheId ?? c.extractionCacheId ?? null,
       }));
       // A result shown without a best pick gets one as soon as a price lands.
       const result =

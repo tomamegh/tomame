@@ -71,7 +71,8 @@ export type FinderEvent =
   | { type: "price_check_started"; at: number; candidateId: string }
   /** The store would not confirm the price yet; the job keeps trying. */
   | { type: "price_confirming"; at: number; candidateId: string }
-  | { type: "candidate_priced"; at: number; candidateId: string; quote: FinderQuote; stockCheck: boolean }
+  /** `extractionCacheId` is the stored quote "Add to bag" names; the browser never sends a price. */
+  | { type: "candidate_priced"; at: number; candidateId: string; quote: FinderQuote; stockCheck: boolean; extractionCacheId?: string }
   | { type: "result_ready"; at: number; bestId: string; alternativeIds: string[]; why: Record<string, string> }
   | { type: "nothing_found"; at: number; message: string; whatsappText: string };
 
@@ -104,6 +105,8 @@ export interface FinderCandidateState extends FinderCandidate {
   quote: FinderQuote | null;
   stockCheck: boolean;
   why: string | null;
+  /** The stored quote behind `quote`, once priced through the extraction chain. */
+  extractionCacheId?: string | null;
 }
 
 export interface FinderResult {
@@ -126,4 +129,24 @@ export interface FinderState {
   nothingFound: { message: string; whatsappText: string } | null;
   /** The latest line of narration, for the screen reader live region. */
   narration: string;
+}
+
+// ── The live run, as `GET /api/finder/[id]` returns it ──────────────────────
+
+export type FinderRunStatus = "pending" | "running" | "done" | "no_match" | "failed";
+
+export interface FinderRunView {
+  id: string;
+  status: FinderRunStatus;
+  query: string;
+  events: FinderEvent[];
+  /** Where the result is (or was) emailed; null when we have no address for this viewer. */
+  email: string | null;
+  /** True when the address is the visitor's own typed one, which they may change. */
+  emailEditable: boolean;
+  notifyWhatsapp: boolean;
+  /** Run time so far (or in total once finished), measured on the server, in ms. */
+  elapsedMs: number;
+  /** Tomame's buyer line from site settings; null hides the WhatsApp hand-off. */
+  buyerWhatsappNumber: string | null;
 }

@@ -1,3 +1,5 @@
+import { finderHealthLine, type FinderHealth } from "@/features/finder/health";
+
 import type { AlertCandidate } from "./alert-rules";
 
 /**
@@ -87,6 +89,8 @@ export interface QuoteHealth {
   drift: { orders: number; medianAbs: number | null; groups: DriftGroup[] };
   notificationsStuck: QuoteHealthInput["notificationsStuck"];
   bellOnlyPending: number;
+  /** The AI price finder's day (105); absent when it could not be read. */
+  finder?: FinderHealth | null;
 }
 
 function median(xs: number[]): number | null {
@@ -195,5 +199,6 @@ export function quoteHealthLines(h: QuoteHealth): string[] {
       : "Quoted vs paid: no store prices recorded yet.",
     `Notifications pending over ${QUOTE_HEALTH_RULES.notificationPendingMinutes} min: ${h.notificationsStuck.count} (WhatsApp). In-app bell entries (email channel, never sent by design): ${h.bellOnlyPending}.`,
   ];
+  if (h.finder) lines.push(finderHealthLine(h.finder));
   return lines;
 }

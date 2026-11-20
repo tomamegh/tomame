@@ -35,6 +35,10 @@ import { accraDate, buildDailySummary, dailySummaryDue, dailySummarySubject, typ
 import { getOpsOverview, type OpsOverview } from "./ops.service";
 import { buildQuoteHealth, QUOTE_HEALTH_RULES, quoteHealthCandidates, type QuoteHealth } from "./quote-health";
 import { readQuoteHealthInput } from "@/db/queries/quote-health";
+import { listFinderRunsSince } from "@/db/queries/finder-runs";
+import { FINDER } from "@/config/finder";
+import { budgetPeriodOf, readJobBudget } from "@/features/catalog/services/catalog-budget";
+import { buildFinderHealth, type FinderHealth } from "@/features/finder/health";
 
 /**
  * The two jobs that email a person (083): alerts every five minutes, the
@@ -107,7 +111,17 @@ export async function collectQuoteHealth(now: Date): Promise<QuoteHealth | null>
     null,
     "quote health",
   );
-  return input ? buildQuoteHealth(input) : null;
+  if (!input) return null;
+  return { ...buildQuoteHealth(input), finder: await collectFinderHealth(now) };
+}
+
+/** The price finder's last 24 h and this month's store-search budget; null when unreadable. */
+async function collectFinderHealth(now: Date): Promise<FinderHealth | null> {
+  const [rows, budget] = await Promise.all([
+    degrade(listFinderRunsSince(minutesBefore(now, 24 * 60)), null, "finder runs"),
+    degrade(readJobBudget(FINDER.jobName, FINDER.monthlyCaps, budgetPeriodOf(now)), null, "finder budget"),
+  ]);
+  return rows ? buildFinderHealth(rows, budget) : null;
 }
 
 // ── Alerts ──────────────────────────────────────────────────────────────────
