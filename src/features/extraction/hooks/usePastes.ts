@@ -53,6 +53,9 @@ export function usePastes(initialData: PasteStatus[]) {
  * by the set of priced paste ids, so it is asked once each time a link in the
  * batch lands rather than on every poll.
  */
+const PREVIEW_SETTLE_MS = 4_000;
+const PREVIEW_SETTLE_ATTEMPTS = 30;
+
 export function usePasteBatchPreview(pricedPasteIds: readonly string[]) {
   const ids = [...pricedPasteIds].sort();
   return useQuery<PasteBatchPreview>({
@@ -69,6 +72,15 @@ export function usePasteBatchPreview(pricedPasteIds: readonly string[]) {
     staleTime: 60_000,
     placeholderData: (previous) => previous,
     retry: 1,
+    // A link can finish reading a moment before its price settles (category,
+    // freight). Ask again while any priced link has no total yet, for about two
+    // minutes, so a row never sticks on a price that has since landed.
+    refetchInterval: (q) => {
+      const data = q.state.data;
+      if (!data || q.state.dataUpdateCount >= PREVIEW_SETTLE_ATTEMPTS) return false;
+      const settling = data.lines.length < ids.length || data.lines.some((l) => l.total_ghs == null);
+      return settling ? PREVIEW_SETTLE_MS : false;
+    },
   });
 }
 

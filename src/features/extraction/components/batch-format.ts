@@ -50,6 +50,8 @@ export function batchRowStatus(paste: PasteStatus, line: PasteBatchLine | null):
   if (paste.outcome === "reading") return { ...base, kind: "reading", label: "Reading", tone: "progress", pulse: true };
   if (paste.outcome !== "priced") return { ...base, kind: "failed", label: "Couldn't read", tone: "warning", askable: true };
   if (!line) return { ...base, kind: "pricing", label: "Pricing", tone: "progress", pulse: true };
+  // No total and no reason yet: the price is still settling, and the preview asks again.
+  if (line.total_ghs == null && !line.pricing_unavailable_reason) return { ...base, kind: "pricing", label: "Pricing", tone: "progress", pulse: true };
   if (line.total_ghs == null) return { ...base, kind: "failed", label: "Couldn't price", tone: "warning", askable: true };
 
   const hold = line.pay_hold;

@@ -67,7 +67,11 @@ describe("batchRowStatus", () => {
 
   it("offers a buyer when the link could not be read or priced", () => {
     expect(batchRowStatus(paste({ outcome: "expired", status: "failed", extraction_cache_id: null }), null)).toMatchObject({ label: "Couldn't read", askable: true });
-    expect(batchRowStatus(paste(), line({ total_ghs: null }))).toMatchObject({ label: "Couldn't price", askable: true });
+    expect(batchRowStatus(paste(), line({ total_ghs: null, pricing_unavailable_reason: "needs_review" }))).toMatchObject({ label: "Couldn't price", askable: true });
+  });
+
+  it("keeps a priced link on Pricing while its total is still settling", () => {
+    expect(batchRowStatus(paste(), line({ total_ghs: null, pricing_unavailable_reason: null }))).toMatchObject({ kind: "pricing", label: "Pricing", askable: false });
     expect(batchRowStatus(paste({ assisted: { status: "open", requested_at: "2026-11-20T10:01:00Z" } }), null).label).toBe("With a buyer");
   });
 });

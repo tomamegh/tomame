@@ -177,8 +177,8 @@ export function PasteBatchPanel({ pastes, onDescribe, onDone }: PasteBatchPanelP
                 {addingAll
                   ? "Adding to your bag"
                   : addable.length <= 1
-                    ? addable.length === 1 ? "Add 1 ready item to bag" : "Nothing ready to add yet"
-                    : `Add all ${addable.length} ready items to bag`}
+                    ? addable.length === 1 ? "Add 1 item to bag" : "Nothing to add yet"
+                    : `Add all ${addable.length} items to bag`}
               </Button>
             </div>
           </div>
