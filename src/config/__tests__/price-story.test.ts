@@ -30,15 +30,17 @@ import {
  * B6 acceptance checks (trust & polish, 2026-11-20).
  *
  * Prod's pricing on 2026-11-20: $6/lb, $3 handling per line, 1 lb minimum,
- * every group and `default_value_fee_pct` at 4%, US tax 10% with a $2 floor,
- * and the buffered rate at GH₵12.25. Headphones price by weight.
+ * every group and `default_value_fee_pct` at 4%, US tax 8.8% with a $2 floor,
+ * and the buffered rate at GH₵12.25. Headphones price by weight. The live
+ * homepage reads "Item $49.99 · 8.8% US sales tax $4.40 · Tomame fee 4% $2.00
+ * · Freight 1 lb".
  */
 const PROD_CONSTANTS = {
   freight_rate_per_lb: 6,
   handling_fee_usd: 3,
   minimum_tax_usd: 2,
   fx_buffer_pct: 0.04,
-  tax_pct_usa: 0.1,
+  tax_pct_usa: 0.088,
   tax_pct_uk: 0.1,
   tax_pct_china: 0.08,
   minimum_chargeable_weight_lbs: 1,
@@ -74,25 +76,21 @@ async function priceHero(weightLbs: number): Promise<PricingBreakdown> {
 }
 
 /**
- * THE BRIEF SAYS GH₵801.03; THE ENGINE SAYS GH₵808.38. Not fudged: with the
- * constants above, a sub-1 lb headphone hits the 1 lb minimum, so freight is
- * (1 × $6 + $3) × 12.25 = GH₵110.25 and the total is $56.99 × 12.25 + 110.25.
- * 801.03 needs freight of GH₵102.90 ($8.40) — 0.9 lb × $6 + $3 with no 1 lb
- * floor — which these constants cannot produce for a weight-priced item.
+ * (49.99 + 4.40 tax + 2.00 fee) × 12.25 + (1 lb × $6 + $3) × 12.25 = GH₵801.03.
+ * A sub-1 lb headphone is charged as 1 lb, so freight is GH₵110.25 ($9).
  */
 describe("hero example: Oraimo BoomPop N, $49.99 at $1 = GH₵12.25", () => {
-  it("totals GH₵808.38 on prod's stated constants (the brief's 801.03 is not reproducible)", async () => {
+  it("still totals GH₵801.03", async () => {
     const breakdown = await priceHero(0.6);
-    expect(breakdown.tax_usd).toBe(5);
+    expect(breakdown.tax_usd).toBe(4.4);
     expect(breakdown.value_fee_usd).toBe(2);
     expect(breakdown.weight_source).toBe("minimum");
     expect(breakdown.flat_rate_ghs).toBe(110.25);
-    expect(breakdown.total_ghs).toBe(808.38);
-    expect(breakdown.total_ghs).not.toBe(801.03);
+    expect(breakdown.total_ghs).toBe(801.03);
   });
 
   it("is the same at 0.9 lb: anything under 1 lb is charged as 1 lb", async () => {
-    expect((await priceHero(0.9)).total_ghs).toBe(808.38);
+    expect((await priceHero(0.9)).total_ghs).toBe(801.03);
   });
 
   it("renders the 1 lb freight as GH₵110.25 ($9) and prints customs at zero without moving the total", async () => {
@@ -101,7 +99,9 @@ describe("hero example: Oraimo BoomPop N, $49.99 at $1 = GH₵12.25", () => {
       { ...DEFAULT_WORKED_EXAMPLE_INPUT, item_price_usd: 49.99, weight_lbs: 0.6, price_presets_usd: [49.99] },
       breakdown,
     );
-    expect(example.total_ghs_display).toBe("GH₵808.38");
+    expect(example.total_ghs_display).toBe("GH₵801.03");
+    expect(example.rows.find((r) => r.key === "tax")).toMatchObject({ value: "$4.40" });
+    expect(example.rows.find((r) => r.key === "tax")?.label).toContain("8.8%");
     expect(example.rows.find((r) => r.key === "freight")?.value).toContain("GH₵110.25");
     const byKey = Object.fromEntries(example.rows.map((row) => [row.key, row]));
     expect(byKey.fee?.label).toBe("Tomame fee – 4% flat");
@@ -122,8 +122,8 @@ const ORDER_PRICING = {
   subtotal_usd: 49.99,
   exchange_rate: 12.25,
   mid_market_rate: 11.78,
-  tax_percentage: 0.1,
-  tax_usd: 5,
+  tax_percentage: 0.088,
+  tax_usd: 4.4,
   value_fee_percentage: 0.04,
   value_fee_usd: 2,
   flat_rate_ghs: 102.9,
@@ -142,8 +142,8 @@ function everyBreakdown(): Record<string, string[]> {
     email: breakdownRows({
       itemPriceUsd: 49.99,
       subtotalUsd: 49.99,
-      taxPercentage: 0.1,
-      taxUsd: 5,
+      taxPercentage: 0.088,
+      taxUsd: 4.4,
       valueFeePercentage: 0.04,
       valueFeeUsd: 2,
       flatRateGhs: 102.9,
