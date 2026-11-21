@@ -13,12 +13,13 @@ export const FINDER = {
   /** Budget key in `job_budgets`: one unit per store search page. */
   jobName: "finder-search",
   /**
-   * Store searches a month. Each is one ScraperAPI structured search (5 credits)
-   * or one Zyte request; a run searches up to three stores, so production's cap
-   * is about 100 runs of live search a month before runs fall back to the
-   * catalogue alone. Dev shares the keys, so its cap is a token one.
+   * Paid store searches a month (Amazon, Walmart: one ScraperAPI structured
+   * search each, 5 credits of the 100k plan). eBay and Target search through
+   * their own free APIs and are not counted. Production's cap is about 1,000
+   * runs a month (10k credits); dev shares the keys, so its cap is smaller.
+   * The stored row's cap is a floor/override (effectiveMonthlyCap).
    */
-  monthlyCaps: { production: 300, other: 20 } satisfies MonthlyCaps,
+  monthlyCaps: { production: 2000, other: 200 } satisfies MonthlyCaps,
   /** A run stops starting new work after this long and finishes with what it has. */
   deadlineMs: 210_000,
   /**

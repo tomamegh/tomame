@@ -87,3 +87,83 @@ export async function fetchTargetProduct(url: string, timeoutMs: number): Promis
   }
   return null;
 }
+
+/** One row of Target's search API, as the finder reads it. */
+export interface TargetSearchItem {
+  tcin: string;
+  title: string;
+  productUrl: string;
+  imageUrl: string | null;
+  priceUsd: number | null;
+}
+
+interface RedskySearchProduct extends RedskyProduct {
+  item?: RedskyProduct["item"] & { enrichment?: { buy_url?: string; image_info?: { primary_image?: { url?: string } } } };
+}
+
+/** Pure mapping, tested: a single price only (a range is a choice of variants), Target's own product link. */
+export function mapRedskySearch(products: readonly RedskySearchProduct[]): TargetSearchItem[] {
+  return products.flatMap((p) => {
+    const mapped = mapRedsky(p);
+    if (!p.tcin || !mapped.title) return [];
+    const buy = p.item?.enrichment?.buy_url;
+    return [{
+      tcin: p.tcin,
+      title: mapped.title,
+      productUrl: buy && /^https:\/\/www\.target\.com\/p\//.test(buy) ? buy : `https://www.target.com/p/-/A-${p.tcin}`,
+      imageUrl: mapped.image ?? null,
+      priceUsd: mapped.price ?? null,
+    }];
+  });
+}
+
+/**
+ * Target's own search, the API its search page calls, with the same public
+ * key. Free and about a second (2026-11-21). Direct first, then through
+ * ScraperAPI when Target refuses our servers. THROWS when neither answers.
+ */
+export async function searchTargetProducts(query: string, timeoutMs: number): Promise<TargetSearchItem[]> {
+  const qs = new URLSearchParams({
+    key: WEB_KEY,
+    channel: "WEB",
+    count: "24",
+    default_purchasability_filter: "true",
+    include_sponsored: "false",
+    keyword: query,
+    offset: "0",
+    page: `/s/${query}`,
+    platform: "desktop",
+    pricing_store_id: "3991",
+    visitor_id: "0193A0B0C0D0E0F0A0B0C0D0E0F0A0B0",
+  });
+  const api = `https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2?${qs}`;
+  const attempts: Array<[string, string]> = [["direct", api]];
+  const { env } = await import("@/lib/env");
+  const scraperKey = env.extraction.scraperApiKey;
+  if (scraperKey) {
+    attempts.push(["scraperapi", `https://api.scraperapi.com/?${new URLSearchParams({ api_key: scraperKey, url: api, country_code: "us", premium: "true" })}`]);
+  }
+  const deadline = Date.now() + timeoutMs;
+  for (const [via, target] of attempts) {
+    const left = deadline - Date.now();
+    if (left < 1_500) break;
+    try {
+      const res = await fetch(target, {
+        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36" },
+        signal: AbortSignal.timeout(Math.min(left, via === "direct" ? 8_000 : 20_000)),
+      });
+      if (!res.ok && res.status !== 206) {
+        logger.info("target-redsky: search non-OK", { via, status: res.status });
+        continue;
+      }
+      const body = (await res.json()) as { data?: { search?: { products?: RedskySearchProduct[] } } };
+      const products = body.data?.search?.products;
+      if (!products) continue;
+      logger.info("target-redsky: searched", { via, results: products.length });
+      return mapRedskySearch(products);
+    } catch (err) {
+      logger.info("target-redsky: search failed", { via, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  throw new Error("Target search did not answer");
+}

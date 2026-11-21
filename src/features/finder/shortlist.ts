@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { CatalogStore } from "@/config/catalog";
+import type { FinderStore } from "@/features/finder/store-id";
 import type { ParsedFinderSpec } from "./spec";
 
 /**
@@ -15,7 +15,7 @@ import type { ParsedFinderSpec } from "./spec";
 export interface FinderListing {
   /** Stable within a run: the listing's url hash. */
   id: string;
-  store: CatalogStore;
+  store: FinderStore;
   title: string;
   productUrl: string;
   imageUrl: string | null;
@@ -112,7 +112,7 @@ export function isUnwantedMultipack(title: string, spec: Pick<ParsedFinderSpec, 
 }
 
 /** Stores whose search page can leave a price out while the product page has one. */
-const PRICE_ON_PAGE_STORES: ReadonlySet<CatalogStore> = new Set<CatalogStore>(["amazon", "walmart"]);
+const PRICE_ON_PAGE_STORES: ReadonlySet<FinderStore> = new Set<FinderStore>(["amazon", "walmart"]);
 
 export interface PostFilterResult {
   kept: FinderListing[];
@@ -132,7 +132,7 @@ function count(dropped: Partial<Record<DropReason, number>>, reason: DropReason)
 export function postFilterListings(
   listings: readonly FinderListing[],
   spec: Pick<ParsedFinderSpec, "product" | "searchQuery">,
-  allowedStores: ReadonlySet<CatalogStore>,
+  allowedStores: ReadonlySet<FinderStore>,
 ): PostFilterResult {
   const kept: FinderListing[] = [];
   const dropped: Partial<Record<DropReason, number>> = {};

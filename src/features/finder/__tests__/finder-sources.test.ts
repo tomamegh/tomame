@@ -106,3 +106,30 @@ describe("listings that admit a catch", () => {
     ]) expect(isRiskyListing(t), t).toBe(false);
   });
 });
+
+describe("Target's own search rows", () => {
+  it("keep Target's product link and a single price; a price range is left for the store read", async () => {
+    const { mapRedskySearch } = await import("@/features/extraction/resolvers/target-redsky");
+    const rows = mapRedskySearch([
+      {
+        tcin: "85978609",
+        price: { current_retail: 179.99 },
+        item: {
+          product_description: { title: "Apple AirPods Pro 3 Wireless Earbuds with Active Noise Cancellation" },
+          enrichment: { buy_url: "https://www.target.com/p/ap2022-true-wireless-bluetooth-headphones/-/A-85978609", image_info: { primary_image: { url: "https://target.scene7.com/x" } } },
+        },
+      },
+      { tcin: "1", price: { current_retail_min: 10, current_retail_max: 20 }, item: { product_description: { title: "Socks, assorted" } } },
+      { tcin: "2", item: {} },
+    ]);
+    expect(rows).toEqual([
+      { tcin: "85978609", title: "Apple AirPods Pro 3 Wireless Earbuds with Active Noise Cancellation", productUrl: "https://www.target.com/p/ap2022-true-wireless-bluetooth-headphones/-/A-85978609", imageUrl: "https://target.scene7.com/x", priceUsd: 179.99 },
+      { tcin: "1", title: "Socks, assorted", productUrl: "https://www.target.com/p/-/A-1", imageUrl: null, priceUsd: null },
+    ]);
+  });
+
+  it("searches eBay and Target for free, Amazon and Walmart within the paid allowance", () => {
+    const plan = planStoreSearches(["amazon", "walmart", "ebay", "target"], { scraperapi: true, zyte: false }, 2, new Set(["ebay", "target"] as const));
+    expect(plan).toEqual({ search: ["amazon", "walmart", "ebay", "target"], skipped: [] });
+  });
+});

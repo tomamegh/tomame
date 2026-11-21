@@ -24,15 +24,15 @@ describe("finderRateLimit", () => {
 describe("stores", () => {
   it("offers only live US stores, and none when the US lane is closed", () => {
     const allowed = finderAllowedStores(true);
-    expect([...allowed].sort()).toEqual(["amazon", "ebay", "etsy", "nike", "walmart"]);
+    expect([...allowed].sort()).toEqual(["amazon", "ebay", "etsy", "nike", "target", "walmart"]);
     expect(finderAllowedStores(false).size).toBe(0);
   });
 
-  it("searches Amazon, Walmart and eBay by default; Nike and Etsy only when named", () => {
+  it("searches Amazon, Walmart, eBay and Target by default; Nike and Etsy only when named", () => {
     const allowed = finderAllowedStores(true);
-    expect(pickSearchStores("PS5 slim", allowed)).toEqual(["amazon", "walmart", "ebay"]);
-    expect(pickSearchStores("Nike Air Max 90 size 42", allowed)).toEqual(["amazon", "walmart", "ebay", "nike"]);
-    expect(pickSearchStores("handmade kente bag", allowed)).toEqual(["amazon", "walmart", "ebay", "etsy"]);
+    expect(pickSearchStores("PS5 slim", allowed)).toEqual(["amazon", "walmart", "ebay", "target"]);
+    expect(pickSearchStores("Nike Air Max 90 size 42", allowed)).toEqual(["amazon", "walmart", "ebay", "target", "nike"]);
+    expect(pickSearchStores("handmade kente bag", allowed)).toEqual(["amazon", "walmart", "ebay", "target", "etsy"]);
     expect(pickSearchStores("PS5 slim", new Set(["ebay"]))).toEqual(["ebay"]);
   });
 

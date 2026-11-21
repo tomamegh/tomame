@@ -1,4 +1,4 @@
-import type { CatalogStore } from "@/config/catalog";
+import type { FinderStore } from "@/features/finder/store-id";
 
 import { postFilterListings, type FinderListing } from "./shortlist";
 import type { ParsedFinderSpec } from "./spec";
@@ -6,12 +6,12 @@ import type { ParsedFinderSpec } from "./spec";
 /**
  * The fast answer's rules. Pure.
  *
- * Only stores that sell their own stock or police their sellers (Amazon, then
- * Walmart) and only listings we have already priced: the catalogue answers in
+ * Only stores that sell their own stock or police their sellers (Amazon,
+ * Target, Walmart) and only listings we have already priced: the catalogue answers in
  * milliseconds, so the customer has something good to buy while the full
  * search across every store looks for the cheapest.
  */
-export const QUICK_PICK_STORES: readonly CatalogStore[] = ["amazon", "walmart"];
+export const QUICK_PICK_STORES: readonly FinderStore[] = ["amazon", "target", "walmart"];
 
 /** How many catalogue matches are read at the store before giving up on a fast answer. */
 export const QUICK_PICK_TRIES = 2;
@@ -24,7 +24,7 @@ export const QUICK_PICK_TRIES = 2;
 export function quickPickOrder(
   catalogue: readonly FinderListing[],
   spec: Pick<ParsedFinderSpec, "product" | "searchQuery">,
-  allowed: ReadonlySet<CatalogStore>,
+  allowed: ReadonlySet<FinderStore>,
   isMatch: (l: FinderListing) => boolean,
 ): FinderListing[] {
   const trusted = new Set(QUICK_PICK_STORES.filter((s) => allowed.has(s)));
@@ -33,7 +33,7 @@ export function quickPickOrder(
     spec,
     trusted,
   );
-  const rank = (s: CatalogStore) => QUICK_PICK_STORES.indexOf(s);
+  const rank = (s: FinderStore) => QUICK_PICK_STORES.indexOf(s);
   return kept
     .filter(isMatch)
     .sort((a, b) => rank(a.store) - rank(b.store) || a.priceUsd! - b.priceUsd!);

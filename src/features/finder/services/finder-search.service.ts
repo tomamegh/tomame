@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { CatalogStore } from "@/config/catalog";
+import type { FinderStore } from "@/features/finder/store-id";
 import { FINDER } from "@/config/finder";
 import { searchCatalogProducts, type CatalogProductInput, type CatalogSearchHit } from "@/db/queries/catalog";
 import { budgetPeriodOf, readJobBudget, spendJobBudget } from "@/features/catalog/services/catalog-budget";
@@ -12,6 +12,8 @@ import { searchEbayItems, type EbayItemSummary } from "@/lib/ebay/browse";
 import { isEbayConfigured } from "@/lib/ebay/config";
 import { hashUrl } from "@/features/extraction/url";
 import { hubDestinationFor } from "@/features/extraction/hub-destination";
+import { searchTargetProducts, type TargetSearchItem } from "@/features/extraction/resolvers/target-redsky";
+import { isCatalogueStore } from "../store-id";
 
 import type { FinderListing } from "../shortlist";
 import { planStoreSearches, type StorePlan } from "../stores";
@@ -83,9 +85,35 @@ export function listingFromEbaySummary(item: EbayItemSummary): FinderListing | n
   };
 }
 
-/** Stores searched through their own free API: no vendor key, no budget. */
-export function freeSearchStores(): Set<CatalogStore> {
-  return new Set<CatalogStore>(isEbayConfigured() ? ["ebay"] : []);
+/** Stores searched through their own free API: no vendor key, no budget. Target's needs no key at all. */
+export function freeSearchStores(): Set<FinderStore> {
+  return new Set<FinderStore>(isEbayConfigured() ? ["ebay", "target"] : ["target"]);
+}
+
+/** A row of Target's own search. Target sells its own stock, new. */
+export function listingFromTargetItem(item: TargetSearchItem): FinderListing {
+  return {
+    id: hashUrl(item.productUrl),
+    store: "target",
+    title: item.title,
+    productUrl: item.productUrl,
+    imageUrl: item.imageUrl,
+    priceUsd: item.priceUsd,
+    currency: item.priceUsd != null ? "USD" : null,
+    condition: null,
+    seller: "Target",
+    source: "live",
+  };
+}
+
+async function searchTargetFree(query: string): Promise<StoreSearchResult> {
+  try {
+    const items = await searchTargetProducts(query, 25_000);
+    return { store: "target", listings: items.map(listingFromTargetItem), failed: false };
+  } catch (error) {
+    logger.warn("finder: Target search failed", { error: error instanceof Error ? error.message : String(error) });
+    return { store: "target", listings: [], failed: true };
+  }
 }
 
 /** What we already hold for this search. A failed read is an empty shelf, never a failed run. */
@@ -99,20 +127,22 @@ export async function searchFinderCatalogue(searchQuery: string): Promise<Finder
   }
 }
 
-export async function planFinderStores(wanted: readonly CatalogStore[], now: Date = new Date()): Promise<StorePlan> {
+export async function planFinderStores(wanted: readonly FinderStore[], now: Date = new Date()): Promise<StorePlan> {
   const budget = await readJobBudget(FINDER.jobName, FINDER.monthlyCaps, budgetPeriodOf(now));
   return planStoreSearches(wanted, configuredSearchVendors(), budget.cap - budget.used, freeSearchStores());
 }
 
-export type StoreSearchResult = { store: CatalogStore; listings: FinderListing[]; failed: false } | { store: CatalogStore; listings: []; failed: true };
+export type StoreSearchResult = { store: FinderStore; listings: FinderListing[]; failed: false } | { store: FinderStore; listings: []; failed: true };
 
 /**
  * One store's search page. Never throws: a vendor failure or a timeout is a
  * failed store, and the call is counted against the budget either way (a
  * failed vendor call still costs).
  */
-export async function searchFinderStore(store: CatalogStore, query: string, now: Date = new Date()): Promise<StoreSearchResult> {
-  if (freeSearchStores().has(store)) return searchEbayFree(query);
+export async function searchFinderStore(store: FinderStore, query: string, now: Date = new Date()): Promise<StoreSearchResult> {
+  if (store === "target") return searchTargetFree(query);
+  if (store === "ebay" && freeSearchStores().has("ebay")) return searchEbayFree(query);
+  if (!isCatalogueStore(store)) return { store, listings: [], failed: true };
   const period = budgetPeriodOf(now);
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {

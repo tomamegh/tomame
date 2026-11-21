@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { CatalogStore } from "@/config/catalog";
+import type { FinderStore } from "@/features/finder/store-id";
 import { FINDER } from "@/config/finder";
 import { getExtractionSnapshot, extractPrepared, prepareProductUrl, type FreshExtraction } from "@/features/extraction/extraction.service";
 import {
@@ -319,7 +319,7 @@ interface QuickPick {
 async function findQuickPick(
   run: FinderRunRow,
   spec: ParsedFinderSpec,
-  allowed: ReadonlySet<CatalogStore>,
+  allowed: ReadonlySet<FinderStore>,
   catalogue: Promise<FinderListing[]>,
   msLeft: () => number,
   usage: TokenUsage,
@@ -413,23 +413,31 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   await writer.save();
 
   const cataloguePromise = searchFinderCatalogue(spec.searchQuery);
-  // The fast answer runs beside the store searches and lands on screen as soon as it is ready.
-  quickPromise = findQuickPick(run, spec, allowed, cataloguePromise, msLeft, usage).then((quick) => {
+  const searchPromises = new Map(
+    plan.search.map((store) => [
+      store,
+      searchFinderStore(store, spec.searchQuery).then((result) => {
+        spent.searches += store === "target" || store === "ebay" ? 0 : 1;
+        narrator.emit({ type: "store_search_done", storeId: store, listings: result.listings.length });
+        void writer.save();
+        return result;
+      }),
+    ]),
+  );
+  // The fast answer runs beside the store searches and lands on screen as soon as it is ready:
+  // what we had already priced, plus Target's own search, which answers in about a second.
+  const fastRows = Promise.all([
+    cataloguePromise,
+    searchPromises.get("target")?.then((r) => r.listings) ?? Promise.resolve([] as FinderListing[]),
+  ]).then(([cat, target]) => [...cat, ...target]);
+  quickPromise = findQuickPick(run, spec, allowed, fastRows, msLeft, usage).then((quick) => {
     if (quick) {
       narrator.emit({ type: "quick_pick", candidate: quickCandidate(quick), quote: quick.quote, extractionCacheId: quick.cacheId, reason: quickPickReason(finderStoreName(quick.listing.store)) });
       void writer.save();
     }
     return quick;
   });
-  const searches = await Promise.all(
-    plan.search.map(async (store): Promise<StoreSearchResult> => {
-      const result = await searchFinderStore(store, spec.searchQuery);
-      spent.searches += 1;
-      narrator.emit({ type: "store_search_done", storeId: store, listings: result.listings.length });
-      void writer.save();
-      return result;
-    }),
-  );
+  const searches: StoreSearchResult[] = await Promise.all(searchPromises.values());
   const catalogue = (await cataloguePromise).filter((l) => allowed.has(l.store));
   const outcomes: StoreSearchOutcome[] = searches.map((s) => ({ name: finderStoreName(s.store), listings: s.listings.length, failed: s.failed }));
   const skipped = [
