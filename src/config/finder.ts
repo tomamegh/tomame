@@ -41,6 +41,8 @@ export const FINDER = {
   quickPickReadMs: 25_000,
   /** The model's look at the fast answer's catalogue rows (a dozen at most). */
   quickPickShortlistMs: 8_000,
+  /** How long the fast answer waits for Target's search before going with the catalogue alone. */
+  quickPickTargetWaitMs: 3_000,
   /** How many shortlisted matches go through the full extraction and calculator. */
   priceCandidates: 3,
   /** Listings handed to the model for the shortlist; the rest are not read. */

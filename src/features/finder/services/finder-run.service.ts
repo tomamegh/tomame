@@ -425,11 +425,13 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
     ]),
   );
   // The fast answer runs beside the store searches and lands on screen as soon as it is ready:
-  // what we had already priced, plus Target's own search, which answers in about a second.
-  const fastRows = Promise.all([
-    cataloguePromise,
-    searchPromises.get("target")?.then((r) => r.listings) ?? Promise.resolve([] as FinderListing[]),
-  ]).then(([cat, target]) => [...cat, ...target]);
+  // what we had already priced, plus Target's own search when it answers in time.
+  // Target only when it answers quickly: from our servers it can need the slower proxy, and the fast answer must stay fast.
+  const targetRows = searchPromises.get("target")?.then((r) => r.listings) ?? Promise.resolve([] as FinderListing[]);
+  const fastRows = Promise.all([cataloguePromise, withTimeout(targetRows, FINDER.quickPickTargetWaitMs, [] as FinderListing[])]).then(([cat, target]) => [
+    ...cat,
+    ...target,
+  ]);
   quickPromise = findQuickPick(run, spec, allowed, fastRows, msLeft, usage).then((quick) => {
     if (quick) {
       narrator.emit({ type: "quick_pick", candidate: quickCandidate(quick), quote: quick.quote, extractionCacheId: quick.cacheId, reason: quickPickReason(finderStoreName(quick.listing.store)) });
