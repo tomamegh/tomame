@@ -9,6 +9,7 @@ import type { WorkedExample } from "@/features/marketing/types";
 import { HERO_PRICE_PARTS } from "@/config/price-story";
 
 import { PriceDisplay } from "@/components/price/price-display";
+import { StoreImage } from "@/components/store-image";
 
 import { LandedReceipt } from "./landed-receipt";
 import { PasteBar } from "./paste-bar";
@@ -29,6 +30,8 @@ export interface LandingHeroProps {
   transitLabel: string | null;
   /** Admin crop/src overrides from `media_overrides`. */
   mediaOverrides: MediaOverrideMap;
+  /** The rotating popular product's own photo and store (hero-product.service), when the receipt is one. */
+  product?: { imageUrl: string | null; storeName: string } | null;
 }
 
 /**
@@ -46,6 +49,7 @@ export function LandingHero({
   example,
   transitLabel,
   mediaOverrides,
+  product = null,
 }: LandingHeroProps) {
   const heroPhoto = applyImageOverride(
     MARKETING_IMAGES["mk-hero-photo"],
@@ -144,7 +148,16 @@ export function LandingHero({
             )}
           >
             <div className="flex items-center gap-3">
-              {productImage ? (
+              {product?.imageUrl ? (
+                <StoreImage
+                  src={product.imageUrl}
+                  alt=""
+                  width={52}
+                  height={52}
+                  sizes="52px"
+                  className="size-13 shrink-0 rounded-xl border border-tm-hairline bg-white object-contain p-1"
+                />
+              ) : productImage ? (
                 <Image
                   src={productImage.src}
                   alt={productImage.alt}
@@ -165,7 +178,7 @@ export function LandingHero({
                   {example.input.product_title}
                 </p>
                 <p className="tm-nums mt-[3px] truncate text-xs font-medium text-tm-text-3">
-                  {example.rows[0]?.value} · {example.input.category}
+                  {example.rows[0]?.value} · {product ? `at ${product.storeName}` : example.input.category}
                 </p>
               </div>
             </div>

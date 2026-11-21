@@ -53,3 +53,8 @@ export function outlierReason(priceUsd: number, referenceUsd: number): string {
   const fmt = (n: number) => `$${n.toFixed(2).replace(/\.00$/, "")}`;
   return `Price far below other new listings (${fmt(priceUsd)} against a typical ${fmt(referenceUsd)}): we check the seller before you pay`;
 }
+
+/** True when this price sits far below the others in `allPricesUsd` (see `outlierReference`). */
+export function isOutlierListing(priceUsd: number | null | undefined, allPricesUsd: readonly number[]): boolean {
+  return isSuspiciouslyLow(priceUsd, outlierReference(allPricesUsd));
+}

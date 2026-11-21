@@ -23,6 +23,7 @@ import { DEFAULT_FX_BUFFER_PCT } from "@/config/pricing";
 import { FREIGHT_LABEL, HERO_PRICE_PARTS } from "@/config/price-story";
 import { getGhsRate } from "@/lib/exchange-rates/service";
 import { getSharedMediaOverrides } from "@/features/marketing/services/media-overrides.service";
+import { getHeroProduct } from "@/features/marketing/services/hero-product.service";
 import { isAuthenticated } from "@/lib/supabase/current-user";
 import { StandaloneHomeRedirect } from "@/features/pwa/components";
 
@@ -73,6 +74,7 @@ export default async function HomePage() {
     midMarketRate,
     authed,
     mediaOverrides,
+    heroProduct,
   ] =
     await Promise.all([
       getLandingContent(),
@@ -82,6 +84,7 @@ export default async function HomePage() {
       getGhsRate("USD"),
       isAuthenticated(),
       getSharedMediaOverrides(),
+      getHeroProduct(),
     ]);
 
   // Depends on the seeded card rows, so it runs after the content query.
@@ -93,9 +96,11 @@ export default async function HomePage() {
 
   // The pill quotes the rate the receipt beside it was priced at, so the two
   // can never disagree. The mid-market read is only a fallback.
+  // The hero's receipt is a popular product that changes every two hours; the Fees example stands in when none resolves.
+  const heroExample = heroProduct?.example ?? example;
   const usdToGhs =
-    example.breakdown.exchange_rate > 0
-      ? example.breakdown.exchange_rate
+    heroExample.breakdown.exchange_rate > 0
+      ? heroExample.breakdown.exchange_rate
       : midMarketRate
         ? midMarketRate * (1 + DEFAULT_FX_BUFFER_PCT)
         : 0;
@@ -115,7 +120,8 @@ export default async function HomePage() {
         originLabel={primary ? originLabel(primary) : "the USA"}
         cyclerStores={primary?.store_names ?? []}
         trustChips={content.trustChips}
-        example={example}
+        example={heroExample}
+        product={heroProduct ? { imageUrl: heroProduct.imageUrl, storeName: heroProduct.storeName } : null}
         transitLabel={primary ? transitWindow(primary) : null}
         mediaOverrides={mediaOverrides}
       />
