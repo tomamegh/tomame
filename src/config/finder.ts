@@ -10,8 +10,11 @@ import type { MonthlyCaps } from "@/config/catalog";
 export const FINDER = {
   /** Request → spec, and listings → exact matches. Small prompts, must be quick and cheap. */
   model: "claude-haiku-5-5",
-  /** The shopping assistant's conversation (107): reads the chat, replies, splits the request into searches. */
-  chatModel: "claude-opus-5-5",
+  /**
+   * The shopping assistant's conversation (107): reads the chat, replies, splits the request into searches.
+   * Haiku: about $0.0004 a message (Opus measured $0.014 on the same turns), and the prices never come from it.
+   */
+  chatModel: "claude-haiku-5-5",
   chatTimeoutMs: 30_000,
   /** Budget key in `job_budgets`: one unit per store search page. */
   jobName: "finder-search",
