@@ -18,3 +18,8 @@ export function finderLimitMessage(signedIn: boolean): string {
     ? "You have used today's searches. Paste a product link instead, or ask a buyer to find it."
     : "You have used today's searches on this connection. Sign in for more, paste a product link, or ask a buyer.";
 }
+
+/** Who may send the assistant a message: one model call each, so it is counted apart from searches. */
+export function finderChatRateLimit(subject: string, signedIn: boolean): { key: string; config: { windowMs: number; maxRequests: number } } {
+  return { key: `finder-chat:${subject}`, config: signedIn ? RATE_LIMIT.finderChatUser : RATE_LIMIT.finderChatVisitor };
+}

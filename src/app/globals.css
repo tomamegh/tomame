@@ -1298,3 +1298,21 @@ html[data-tm-splash="force"] .tm-splash {
     animation: none;
   }
 }
+
+/*
+ * The shopping assistant's message box (107): pinned to the bottom of the
+ * thread. A signed-in phone has the fixed tab bar to clear (the sum
+ * tm-clear-tab-bar reserves); from `lg`, and for a visitor, it sits just
+ * above the window's edge.
+ */
+@utility tm-chat-dock {
+  position: sticky;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  @media (min-width: 1024px) {
+    bottom: 16px;
+  }
+}
+@utility tm-chat-dock-visitor {
+  position: sticky;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+}

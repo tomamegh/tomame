@@ -195,6 +195,31 @@ describe("runFinderJob", () => {
     expect(events.find((e) => e.type === "step_done" && e.step === "price")).toMatchObject({ summary: "2 of 3 prices confirmed. Still confirming one with the store." });
   });
 
+  it("reads the next matches when store pages cannot be read, and skips the model when the run carries a chat's spec", async () => {
+    vi.mocked(getFinderRunById).mockResolvedValue(run({ spec: { product: "iPhone 17 Pro", searchQuery: "iPhone 17 Pro unlocked", mustHaves: ["unlocked"], budgetGhs: null, category: null } }));
+    vi.mocked(claimFinderRun).mockImplementation(async (_id, events) =>
+      run({ status: "running", events, started_at: new Date().toISOString(), spec: { product: "iPhone 17 Pro", searchQuery: "iPhone 17 Pro unlocked", mustHaves: ["unlocked"], budgetGhs: null, category: null } }),
+    );
+    vi.mocked(planFinderStores).mockResolvedValue({ search: ["amazon"], skipped: [] });
+    const ids = ["a", "b", "c", "d", "e"];
+    vi.mocked(searchFinderStore).mockImplementation(async (store) => ({ store, failed: false, listings: ids.map((id) => listing(id, "Apple iPhone 17 Pro 256GB Unlocked")) }));
+    vi.mocked(shortlistListings).mockImplementation(async (_spec, listings) => ({ matches: [...listings], dropped: {} }));
+    // The first three pages cannot be read; the next two can.
+    vi.mocked(extractPrepared).mockImplementation(async (prepared) => {
+      const id = String(prepared.canonicalUrl).split("/").pop()!;
+      return (["a", "b", "c"].includes(id) ? null : { extraction_cache_id: `cache-${id}`, product: { price: 1099 }, price_confidence: { level: "confirmed" } }) as never;
+    });
+    vi.mocked(priceExtractionWith).mockResolvedValue({ pricing: breakdown(16000), reason: null } as never);
+    vi.mocked(payHoldOf).mockReturnValue(null);
+
+    expect(await runFinderJob(RUN_ID)).toBe("done");
+    expect(understandRequest).not.toHaveBeenCalled();
+    const read = vi.mocked(extractPrepared).mock.calls.map((c) => String(c[0].canonicalUrl).split("/").pop());
+    expect(read).toEqual(expect.arrayContaining(["a", "b", "c", "d", "e"]));
+    const ranked = selectRankedCandidates(reduceFinderEvents(settledEvents()));
+    expect(ranked.map((c) => c.id).sort()).toEqual(["d", "e"]);
+  });
+
   it("shows a fast in-stock Amazon pick from the catalogue, and keeps it when the full search finds nothing", async () => {
     vi.mocked(understandRequest).mockResolvedValue({ product: "PS5 Slim Digital", searchQuery: "PS5 Slim Digital", mustHaves: [], budgetGhs: null, newOnly: true, category: null });
     vi.mocked(planFinderStores).mockResolvedValue({ search: ["ebay"], skipped: [] });

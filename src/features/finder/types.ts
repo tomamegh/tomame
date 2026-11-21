@@ -159,3 +159,35 @@ export interface FinderRunView {
   /** Tomame's buyer line from site settings; null hides the WhatsApp hand-off. */
   buyerWhatsappNumber: string | null;
 }
+
+// ── The shopping assistant (107) ────────────────────────────────────────────
+
+export interface FinderChatMessageView {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  /** The searches this turn started, in the order the items were named. */
+  runIds: string[];
+  createdAt: string;
+}
+
+export interface FinderChatView {
+  id: string;
+  title: string;
+  /** Where results are emailed; null when we have no address for this viewer. */
+  email: string | null;
+  /** A visitor types their own address; an account's is fixed. */
+  emailEditable: boolean;
+  messages: FinderChatMessageView[];
+  /** Every run the chat started, keyed by id, as the run screen reads it. */
+  runs: Record<string, FinderRunView>;
+  buyerWhatsappNumber: string | null;
+}
+
+/** One line of history: a chat and what its searches found. */
+export interface FinderChatSummary {
+  id: string;
+  title: string;
+  updatedAt: string;
+  items: { product: string; status: FinderRunStatus; totalGhs: number | null; imageUrl: string | null }[];
+}

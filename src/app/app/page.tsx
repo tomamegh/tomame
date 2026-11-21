@@ -13,7 +13,7 @@ import {
   FreightBoxCard,
   GreetingChip,
   HeroPasteBar,
-  LiveReceiptCard,
+  HomeHistoryCard,
   YourOrders,
 } from "@/features/app-home/components";
 import { PriceWatchCard } from "@/features/watches/components";
@@ -141,12 +141,11 @@ export default async function AppHomePage() {
 
       {/*
         ── Row D · Everything else ──────────────────────────────────────
-        The receipt keeps a half-width column of its own: it is a price
-        breakdown, and the quarter-width slot the lane card used to sit in
-        cannot hold one legibly. The two smaller cards stack beside it.
+        The history (chats and pasted links, 107) keeps a half-width column of
+        its own; the two smaller cards stack beside it.
       */}
       <div className="grid gap-5 lg:grid-cols-2">
-        <LiveReceiptCard receipt={view.receipt} now={now} />
+        <HomeHistoryCard history={view.history} now={now} />
 
         <div className="grid content-start gap-5">
           <PriceWatchCard

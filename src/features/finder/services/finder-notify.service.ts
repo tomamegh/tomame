@@ -1,6 +1,13 @@
 import "server-only";
 
-import { clearFinderRunEmailed, markFinderRunEmailed, type FinderRunRow } from "@/db/queries/finder-runs";
+import {
+  claimFinderTurnEmail,
+  clearFinderTurnEmailed,
+  getFinderChatById,
+  listTurnsForRun,
+  type FinderChatMessageRow,
+} from "@/db/queries/finder-chats";
+import { clearFinderRunEmailed, listFinderRunsByIds, markFinderRunEmailed, type FinderRunRow } from "@/db/queries/finder-runs";
 import { getRecipientEmail } from "@/db/queries/notifications";
 import { queueWhatsApp } from "@/features/notifications/services/whatsapp.service";
 import { env } from "@/lib/env";
@@ -9,7 +16,7 @@ import { sendEmail } from "@/lib/email/transport";
 import { logger } from "@/lib/logger";
 import { whatsappMessages } from "@/lib/whatsapp/templates";
 
-import { finderNoMatchTemplate, finderResultTemplate } from "../email/finder-result-email";
+import { finderNoMatchTemplate, finderResultTemplate, finderTurnTemplate, type FinderTurnItem } from "../email/finder-result-email";
 import { buyerWhatsappHref } from "../format";
 import { reduceFinderEvents, selectRankedCandidates } from "../state/reducer";
 
@@ -23,6 +30,10 @@ import { reduceFinderEvents, selectRankedCandidates } from "../state/reducer";
 
 export function finderRunPath(runId: string): string {
   return `/app/find/${runId}`;
+}
+
+export function finderChatPath(chatId: string): string {
+  return `/app/find/chat/${chatId}`;
 }
 
 /** Where this run's result goes: the visitor's typed address, else the account's own when it takes email. */
@@ -52,6 +63,13 @@ export async function notifyFinderFinished(run: FinderRunRow, buyerNumber: strin
       });
     }
 
+    // A run a chat turn started is part of that turn's one email, sent when its last run settles.
+    const turns = await listTurnsForRun(run.id);
+    if (turns.length > 0) {
+      const results = await Promise.all(turns.map((t) => notifyFinderTurn(t, buyerNumber)));
+      return results.includes("sent") ? "sent" : results[0]!;
+    }
+
     if (!to) return "no_address";
     if (!(await markFinderRunEmailed(run.id))) return "already";
 
@@ -60,11 +78,12 @@ export async function notifyFinderFinished(run: FinderRunRow, buyerNumber: strin
       const ranked = selectRankedCandidates(state);
       const [best, ...alternatives] = ranked;
       if (!best) return "error";
-      mail = finderResultTemplate({ query: run.query, best, alternatives, runUrl });
+      // The item as understood, not the sentence typed: "Best price for iPhone 17 Pro", never "for Can you get me…".
+      mail = finderResultTemplate({ query: state.spec?.product ?? run.query, best, alternatives, runUrl });
     } else {
       const message = state.nothingFound?.message ?? "We could not find this one.";
       const text = state.nothingFound?.whatsappText ?? run.query;
-      mail = finderNoMatchTemplate({ query: run.query, message, runUrl, buyerHref: buyerNumber ? buyerWhatsappHref(buyerNumber, text) : null });
+      mail = finderNoMatchTemplate({ query: state.spec?.product ?? run.query, message, runUrl, buyerHref: buyerNumber ? buyerWhatsappHref(buyerNumber, text) : null });
     }
 
     try {
@@ -77,6 +96,55 @@ export async function notifyFinderFinished(run: FinderRunRow, buyerNumber: strin
     }
   } catch (error) {
     logger.error("finder: notify failed", { runId: run.id, error: error instanceof Error ? error.message : String(error) });
+    return "error";
+  }
+}
+
+/**
+ * One chat turn's email (107): every item the customer named in one message,
+ * once every run the turn started has settled. The claim is atomic, so the
+ * last two runs finishing together send it once. Never throws.
+ */
+export async function notifyFinderTurn(
+  turn: Pick<FinderChatMessageRow, "id" | "chat_id" | "run_ids">,
+  buyerNumber: string | null,
+): Promise<"sent" | "no_address" | "already" | "error"> {
+  try {
+    const chat = await getFinderChatById(turn.chat_id);
+    if (!chat) return "error";
+    const to = await finderRecipient({ email: chat.email, user_id: chat.user_id });
+    if (!to) return "no_address";
+    if (!(await claimFinderTurnEmail(turn.id))) return "already";
+
+    const byId = new Map((await listFinderRunsByIds(turn.run_ids)).map((r) => [r.id, r]));
+    const items: FinderTurnItem[] = turn.run_ids.flatMap((id) => {
+      const run = byId.get(id);
+      if (!run) return [];
+      const state = reduceFinderEvents(run.events);
+      const ranked = state.phase === "result" ? selectRankedCandidates(state) : [];
+      return [
+        {
+          product: state.spec?.product ?? run.query,
+          best: ranked[0] ?? null,
+          alternatives: ranked.slice(1),
+          nothingMessage: state.nothingFound?.message ?? (ranked.length ? null : "We could not find this one."),
+        },
+      ];
+    });
+    if (items.length === 0) return "error";
+    const missing = items.filter((i) => !i.best?.quote).map((i) => i.product);
+    const buyerHref = buyerNumber && missing.length ? buyerWhatsappHref(buyerNumber, `Hi Tomame, can a buyer find this for me? ${missing.join("; ")}`) : null;
+    const mail = finderTurnTemplate({ items, chatUrl: `${env.app.url}${finderChatPath(chat.id)}`, buyerHref });
+    try {
+      await sendEmail({ to, subject: mail.subject, html: mail.html });
+      return "sent";
+    } catch (error) {
+      await clearFinderTurnEmailed(turn.id);
+      logger.error("finder: turn email failed", { messageId: turn.id, error: error instanceof Error ? error.message : String(error) });
+      return "error";
+    }
+  } catch (error) {
+    logger.error("finder: turn notify failed", { messageId: turn.id, error: error instanceof Error ? error.message : String(error) });
     return "error";
   }
 }

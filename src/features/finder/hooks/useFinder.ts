@@ -65,15 +65,16 @@ export function recordFinderHandoff(id: string): void {
 }
 
 /**
- * "Find it for me": start a run and open its page. Shared by the Buy-for-me
- * box, both Home heroes and the run screen's "search for something else".
+ * "Find it for me": the words go to the shopping assistant as a new chat
+ * (107), which may search several items at once, and the chat opens. Shared by
+ * the Home box, the marketing hero and the run screen's "search again".
  */
 export function useStartFinder() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const mutation = useMutation<{ id: string; reused: boolean }, Error, { query: string; budget_ghs?: number | null }>({
+  const mutation = useMutation<{ chatId: string }, Error, { text: string }>({
     mutationFn: async (body) => {
-      const res = await apiFetch<ApiSuccessResponse<{ id: string; reused: boolean }>>("/api/finder", {
+      const res = await apiFetch<ApiSuccessResponse<{ chatId: string }>>("/api/finder/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -85,10 +86,11 @@ export function useStartFinder() {
   const start = useCallback(
     (query: string, budgetGhs: number | null = null) => {
       setError(null);
+      const text = budgetGhs != null ? `${query} (my budget is up to GH₵${budgetGhs.toLocaleString("en-GH")})` : query;
       mutation.mutate(
-        { query, budget_ghs: budgetGhs },
+        { text },
         {
-          onSuccess: ({ id }) => router.push(`/app/find/${id}`),
+          onSuccess: ({ chatId }) => router.push(`/app/find/chat/${chatId}`),
           onError: (e) => setError(e.message || "We could not start that search. Try again."),
         },
       );

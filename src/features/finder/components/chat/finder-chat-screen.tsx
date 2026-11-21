@@ -1,0 +1,387 @@
+"use client";
+
+import { ArrowUp, ChatsCircle, ClockCounterClockwise, EnvelopeSimple, LinkSimple, NotePencil, Sparkle } from "@phosphor-icons/react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+
+import { useAddToBag } from "@/features/bag/hooks/useAddToBag";
+import { riseIn } from "@/lib/motion/presets";
+import { toast } from "@/lib/sonner";
+import { cn } from "@/lib/utils";
+
+import { chatKeys, useChatEmail, useChatHistory, useChatView, useSendChat } from "../../hooks/useChat";
+import { recordFinderHandoff } from "../../hooks/useFinder";
+import type { FinderCandidateState, FinderChatMessageView, FinderChatSummary, FinderChatView } from "../../types";
+import { ChatHistoryList } from "./chat-history-list";
+import { ChatRunCard } from "./chat-run-card";
+
+interface FinderChatScreenProps {
+  /** The open chat, server-read; null on a new chat. */
+  initial: FinderChatView | null;
+  history: FinderChatSummary[];
+  /** `?q=` from a link: fills the box, never sends by itself. */
+  defaultText?: string;
+  signedIn: boolean;
+}
+
+const SUGGESTIONS = [
+  "The cheapest iPhone 17 Pro, unlocked",
+  "A 27-inch monitor for office work under GH₵4,000",
+  "PS5 Pro and an extra DualSense controller",
+  "Nike running shoes for a 10-year-old, size 4",
+];
+
+const URL_RE = /https?:\/\/[^\s]+/gi;
+
+/**
+ * The shopping assistant (107): a conversation, with every chat kept in the
+ * history beside it. Each reply can start several searches; their live cards
+ * sit under the reply that started them. The assistant never sets a price:
+ * every figure is on a card the finder priced.
+ */
+export function FinderChatScreen({ initial, history, defaultText = "", signedIn }: FinderChatScreenProps) {
+  const router = useRouter();
+  const chat = useChatView(initial, initial?.id ?? null);
+  const send = useSendChat();
+  const historyQuery = useChatHistory(history);
+  const addToBag = useAddToBag();
+  const saveEmail = useChatEmail(chat?.id ?? null);
+  const [text, setText] = useState(defaultText);
+  const [pending, setPending] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  // The history's "searching" lines turn into prices when the searches settle.
+  const queryClient = useQueryClient();
+  const anyWorking = chat != null && Object.values(chat.runs).some((r) => r.status === "pending" || r.status === "running");
+  const wasWorking = useRef(anyWorking);
+  useEffect(() => {
+    if (wasWorking.current && !anyWorking) void queryClient.invalidateQueries({ queryKey: chatKeys.history });
+    wasWorking.current = anyWorking;
+  }, [anyWorking, queryClient]);
+
+  const messages: FinderChatMessageView[] = chat?.messages ?? [];
+  const lastCount = useRef(messages.length);
+  useEffect(() => {
+    if (messages.length !== lastCount.current || pending) {
+      lastCount.current = messages.length;
+      endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages.length, pending]);
+
+  // Grow the box with what is typed, up to six lines.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [text]);
+
+  async function submit(raw: string) {
+    const value = raw.trim();
+    if (!value || send.isPending) return;
+    const links = value.match(URL_RE) ?? [];
+    if (links.length > 0) {
+      // A link is priced directly; the paste queue reads it.
+      const params = new URLSearchParams();
+      for (const l of links.slice(0, 10)) params.append("url", l);
+      router.push(`/app/orders/new?${params.toString()}`);
+      return;
+    }
+    setPending(value);
+    setText("");
+    try {
+      const res = await send.mutateAsync({ chatId: chat?.id ?? null, text: value });
+      // A new chat opens its own page; the typed message stays on screen until it does.
+      if (!chat) return router.replace(`/app/find/chat/${res.chatId}`);
+      await chat.refetch();
+      setPending(null);
+    } catch (error) {
+      setText(value);
+      setPending(null);
+      toast.error({ title: "Not sent", description: error instanceof Error ? error.message : "Try again." });
+    }
+  }
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    void submit(text);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      void submit(text);
+    }
+  }
+
+  async function onAddToBag(candidate: FinderCandidateState) {
+    if (!candidate.extractionCacheId) {
+      toast.error({ title: "Not ready yet", description: "This price is still being confirmed with the store." });
+      throw new Error("not ready");
+    }
+    try {
+      await addToBag.mutateAsync({ extraction_cache_id: candidate.extractionCacheId, quantity: 1 });
+      toast.success({ title: "In your bag", description: candidate.title });
+      router.refresh();
+    } catch (error) {
+      toast.error({ title: "Could not add that", description: error instanceof Error ? error.message : "Try again." });
+      throw error;
+    }
+  }
+
+  const empty = messages.length === 0 && !pending;
+  const hasRuns = chat != null && Object.keys(chat.runs).length > 0;
+  const chats = historyQuery.data ?? [];
+
+  return (
+    <MotionConfig reducedMotion="user">
+      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-8">
+        <aside className="hidden lg:block">
+          <div className="sticky top-6 flex max-h-[calc(100dvh-7rem)] flex-col gap-3">
+            <NewChatButton />
+            <ChatHistoryList chats={chats} activeId={chat?.id ?? null} />
+          </div>
+        </aside>
+
+        <section className="flex min-h-[calc(100dvh-14rem)] min-w-0 flex-col">
+          {/* Phones: history behind a button, so the thread keeps the screen. */}
+          <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setShowHistory((v) => !v)}
+              aria-expanded={showHistory}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-tm-border bg-card px-3 text-[13px] font-semibold"
+            >
+              <ClockCounterClockwise size={16} aria-hidden />
+              History{chats.length ? ` · ${chats.length}` : ""}
+            </button>
+            <NewChatButton compact />
+          </div>
+          <AnimatePresence initial={false}>
+            {showHistory && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-4 overflow-hidden lg:hidden"
+              >
+                <ChatHistoryList chats={chats} activeId={chat?.id ?? null} onPick={() => setShowHistory(false)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {empty ? (
+            <EmptyState onPick={(s) => void submit(s)} disabled={send.isPending} />
+          ) : (
+            <ol className="flex flex-1 flex-col gap-6 pb-6" aria-live="polite">
+              {messages.map((m) => (
+                <li key={m.id}>
+                  {m.role === "user" ? (
+                    <UserBubble text={m.content} />
+                  ) : (
+                    <AssistantTurn text={m.content}>
+                      {m.runIds.map((id) => {
+                        const run = chat?.runs[id];
+                        return run ? (
+                          <ChatRunCard
+                            key={id}
+                            run={run}
+                            buyerWhatsappNumber={chat?.buyerWhatsappNumber ?? null}
+                            onAddToBag={onAddToBag}
+                            onHandoff={recordFinderHandoff}
+                          />
+                        ) : null;
+                      })}
+                    </AssistantTurn>
+                  )}
+                </li>
+              ))}
+              {pending && (
+                <>
+                  <li>
+                    <UserBubble text={pending} />
+                  </li>
+                  <li>
+                    <AssistantTurn typing />
+                  </li>
+                </>
+              )}
+            </ol>
+          )}
+
+          {chat?.emailEditable && !chat.email && hasRuns && <VisitorEmail onSave={saveEmail} />}
+          {chat && chat.email && hasRuns && (
+            <p className="mb-3 flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+              <EnvelopeSimple size={14} aria-hidden />
+              You can leave this page. We&apos;ll email the results to {chat.email}.
+            </p>
+          )}
+
+          <div ref={endRef} />
+          <form
+            onSubmit={onSubmit}
+            className={cn("z-10 -mx-1 rounded-[26px] bg-tm-paper/80 px-1 pb-1 backdrop-blur", signedIn ? "tm-chat-dock" : "tm-chat-dock-visitor")}
+          >
+            <div className="tm-ask-ring rounded-[24px] p-[1.5px]">
+              <div className="flex items-end gap-2 rounded-[22.5px] bg-card p-2 pl-4">
+                <label htmlFor="finder-chat-input" className="sr-only">
+                  Message the shopping assistant
+                </label>
+                <textarea
+                  id="finder-chat-input"
+                  ref={inputRef}
+                  rows={1}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  maxLength={1000}
+                  placeholder={empty ? "Tell me what you want, one thing or several" : "Ask a follow-up, or something else"}
+                  className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent py-2 text-[15px] leading-6 outline-none placeholder:text-muted-foreground"
+                />
+                <button
+                  type="submit"
+                  disabled={!text.trim() || send.isPending}
+                  aria-label="Send"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[image:var(--tm-gradient-cta)] text-white transition-transform enabled:hover:scale-105 disabled:opacity-40"
+                >
+                  <ArrowUp size={18} weight="bold" aria-hidden />
+                </button>
+              </div>
+            </div>
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 px-3 text-[12px] text-muted-foreground">
+              <span>Prices are landed in Accra: item, US tax, our fee and freight.</span>
+              <Link href="/app/orders/new" className="inline-flex items-center gap-1 font-semibold text-tm-coral-strong hover:underline">
+                <LinkSimple size={13} weight="bold" aria-hidden />
+                Have a link? Paste it
+              </Link>
+            </p>
+          </form>
+        </section>
+      </div>
+    </MotionConfig>
+  );
+}
+
+function NewChatButton({ compact = false }: { compact?: boolean }) {
+  return (
+    <Link
+      href="/app/find"
+      className={cn(
+        "inline-flex items-center gap-2 rounded-full font-semibold transition-colors",
+        compact ? "h-9 border border-tm-border bg-card px-3 text-[13px]" : "h-11 justify-center bg-tm-ink px-4 text-[14px] text-white hover:opacity-90",
+      )}
+    >
+      <NotePencil size={compact ? 16 : 18} weight="bold" aria-hidden />
+      New chat
+    </Link>
+  );
+}
+
+function UserBubble({ text }: { text: string }) {
+  return (
+    <motion.div variants={riseIn} initial="hidden" animate="visible" className="flex justify-end">
+      <p className="max-w-[85%] whitespace-pre-wrap rounded-3xl rounded-br-lg bg-tm-ink px-4 py-2.5 text-[15px] leading-relaxed text-white sm:max-w-[70%]">
+        {text}
+      </p>
+    </motion.div>
+  );
+}
+
+function AssistantTurn({ text, typing = false, children }: { text?: string; typing?: boolean; children?: React.ReactNode }) {
+  return (
+    <motion.div variants={riseIn} initial="hidden" animate="visible" className="flex gap-3">
+      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-[image:var(--tm-gradient-cta)] text-white">
+        <Sparkle size={16} weight="fill" aria-hidden />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        {typing ? (
+          <span className="flex h-8 items-center gap-1" aria-label="Thinking">
+            {[0, 1, 2].map((i) => (
+              <span key={i} className="size-2 animate-bounce rounded-full bg-tm-coral/70" style={{ animationDelay: `${i * 0.15}s` }} />
+            ))}
+          </span>
+        ) : (
+          <p className="whitespace-pre-wrap pt-1 text-[15px] leading-relaxed">{text}</p>
+        )}
+        {children}
+      </div>
+    </motion.div>
+  );
+}
+
+function EmptyState({ onPick, disabled }: { onPick: (text: string) => void; disabled: boolean }) {
+  return (
+    <div className="flex flex-1 flex-col justify-center gap-6 py-6 sm:py-12">
+      <div className="flex flex-col gap-3">
+        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tm-tint px-3 py-1 text-[12.5px] font-semibold text-tm-coral-strong">
+          <ChatsCircle size={15} weight="fill" aria-hidden />
+          Shopping assistant
+        </span>
+        <h1 className="max-w-[20ch] font-display text-[32px] leading-[1.05] font-bold tracking-[-0.02em] sm:text-[42px]">
+          What can I find for you?
+        </h1>
+        <p className="max-w-[56ch] text-[15px] leading-relaxed text-muted-foreground">
+          Ask for one thing or several, in your own words. I search Amazon, Walmart, eBay and Target for new items and
+          show the best price landed in Accra, in cedis.
+        </p>
+      </div>
+      <ul className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">
+        {SUGGESTIONS.map((s) => (
+          <li key={s}>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onPick(s)}
+              className="w-full rounded-2xl border border-tm-border bg-card px-4 py-3 text-left text-[14px] font-medium transition-colors hover:border-tm-coral/40 hover:bg-tm-tint disabled:opacity-50"
+            >
+              {s}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function VisitorEmail({ onSave }: { onSave: (email: string) => Promise<unknown> }) {
+  const [email, setEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!email.trim()) return;
+        setSaving(true);
+        try {
+          await onSave(email.trim());
+          toast.success({ title: "Saved", description: `We'll email the results to ${email.trim()}.` });
+        } catch (error) {
+          toast.error({ title: "Not saved", description: error instanceof Error ? error.message : "Try again." });
+        } finally {
+          setSaving(false);
+        }
+      }}
+      className="mb-4 flex flex-col gap-2 rounded-2xl border border-tm-border bg-card p-3 sm:flex-row sm:items-center"
+    >
+      <label htmlFor="finder-chat-email" className="text-[13px] font-medium sm:shrink-0">
+        Email me the results
+      </label>
+      <input
+        id="finder-chat-email"
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@example.com"
+        className="h-10 min-w-0 flex-1 rounded-full border border-tm-border bg-background px-3 text-[14px] outline-none focus:border-tm-coral/50"
+      />
+      <button type="submit" disabled={saving} className="h-10 rounded-full bg-tm-ink px-4 text-[13px] font-semibold text-white disabled:opacity-50">
+        Save
+      </button>
+    </form>
+  );
+}

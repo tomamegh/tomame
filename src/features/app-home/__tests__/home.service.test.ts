@@ -28,11 +28,14 @@ vi.mock("@/db/queries/assisted-requests", () => ({
 }));
 vi.mock("@/db/queries/extraction-requests", () => ({
   getLatestExtractionRequest: vi.fn(),
+  listPastesForViewer: vi.fn(async () => []),
 }));
 vi.mock("@/db/queries/extraction-cache", () => ({
   getExtractionById: vi.fn(),
   getCachedExtractionByHash: vi.fn(),
+  getQuoteFacts: vi.fn(async () => new Map()),
 }));
+vi.mock("@/features/finder/services/finder-chat.service", () => ({ listChatHistory: vi.fn(async () => []) }));
 // The deals shelf's two catalogue reads. Both reach `catalog_products` through
 // the admin client at module scope, which is exactly what this file must not do.
 vi.mock("@/features/catalog/services/catalog-search.service", () => ({
@@ -71,11 +74,13 @@ import {
 } from "@/db/queries/orders";
 import {
   getLatestExtractionRequest,
+  listPastesForViewer,
   type ExtractionRequestRow,
 } from "@/db/queries/extraction-requests";
 import {
   getCachedExtractionByHash,
   getExtractionById,
+  getQuoteFacts,
 } from "@/db/queries/extraction-cache";
 import {
   listBrowsableCategories,
@@ -83,7 +88,7 @@ import {
 } from "@/features/catalog/services/catalog-search.service";
 import type { CatalogProduct } from "@/features/catalog/types";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
-import { applyRateLock, priceUnderExistingLock } from "@/features/quotes/services/quote-lock.service";
+import { priceUnderExistingLock } from "@/features/quotes/services/quote-lock.service";
 import { loadQuoteConstants, QuoteConstantsMissingError } from "@/features/quotes/services/quote-constants.service";
 import { logger } from "@/lib/logger";
 import { mapCustomerOrderEvents } from "@/features/orders/services/order-events.service";
@@ -147,18 +152,6 @@ function paste(overrides: Record<string, unknown> = {}): ExtractionRequestRow {
   } as unknown as ExtractionRequestRow;
 }
 
-function extraction(overrides: Record<string, unknown> = {}) {
-  return {
-    product: {
-      title: "Oraimo BoomPop N",
-      image: "https://img.example/boompop.jpg",
-      price: 298,
-      currency: "USD",
-    },
-    ...overrides,
-  };
-}
-
 /** The three lanes migrations 036/037 seed. */
 function catalogProduct(id: string, totalGhs: number): CatalogProduct {
   return {
@@ -198,6 +191,8 @@ beforeEach(() => {
   vi.mocked(getLatestExtractionRequest).mockResolvedValue(null);
   vi.mocked(getExtractionById).mockResolvedValue(null);
   vi.mocked(getCachedExtractionByHash).mockResolvedValue(null);
+  vi.mocked(listPastesForViewer).mockResolvedValue([]);
+  vi.mocked(getQuoteFacts).mockResolvedValue(new Map());
   vi.mocked(priceUnderExistingLock).mockResolvedValue({ pricing: null, reason: null });
   vi.mocked(listCatalogDeals).mockResolvedValue({
     query: "",
@@ -228,10 +223,8 @@ describe("getHomeView — session", () => {
     signedIn();
     await getHomeView();
     expect(countMovingOrders).toHaveBeenCalledWith(fakeClient, "user-1");
-    expect(getLatestExtractionRequest).toHaveBeenCalledWith(
-      fakeClient,
-      "user-1",
-    );
+    // The history reads pastes as the signed-in viewer (plus any quote cookie).
+    expect(listPastesForViewer).toHaveBeenCalledWith({ userId: "user-1", sessionId: null });
   });
 });
 
@@ -402,129 +395,26 @@ describe("buildHomeOrders", () => {
   });
 });
 
-// ── Live receipt ─────────────────────────────────────────────────────────────
+// ── History ──────────────────────────────────────────────────────────────────
 
-describe("getHomeView — live receipt", () => {
-  it("prices the last link the customer pasted under their EXISTING lock, as the signed-in viewer plus their quote cookie", async () => {
+describe("getHomeView — history", () => {
+  it("lists the customer's chats and pasted links, empty when there are none", async () => {
     signedIn();
-    vi.mocked(getLatestExtractionRequest).mockResolvedValue(paste());
-    vi.mocked(getExtractionById).mockResolvedValue({
-      id: "cache-1",
-      productUrl: "https://www.amazon.com/dp/B0TEST",
-      result: extraction(),
-    } as never);
-    vi.mocked(priceUnderExistingLock).mockResolvedValue({
-      pricing: { total_ghs: 5041.16, rate_lock_id: "lock-1", rate_locked_until: "2026-09-13T10:00:00Z" },
-      reason: null,
-    } as never);
-
-    const receipt = (await getHomeView("6496e86b-b8fd-48fa-b19a-b543d501505a"))?.receipt;
-
-    expect(receipt?.storeHost).toBe("amazon.com");
-    expect(receipt?.pastedAt).toBe("2026-09-12T09:30:00.000Z");
-    expect(receipt?.productName).toBe("Oraimo BoomPop N");
-    expect(receipt?.productImageUrl).toBe("https://img.example/boompop.jpg");
-    expect(receipt?.pricing?.total_ghs).toBe(5041.16);
-    expect(receipt?.pricing?.rate_locked_until).toBe("2026-09-13T10:00:00Z");
-    expect(receipt?.extractionCacheId).toBe("cache-1");
-    expect(priceUnderExistingLock).toHaveBeenCalledWith({
-      viewer: { userId: "user-1", sessionId: "6496e86b-b8fd-48fa-b19a-b543d501505a" },
-      extraction: extraction(),
-      extractionCacheId: "cache-1",
-      quantity: 1,
-      overrides: null,
-    });
-    // Looking at Home is not asking for a quote: the minting entry point is never used.
-    expect(applyRateLock).not.toHaveBeenCalled();
-  });
-
-  it("passes a null session when the customer has no quote cookie", async () => {
-    signedIn();
-    vi.mocked(getLatestExtractionRequest).mockResolvedValue(paste());
-    vi.mocked(getExtractionById).mockResolvedValue({ id: "cache-1", productUrl: "x", result: extraction() } as never);
-
-    await getHomeView();
-
-    expect(priceUnderExistingLock).toHaveBeenCalledWith(expect.objectContaining({ viewer: { userId: "user-1", sessionId: null } }));
-  });
-
-  it("is null when the customer has pasted nothing", async () => {
-    signedIn();
-    expect((await getHomeView())?.receipt).toBeNull();
-    expect(getExtractionById).not.toHaveBeenCalled();
-  });
-
-  it("falls back to the url_hash when the cache row has been pruned", async () => {
-    signedIn();
-    vi.mocked(getLatestExtractionRequest).mockResolvedValue(
-      paste({ extraction_cache_id: null }),
-    );
-    vi.mocked(getCachedExtractionByHash).mockResolvedValue({
-      id: "cache-2",
-      result: extraction(),
-    } as never);
-
-    const receipt = (await getHomeView())?.receipt;
-
-    expect(getExtractionById).not.toHaveBeenCalled();
-    expect(getCachedExtractionByHash).toHaveBeenCalledWith("hash-1");
-    expect(receipt?.extractionCacheId).toBe("cache-2");
-  });
-
-  it("falls back to the url_hash when the id lookup misses", async () => {
-    signedIn();
-    vi.mocked(getLatestExtractionRequest).mockResolvedValue(paste());
-    vi.mocked(getExtractionById).mockResolvedValue(null);
-    vi.mocked(getCachedExtractionByHash).mockResolvedValue({
-      id: "cache-3",
-      result: extraction(),
-    } as never);
-
-    expect((await getHomeView())?.receipt?.extractionCacheId).toBe("cache-3");
-  });
-
-  it("renders nothing rather than crashing when the extraction is gone", async () => {
-    signedIn();
-    vi.mocked(getLatestExtractionRequest).mockResolvedValue(paste());
-
     const view = await getHomeView();
-
-    expect(view?.receipt).toBeNull();
-    expect(view?.greeting).toBeDefined();
+    expect(view?.history.chats).toEqual([]);
+    expect(view?.history.pastes).toEqual([]);
   });
 
-  it("keeps the receipt when pricing is unavailable, and says why", async () => {
+  it("links a priced paste to its quote and an unread one to its row", async () => {
     signedIn();
-    vi.mocked(getLatestExtractionRequest).mockResolvedValue(paste());
-    vi.mocked(getExtractionById).mockResolvedValue({
-      id: "cache-1",
-      productUrl: "https://www.amazon.com/dp/B0TEST",
-      result: extraction(),
-    } as never);
-    vi.mocked(priceUnderExistingLock).mockResolvedValue({
-      pricing: null,
-      reason: "Price could not be read from the product page.",
-    } as never);
-
-    const receipt = (await getHomeView())?.receipt;
-    expect(receipt?.pricing).toBeNull();
-    expect(receipt?.pricingUnavailableReason).toBe(
-      "Price could not be read from the product page.",
-    );
-  });
-
-  it("survives a product_url that is not a parsable URL", async () => {
-    signedIn();
-    vi.mocked(getLatestExtractionRequest).mockResolvedValue(
-      paste({ product_url: "not a url" }),
-    );
-    vi.mocked(getExtractionById).mockResolvedValue({
-      id: "cache-1",
-      productUrl: "not a url",
-      result: extraction(),
-    } as never);
-
-    expect((await getHomeView())?.receipt?.storeHost).toBe("");
+    vi.mocked(listPastesForViewer).mockResolvedValue([
+      { ...paste(), id: "p1", status: "ready", extraction_cache_id: "cache-1" },
+      { ...paste(), id: "p2", status: "pending", extraction_cache_id: null },
+    ] as never);
+    vi.mocked(getQuoteFacts).mockResolvedValue(new Map([["cache-1", { usable: true, priced: true, title: "Oraimo BoomPop N" }]]) as never);
+    const pastes = (await getHomeView())?.history.pastes ?? [];
+    expect(pastes.map((p) => p.id)).toEqual(["p1", "p2"]);
+    expect(pastes[1]?.href).toBe("/app/orders/new?watch=p2");
   });
 });
 
@@ -619,7 +509,7 @@ describe("getHomeView — failure policy", () => {
 
   it("rethrows a missing extraction_requests table", async () => {
     signedIn();
-    vi.mocked(getLatestExtractionRequest).mockRejectedValue({
+    vi.mocked(listPastesForViewer).mockRejectedValue({
       code: "42P01",
       message: 'relation "extraction_requests" does not exist',
     });
@@ -639,13 +529,11 @@ describe("getHomeView — failure policy", () => {
     expect(logger.warn).toHaveBeenCalled();
   });
 
-  it("degrades a failed paste lookup to no receipt", async () => {
+  it("degrades a failed paste lookup to an empty history", async () => {
     signedIn();
-    vi.mocked(getLatestExtractionRequest).mockRejectedValue(
-      new Error("connection reset"),
-    );
+    vi.mocked(listPastesForViewer).mockRejectedValue(new Error("connection reset"));
 
-    expect((await getHomeView())?.receipt).toBeNull();
+    expect((await getHomeView())?.history.pastes).toEqual([]);
   });
 });
 

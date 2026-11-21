@@ -6,6 +6,7 @@ import {
   applyShortlistOutput,
   dropDetails,
   isAccessoryFor,
+  isCarrierLocked,
   isClearlyOverBudget,
   isNotNew,
   isUnwantedMultipack,
@@ -155,5 +156,30 @@ describe("dropDetails", () => {
       "3 are different items",
       "1 is an accessory or parts",
     ]);
+  });
+});
+
+describe("isCarrierLocked", () => {
+  const spec = { product: "iPhone 17 Pro", searchQuery: "iPhone 17 Pro unlocked" };
+  it("drops a phone tied to a US carrier, which would not take a Ghanaian SIM", () => {
+    expect(isCarrierLocked("New T-Mobile Apple iPhone 17 Pro 256GB Deep Blue MG7M4LL/A", spec)).toBe(true);
+    expect(isCarrierLocked("Verizon iPhone 17 Pro 256GB Cosmic Orange", spec)).toBe(true);
+    expect(isCarrierLocked("AT&T iPhone 17 Pro 256GB Cosmic Orange", spec)).toBe(true);
+    expect(isCarrierLocked("Straight Talk Apple iPhone 17 Pro, 256GB, Prepaid", spec)).toBe(true);
+  });
+
+  it("keeps unlocked phones, other products, and a carrier the customer asked for", () => {
+    expect(isCarrierLocked("Apple iPhone 17 Pro 256GB Unlocked (works with Verizon, AT&T, T-Mobile)", spec)).toBe(false);
+    expect(isCarrierLocked("Apple iPhone 17 Pro 256GB Factory Unlocked", spec)).toBe(false);
+    expect(isCarrierLocked("JBL Flip 6 speaker with bass boost", spec)).toBe(false);
+    expect(isCarrierLocked("Watt meter for solar panels", spec)).toBe(false);
+    expect(isCarrierLocked("Verizon iPhone 17 Pro", { product: "Verizon iPhone 17 Pro", searchQuery: "verizon iphone 17 pro" })).toBe(false);
+  });
+
+  it("is counted as its own drop reason", () => {
+    const l = (id: string, title: string) => ({ id, store: "ebay" as const, title, productUrl: `https://www.ebay.com/itm/${id}`, imageUrl: null, priceUsd: 999, currency: "USD", condition: "New", seller: null, source: "live" as const });
+    const out = postFilterListings([l("1", "Verizon iPhone 17 Pro"), l("2", "Apple iPhone 17 Pro Unlocked")], spec, new Set(["ebay"] as const));
+    expect(out.kept.map((k) => k.id)).toEqual(["2"]);
+    expect(out.dropped).toEqual({ carrier_locked: 1 });
   });
 });

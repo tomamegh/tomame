@@ -8,7 +8,7 @@
  * customer starts on Home).
  *
  * `targetId` is a real DOM id on a real element already on the page — see the
- * components it was added to: `hero-paste-bar.tsx`, `live-receipt-card.tsx`,
+ * components it was added to: `hero-paste-bar.tsx`, `home-history-card.tsx`,
  * `bag-view.tsx` (`BagHeader`) and `journeys-view.tsx`. Every one of those
  * renders unconditionally, including its empty state, so a first-time customer
  * with no receipt, no bag and no parcels still has all four targets to point
@@ -40,18 +40,12 @@ export function buildOnboardingTourSteps(firstName: string | null): OnboardingTo
     {
       id: "price",
       route: "/app",
-      targetId: "onboarding-tour-receipt",
-      // WRITTEN FOR AN EMPTY CARD FIRST. The receipt shows the last link the
-      // customer pasted, and a first-time customer has pasted nothing, so it
-      // renders its empty state. The old copy said "See the whole price" while
-      // pointing at a card with no price in it, which teaches nobody anything.
-      // Prefilling it with a sample was never an option: CLAUDE.md forbids
-      // showing invented data, and a made-up price is the worst thing to invent
-      // on a screen whose whole promise is that the number is real. So the copy
-      // says where the number will land, which is true whether the card is
-      // empty or full.
-      title: "The whole price lands here, in cedis",
-      body: "Paste a link and the item, shipping, our fee and today's exchange rate arrive as one number. That is what you pay, with nothing added when your parcel reaches you.",
+      targetId: "onboarding-tour-history",
+      // Never prefilled: a first-time customer has asked for nothing, and a
+      // made-up price is the one thing this screen must never show. The copy
+      // says where the work will be kept, which is true empty or full.
+      title: "Everything you ask for is kept here",
+      body: "Every chat with the shopping assistant and every link you paste stays here, with its whole price landed in Accra, in cedis. Nothing is added when your parcel reaches you.",
     },
     {
       id: "bag",

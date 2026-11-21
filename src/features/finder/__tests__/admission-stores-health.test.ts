@@ -11,8 +11,8 @@ describe("finderRateLimit", () => {
   it("keys a signed-in customer by user and a visitor by IP, with their own day budgets", () => {
     expect(finderRateLimit("user:u1", true)).toEqual({ key: "finder:user:u1", config: RATE_LIMIT.finderUser });
     expect(finderRateLimit("ip:1.2.3.4", false)).toEqual({ key: "finder:ip:1.2.3.4", config: RATE_LIMIT.finderVisitor });
-    expect(RATE_LIMIT.finderUser).toEqual({ windowMs: 86_400_000, maxRequests: 5 });
-    expect(RATE_LIMIT.finderVisitor).toEqual({ windowMs: 86_400_000, maxRequests: 2 });
+    expect(RATE_LIMIT.finderUser).toEqual({ windowMs: 86_400_000, maxRequests: 15 });
+    expect(RATE_LIMIT.finderVisitor).toEqual({ windowMs: 86_400_000, maxRequests: 3 });
   });
 
   it("offers a next step in the refusal", () => {

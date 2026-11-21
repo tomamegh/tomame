@@ -68,3 +68,19 @@ describe("specSummary", () => {
     expect(specSummary({ product: "Oraimo FreePods", mustHaves: [], budgetGhs: null, newOnly: true })).toBe("Oraimo FreePods, new");
   });
 });
+
+describe("storedSpec", () => {
+  it("reads a chat turn's spec back, and refuses anything that is not one", async () => {
+    const { storedSpec } = await import("../spec");
+    expect(storedSpec({ product: "iPhone 17 Pro", searchQuery: "iPhone 17 Pro unlocked", mustHaves: ["unlocked", 3], budgetGhs: 18000, category: null })).toEqual({
+      product: "iPhone 17 Pro",
+      searchQuery: "iPhone 17 Pro unlocked",
+      mustHaves: ["unlocked"],
+      budgetGhs: 18000,
+      newOnly: true,
+      category: null,
+    });
+    expect(storedSpec(null)).toBeNull();
+    expect(storedSpec({ product: "x" })).toBeNull();
+  });
+});

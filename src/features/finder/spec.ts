@@ -62,6 +62,17 @@ export function parseSpecOutput(raw: unknown, typedBudgetGhs: number | null): Pa
   };
 }
 
+/** A spec stored on a run (a chat turn's search, or a re-driven run) back into the pipeline's shape; null when it is not one. */
+export function storedSpec(raw: unknown): ParsedFinderSpec | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.product !== "string" || typeof r.searchQuery !== "string" || r.product.length < 2 || r.searchQuery.length < 2) return null;
+  const mustHaves = Array.isArray(r.mustHaves) ? r.mustHaves.filter((m): m is string => typeof m === "string") : [];
+  const budgetGhs = typeof r.budgetGhs === "number" && r.budgetGhs > 0 ? r.budgetGhs : null;
+  const category = typeof r.category === "string" ? r.category : null;
+  return { product: r.product, searchQuery: r.searchQuery, mustHaves, budgetGhs, newOnly: true, category };
+}
+
 /**
  * The cache key: same request, same viewer, inside the window → the same run.
  * Case, spacing, punctuation and the currency spelling do not make a request new.

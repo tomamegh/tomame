@@ -1,6 +1,4 @@
-import type { ReceiptFulfilment } from "@/db/queries/receipt-state";
 import type { CatalogProduct } from "@/features/catalog/types";
-import type { PricingBreakdown } from "@/lib/pricing";
 import type { JourneyTone } from "@/features/orders/services/journey-stage";
 import type { JourneyTrack } from "@/features/orders/services/journey-track";
 import type { JourneyEta } from "@/features/journeys/types";
@@ -72,38 +70,6 @@ export type HomeOrderLatest =
   /** Neither: the stage's own hint ("Date set when it ships"). */
   | { kind: "hint"; text: string };
 
-/** "Live receipt · last link you pasted". */
-export interface HomeReceipt {
-  /** `extraction_requests.product_url`. */
-  productUrl: string;
-  /** Hostname without `www.`, e.g. "amazon.com". */
-  storeHost: string;
-  /** `extraction_requests.updated_at` — when this customer last pasted it. */
-  pastedAt: string;
-  productName: string | null;
-  productImageUrl: string | null;
-  /** Priced server-side for quantity 1 from the shared extraction snapshot. */
-  pricing: PricingBreakdown | null;
-  /** Why `pricing` is null (price unreadable, region unsupported, …). */
-  pricingUnavailableReason: string | null;
-  extractionCacheId: string | null;
-  /**
-   * True when this customer has already handed the link to a buyer and that
-   * request is still open — the card then shows the human channel instead of
-   * offering "Try again" and "Describe it" a second time.
-   */
-  assistedOpen: boolean;
-  /**
-   * What has already become of this product: nothing, in the bag, or ordered.
-   *
-   * The receipt used to know only that a link had been pasted, so it offered
-   * "Add to bag" for an item the customer had already PAID for, and quoted a
-   * freshly re-derived price instead of the cedis they were charged. When this
-   * says `ordered`, the card is a real receipt — the order's own stored
-   * breakdown — and the action is to follow the parcel, not to buy it again.
-   */
-  fulfilment: ReceiptFulfilment;
-}
 
 /**
  * "Hot right now" — the pre-priced catalogue shelf on Home.
@@ -178,8 +144,8 @@ export interface HomeViewModel {
    * at all: no placeholder, no example journey.
    */
   orders: HomeOrder[];
-  /** Null when the customer has pasted nothing, or the extraction has been pruned. */
-  receipt: HomeReceipt | null;
+  /** The customer's chats with the assistant and their pasted links (107). Empty lists, never placeholders. */
+  history: HomeHistory;
   /** Null when the catalogue holds nothing we could price. Never a placeholder. */
   deals: HomeDeals | null;
   /**
@@ -206,4 +172,21 @@ export interface HomeViewModel {
   rateLockHours: number | null;
   /** The open bag's first box, or null when the bag is empty. */
   freightBox: HomeFreightBox | null;
+}
+
+/** One pasted link on Home's history card. */
+export interface HomePasteItem {
+  id: string;
+  /** The listing's title once read, else the store's host. */
+  title: string;
+  storeHost: string;
+  outcome: "reading" | "priced" | "unpriced" | "unavailable" | "expired";
+  /** The quote when priced, else the paste's row on Buy for me. */
+  href: string;
+  pastedAt: string;
+}
+
+export interface HomeHistory {
+  chats: import("@/features/finder/types").FinderChatSummary[];
+  pastes: HomePasteItem[];
 }

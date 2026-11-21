@@ -54,6 +54,8 @@ export async function insertFinderRun(input: {
   email: string | null;
   notifyWhatsapp: boolean;
   events: FinderEvent[];
+  /** A spec already read (a chat turn's search): the run skips its own understand call. */
+  spec?: Record<string, unknown> | null;
 }): Promise<FinderRunRow> {
   const owner = ownerFilter(input.viewer);
   if (!owner) throw new Error("A finder run needs an owner");
@@ -67,6 +69,7 @@ export async function insertFinderRun(input: {
       email: input.email,
       notify_whatsapp: input.notifyWhatsapp,
       events: input.events,
+      ...(input.spec ? { spec: input.spec } : {}),
     })
     .select(COLUMNS)
     .single();
@@ -298,6 +301,14 @@ export async function listStalePendingFinderRuns(olderThanMs: number, limit: num
     .limit(limit);
   if (error) throw new Error(`Failed to list queued finder runs: ${error.message}`);
   return (data ?? []) as Pick<FinderRunRow, "id">[];
+}
+
+/** Runs by id, unscoped. Call only with ids taken from a chat that passed its owner filter, or from the worker. */
+export async function listFinderRunsByIds(ids: readonly string[]): Promise<FinderRunRow[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await createAdminClient().from("finder_runs").select(COLUMNS).in("id", [...ids]);
+  if (error) throw new Error(`Failed to load finder runs: ${error.message}`);
+  return (data ?? []) as FinderRunRow[];
 }
 
 /** One run by id, unscoped: the worker, which owns no viewer. Never expose to a request handler. */

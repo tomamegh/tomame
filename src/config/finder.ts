@@ -10,6 +10,9 @@ import type { MonthlyCaps } from "@/config/catalog";
 export const FINDER = {
   /** Request → spec, and listings → exact matches. Small prompts, must be quick and cheap. */
   model: "claude-haiku-5-5",
+  /** The shopping assistant's conversation (107): reads the chat, replies, splits the request into searches. */
+  chatModel: "claude-opus-5-5",
+  chatTimeoutMs: 30_000,
   /** Budget key in `job_budgets`: one unit per store search page. */
   jobName: "finder-search",
   /**
@@ -45,6 +48,8 @@ export const FINDER = {
   quickPickTargetWaitMs: 3_000,
   /** How many shortlisted matches go through the full extraction and calculator. */
   priceCandidates: 3,
+  /** Further matches are read in place of unreadable pages only while this much of the deadline is left. */
+  extraReadMinMs: 70_000,
   /** Listings handed to the model for the shortlist; the rest are not read. */
   maxListingsForShortlist: 40,
   /** Catalogue rows considered alongside the live search. */

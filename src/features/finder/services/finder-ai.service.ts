@@ -80,6 +80,7 @@ const SHORTLIST_SYSTEM = [
   "A match is EXACTLY the requested item, sold new, as a single unit, meeting every must-have.",
   "Reject: a different product or model; accessories, cases, parts or bundles built around a different item;",
   "used, renewed, refurbished or open-box listings; multipacks the shopper did not ask for.",
+  "Phones, tablets and watches locked to a US carrier (Verizon, AT&T, T-Mobile, Cricket, Boost...) are not matches unless the title says unlocked or the shopper named that carrier: a locked phone will not work in Ghana.",
   "Variants that the shopper did not constrain (colour when no colour was asked) are matches.",
   "Answer with listing ids only. Put the closest matches first.",
 ].join("\n");

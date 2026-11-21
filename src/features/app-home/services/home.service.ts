@@ -10,16 +10,11 @@ import {
   getRecentOrdersForUser,
   type RecentOrderRow,
 } from "@/db/queries/orders";
-import {
-  getLatestExtractionRequest,
-  type ExtractionRequestRow,
-} from "@/db/queries/extraction-requests";
-import { listOpenAssistedRequestsByUrl, type OpenAssistedRequestSummary } from "@/db/queries/assisted-requests";
-import { getReceiptFulfilment, NO_FULFILMENT } from "@/db/queries/receipt-state";
-import {
-  getCachedExtractionByHash,
-  getExtractionById,
-} from "@/db/queries/extraction-cache";
+import { listPastesForViewer } from "@/db/queries/extraction-requests";
+import { getQuoteFacts } from "@/db/queries/extraction-cache";
+import { toPasteStatus } from "@/features/extraction/services/paste-status";
+import { listChatHistory } from "@/features/finder/services/finder-chat.service";
+import type { FinderChatSummary } from "@/features/finder/types";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import {
   listBrowsableCategories,
@@ -30,7 +25,6 @@ import type { CatalogCategoryCount } from "@/db/queries/catalog";
 import type { CatalogProduct } from "@/features/catalog/types";
 import { buyForMeHref } from "@/features/extraction/components/buy-for-me-mode";
 import { whatsappHref } from "@/components/layout/marketing/links";
-import { priceUnderExistingLock } from "@/features/quotes/services/quote-lock.service";
 import { loadQuoteConstants, QuoteConstantsMissingError } from "@/features/quotes/services/quote-constants.service";
 import type { QuoteConstants, Viewer } from "@/features/quotes/types";
 import { journeyStageFor } from "@/features/orders/services/journey-stage";
@@ -48,7 +42,6 @@ import { getBag } from "@/features/bag/services/bag.service";
 import type { BagView } from "@/features/bag/types";
 import { logger } from "@/lib/logger";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
-import type { ExtractionResult } from "@/features/extraction/types";
 import type {
   HomeAskBuyer,
   HomeDealCategory,
@@ -56,7 +49,7 @@ import type {
   HomeFreightBox,
   HomeOrder,
   HomeOrderLatest,
-  HomeReceipt,
+  HomeHistory,
   HomeViewModel,
   TimeOfDay,
 } from "../types";
@@ -118,7 +111,7 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
   const [
     movingCount,
     orders,
-    latestPaste,
+    history,
     settings,
     watchList,
     quoteConstants,
@@ -132,11 +125,7 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
         [] as HomeOrder[],
         "recent orders",
       ),
-      degrade(
-        getLatestExtractionRequest(client, user.id),
-        null as ExtractionRequestRow | null,
-        "latest extraction request",
-      ),
+      buildHomeHistory(viewer),
       // `site_settings` is public, admin-owned content, read through the
       // cookieless anon client inside its own query module.
       degrade(
@@ -178,7 +167,7 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
       movingCount,
     },
     orders,
-    receipt: await buildReceipt(latestPaste, viewer),
+    history,
     deals: buildDeals(deals.results, categories),
     askBuyer: buildAskBuyer(settings),
     watches: watchList,
@@ -334,81 +323,40 @@ function latestFor(
   return { kind: "hint", text: stage.hint };
 }
 
-// ── Live receipt ─────────────────────────────────────────────────────────────
+// ── History ──────────────────────────────────────────────────────────────────
+
+/** Pasted links on Home's history card. */
+export const HOME_HISTORY_PASTES = 5;
+export const HOME_HISTORY_CHATS = 5;
 
 /**
- * The last link this customer pasted, priced under the viewer's existing rate
- * lock (lower of locked and live), or live when they hold none. Never mints:
- * looking at Home is not asking for a quote. `rate_locked_until` rides along on
- * the breakdown so the card can show it.
- *
- * `extraction_cache` rows are pruned on a TTL (pg_cron), and the FK is
- * ON DELETE SET NULL, so a paste record can outlive its extraction. Two
- * fallbacks, in order: read the snapshot by id, then re-read by `url_hash` in
- * case the product has since been re-extracted by anyone. If neither exists
- * there is nothing truthful to show, so the card renders nothing — it never
- * crashes and never invents a price.
+ * The customer's history (107): their chats with the shopping assistant and
+ * the links they pasted, newest first. It took the live receipt's place: a
+ * single last link was a narrow view of what the customer has asked us for.
+ * Every figure on it is the finder's or the quote's own; nothing is priced here.
  */
-async function buildReceipt(
-  paste: ExtractionRequestRow | null,
-  viewer: Viewer,
-): Promise<HomeReceipt | null> {
-  if (!paste) return null;
-
-  const snapshot = await loadExtraction(paste);
-  if (!snapshot) return null;
-
-  const [{ pricing, reason }, assisted, fulfilment] = await Promise.all([
-    priceUnderExistingLock({
-      viewer,
-      extraction: snapshot.result,
-      extractionCacheId: snapshot.id,
-      quantity: 1,
-      overrides: null,
-    }),
-    // Already in a buyer's hands? The card then shows that instead of "Try
-    // again" and "Describe it" — the same closure the paste list and bag apply.
-    degrade(
-      listOpenAssistedRequestsByUrl(viewer, [paste.product_url]),
-      new Map<string, OpenAssistedRequestSummary>(),
-      "assisted requests",
-    ),
-    // Already bought, or already in the bag? Without this the card offered
-    // "Add to bag" for a product the customer had paid for.
-    degrade(getReceiptFulfilment(viewer, snapshot.id), NO_FULFILMENT, "receipt fulfilment"),
+export async function buildHomeHistory(viewer: Viewer): Promise<HomeHistory> {
+  const requestViewer = { userId: viewer.userId, sessionId: viewer.sessionId };
+  const [chats, pastes] = await Promise.all([
+    degrade(listChatHistory(requestViewer, HOME_HISTORY_CHATS), [] as FinderChatSummary[], "chat history"),
+    degrade(listPastesForViewer(requestViewer), [] as Awaited<ReturnType<typeof listPastesForViewer>>, "pasted links"),
   ]);
-
-  // AN ORDER IS THE SETTLED FACT, so it replaces the live quote outright.
-  // `pricing` above is re-derived on every render under the current rate lock,
-  // which is the right thing for something the customer has not bought — and
-  // the wrong thing for something they have, where the only honest figure is
-  // what they were charged. The order carries its own stored breakdown.
-  const settled = fulfilment.kind === "ordered" ? fulfilment.pricing : null;
-
+  const recent = pastes.slice(0, HOME_HISTORY_PASTES);
+  const facts = await degrade(getQuoteFacts(recent.map((p) => p.extraction_cache_id ?? "")), new Map(), "quote facts");
   return {
-    productUrl: paste.product_url,
-    storeHost: hostOf(paste.product_url),
-    pastedAt: paste.updated_at,
-    productName: snapshot.result.product.title,
-    productImageUrl: snapshot.result.product.image,
-    pricing: settled ?? pricing,
-    // A paid order always has a price, so a "we could not price this" reason
-    // from the live quote must not survive onto a receipt that shows one.
-    pricingUnavailableReason: settled ? null : reason,
-    extractionCacheId: snapshot.id,
-    assistedOpen: assisted.has(paste.product_url),
-    fulfilment,
+    chats,
+    pastes: recent.map((p) => {
+      const status = toPasteStatus(p, facts.get(p.extraction_cache_id ?? ""));
+      return {
+        id: status.id,
+        title: status.title ?? hostOf(status.product_url),
+        storeHost: hostOf(status.product_url),
+        outcome: status.outcome,
+        href: status.outcome === "priced" && status.extraction_cache_id ? `/app/orders/review/${status.extraction_cache_id}` : `/app/orders/new?watch=${status.id}`,
+        pastedAt: status.updated_at,
+      };
+    }),
   };
-}
-
-async function loadExtraction(
-  paste: ExtractionRequestRow,
-): Promise<{ id: string; result: ExtractionResult } | null> {
-  if (paste.extraction_cache_id) {
-    const byId = await getExtractionById(paste.extraction_cache_id);
-    if (byId) return { id: byId.id, result: byId.result };
-  }
-  return getCachedExtractionByHash(paste.url_hash);
 }
 
 /** "https://www.amazon.com/dp/X" → "amazon.com". Never throws on junk input. */

@@ -38,6 +38,7 @@ vi.mock("@/features/orders/services/order-events.service", () => ({
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => ({ __brand: "admin" })) }));
 vi.mock("@/features/bag/services/bag.service", () => ({ getBag: vi.fn(async () => null) }));
 vi.mock("@/db/queries/site-settings", () => ({ getSiteSettingsMap: vi.fn() }));
+vi.mock("@/features/finder/services/finder-chat.service", () => ({ listChatHistory: vi.fn(async () => []) }));
 vi.mock("@/features/watches/services/watches.service", () => ({
   listWatches: vi.fn(async () => ({ watches: [], watching_count: 0 })),
 }));

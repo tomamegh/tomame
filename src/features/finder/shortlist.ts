@@ -29,7 +29,7 @@ export interface FinderListing {
   source: "catalogue" | "live";
 }
 
-export type DropReason = "risky" | "weak_seller" | "not_new" | "accessory" | "multipack" | "store" | "no_price" | "wrong_item" | "over_budget";
+export type DropReason = "carrier_locked" | "risky" | "weak_seller" | "not_new" | "accessory" | "multipack" | "store" | "no_price" | "wrong_item" | "over_budget";
 
 export const DROP_REASON_LABEL: Record<DropReason, (n: number) => string> = {
   not_new: (n) => `${n} not sold as new`,
@@ -40,6 +40,7 @@ export const DROP_REASON_LABEL: Record<DropReason, (n: number) => string> = {
   wrong_item: (n) => `${n} ${n === 1 ? "is a different item" : "are different items"}`,
   over_budget: (n) => `${n} clearly over your budget`,
   weak_seller: (n) => `${n} from sellers with little or poor feedback`,
+  carrier_locked: (n) => `${n} locked to a US carrier, which would not work on a Ghanaian SIM`,
   risky: (n) => `${n} with a damaged box, missing parts or a "read the description" warning`,
 };
 
@@ -61,6 +62,29 @@ const RISKY_TITLE =
 /** True when the title itself warns of damage, missing parts or a catch. */
 export function isRiskyListing(title: string): boolean {
   return RISKY_TITLE.test(title);
+}
+
+/**
+ * US carriers whose phones are sold locked to them. A locked phone will not
+ * take an MTN or Telecel SIM, so it is no use in Ghana, however cheap. Only
+ * the unambiguous names: "Boost" alone is a bass setting, "Total" a word.
+ */
+const CARRIER_NAMES =
+  "t-?mobile|verizon|at\\s?&\\s?t|att|sprint|boost (?:mobile|infinite)|cricket(?: wireless)?|metro ?pcs|metro by t-?mobile|visible (?:wireless|mobile)|straight ?talk|tracfone|total (?:wireless|by verizon)|u\\.?s\\.? ?cellular|xfinity(?: mobile)?|spectrum mobile|simple mobile|net ?10|page plus|consumer cellular|mint mobile|ultra mobile|family mobile";
+const CARRIER = new RegExp(`(?:^|[^a-z0-9])(${CARRIER_NAMES})(?![a-z0-9])`, "i");
+const UNLOCKED = /\b(factory |fully |carrier[- ])?unlocked\b/i;
+
+/**
+ * True when the title ties the item to a US carrier and does not say it is
+ * unlocked ("Verizon iPhone 17 Pro"), unless the customer named that carrier.
+ * "Unlocked (works with Verizon, AT&T)" is unlocked and stays.
+ */
+export function isCarrierLocked(title: string, spec: Pick<ParsedFinderSpec, "product" | "searchQuery">): boolean {
+  const m = title.match(CARRIER);
+  if (!m || UNLOCKED.test(title)) return false;
+  const asked = ` ${spec.product} ${spec.searchQuery} `.toLowerCase();
+  const carrier = m[1]!.toLowerCase();
+  return !asked.includes(carrier) && !(carrier.replace(/[^a-z]/g, "") === "att" && /\bat\s?&\s?t\b|\batt\b/.test(asked));
 }
 
 /** True when the store reports the seller's feedback and it falls short. Unknown is not weak. */
@@ -142,6 +166,7 @@ export function postFilterListings(
     else if ((l.priceUsd == null || !(l.priceUsd > 0)) && !(l.source === "live" && PRICE_ON_PAGE_STORES.has(l.store))) count(dropped, "no_price");
     else if (isNotNew(l)) count(dropped, "not_new");
     else if (isRiskyListing(l.title)) count(dropped, "risky");
+    else if (isCarrierLocked(l.title, spec)) count(dropped, "carrier_locked");
     else if (isWeakSeller(l)) count(dropped, "weak_seller");
     else if (isAccessoryFor(l.title, spec)) count(dropped, "accessory");
     else if (isUnwantedMultipack(l.title, spec)) count(dropped, "multipack");

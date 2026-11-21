@@ -52,7 +52,7 @@ import { rankCandidates, toFinderQuote, type RankInput } from "../ranking";
 import { isSuspiciouslyLow, outlierReason, outlierReference } from "../price-outlier";
 import { QUICK_PICK_TRIES, quickPickOrder, quickPickReason, saysInStock } from "../quick-pick";
 import { dropDetails, isClearlyOverBudget, isNotNew, isRiskyListing, keywordMatches, mergeDrops, postFilterListings, type DropReason, type FinderListing } from "../shortlist";
-import { normaliseFinderQuery, specSummary, type ParsedFinderSpec } from "../spec";
+import { normaliseFinderQuery, specSummary, storedSpec, type ParsedFinderSpec } from "../spec";
 import { finderAllowedStores, finderStoreName, mergeListings, pickSearchStores } from "../stores";
 import type { FinderEvent, FinderQuote, FinderRunView } from "../types";
 import { shortlistListings, understandRequest, type TokenUsage } from "./finder-ai.service";
@@ -393,7 +393,8 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   // 1. Understand ─────────────────────────────────────────────────────────
   narrator.emit({ type: "step_started", step: "understand", label: "Reading your request" });
   await writer.save();
-  const spec: ParsedFinderSpec | null = await understandRequest(run.query, run.budget_ghs, usage);
+  // A chat turn has already read the request into one item; a one-line request is read here.
+  const spec: ParsedFinderSpec | null = storedSpec(run.spec) ?? (await understandRequest(run.query, run.budget_ghs, usage));
   if (!spec) {
     narrator.emit({ type: "step_done", step: "understand", summary: "We could not tell which product you mean" });
     return handoff(nothingFoundMessage(null, [], "not_understood"));
@@ -487,21 +488,24 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
     return ea === eb ? order.get(a.id)! - order.get(b.id)! : ea - eb;
   });
   const top = pickPriceCandidates(ranked, FINDER.priceCandidates);
-  for (const l of top) {
-    narrator.emit({
-      type: "candidate_found",
-      candidate: {
-        id: l.id,
-        title: l.title,
-        store: { id: l.store, name: finderStoreName(l.store) },
-        productUrl: l.productUrl,
-        imageUrl: l.imageUrl,
-        condition: "New",
-        listingPriceUsd: l.priceUsd ?? 0,
-        seller: l.seller,
-      },
-    });
-  }
+  const announce = (list: readonly FinderListing[]) => {
+    for (const l of list) {
+      narrator.emit({
+        type: "candidate_found",
+        candidate: {
+          id: l.id,
+          title: l.title,
+          store: { id: l.store, name: finderStoreName(l.store) },
+          productUrl: l.productUrl,
+          imageUrl: l.imageUrl,
+          condition: "New",
+          listingPriceUsd: l.priceUsd ?? 0,
+          seller: l.seller,
+        },
+      });
+    }
+  };
+  announce(top);
   narrator.emit({ type: "step_done", step: "shortlist", summary: shortlistSummary(matches.length, listings.length), details: dropDetails(dropped) });
   await writer.save();
   if (top.length === 0) return handoff(noMatch("no_exact"));
@@ -511,20 +515,30 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   for (const l of top) narrator.emit({ type: "price_check_started", candidateId: l.id });
   await writer.save();
 
-  const extractions = await Promise.all(
-    top.map(async (l) => {
-      try {
-        const prepared = await prepareProductUrl(l.productUrl);
-        // No viewer: the finder's candidates are not the customer's pastes.
-        const read = extractPrepared(prepared, { userId: null, sessionId: null });
-        const extraction = await withTimeout<FreshExtraction | null>(read, Math.max(5_000, msLeft() - 20_000), null);
-        return extraction?.extraction_cache_id ? { listing: l, extraction, cacheId: extraction.extraction_cache_id } : { listing: l, extraction: null, cacheId: null };
-      } catch (error) {
-        logger.warn("finder: candidate extraction failed", { runId: run.id, url: l.productUrl, error: error instanceof Error ? error.message : String(error) });
-        return { listing: l, extraction: null, cacheId: null };
-      }
-    }),
-  );
+  const readOne = async (l: FinderListing) => {
+    try {
+      const prepared = await prepareProductUrl(l.productUrl);
+      // No viewer: the finder's candidates are not the customer's pastes.
+      const read = extractPrepared(prepared, { userId: null, sessionId: null });
+      const extraction = await withTimeout<FreshExtraction | null>(read, Math.max(5_000, msLeft() - 20_000), null);
+      return extraction?.extraction_cache_id ? { listing: l, extraction, cacheId: extraction.extraction_cache_id } : { listing: l, extraction: null, cacheId: null };
+    } catch (error) {
+      logger.warn("finder: candidate extraction failed", { runId: run.id, url: l.productUrl, error: error instanceof Error ? error.message : String(error) });
+      return { listing: l, extraction: null, cacheId: null };
+    }
+  };
+  const extractions = await Promise.all(top.map(readOne));
+  // A page we could not read is not an answer: read the next matches in its place while there is time.
+  const readCount = () => extractions.filter((e) => e.extraction?.product.price != null).length;
+  let next = ranked.filter((l) => !top.includes(l));
+  while (readCount() < FINDER.priceCandidates && next.length > 0 && msLeft() > FINDER.extraReadMinMs) {
+    const more = next.slice(0, FINDER.priceCandidates - readCount());
+    next = next.slice(more.length);
+    announce(more);
+    for (const l of more) narrator.emit({ type: "price_check_started", candidateId: l.id });
+    await writer.save();
+    extractions.push(...(await Promise.all(more.map(readOne))));
+  }
   const checks = await checksByExtraction(extractions.flatMap((e) => (e.cacheId ? [e.cacheId] : [])));
   const priceHolds = new Map(
     extractions.map((e) => [e.listing.id, e.extraction && e.cacheId ? priceHold(e.extraction, checks.get(e.cacheId) ?? []) : null]),

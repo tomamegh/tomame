@@ -81,13 +81,17 @@ export const RATE_LIMIT = {
   trackVerifyReference: { windowMs: 60 * 60 * 1000, maxRequests: 20 },
   /**
    * AI price finder runs (105). Each fresh run spends model tokens and up to
-   * three store searches, so the day is the window: 5 per signed-in customer,
-   * 2 per IP for a visitor (visitors behind one carrier NAT share it, which is
-   * the nudge to sign in). A repeat of the same request inside 24 h returns the
-   * earlier run and is not counted.
+   * three store searches, so the day is the window: 15 per signed-in customer
+   * (a chat asks for several items at once, 107), 3 per IP for a visitor
+   * (visitors behind one carrier NAT share it, which is the nudge to sign in).
+   * A repeat of the same item inside 24 h returns the earlier run and is not
+   * counted. The vendor budget still caps the paid stores (FINDER.monthlyCaps).
    */
-  finderUser: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 5 },
-  finderVisitor: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 2 },
+  finderUser: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 15 },
+  finderVisitor: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 3 },
+  /** Shopping assistant messages (107): one model call each. Per hour. */
+  finderChatUser: { windowMs: 60 * 60 * 1000, maxRequests: 60 },
+  finderChatVisitor: { windowMs: 60 * 60 * 1000, maxRequests: 20 },
   /** Public waitlist signup — 5 requests per hour per IP. */
   waitlist: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
   /**
