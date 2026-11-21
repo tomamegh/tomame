@@ -144,8 +144,6 @@ export interface HomeViewModel {
    * at all: no placeholder, no example journey.
    */
   orders: HomeOrder[];
-  /** The customer's chats with the assistant and their pasted links (107). Empty lists, never placeholders. */
-  history: HomeHistory;
   /** Null when the catalogue holds nothing we could price. Never a placeholder. */
   deals: HomeDeals | null;
   /**
@@ -172,21 +170,4 @@ export interface HomeViewModel {
   rateLockHours: number | null;
   /** The open bag's first box, or null when the bag is empty. */
   freightBox: HomeFreightBox | null;
-}
-
-/** One pasted link on Home's history card. */
-export interface HomePasteItem {
-  id: string;
-  /** The listing's title once read, else the store's host. */
-  title: string;
-  storeHost: string;
-  outcome: "reading" | "priced" | "unpriced" | "unavailable" | "expired";
-  /** The quote when priced, else the paste's row on Buy for me. */
-  href: string;
-  pastedAt: string;
-}
-
-export interface HomeHistory {
-  chats: import("@/features/finder/types").FinderChatSummary[];
-  pastes: HomePasteItem[];
 }

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { FinderChatScreen } from "@/features/finder/components/chat/finder-chat-screen";
-import { listChatHistory } from "@/features/finder/services/finder-chat.service";
+import { listChatHistory, listPastedLinks } from "@/features/finder/services/finder-chat.service";
 import { readQuoteSessionFromCookies } from "@/lib/quote-session";
 
 export const metadata: Metadata = {
@@ -17,6 +17,7 @@ export default async function FinderPage({ searchParams }: { searchParams: Promi
   const text = typeof q === "string" ? q.slice(0, 500) : "";
   const [user, cookieStore] = await Promise.all([getAuthenticatedUser(), cookies()]);
   const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
-  const history = viewer.userId || viewer.sessionId ? await listChatHistory(viewer, 30) : [];
-  return <FinderChatScreen initial={null} history={history} defaultText={text} signedIn={user != null} />;
+  const known = viewer.userId != null || viewer.sessionId != null;
+  const [history, pastes] = known ? await Promise.all([listChatHistory(viewer, 30), listPastedLinks(viewer)]) : [[], []];
+  return <FinderChatScreen initial={null} history={history} pastes={pastes} defaultText={text} signedIn={user != null} />;
 }

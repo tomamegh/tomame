@@ -191,3 +191,15 @@ export interface FinderChatSummary {
   updatedAt: string;
   items: { product: string; status: FinderRunStatus; totalGhs: number | null; imageUrl: string | null }[];
 }
+
+/** One pasted link in the Chats tab's history (107): the paste queue's own verdict, never a price. */
+export interface PastedLinkSummary {
+  id: string;
+  /** The listing's title once read, else the store's host. */
+  title: string;
+  storeHost: string;
+  outcome: "reading" | "priced" | "unpriced" | "unavailable" | "expired";
+  /** The quote when priced, else the paste's row on Buy for me. */
+  href: string;
+  pastedAt: string;
+}

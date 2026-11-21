@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { FinderChatScreen } from "@/features/finder/components/chat/finder-chat-screen";
 import { finderRunIdSchema } from "@/features/finder/schema";
-import { getChatView, listChatHistory } from "@/features/finder/services/finder-chat.service";
+import { getChatView, listChatHistory, listPastedLinks } from "@/features/finder/services/finder-chat.service";
 import { readQuoteSessionFromCookies } from "@/lib/quote-session";
 
 export const metadata: Metadata = {
@@ -20,7 +20,7 @@ export default async function FinderChatPage({ params }: { params: Promise<{ id:
   if (!id.success) notFound();
   const [user, cookieStore] = await Promise.all([getAuthenticatedUser(), cookies()]);
   const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
-  const [view, history] = await Promise.all([getChatView(id.data, viewer), listChatHistory(viewer, 30)]);
+  const [view, history, pastes] = await Promise.all([getChatView(id.data, viewer), listChatHistory(viewer, 30), listPastedLinks(viewer)]);
   if (!view) notFound();
-  return <FinderChatScreen key={view.id} initial={view} history={history} signedIn={user != null} />;
+  return <FinderChatScreen key={view.id} initial={view} history={history} pastes={pastes} signedIn={user != null} />;
 }

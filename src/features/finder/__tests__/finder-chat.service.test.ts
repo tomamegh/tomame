@@ -12,6 +12,8 @@ vi.mock("@/db/queries/finder-chats", () => ({
   touchFinderChat: vi.fn(),
 }));
 vi.mock("@/db/queries/finder-runs", () => ({ findRecentFinderRun: vi.fn(), insertFinderRun: vi.fn(), listFinderRunsByIds: vi.fn(async () => []) }));
+vi.mock("@/db/queries/extraction-requests", () => ({ listPastesForViewer: vi.fn(async () => []) }));
+vi.mock("@/db/queries/extraction-cache", () => ({ getQuoteFacts: vi.fn(async () => new Map()) }));
 vi.mock("@/db/queries/site-settings", () => ({ getSiteSettingsMap: vi.fn(async () => ({})) }));
 vi.mock("../services/finder-chat-ai.service", () => ({ planChatTurn: vi.fn() }));
 vi.mock("../services/finder-notify.service", () => ({ finderRecipient: vi.fn(async () => null), notifyFinderTurn: vi.fn() }));
@@ -19,9 +21,10 @@ vi.mock("../services/finder-run.service", () => ({ toFinderRunView: vi.fn() }));
 
 import { getFinderChatForViewer, insertFinderChat, insertFinderChatMessage, listFinderChatMessages } from "@/db/queries/finder-chats";
 import { findRecentFinderRun, insertFinderRun } from "@/db/queries/finder-runs";
+import { listPastesForViewer } from "@/db/queries/extraction-requests";
 
 import { planChatTurn } from "../services/finder-chat-ai.service";
-import { searchLabel, sendChatMessage } from "../services/finder-chat.service";
+import { listPastedLinks, searchLabel, sendChatMessage } from "../services/finder-chat.service";
 
 const viewer = { userId: "u1", sessionId: null };
 const spec = (product: string, mustHaves: string[] = []) => ({ product, searchQuery: product, mustHaves, budgetGhs: null, newOnly: true, category: null });
@@ -84,5 +87,21 @@ describe("sendChatMessage", () => {
 describe("searchLabel", () => {
   it("adds must-haves the product name does not already say", () => {
     expect(searchLabel({ product: "iPhone 17 Pro unlocked", mustHaves: ["unlocked", "256GB"] })).toBe("iPhone 17 Pro unlocked, 256GB");
+  });
+});
+
+describe("listPastedLinks", () => {
+  const row = (id: string, status: string, cacheId: string | null) =>
+    ({ id, product_url: "https://www.amazon.com/dp/X", status, extraction_cache_id: cacheId, queued_at: null, created_at: "2026-11-21T10:00:00Z", updated_at: "2026-11-21T10:00:00Z", error: null }) as never;
+
+  it("opens a link still being read on its Buy for me row, never as a quote", async () => {
+    vi.mocked(listPastesForViewer).mockResolvedValue([row("p1", "pending", null)]);
+    const [link] = await listPastedLinks(viewer);
+    expect(link).toMatchObject({ id: "p1", outcome: "reading", storeHost: "amazon.com", href: "/app/orders/new?watch=p1" });
+  });
+
+  it("is empty rather than failing when the read fails", async () => {
+    vi.mocked(listPastesForViewer).mockRejectedValue(new Error("timeout"));
+    expect(await listPastedLinks(viewer)).toEqual([]);
   });
 });

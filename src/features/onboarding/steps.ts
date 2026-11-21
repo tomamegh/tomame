@@ -8,7 +8,7 @@
  * customer starts on Home).
  *
  * `targetId` is a real DOM id on a real element already on the page — see the
- * components it was added to: `hero-paste-bar.tsx`, `home-history-card.tsx`,
+ * components it was added to: `hero-paste-bar.tsx`, `deals-shelf.tsx`,
  * `bag-view.tsx` (`BagHeader`) and `journeys-view.tsx`. Every one of those
  * renders unconditionally, including its empty state, so a first-time customer
  * with no receipt, no bag and no parcels still has all four targets to point
@@ -40,12 +40,12 @@ export function buildOnboardingTourSteps(firstName: string | null): OnboardingTo
     {
       id: "price",
       route: "/app",
-      targetId: "onboarding-tour-history",
-      // Never prefilled: a first-time customer has asked for nothing, and a
-      // made-up price is the one thing this screen must never show. The copy
-      // says where the work will be kept, which is true empty or full.
-      title: "Everything you ask for is kept here",
-      body: "Every chat with the shopping assistant and every link you paste stays here, with its whole price landed in Accra, in cedis. Nothing is added when your parcel reaches you.",
+      targetId: "onboarding-tour-price",
+      // The products we hold, each with its real landed figure: the one place
+      // on Home a price is already on screen, so the stop never points at an
+      // empty card or an invented number.
+      title: "The whole price, in cedis",
+      body: "Every price you see is landed in Accra: the item, US sales tax, our fee and freight. Nothing is added when your parcel reaches you.",
     },
     {
       id: "bag",

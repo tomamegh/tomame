@@ -10,11 +10,6 @@ import {
   getRecentOrdersForUser,
   type RecentOrderRow,
 } from "@/db/queries/orders";
-import { listPastesForViewer } from "@/db/queries/extraction-requests";
-import { getQuoteFacts } from "@/db/queries/extraction-cache";
-import { toPasteStatus } from "@/features/extraction/services/paste-status";
-import { listChatHistory } from "@/features/finder/services/finder-chat.service";
-import type { FinderChatSummary } from "@/features/finder/types";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import {
   listBrowsableCategories,
@@ -49,7 +44,6 @@ import type {
   HomeFreightBox,
   HomeOrder,
   HomeOrderLatest,
-  HomeHistory,
   HomeViewModel,
   TimeOfDay,
 } from "../types";
@@ -111,7 +105,6 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
   const [
     movingCount,
     orders,
-    history,
     settings,
     watchList,
     quoteConstants,
@@ -125,7 +118,6 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
         [] as HomeOrder[],
         "recent orders",
       ),
-      buildHomeHistory(viewer),
       // `site_settings` is public, admin-owned content, read through the
       // cookieless anon client inside its own query module.
       degrade(
@@ -167,7 +159,6 @@ export async function getHomeView(quoteSessionId: string | null = null): Promise
       movingCount,
     },
     orders,
-    history,
     deals: buildDeals(deals.results, categories),
     askBuyer: buildAskBuyer(settings),
     watches: watchList,
@@ -321,51 +312,6 @@ function latestFor(
   if (eta) return { kind: "eta", eta };
 
   return { kind: "hint", text: stage.hint };
-}
-
-// ── History ──────────────────────────────────────────────────────────────────
-
-/** Pasted links on Home's history card. */
-export const HOME_HISTORY_PASTES = 5;
-export const HOME_HISTORY_CHATS = 5;
-
-/**
- * The customer's history (107): their chats with the shopping assistant and
- * the links they pasted, newest first. It took the live receipt's place: a
- * single last link was a narrow view of what the customer has asked us for.
- * Every figure on it is the finder's or the quote's own; nothing is priced here.
- */
-export async function buildHomeHistory(viewer: Viewer): Promise<HomeHistory> {
-  const requestViewer = { userId: viewer.userId, sessionId: viewer.sessionId };
-  const [chats, pastes] = await Promise.all([
-    degrade(listChatHistory(requestViewer, HOME_HISTORY_CHATS), [] as FinderChatSummary[], "chat history"),
-    degrade(listPastesForViewer(requestViewer), [] as Awaited<ReturnType<typeof listPastesForViewer>>, "pasted links"),
-  ]);
-  const recent = pastes.slice(0, HOME_HISTORY_PASTES);
-  const facts = await degrade(getQuoteFacts(recent.map((p) => p.extraction_cache_id ?? "")), new Map(), "quote facts");
-  return {
-    chats,
-    pastes: recent.map((p) => {
-      const status = toPasteStatus(p, facts.get(p.extraction_cache_id ?? ""));
-      return {
-        id: status.id,
-        title: status.title ?? hostOf(status.product_url),
-        storeHost: hostOf(status.product_url),
-        outcome: status.outcome,
-        href: status.outcome === "priced" && status.extraction_cache_id ? `/app/orders/review/${status.extraction_cache_id}` : `/app/orders/new?watch=${status.id}`,
-        pastedAt: status.updated_at,
-      };
-    }),
-  };
-}
-
-/** "https://www.amazon.com/dp/X" → "amazon.com". Never throws on junk input. */
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./i, "");
-  } catch {
-    return "";
-  }
 }
 
 // ── Deals ────────────────────────────────────────────────────────────────────

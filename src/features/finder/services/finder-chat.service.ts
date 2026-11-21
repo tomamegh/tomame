@@ -12,6 +12,9 @@ import {
   type FinderChatMessageRow,
   type FinderChatRow,
 } from "@/db/queries/finder-chats";
+import { getQuoteFacts } from "@/db/queries/extraction-cache";
+import { listPastesForViewer } from "@/db/queries/extraction-requests";
+import { toPasteStatus } from "@/features/extraction/services/paste-status";
 import { findRecentFinderRun, insertFinderRun, listFinderRunsByIds, type FinderRunRow } from "@/db/queries/finder-runs";
 import type { RequestViewer } from "@/db/queries/extraction-requests";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
@@ -21,7 +24,7 @@ import { logger } from "@/lib/logger";
 import { chatTitle, recentHistory, summariseChatRuns } from "../chat";
 import { normaliseFinderQuery, type ParsedFinderSpec } from "../spec";
 import { reduceFinderEvents, selectRankedCandidates } from "../state/reducer";
-import type { FinderChatMessageView, FinderChatSummary, FinderChatView } from "../types";
+import type { FinderChatMessageView, FinderChatSummary, FinderChatView, PastedLinkSummary } from "../types";
 import { planChatTurn } from "./finder-chat-ai.service";
 import { finderRecipient, notifyFinderTurn } from "./finder-notify.service";
 import { toFinderRunView } from "./finder-run.service";
@@ -248,6 +251,40 @@ export async function listChatHistory(viewer: RequestViewer, limit = 8): Promise
     }));
   } catch (error) {
     logger.warn("finder chat: history read failed", { error: error instanceof Error ? error.message : String(error) });
+    return [];
+  }
+}
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./i, "");
+  } catch {
+    return "";
+  }
+};
+
+/**
+ * The viewer's pasted links, newest first, for the Chats tab's history: one
+ * place for everything they asked us for. The paste queue decides each link's
+ * state; nothing is priced here. Never throws.
+ */
+export async function listPastedLinks(viewer: RequestViewer, limit = 8): Promise<PastedLinkSummary[]> {
+  try {
+    const pastes = (await listPastesForViewer(viewer)).slice(0, limit);
+    const facts = await getQuoteFacts(pastes.map((p) => p.extraction_cache_id ?? ""));
+    return pastes.map((p) => {
+      const status = toPasteStatus(p, facts.get(p.extraction_cache_id ?? ""));
+      return {
+        id: status.id,
+        title: status.title ?? hostOf(status.product_url),
+        storeHost: hostOf(status.product_url),
+        outcome: status.outcome,
+        href: status.outcome === "priced" && status.extraction_cache_id ? `/app/orders/review/${status.extraction_cache_id}` : `/app/orders/new?watch=${status.id}`,
+        pastedAt: status.updated_at,
+      };
+    });
+  } catch (error) {
+    logger.warn("finder chat: pasted links read failed", { error: error instanceof Error ? error.message : String(error) });
     return [];
   }
 }

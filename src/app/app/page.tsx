@@ -13,7 +13,6 @@ import {
   FreightBoxCard,
   GreetingChip,
   HeroPasteBar,
-  HomeHistoryCard,
   YourOrders,
 } from "@/features/app-home/components";
 import { PriceWatchCard } from "@/features/watches/components";
@@ -109,14 +108,6 @@ export default async function AppHomePage() {
         */}
         <EntryDoors />
       </div>
-
-      {/*
-        ── Row A2 · Your history ──────────────────────────────────────
-        Chats with the assistant and pasted links (107), straight under the
-        box that starts them: they are the customer's own work in progress,
-        and at the bottom of the page they were as good as hidden.
-      */}
-      <HomeHistoryCard history={view.history} now={now} />
 
       {/*
         ── Row B · Shop ─────────────────────────────────────────────────

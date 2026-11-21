@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, FireSimple } from "@phosphor-icons/react/ssr";
+import { ArrowRight } from "@phosphor-icons/react/ssr";
 
 import { CatalogResultsGrid } from "@/features/catalog/components/catalog-results";
 import { DepartmentRow } from "@/features/catalog/components/department-row";
@@ -35,7 +35,7 @@ export interface DealsShelfProps {
 }
 
 /**
- * "Hot right now" — the shop half of the signed-in Home screen.
+ * The shop half of the signed-in Home screen.
  *
  * WHY IT IS HERE AND WHY IT IS SECOND. Kelvin, on the signed-in Home: "we are
  * helping users shop and once logged in that is what the app should help the
@@ -63,30 +63,16 @@ export function DealsShelf({ deals, now, className }: DealsShelfProps) {
 
   return (
     <section
+      id="onboarding-tour-price"
       aria-labelledby="home-deals-heading"
       className={cn("tm-up flex min-w-0 flex-col gap-4 [animation-delay:0.18s]", className)}
     >
-      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-tm-tint text-tm-coral">
-              <FireSimple weight="duotone" className="size-[19px]" aria-hidden />
-            </span>
-            <h2
-              id="home-deals-heading"
-              className="font-display text-[19px] leading-none font-bold sm:text-[21px]"
-            >
-              Hot right now
-            </h2>
-          </div>
-          <p className="max-w-[62ch] text-[13px] leading-[1.45] font-medium text-tm-text-2">
-            The most-reviewed products from each shelf we hold, cheapest landed
-            total first. Every figure is the whole cedi price (item, US sales
-            tax, our fee and freight), worked out when we last read the
-            listing. Open one and we price it again live before you pay.
-          </p>
-        </div>
-
+      {/* No title and no blurb: the products are the point (Kelvin, 107). The
+          heading stays for screen readers, and is the tour's "whole price" stop. */}
+      <header className="flex items-center justify-end">
+        <h2 id="home-deals-heading" className="sr-only">
+          Products we have priced
+        </h2>
         <Link
           href={deals.browseHref}
           className="inline-flex shrink-0 items-center gap-1.5 text-[13px] leading-none font-semibold text-tm-coral transition-colors hover:text-tm-coral-strong focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none"

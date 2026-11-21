@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 import { chatKeys, useChatEmail, useChatHistory, useChatView, useSendChat } from "../../hooks/useChat";
 import { recordFinderHandoff } from "../../hooks/useFinder";
-import type { FinderCandidateState, FinderChatMessageView, FinderChatSummary, FinderChatView } from "../../types";
+import type { FinderCandidateState, FinderChatMessageView, FinderChatSummary, FinderChatView, PastedLinkSummary } from "../../types";
 import { ChatHistoryList } from "./chat-history-list";
 import { ChatRunCard } from "./chat-run-card";
 
@@ -22,6 +22,8 @@ interface FinderChatScreenProps {
   /** The open chat, server-read; null on a new chat. */
   initial: FinderChatView | null;
   history: FinderChatSummary[];
+  /** The viewer's pasted links: the history holds everything they asked us for. */
+  pastes: PastedLinkSummary[];
   /** `?q=` from a link: fills the box, never sends by itself. */
   defaultText?: string;
   signedIn: boolean;
@@ -42,7 +44,7 @@ const URL_RE = /https?:\/\/[^\s]+/gi;
  * sit under the reply that started them. The assistant never sets a price:
  * every figure is on a card the finder priced.
  */
-export function FinderChatScreen({ initial, history, defaultText = "", signedIn }: FinderChatScreenProps) {
+export function FinderChatScreen({ initial, history, pastes, defaultText = "", signedIn }: FinderChatScreenProps) {
   const router = useRouter();
   const chat = useChatView(initial, initial?.id ?? null);
   const send = useSendChat();
@@ -144,7 +146,7 @@ export function FinderChatScreen({ initial, history, defaultText = "", signedIn 
         <aside className="hidden lg:block">
           <div className="sticky top-6 flex max-h-[calc(100dvh-7rem)] flex-col gap-3">
             <NewChatButton />
-            <ChatHistoryList chats={chats} activeId={chat?.id ?? null} />
+            <ChatHistoryList chats={chats} pastes={pastes} activeId={chat?.id ?? null} />
           </div>
         </aside>
 
@@ -158,7 +160,7 @@ export function FinderChatScreen({ initial, history, defaultText = "", signedIn 
               className="inline-flex h-9 items-center gap-1.5 rounded-full border border-tm-border bg-card px-3 text-[13px] font-semibold"
             >
               <ClockCounterClockwise size={16} aria-hidden />
-              Your chats{chats.length ? ` · ${chats.length}` : ""}
+              Your chats and links
             </button>
             <NewChatButton compact />
           </div>
@@ -170,7 +172,7 @@ export function FinderChatScreen({ initial, history, defaultText = "", signedIn 
                 exit={{ opacity: 0, height: 0 }}
                 className="mb-4 overflow-hidden lg:hidden"
               >
-                <ChatHistoryList chats={chats} activeId={chat?.id ?? null} onPick={() => setShowHistory(false)} />
+                <ChatHistoryList chats={chats} pastes={pastes} activeId={chat?.id ?? null} onPick={() => setShowHistory(false)} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -179,10 +181,10 @@ export function FinderChatScreen({ initial, history, defaultText = "", signedIn 
             <>
               <EmptyState onPick={(s) => void submit(s)} disabled={send.isPending} />
               {/* Phones have no sidebar: the chats sit in the open under the suggestions. */}
-              {chats.length > 0 && (
+              {(chats.length > 0 || pastes.length > 0) && (
                 <div className="mb-6 flex flex-col gap-2 lg:hidden">
-                  <h2 className="text-[12px] font-bold tracking-[0.06em] text-tm-text-3 uppercase">Your chats</h2>
-                  <ChatHistoryList chats={chats} activeId={null} />
+                  <h2 className="text-[12px] font-bold tracking-[0.06em] text-tm-text-3 uppercase">Your chats and links</h2>
+                  <ChatHistoryList chats={chats} pastes={pastes} activeId={null} />
                 </div>
               )}
             </>

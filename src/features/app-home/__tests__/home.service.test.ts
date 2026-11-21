@@ -75,7 +75,6 @@ import {
 import {
   getLatestExtractionRequest,
   listPastesForViewer,
-  type ExtractionRequestRow,
 } from "@/db/queries/extraction-requests";
 import {
   getCachedExtractionByHash,
@@ -138,18 +137,6 @@ function event(overrides: Partial<OrderEventRow> = {}): OrderEventRow {
     occurred_at: "2026-09-06T10:00:00.000Z",
     ...overrides,
   } as OrderEventRow;
-}
-
-function paste(overrides: Record<string, unknown> = {}): ExtractionRequestRow {
-  return {
-    id: "req-1",
-    url_hash: "hash-1",
-    product_url: "https://www.amazon.com/dp/B0TEST",
-    extraction_cache_id: "cache-1",
-    created_at: "2026-09-12T09:00:00.000Z",
-    updated_at: "2026-09-12T09:30:00.000Z",
-    ...overrides,
-  } as unknown as ExtractionRequestRow;
 }
 
 /** The three lanes migrations 036/037 seed. */
@@ -223,8 +210,6 @@ describe("getHomeView — session", () => {
     signedIn();
     await getHomeView();
     expect(countMovingOrders).toHaveBeenCalledWith(fakeClient, "user-1");
-    // The history reads pastes as the signed-in viewer (plus any quote cookie).
-    expect(listPastesForViewer).toHaveBeenCalledWith({ userId: "user-1", sessionId: null });
   });
 });
 
@@ -395,29 +380,6 @@ describe("buildHomeOrders", () => {
   });
 });
 
-// ── History ──────────────────────────────────────────────────────────────────
-
-describe("getHomeView — history", () => {
-  it("lists the customer's chats and pasted links, empty when there are none", async () => {
-    signedIn();
-    const view = await getHomeView();
-    expect(view?.history.chats).toEqual([]);
-    expect(view?.history.pastes).toEqual([]);
-  });
-
-  it("links a priced paste to its quote and an unread one to its row", async () => {
-    signedIn();
-    vi.mocked(listPastesForViewer).mockResolvedValue([
-      { ...paste(), id: "p1", status: "ready", extraction_cache_id: "cache-1" },
-      { ...paste(), id: "p2", status: "pending", extraction_cache_id: null },
-    ] as never);
-    vi.mocked(getQuoteFacts).mockResolvedValue(new Map([["cache-1", { usable: true, priced: true, title: "Oraimo BoomPop N" }]]) as never);
-    const pastes = (await getHomeView())?.history.pastes ?? [];
-    expect(pastes.map((p) => p.id)).toEqual(["p1", "p2"]);
-    expect(pastes[1]?.href).toBe("/app/orders/new?watch=p2");
-  });
-});
-
 // ── Deals + ask a buyer ──────────────────────────────────────────────────────
 
 describe("getHomeView — deals shelf and contact card", () => {
@@ -507,16 +469,6 @@ describe("getHomeView — failure policy", () => {
     await expect(getHomeView()).rejects.toThrow("Could not find the table");
   });
 
-  it("rethrows a missing extraction_requests table", async () => {
-    signedIn();
-    vi.mocked(listPastesForViewer).mockRejectedValue({
-      code: "42P01",
-      message: 'relation "extraction_requests" does not exist',
-    });
-
-    await expect(getHomeView()).rejects.toBeDefined();
-  });
-
   it("degrades one flaky read without taking the screen down", async () => {
     signedIn();
     vi.mocked(countMovingOrders).mockRejectedValue(new Error("timeout"));
@@ -527,13 +479,6 @@ describe("getHomeView — failure policy", () => {
     expect(view?.greeting.movingCount).toBe(0);
     expect(view?.orders).toHaveLength(1);
     expect(logger.warn).toHaveBeenCalled();
-  });
-
-  it("degrades a failed paste lookup to an empty history", async () => {
-    signedIn();
-    vi.mocked(listPastesForViewer).mockRejectedValue(new Error("connection reset"));
-
-    expect((await getHomeView())?.history.pastes).toEqual([]);
   });
 });
 

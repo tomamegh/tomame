@@ -528,8 +528,8 @@ export function PasteQueueView({
         <AskPanel requests={held} now={now} />
       ) : (
         <>
-          {/* A signed-in customer's pasted links live in Home's history (107); a
-              visitor has no Home, so this list stays their only record. */}
+          {/* A signed-in customer's pasted links live in the Chats tab's history
+              (107); a visitor has no tab bar, so this list stays their record. */}
           {done.length > 0 && !notifies && (
             <RecentlyPastedCard count={done.length} delay={0.2}>
               {(shown) => done.slice(0, shown).map((paste) => <PasteRow key={paste.id} {...rowProps(paste)} />)}
@@ -538,10 +538,10 @@ export function PasteQueueView({
 
           {done.length > 0 && notifies && (
             <Link
-              href="/app"
+              href="/app/find"
               className="tm-up flex items-center justify-between gap-3 rounded-[20px] border border-tm-border bg-card px-[18px] py-3.5 text-[13.5px] font-medium text-tm-text-2 transition-colors hover:bg-tm-tint [animation-duration:0.5s] lg:px-[22px]"
             >
-              Your pasted links and chats are kept in Your history on Home.
+              Your pasted links and chats are kept in Chats.
               <span className="shrink-0 font-semibold text-tm-coral">Open</span>
             </Link>
           )}
