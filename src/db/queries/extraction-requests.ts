@@ -481,6 +481,19 @@ export async function getExtractionRequestById(id: string): Promise<ExtractionJo
  * `tm_quote_session` cookie, which PostgREST knows nothing about. The filter IS
  * the authorization — never drop it.
  */
+/** The viewer's pastes by id (a chat's links, 108). Owner-filtered: the filter is the authorization. */
+export async function listPastesByIdsForViewer(ids: readonly string[], viewer: RequestViewer): Promise<ExtractionJobRow[]> {
+  const owner = ownerFilter(viewer);
+  if (!owner || ids.length === 0) return [];
+  const { data, error } = await createAdminClient()
+    .from("extraction_requests")
+    .select(JOB_COLUMNS)
+    .in("id", [...ids])
+    .eq(owner.column, owner.value);
+  if (error) throw new Error(`Failed to load pastes: ${error.message}`);
+  return (data ?? []) as ExtractionJobRow[];
+}
+
 export async function listPastesForViewer(viewer: RequestViewer, limit = 12): Promise<ExtractionJobRow[]> {
   const owner = ownerFilter(viewer);
   if (!owner) return [];

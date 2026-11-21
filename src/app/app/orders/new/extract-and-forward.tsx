@@ -7,23 +7,19 @@ import { ArrowLeft } from "@phosphor-icons/react/ssr";
 
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/empty-state";
-import { readBatch, writeBatch } from "@/features/extraction/components/batch-storage";
 import { ReadingIndicator } from "@/features/extraction/components/reading-indicator";
-import { useCreatePaste } from "@/features/extraction/hooks/usePastes";
+import { apiFetch } from "@/lib/api-client";
+import type { ApiSuccessResponse } from "@/types/api";
 import { PASTE_BATCH_MAX } from "@/features/extraction/services/paste-batch";
-import type { PasteStatus } from "@/features/extraction/services/paste-status";
 import { hostOf } from "@/features/bag/components/format";
 
 /**
  * The step between pasting a link somewhere else and seeing it read.
  *
- * A `?url=` arrives from the Home paste box, a shared link, or the marketing
- * site. It queues the link (049) and goes where the queue is: a link the cache
- * already knows is forwarded straight to its price; anything else lands on Buy
- * for me as `?watch=<id>`, where its row reads and forwards to the price when
- * it lands. Several `?url=` (Home's box takes many links at once, plan 2b)
- * are queued one after another and land on Buy for me as one batch. This
- * screen is on screen for a round trip or two.
+ * A `?url=` arrives from a shared link, a catalogue card or the marketing
+ * site. Since 108 the links open a chat on Buy for me, where each is read and
+ * priced in the thread; one link the cache already priced opens its quote
+ * straight away. This screen is on screen for a round trip.
  */
 
 /** Only the QUEUEING can fail here (a malformed link, a rate limit); reading failures are the row's. */
@@ -52,7 +48,6 @@ function ExtractionFailed({ message }: { message: string | null }) {
 function NewOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { mutateAsync: createPaste } = useCreatePaste();
 
   // `searchParams` already percent-decodes. Calling decodeURIComponent on top
   // throws URIError on a bare `%` and turns `%2B` into `+`. Do not reintroduce it.
@@ -71,37 +66,26 @@ function NewOrderContent() {
     const links = key.split("\n");
 
     void (async () => {
-      const queued: PasteStatus[] = [];
-      for (const link of links) {
-        try {
-          queued.push(await createPaste({ product_url: link }));
-        } catch (err) {
-          // The first failure on a single link is the answer; in a batch the rest still go.
-          if (links.length === 1) {
-            setFailure({ message: err instanceof Error ? err.message : null });
-            return;
-          }
-        }
-      }
-      if (queued.length === 0) {
-        setFailure({ message: "None of those links could be added." });
-        return;
-      }
-      // replace(), not push(): back should return to where the link was pasted.
-      if (queued.length === 1 && links.length === 1) {
-        const only = queued[0]!;
-        if (only.outcome === "priced" && only.extraction_cache_id) {
-          router.replace(`/app/orders/review/${only.extraction_cache_id}`);
+      try {
+        // The links open a chat (108): each is read and priced in the thread.
+        const res = await apiFetch<ApiSuccessResponse<{ chatId: string; readyQuotes: { extractionCacheId: string }[] }>>("/api/finder/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: links.join(" ") }),
+        });
+        const { chatId, readyQuotes } = res.data;
+        // replace(), not push(): back should return to where the link was pasted.
+        // One link we already priced opens its quote, as a catalogue card promises.
+        if (links.length === 1 && readyQuotes.length === 1) {
+          router.replace(`/app/orders/review/${readyQuotes[0]!.extractionCacheId}`);
           return;
         }
-        router.replace(`/app/orders/new?watch=${encodeURIComponent(only.id)}`);
-        return;
+        router.replace(`/app/find/chat/${chatId}`);
+      } catch (err) {
+        setFailure({ message: err instanceof Error ? err.message : null });
       }
-      const ids = queued.map((p) => p.id);
-      writeBatch([...readBatch().filter((id) => !ids.includes(id)), ...ids].slice(-PASTE_BATCH_MAX));
-      router.replace("/app/orders/new");
     })();
-  }, [key, createPaste, router]);
+  }, [key, router]);
 
   if (failure) return <ExtractionFailed message={failure.message} />;
 
@@ -118,7 +102,7 @@ function NewOrderContent() {
   );
 }
 
-/** The `?url=` path. The screen without one is `PasteQueueView`; see `page.tsx`. */
+/** The `?url=` path. The screen without one is the Buy for me chat; see `page.tsx`. */
 export function ExtractAndForward() {
   return (
     <Suspense fallback={null}>

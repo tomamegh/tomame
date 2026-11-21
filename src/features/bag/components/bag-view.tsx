@@ -92,7 +92,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
     // After mount the clock is the real one. It used to advance from
     // `renderedAt` plus time-since-mount, which gives NEGATIVE elapsed time for a
     // line added after the page was rendered — so its wait copy never moved off
-    // "Reading this page…". See `paste-queue-view.tsx` for the same fix.
+    // "Reading this page…". `usePastes` (extraction/hooks) carries the same fix.
     setNow(new Date());
     // Nothing else is waiting on the clock: the rate-lock countdown is hours
     // long and does not need a ticking second hand.

@@ -15,8 +15,11 @@ export const chatKeys = {
   history: ["finder-chat-history"] as const,
 };
 
-const working = (v: FinderChatView | undefined) =>
-  v != null && Object.values(v.runs).some((r) => r.status === "pending" || r.status === "running");
+/** Anything in the chat still moving: a search, or a pasted link being read or re-checked. */
+export const chatWorking = (v: Pick<FinderChatView, "runs" | "pastes"> | undefined | null) =>
+  v != null &&
+  (Object.values(v.runs).some((r) => r.status === "pending" || r.status === "running") ||
+    Object.values(v.pastes ?? {}).some((p) => p.outcome === "reading" || p.rechecking));
 
 /**
  * One chat, polled every two seconds while any of its searches works. The
@@ -34,7 +37,7 @@ export function useChatView(initial: FinderChatView | null, chatId: string | nul
     staleTime: 0,
   });
   const { refetch } = query;
-  useVisibleInterval(() => void refetch(), FINDER_POLL_MS, chatId != null && working(query.data));
+  useVisibleInterval(() => void refetch(), FINDER_POLL_MS, chatId != null && chatWorking(query.data));
   const data = query.data;
   return data
     ? { ...data, email: data.email ?? initial?.email ?? null, buyerWhatsappNumber: data.buyerWhatsappNumber ?? initial?.buyerWhatsappNumber ?? null, refetch }

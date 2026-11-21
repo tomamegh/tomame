@@ -24,21 +24,14 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     icon: "house",
     exact: true,
   },
-  // 107: the shopping assistant and every chat kept with it. A tab of its own
-  // because a conversation reached only from Home's last card was a hidden one.
-  {
-    key: "chats",
-    label: "Chats",
-    mobileLabel: "Chats",
-    href: "/app/find",
-    icon: "chats",
-  },
   {
     key: "shop",
     label: "Buy for me",
     mobileLabel: "Buy",
     href: "/app/orders/new",
     icon: "storefront",
+    // 108: the shopping assistant is Buy for me; its chats and searches live under /app/find.
+    also: ["/app/find"],
   },
   {
     key: "ship",
@@ -104,14 +97,10 @@ export function resolveActiveAppNavKey(
 
   const normalised = stripTrailingSlash(pathname);
 
+  const under = (href: string) => normalised === href || normalised.startsWith(`${href}/`);
   const match = [...items]
     .sort((a, b) => b.href.length - a.href.length)
-    .find((item) =>
-      item.exact
-        ? normalised === item.href
-        : normalised === item.href ||
-          normalised.startsWith(`${item.href}/`),
-    );
+    .find((item) => (item.exact ? normalised === item.href : under(item.href) || (item.also ?? []).some(under)));
 
   return match?.key ?? null;
 }

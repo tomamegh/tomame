@@ -71,10 +71,16 @@ describe("resolveActiveAppNavKey", () => {
     expect(resolveActiveAppNavKey("/app", items)).toBeNull();
   });
 
-  it("exposes the mock's four tabs plus Chats (107), in order", () => {
+  it("lights Buy for me on the assistant's chats and searches (108)", () => {
+    expect(resolveActiveAppNavKey("/app/find")).toBe("shop");
+    expect(resolveActiveAppNavKey("/app/find/chat/abc")).toBe("shop");
+    expect(resolveActiveAppNavKey("/app/orders/new")).toBe("shop");
+    expect(resolveActiveAppNavKey("/app/orders")).toBe("orders");
+  });
+
+  it("exposes the four tabs the mock shows, in order", () => {
     expect(APP_NAV_ITEMS.map((item) => item.key)).toEqual([
       "home",
-      "chats",
       "shop",
       "ship",
       "orders",

@@ -5,6 +5,10 @@ import { Suspense } from "react";
 import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
 import { getQuoteFacts } from "@/db/queries/extraction-cache";
 import { listPastesForViewer } from "@/db/queries/extraction-requests";
+import { AskMode } from "@/features/finder/components/chat/ask-mode";
+import { BuyForMeSwitch } from "@/features/finder/components/chat/buy-for-me-switch";
+import { FinderChatScreen } from "@/features/finder/components/chat/finder-chat-screen";
+import { listChatHistory, listPastedLinks } from "@/features/finder/services/finder-chat.service";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import {
   CatalogBrowseEmpty,
@@ -24,8 +28,6 @@ import {
   buyForMeHref,
   resolveBuyForMeMode,
 } from "@/features/extraction/components/buy-for-me-mode";
-import { PasteQueueView } from "@/features/extraction/components/paste-queue-view";
-import { SUPPORTED_STORE_NAMES } from "@/features/extraction/scrapers";
 import { toPasteStatus } from "@/features/extraction/services/paste-status";
 import { logger } from "@/lib/logger";
 import { readQuoteSessionFromCookies } from "@/lib/quote-session";
@@ -39,7 +41,14 @@ export const metadata: Metadata = {
 };
 
 /**
- * "Buy for me" — the nav's second tab.
+ * "Buy for me" — the nav's second tab, and since 108 the shopping assistant.
+ *
+ * ONE SCREEN, THREE DOORS (Kelvin: "merge them … so it is not scattered").
+ * "Find it" is the chat: words or links in one box. Links are queued on the
+ * paste queue and read in the thread; words are answered and searched, one
+ * finder run per item. "Browse" is the catalogue, "Ask a buyer" the hand-off
+ * form. Chats live at `/app/find/chat/[id]` and light this tab. What follows
+ * is the history of how the three doors came to be here.
  *
  * It used to be a dead click: with no `?url=` the screen did
  * `router.replace("/app")`, so pressing the tab bounced you straight back to
@@ -75,57 +84,76 @@ export const metadata: Metadata = {
 export default async function NewOrderPage({
   searchParams,
 }: {
-  searchParams: Promise<ShopSearchParams>;
+  searchParams: Promise<ShopSearchParams & { watch?: string | string[] }>;
 }) {
   const params = await searchParams;
-  // One `?url=` or several (Home's box takes many links at once).
+  // One `?url=` or several (Home's box, a shared link, a catalogue card): they
+  // open a chat with those links in it, read and priced in the thread.
   const hasUrl = Array.isArray(params.url) ? params.url.some(Boolean) : typeof params.url === "string" && params.url !== "";
-  const watch = typeof params.watch === "string" ? params.watch : undefined;
-  // `?url=` queues the link and comes back here as `?watch=<id>`, so the row is
-  // on screen — with its reading animation and its wait copy — while it reads.
   if (hasUrl) return <ExtractAndForward />;
 
   const mode = resolveBuyForMeMode(params.mode);
-
   const [user, cookieStore] = await Promise.all([getAuthenticatedUser(), cookies()]);
   const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
+  const known = viewer.userId != null || viewer.sessionId != null;
 
-  // The catalogue's shape is read on BOTH halves, and in parallel with the
-  // viewer's pastes rather than after them: the paste half needs it only to know
-  // whether the browse switch is worth drawing, and that answer must not cost
-  // the screen a serial round trip.
-  const [pastes, catalogue] = await Promise.all([
-    listPastesForViewer(viewer),
-    readCatalogueShape(),
-  ]);
+  // ── Browse: what we have already priced ────────────────────────────────
+  if (mode === "browse") {
+    const catalogue = await readCatalogueShape();
+    return (
+      <div className="flex min-w-0 flex-col gap-5">
+        <BannerSlot placement="buy" />
+        <BuyForMeSwitch mode="browse" />
+        {await renderShop(catalogue, params)}
+      </div>
+    );
+  }
 
-  const [facts, assisted] = await Promise.all([
-    getQuoteFacts(pastes.map((p) => p.extraction_cache_id ?? "")),
-    listOpenAssistedRequestsByUrl(viewer, pastes.map((p) => p.product_url)),
-  ]);
+  // ── Ask a buyer: a person buys it by hand ──────────────────────────────
+  if (mode === "ask") {
+    const pastes = known ? await listPastesForViewer(viewer) : [];
+    const [facts, assisted] = await Promise.all([
+      getQuoteFacts(pastes.map((p) => p.extraction_cache_id ?? "")),
+      listOpenAssistedRequestsByUrl(viewer, pastes.map((p) => p.product_url)),
+    ]);
+    return (
+      <div className="flex min-w-0 flex-col gap-5">
+        <BannerSlot placement="buy" />
+        <BuyForMeSwitch mode="ask" />
+        <AskMode
+          initialPastes={pastes.map((p) => toPasteStatus(p, facts.get(p.extraction_cache_id ?? ""), assisted.get(p.product_url) ?? null))}
+          renderedAt={new Date().toISOString()}
+        />
+      </div>
+    );
+  }
 
-  // Whether the browse mode is worth offering, and nothing else. The switch
-  // never prints this — see `PasteQueueView`'s prop doc for why.
-  const catalogueCount = catalogue.categories.reduce((sum, entry) => sum + entry.count, 0);
+  // ── Find it: the assistant. Words or links, in one box ─────────────────
+  const watchId = typeof params.watch === "string" && params.watch ? params.watch : null;
+  const q = typeof params.q === "string" ? params.q.slice(0, 500) : "";
+  const [history, pastes, watchRows] = known
+    ? await Promise.all([listChatHistory(viewer, 30), listPastedLinks(viewer), watchId ? listPastesForViewer(viewer) : Promise.resolve([])])
+    : [[], [], []];
+  let watch: { id: string; pastes: ReturnType<typeof toPasteStatus>[] } | null = null;
+  if (watchId && watchRows.some((r) => r.id === watchId)) {
+    const [facts, assisted] = await Promise.all([
+      getQuoteFacts(watchRows.map((p) => p.extraction_cache_id ?? "")),
+      listOpenAssistedRequestsByUrl(viewer, watchRows.map((p) => p.product_url)),
+    ]);
+    watch = { id: watchId, pastes: watchRows.map((p) => toPasteStatus(p, facts.get(p.extraction_cache_id ?? ""), assisted.get(p.product_url) ?? null)) };
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <BannerSlot placement="buy" />
-      <PasteQueueView
-        initialPastes={pastes.map((p) =>
-          toPasteStatus(p, facts.get(p.extraction_cache_id ?? ""), assisted.get(p.product_url) ?? null),
-        )}
-        stores={SUPPORTED_STORE_NAMES}
-        renderedAt={new Date().toISOString()}
-        watchId={watch ? watch : null}
-        // Only an account can be told when a slow paste lands; the wait copy must
-        // not promise a message to a visitor it cannot reach.
-        notifies={user != null}
-        mode={mode}
-        catalogueCount={catalogueCount}
-        browse={
-          mode === "browse" ? await renderShop(catalogue, params) : null
-        }
+      <FinderChatScreen
+        initial={null}
+        history={history}
+        pastes={pastes}
+        defaultText={q}
+        watch={watch}
+        signedIn={user != null}
+        header={<BuyForMeSwitch mode="paste" />}
       />
     </div>
   );

@@ -7,14 +7,18 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
+import { AssistedRequestDialog } from "@/features/assisted/components";
 import { useAddToBag } from "@/features/bag/hooks/useAddToBag";
+import { PasteBatchPanel } from "@/features/extraction/components/paste-batch-panel";
+import type { PasteStatus } from "@/features/extraction/services/paste-status";
 import { riseIn } from "@/lib/motion/presets";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 
-import { chatKeys, useChatEmail, useChatHistory, useChatView, useSendChat } from "../../hooks/useChat";
+import { chatKeys, chatWorking, useChatEmail, useChatHistory, useChatView, useSendChat } from "../../hooks/useChat";
 import { recordFinderHandoff } from "../../hooks/useFinder";
 import type { FinderCandidateState, FinderChatMessageView, FinderChatSummary, FinderChatView, PastedLinkSummary } from "../../types";
+import { WatchedPaste } from "./ask-mode";
 import { ChatHistoryList } from "./chat-history-list";
 import { ChatRunCard } from "./chat-run-card";
 
@@ -26,6 +30,10 @@ interface FinderChatScreenProps {
   pastes: PastedLinkSummary[];
   /** `?q=` from a link: fills the box, never sends by itself. */
   defaultText?: string;
+  /** Buy for me's switch (Find it / Browse / Ask a buyer), drawn above the thread. */
+  header?: React.ReactNode;
+  /** `?watch=`: a pasted link opened from history, with the viewer's pastes to find it in. */
+  watch?: { id: string; pastes: PasteStatus[] } | null;
   signedIn: boolean;
 }
 
@@ -36,15 +44,13 @@ const SUGGESTIONS = [
   "Nike running shoes for a 10-year-old, size 4",
 ];
 
-const URL_RE = /https?:\/\/[^\s]+/gi;
-
 /**
  * The shopping assistant (107): a conversation, with every chat kept in the
  * history beside it. Each reply can start several searches; their live cards
  * sit under the reply that started them. The assistant never sets a price:
  * every figure is on a card the finder priced.
  */
-export function FinderChatScreen({ initial, history, pastes, defaultText = "", signedIn }: FinderChatScreenProps) {
+export function FinderChatScreen({ initial, history, pastes, defaultText = "", header, watch = null, signedIn }: FinderChatScreenProps) {
   const router = useRouter();
   const chat = useChatView(initial, initial?.id ?? null);
   const send = useSendChat();
@@ -54,12 +60,13 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", s
   const [text, setText] = useState(defaultText);
   const [pending, setPending] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [describing, setDescribing] = useState<PasteStatus | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   // The history's "searching" lines turn into prices when the searches settle.
   const queryClient = useQueryClient();
-  const anyWorking = chat != null && Object.values(chat.runs).some((r) => r.status === "pending" || r.status === "running");
+  const anyWorking = chatWorking(chat);
   const wasWorking = useRef(anyWorking);
   useEffect(() => {
     if (wasWorking.current && !anyWorking) void queryClient.invalidateQueries({ queryKey: chatKeys.history });
@@ -86,14 +93,6 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", s
   async function submit(raw: string) {
     const value = raw.trim();
     if (!value || send.isPending) return;
-    const links = value.match(URL_RE) ?? [];
-    if (links.length > 0) {
-      // A link is priced directly; the paste queue reads it.
-      const params = new URLSearchParams();
-      for (const l of links.slice(0, 10)) params.append("url", l);
-      router.push(`/app/orders/new?${params.toString()}`);
-      return;
-    }
     setPending(value);
     setText("");
     try {
@@ -136,7 +135,7 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", s
     }
   }
 
-  const empty = messages.length === 0 && !pending;
+  const empty = messages.length === 0 && !pending && !watch;
   const hasRuns = chat != null && Object.keys(chat.runs).length > 0;
   const chats = historyQuery.data ?? [];
 
@@ -151,6 +150,7 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", s
         </aside>
 
         <section className="flex min-h-[calc(100dvh-14rem)] min-w-0 flex-col">
+          {header && <div className="mb-5">{header}</div>}
           {/* Phones: history behind a button, so the thread keeps the screen. */}
           <div className={cn("mb-4 flex items-center justify-between gap-3 lg:hidden", empty && "hidden")}>
             <button
@@ -177,6 +177,12 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", s
             )}
           </AnimatePresence>
 
+          {watch && (
+            <div className="mb-6">
+              <WatchedPaste initialPastes={watch.pastes} id={watch.id} onDescribe={(paste) => setDescribing(paste)} />
+            </div>
+          )}
+
           {empty ? (
             <>
               <EmptyState onPick={(s) => void submit(s)} disabled={send.isPending} />
@@ -196,6 +202,12 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", s
                     <UserBubble text={m.content} />
                   ) : (
                     <AssistantTurn text={m.content}>
+                      {m.pasteIds.length > 0 && chat && (
+                        <PasteBatchPanel
+                          pastes={m.pasteIds.flatMap((id) => (chat.pastes[id] ? [chat.pastes[id]] : []))}
+                          onDescribe={(paste) => setDescribing(paste)}
+                        />
+                      )}
                       {m.runIds.map((id) => {
                         const run = chat?.runs[id];
                         return run ? (
@@ -233,6 +245,14 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", s
             </p>
           )}
 
+          <AssistedRequestDialog
+            open={describing != null}
+            onOpenChange={(next) => !next && setDescribing(null)}
+            extractionRequestId={describing?.id ?? null}
+            productUrl={describing?.product_url ?? null}
+            displayUrl={describing?.product_url ?? ""}
+          />
+
           <div ref={endRef} />
           <form
             onSubmit={onSubmit}
@@ -251,7 +271,7 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", s
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={onKeyDown}
                   maxLength={1000}
-                  placeholder={empty ? "Tell me what you want, one thing or several" : "Ask a follow-up, or something else"}
+                  placeholder={empty ? "Paste a link, or say what you want" : "Ask a follow-up, paste a link, or ask for something else"}
                   className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent py-2 text-[15px] leading-6 outline-none placeholder:text-muted-foreground"
                 />
                 <button
@@ -266,10 +286,10 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", s
             </div>
             <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 px-3 text-[12px] text-muted-foreground">
               <span>Prices are landed in Accra: item, US tax, our fee and freight.</span>
-              <Link href="/app/orders/new" className="inline-flex items-center gap-1 font-semibold text-tm-coral-strong hover:underline">
+              <span className="inline-flex items-center gap-1">
                 <LinkSimple size={13} weight="bold" aria-hidden />
-                Have a link? Paste it
-              </Link>
+                Paste links straight in, up to 10 at once.
+              </span>
             </p>
           </form>
         </section>
@@ -281,7 +301,7 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", s
 function NewChatButton({ compact = false }: { compact?: boolean }) {
   return (
     <Link
-      href="/app/find"
+      href="/app/orders/new"
       className={cn(
         "inline-flex items-center gap-2 rounded-full font-semibold transition-colors",
         compact ? "h-9 border border-tm-border bg-card px-3 text-[13px]" : "h-11 justify-center bg-tm-ink px-4 text-[14px] text-white hover:opacity-90",
@@ -296,7 +316,7 @@ function NewChatButton({ compact = false }: { compact?: boolean }) {
 function UserBubble({ text }: { text: string }) {
   return (
     <motion.div variants={riseIn} initial="hidden" animate="visible" className="flex justify-end">
-      <p className="max-w-[85%] whitespace-pre-wrap rounded-3xl rounded-br-lg bg-tm-ink px-4 py-2.5 text-[15px] leading-relaxed text-white sm:max-w-[70%]">
+      <p className="max-w-[85%] whitespace-pre-wrap [overflow-wrap:anywhere] rounded-3xl rounded-br-lg bg-tm-ink px-4 py-2.5 text-[15px] leading-relaxed text-white sm:max-w-[70%]">
         {text}
       </p>
     </motion.div>
@@ -317,7 +337,7 @@ function AssistantTurn({ text, typing = false, children }: { text?: string; typi
             ))}
           </span>
         ) : (
-          <p className="whitespace-pre-wrap pt-1 text-[15px] leading-relaxed">{text}</p>
+          <p className="whitespace-pre-wrap [overflow-wrap:anywhere] pt-1 text-[15px] leading-relaxed">{text}</p>
         )}
         {children}
       </div>
@@ -334,11 +354,11 @@ function EmptyState({ onPick, disabled }: { onPick: (text: string) => void; disa
           Shopping assistant
         </span>
         <h1 className="max-w-[20ch] font-display text-[32px] leading-[1.05] font-bold tracking-[-0.02em] sm:text-[42px]">
-          What can I find for you?
+          What should we buy for you?
         </h1>
         <p className="max-w-[56ch] text-[15px] leading-relaxed text-muted-foreground">
-          Ask for one thing or several, in your own words. I search Amazon, Walmart, eBay and Target for new items and
-          show the best price landed in Accra, in cedis.
+          Paste a link from any US store, or tell me what you want, one thing or several. I find it new at Amazon,
+          Walmart, eBay and Target and show the whole price landed in Accra, in cedis, before you pay.
         </p>
       </div>
       <ul className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">

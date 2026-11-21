@@ -26,12 +26,14 @@ export interface FinderChatMessageRow {
   role: "user" | "assistant";
   content: string;
   run_ids: string[];
+  /** 108: links this turn queued on the paste queue, in the order pasted. */
+  paste_ids: string[];
   emailed_at: string | null;
   created_at: string;
 }
 
 const CHAT_COLUMNS = "id, user_id, session_id, title, email, created_at, updated_at";
-const MESSAGE_COLUMNS = "id, chat_id, role, content, run_ids, emailed_at, created_at";
+const MESSAGE_COLUMNS = "id, chat_id, role, content, run_ids, paste_ids, emailed_at, created_at";
 const nowIso = () => new Date().toISOString();
 
 function ownerFilter(viewer: RequestViewer): { column: "user_id" | "session_id"; value: string } | null {
@@ -109,10 +111,11 @@ export async function insertFinderChatMessage(input: {
   role: "user" | "assistant";
   content: string;
   runIds?: string[];
+  pasteIds?: string[];
 }): Promise<FinderChatMessageRow> {
   const { data, error } = await createAdminClient()
     .from("finder_chat_messages")
-    .insert({ chat_id: input.chatId, role: input.role, content: input.content, run_ids: input.runIds ?? [] })
+    .insert({ chat_id: input.chatId, role: input.role, content: input.content, run_ids: input.runIds ?? [], paste_ids: input.pasteIds ?? [] })
     .select(MESSAGE_COLUMNS)
     .single();
   if (error) throw new Error(`Failed to save chat message: ${error.message}`);

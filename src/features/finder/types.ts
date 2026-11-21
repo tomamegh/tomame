@@ -168,6 +168,8 @@ export interface FinderChatMessageView {
   content: string;
   /** The searches this turn started, in the order the items were named. */
   runIds: string[];
+  /** 108: the links this turn queued from the customer's message, in the order pasted. */
+  pasteIds: string[];
   createdAt: string;
 }
 
@@ -181,6 +183,8 @@ export interface FinderChatView {
   messages: FinderChatMessageView[];
   /** Every run the chat started, keyed by id, as the run screen reads it. */
   runs: Record<string, FinderRunView>;
+  /** Every link pasted in the chat, keyed by id, as the paste queue reports it (108). */
+  pastes: Record<string, import("@/features/extraction/services/paste-status").PasteStatus>;
   buyerWhatsappNumber: string | null;
 }
 

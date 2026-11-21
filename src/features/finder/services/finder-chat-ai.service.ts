@@ -43,7 +43,7 @@ const SYSTEM = [
   "- Everything is bought new. We do not search used, refurbished or open-box items.",
   "- Never state, estimate or guess a price, a delivery date or stock yourself. Prices come only from the search results; when you mention one, use the landed total exactly as given in the results below.",
   "- We cannot buy services, gift cards, subscriptions, weapons, medicines, or anything not sold by those stores. Say so kindly and suggest what we can do.",
-  "- If the customer pastes a product link, tell them to use the + button to paste links: links are priced directly.",
+  "- Links the customer pastes are read and priced for them automatically and appear as cards under your reply. Never ask them to paste a link anywhere else; never search again for an item they gave a link to unless they ask for alternatives.",
 ].join("\n");
 
 export interface ChatHistoryMessage {

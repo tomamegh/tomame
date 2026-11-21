@@ -12,7 +12,12 @@ vi.mock("@/db/queries/finder-chats", () => ({
   touchFinderChat: vi.fn(),
 }));
 vi.mock("@/db/queries/finder-runs", () => ({ findRecentFinderRun: vi.fn(), insertFinderRun: vi.fn(), listFinderRunsByIds: vi.fn(async () => []) }));
-vi.mock("@/db/queries/extraction-requests", () => ({ listPastesForViewer: vi.fn(async () => []) }));
+vi.mock("@/db/queries/extraction-requests", () => ({ listPastesForViewer: vi.fn(async () => []), listPastesByIdsForViewer: vi.fn(async () => []) }));
+vi.mock("@/db/queries/assisted-requests", () => ({ listOpenAssistedRequestsByUrl: vi.fn(async () => new Map()) }));
+vi.mock("@/features/extraction/services/extraction-queue.service", () => {
+  class PasteNotAdmittedError extends Error {}
+  return { enqueuePaste: vi.fn(), settleStuckPastes: vi.fn(), PasteNotAdmittedError };
+});
 vi.mock("@/db/queries/extraction-cache", () => ({ getQuoteFacts: vi.fn(async () => new Map()) }));
 vi.mock("@/db/queries/site-settings", () => ({ getSiteSettingsMap: vi.fn(async () => ({})) }));
 vi.mock("../services/finder-chat-ai.service", () => ({ planChatTurn: vi.fn() }));
@@ -22,6 +27,7 @@ vi.mock("../services/finder-run.service", () => ({ toFinderRunView: vi.fn() }));
 import { getFinderChatForViewer, insertFinderChat, insertFinderChatMessage, listFinderChatMessages } from "@/db/queries/finder-chats";
 import { findRecentFinderRun, insertFinderRun } from "@/db/queries/finder-runs";
 import { listPastesForViewer } from "@/db/queries/extraction-requests";
+import { enqueuePaste, PasteNotAdmittedError } from "@/features/extraction/services/extraction-queue.service";
 
 import { planChatTurn } from "../services/finder-chat-ai.service";
 import { listPastedLinks, searchLabel, sendChatMessage } from "../services/finder-chat.service";
@@ -37,7 +43,7 @@ beforeEach(() => {
   msgs = [];
   vi.mocked(insertFinderChat).mockResolvedValue({ id: "chat-1", user_id: "u1", session_id: null, title: "t", email: null, created_at: "", updated_at: "" });
   vi.mocked(insertFinderChatMessage).mockImplementation(async (m) => {
-    const row = { id: `m${msgs.length}`, chat_id: m.chatId, role: m.role, content: m.content, run_ids: m.runIds ?? [], emailed_at: null, created_at: "" };
+    const row = { id: `m${msgs.length}`, chat_id: m.chatId, role: m.role, content: m.content, run_ids: m.runIds ?? [], paste_ids: m.pasteIds ?? [], emailed_at: null, created_at: "" };
     msgs.push(row);
     return row;
   });
@@ -81,6 +87,33 @@ describe("sendChatMessage", () => {
     vi.mocked(getFinderChatForViewer).mockResolvedValue(null);
     await expect(sendChatMessage(viewer, { chatId: "someone-else", text: "hi", email: null }, async () => true, "limit")).rejects.toMatchObject({ statusCode: 404 });
     expect(insertFinderChatMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendChatMessage with links", () => {
+  const queued = (id: string, ready: boolean) => ({ request: { id }, ready, rechecking: false }) as never;
+
+  it("reads pasted links on the paste queue without asking the model, and names them on the turn", async () => {
+    vi.mocked(enqueuePaste).mockResolvedValueOnce(queued("p1", false)).mockResolvedValueOnce(queued("p2", true));
+    const out = await sendChatMessage(viewer, { chatId: null, text: "https://www.amazon.com/dp/A https://www.walmart.com/ip/123", email: null }, async () => true, "limit");
+
+    expect(planChatTurn).not.toHaveBeenCalled();
+    expect(out.turn.paste_ids).toEqual(["p1", "p2"]);
+    expect(out.newPasteJobs).toEqual(["p1"]);
+    expect(out.turn.content).toContain("Reading your 2 links now");
+    expect(vi.mocked(insertFinderChat).mock.calls[0]![1]).toBe("2 links");
+  });
+
+  it("answers the words beside a link, and says when the link limit held one back", async () => {
+    vi.mocked(enqueuePaste).mockRejectedValueOnce(new PasteNotAdmittedError(false));
+    vi.mocked(planChatTurn).mockResolvedValue({ reply: "Looking for a case too.", searches: [spec("iPhone 17 Pro case")] });
+    const out = await sendChatMessage(viewer, { chatId: null, text: "this phone https://www.amazon.com/dp/A and a case for it", email: null }, async () => true, "limit");
+
+    expect(planChatTurn).toHaveBeenCalled();
+    expect(out.turn.paste_ids).toEqual([]);
+    expect(out.turn.run_ids).toEqual(["run-1"]);
+    expect(out.turn.content).toContain("I've left some out");
+    expect(out.turn.content).toContain("Looking for a case too.");
   });
 });
 

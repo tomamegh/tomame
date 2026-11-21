@@ -3,13 +3,14 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { BuyForMeSwitch } from "@/features/finder/components/chat/buy-for-me-switch";
 import { FinderChatScreen } from "@/features/finder/components/chat/finder-chat-screen";
 import { finderRunIdSchema } from "@/features/finder/schema";
 import { getChatView, listChatHistory, listPastedLinks } from "@/features/finder/services/finder-chat.service";
 import { readQuoteSessionFromCookies } from "@/lib/quote-session";
 
 export const metadata: Metadata = {
-  title: "Shopping assistant",
+  title: "Buy for me",
   description: "Your conversation with Tomame's shopping assistant and the prices it found, landed in Accra.",
   robots: { index: false },
 };
@@ -22,5 +23,5 @@ export default async function FinderChatPage({ params }: { params: Promise<{ id:
   const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
   const [view, history, pastes] = await Promise.all([getChatView(id.data, viewer), listChatHistory(viewer, 30), listPastedLinks(viewer)]);
   if (!view) notFound();
-  return <FinderChatScreen key={view.id} initial={view} history={history} pastes={pastes} signedIn={user != null} />;
+  return <FinderChatScreen key={view.id} initial={view} history={history} pastes={pastes} signedIn={user != null} header={<BuyForMeSwitch mode="paste" />} />;
 }

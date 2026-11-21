@@ -6,10 +6,7 @@ import { ArrowRight, CircleNotch, LinkSimple, Plus, Sparkle, X } from "@phosphor
 
 import { hostOf } from "@/features/bag/components/format";
 import { linksInText } from "@/features/extraction/components/batch-format";
-import { readBatch, writeBatch } from "@/features/extraction/components/batch-storage";
-import { useCreatePaste } from "@/features/extraction/hooks/usePastes";
 import { PASTE_BATCH_MAX } from "@/features/extraction/services/paste-batch";
-import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 
@@ -65,8 +62,9 @@ export interface AskBarProps {
 }
 
 /**
- * Home's one box. Words start the AI price finder (`/app/find/[id]`); one or
- * more links go to the paste flow, which reads and prices each. Which of the
+ * Home's one box. Everything lands on Buy for me (108): words open a chat
+ * with the assistant, links (one or several, "+" between them) are read and
+ * priced in a chat of their own. Which of the
  * two will happen is shown before anyone presses: the badge, the hint line and
  * the button all follow `linksInText`, the same helper Buy for me uses.
  *
@@ -84,9 +82,8 @@ export function AskBar({ pasteHref, stores = [], inputId, formId, footer, classN
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
   const [added, setAdded] = useState<AddedLink[]>([]);
-  const [adding, setAdding] = useState(false);
+  const adding = false;
   const finder = useStartFinder();
-  const createPaste = useCreatePaste();
 
   const typed = value.trim();
   const links = linksInText(typed);
@@ -101,67 +98,39 @@ export function AskBar({ pasteHref, stores = [], inputId, formId, footer, classN
   const example = useTypedExample(phrases, typed.length === 0 && added.length === 0);
 
   /**
-   * "+": the link starts reading now, joins this tab's batch (the one Buy for
-   * me shows), and the box clears for the next. Nothing is priced here.
+   * "+": the link joins the list as a chip and the box clears for the next.
+   * Nothing is queued yet: everything goes to Buy for me together, as one
+   * message, when the customer presses the button (108).
    */
-  async function addLinks(next: string[]): Promise<boolean> {
-    const take = next.slice(0, Math.max(0, room));
-    if (take.length === 0) {
-      toast.error({ title: `Up to ${PASTE_BATCH_MAX} links at a time`, description: "Price these first, then add more." });
+  function addLinks(next: string[]): boolean {
+    const fresh = next.filter((l) => !added.some((a) => a.id === l)).slice(0, Math.max(0, room));
+    if (fresh.length === 0) {
+      if (room <= 0) toast.error({ title: `Up to ${PASTE_BATCH_MAX} links at a time`, description: "Price these first, then add more." });
+      else toast.info({ title: next.length === 1 ? "That link is already in your list" : "Those links are already in your list" });
+      setValue("");
       return false;
     }
-    setAdding(true);
-    const fresh: AddedLink[] = [];
-    let repeats = 0;
-    for (const link of take) {
-      try {
-        const paste = await createPaste.mutateAsync({ product_url: link });
-        if (added.some((a) => a.id === paste.id) || fresh.some((a) => a.id === paste.id)) repeats += 1;
-        else fresh.push({ id: paste.id, host: hostOf(paste.product_url) });
-      } catch (error) {
-        if (error instanceof ApiFetchError && error.status === 429) {
-          toast.error({ title: "Please wait a few minutes", description: error.message });
-          break;
-        }
-        toast.error({ title: "We couldn't take that link", description: error instanceof Error ? error.message : undefined });
-      }
-    }
-    setAdding(false);
-    if (fresh.length > 0) {
-      const ids = fresh.map((f) => f.id);
-      writeBatch([...readBatch().filter((id) => !ids.includes(id)), ...ids].slice(-PASTE_BATCH_MAX));
-      setAdded((prev) => [...prev, ...fresh]);
-      setValue("");
-    } else if (repeats > 0) {
-      toast.info({ title: repeats === 1 ? "That link is already in your list" : "Those links are already in your list" });
-      setValue("");
-    }
+    setAdded((prev) => [...prev, ...fresh.map((l) => ({ id: l, host: hostOf(l) }))]);
+    setValue("");
     inputRef.current?.focus();
-    return fresh.length > 0 || repeats > 0;
+    return true;
   }
 
-  function goToBatch() {
-    router.push(pasteHref);
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const all = [...added.map((a) => a.id), ...links].slice(0, PASTE_BATCH_MAX);
+    // Words (with or without links) go to the assistant as one message; links alone open
+    // Buy for me with them in it, where a single one we already priced opens its quote.
     if (describing) {
-      finder.start(typed);
+      finder.start([...added.map((a) => a.id), typed].join(" "));
       return;
     }
-    if (added.length > 0) {
-      // Links still in the box join the batch first, then the batch opens.
-      if (isLink && !(await addLinks(links))) return;
-      goToBatch();
-      return;
-    }
-    if (!typed) {
+    if (all.length === 0) {
       inputRef.current?.focus();
       return;
     }
     const params = new URLSearchParams();
-    for (const link of links.slice(0, PASTE_BATCH_MAX)) params.append("url", link);
+    for (const link of all) params.append("url", link);
     router.push(`${pasteHref}?${params.toString()}`);
   }
 
@@ -184,7 +153,7 @@ export function AskBar({ pasteHref, stores = [], inputId, formId, footer, classN
   const hint = describing
     ? "Searching by name: we'll show a good in-stock option fast, and keep looking for the best new price"
     : added.length > 0
-      ? `${added.length} ${added.length === 1 ? "link" : "links"} reading now. Paste another and press +, or price them together`
+      ? `${added.length} ${added.length === 1 ? "link" : "links"} ready. Paste another and press +, or price them together`
       : isLink
         ? "Press + to add another link, or get the landed price now"
         : "Type what you want, or paste a link. Press + to add several links";
@@ -304,7 +273,6 @@ export function AskBar({ pasteHref, stores = [], inputId, formId, footer, classN
                     type="button"
                     onClick={() => {
                       setAdded((prev) => prev.filter((x) => x.id !== a.id));
-                      writeBatch(readBatch().filter((id) => id !== a.id));
                     }}
                     aria-label={`Remove ${a.host}`}
                     className="grid size-6 place-items-center rounded-full text-tm-text-3 outline-none hover:bg-card hover:text-tm-ink focus-visible:ring-2 focus-visible:ring-tm-coral/40"

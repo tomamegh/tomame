@@ -12,9 +12,13 @@ import {
   type FinderChatMessageRow,
   type FinderChatRow,
 } from "@/db/queries/finder-chats";
+import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
 import { getQuoteFacts } from "@/db/queries/extraction-cache";
-import { listPastesForViewer } from "@/db/queries/extraction-requests";
-import { toPasteStatus } from "@/features/extraction/services/paste-status";
+import { listPastesByIdsForViewer, listPastesForViewer } from "@/db/queries/extraction-requests";
+import { linksInText } from "@/features/extraction/components/batch-format";
+import { enqueuePaste, PasteNotAdmittedError, settleStuckPastes } from "@/features/extraction/services/extraction-queue.service";
+import { PASTE_BATCH_MAX } from "@/features/extraction/services/paste-batch";
+import { toPasteStatus, type PasteStatus } from "@/features/extraction/services/paste-status";
 import { findRecentFinderRun, insertFinderRun, listFinderRunsByIds, type FinderRunRow } from "@/db/queries/finder-runs";
 import type { RequestViewer } from "@/db/queries/extraction-requests";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
@@ -43,11 +47,18 @@ export interface SendChatInput {
   email: string | null;
 }
 
+/** Who may queue a link (the paste queue's own buckets: a cache hit is cheaper than a read). */
+export type PasteAdmit = (cacheHit: boolean) => Promise<boolean>;
+
 export interface SendChatResult {
   chat: FinderChatRow;
   messages: FinderChatMessageView[];
   /** Fresh runs for the route to start behind the response. */
   newRunIds: string[];
+  /** Pasted links that need reading, for the route to start behind the response. */
+  newPasteJobs: string[];
+  /** Pasted links the cache already priced: a lone one can open its quote at once. */
+  readyQuotes: { pasteId: string; extractionCacheId: string }[];
   /** The turn the route checks for its email once those runs settle. */
   turn: FinderChatMessageRow;
 }
@@ -57,8 +68,66 @@ const toMessageView = (m: FinderChatMessageRow): FinderChatMessageView => ({
   role: m.role,
   content: m.content,
   runIds: m.run_ids,
+  pasteIds: m.paste_ids ?? [],
   createdAt: m.created_at,
 });
+
+/** The words of a message with its links taken out: what is left for the assistant to read. */
+export function wordsBesideLinks(text: string, links: readonly string[]): string {
+  let rest = text;
+  for (const l of links) rest = rest.split(l).join(" ");
+  return rest.replace(/\s+/g, " ").trim();
+}
+
+/** A first message that is only links is titled by where they are from, not by the URL. */
+export function linksTitle(links: readonly string[]): string {
+  const host = (() => {
+    try {
+      return new URL(/^https?:\/\//i.test(links[0]!) ? links[0]! : `https://${links[0]}`).hostname.replace(/^www\./i, "");
+    } catch {
+      return "a store";
+    }
+  })();
+  return links.length === 1 ? `Link from ${host}` : `${links.length} links`;
+}
+
+/** The assistant's line for links it is reading. No model: the cards under it say the rest. */
+export function linksReply(queued: number, limited: number, failed: number): string {
+  const parts: string[] = [];
+  if (queued === 1) parts.push("Reading that link now. Its full price, landed in Accra, shows here as soon as it's ready.");
+  else if (queued > 1) parts.push(`Reading your ${queued} links now. Each price lands here, and you can add them to your bag together.`);
+  if (limited > 0) parts.push("You've added a lot of links in a short time, so I've left some out. Try those again in a few minutes.");
+  if (failed > 0) parts.push(failed === 1 && queued === 0 ? "I couldn't read that as a product link. Copy the link from your browser's address bar and paste it again." : `${failed === 1 ? "One link" : `${failed} links`} didn't look like product pages. Copy each from your browser's address bar.`);
+  return parts.join(" ");
+}
+
+/** Queue each link on the paste queue (049), as the old paste box did. Never throws. */
+async function queueLinks(viewer: RequestViewer, links: readonly string[], admit: PasteAdmit) {
+  const pasteIds: string[] = [];
+  const jobs: string[] = [];
+  const ready: { pasteId: string; extractionCacheId: string }[] = [];
+  let limited = 0;
+  let failed = 0;
+  for (const link of links) {
+    try {
+      const queued = await enqueuePaste(viewer, link, admit);
+      if (!queued) {
+        failed += 1;
+        continue;
+      }
+      if (!pasteIds.includes(queued.request.id)) pasteIds.push(queued.request.id);
+      if (!queued.ready) jobs.push(queued.request.id);
+      else if (queued.request.extraction_cache_id) ready.push({ pasteId: queued.request.id, extractionCacheId: queued.request.extraction_cache_id });
+    } catch (error) {
+      if (error instanceof PasteNotAdmittedError) limited += 1;
+      else {
+        failed += 1;
+        logger.warn("finder chat: link not queued", { error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  }
+  return { pasteIds, jobs, ready, limited, failed };
+}
 
 /** "iPhone 17 Pro, unlocked": the run's query line, so its page and email name the item, not the sentence. */
 export function searchLabel(spec: Pick<ParsedFinderSpec, "product" | "mustHaves">): string {
@@ -119,9 +188,12 @@ export async function sendChatMessage(
   input: SendChatInput,
   admitSearch: () => Promise<boolean>,
   limitMessage: string,
+  admitPaste: PasteAdmit = async () => true,
 ): Promise<SendChatResult> {
   if (!viewer.userId && !viewer.sessionId) throw new APIError(400, "We could not tell whose chat this is. Reload and try again.");
   const text = input.text.replace(/\s+/g, " ").trim();
+  const links = linksInText(text).slice(0, PASTE_BATCH_MAX);
+  const words = links.length ? wordsBesideLinks(text, links) : text;
 
   let chat: FinderChatRow;
   if (input.chatId) {
@@ -129,7 +201,7 @@ export async function sendChatMessage(
     if (!found) throw new APIError(404, "We have no record of that chat.");
     chat = found;
   } else {
-    chat = await insertFinderChat(viewer, chatTitle(text), viewer.userId ? null : input.email);
+    chat = await insertFinderChat(viewer, links.length && words.length < 3 ? linksTitle(links) : chatTitle(words || text), viewer.userId ? null : input.email);
   }
   if (!viewer.userId && input.email && input.email !== chat.email) {
     await touchFinderChat(chat.id, { email: input.email });
@@ -137,32 +209,42 @@ export async function sendChatMessage(
   }
 
   const userMessage = await insertFinderChatMessage({ chatId: chat.id, role: "user", content: text });
-  const earlier = await listFinderChatMessages(chat.id);
-  const history = recentHistory(earlier.map((m) => ({ role: m.role, content: m.content })));
-  const runIds = [...new Set(earlier.flatMap((m) => m.run_ids))];
-  const runs = await listFinderRunsByIds(runIds);
-  const byId = new Map(runs.map((r) => [r.id, r]));
-  const summary = summariseChatRuns(runIds.flatMap((id) => (byId.get(id) ? [byId.get(id)!] : [])));
+  const pasted = links.length ? await queueLinks(viewer, links, admitPaste) : { pasteIds: [], jobs: [], ready: [], limited: 0, failed: 0 };
 
+  // Links alone need no model: they are read and priced as pasted links always were.
+  // Words beside them (or no links at all) are the assistant's to answer.
+  let reply = links.length ? linksReply(pasted.pasteIds.length, pasted.limited, pasted.failed) : "";
+  let started: { runIds: string[]; fresh: string[]; limited: number } = { runIds: [], fresh: [], limited: 0 };
   const usage = { input: 0, output: 0 };
-  const turn = await planChatTurn(history, summary, usage);
-  // No model: search the message as one item; the run reads it itself.
-  const plan = turn ?? { reply: "Searching for that now.", searches: null as ParsedFinderSpec[] | null };
+  if (!links.length || words.length >= 3) {
+    const earlier = await listFinderChatMessages(chat.id);
+    const history = recentHistory(earlier.map((m) => ({ role: m.role, content: m.id === userMessage.id && links.length ? `${words} (and ${links.length === 1 ? "a link, which you are reading" : `${links.length} links, which you are reading`})` : m.content })));
+    const runIds = [...new Set(earlier.flatMap((m) => m.run_ids))];
+    const runs = await listFinderRunsByIds(runIds);
+    const byId = new Map(runs.map((r) => [r.id, r]));
+    const pasteIds = [...new Set(earlier.flatMap((m) => m.paste_ids ?? []))];
+    const pastes = await readChatPastes(pasteIds, viewer).catch(() => [] as PasteStatus[]);
+    const summary = [summariseChatRuns(runIds.flatMap((id) => (byId.get(id) ? [byId.get(id)!] : []))), summarisePastes(pastes)].filter(Boolean).join("\n") || null;
 
-  let started: { runIds: string[]; fresh: string[]; limited: number };
-  if (plan.searches) {
-    started = await startItemRuns(viewer, plan.searches, admitSearch);
-  } else {
-    started = await startUnreadRun(viewer, text, admitSearch);
+    const turn = await planChatTurn(history, summary, usage);
+    // No model: search the message as one item; the run reads it itself.
+    const plan = turn ?? { reply: "Searching for that now.", searches: null as ParsedFinderSpec[] | null };
+    started = plan.searches ? await startItemRuns(viewer, plan.searches, admitSearch) : await startUnreadRun(viewer, words || text, admitSearch);
+    reply = [reply, plan.reply].filter(Boolean).join(" ");
   }
 
-  let reply = plan.reply;
   if (started.limited > 0) reply = `${reply} ${limitMessage}`.trim();
-  const assistant = await insertFinderChatMessage({ chatId: chat.id, role: "assistant", content: reply.slice(0, 4000), runIds: started.runIds });
+  const assistant = await insertFinderChatMessage({
+    chatId: chat.id,
+    role: "assistant",
+    content: (reply || "Done.").slice(0, 4000),
+    runIds: started.runIds,
+    pasteIds: pasted.pasteIds,
+  });
   await touchFinderChat(chat.id);
-  logger.info("finder chat: turn", { chatId: chat.id, searches: started.runIds.length, fresh: started.fresh.length, limited: started.limited, tokens: usage });
+  logger.info("finder chat: turn", { chatId: chat.id, searches: started.runIds.length, fresh: started.fresh.length, limited: started.limited, links: pasted.pasteIds.length, tokens: usage });
 
-  return { chat, messages: [toMessageView(userMessage), toMessageView(assistant)], newRunIds: started.fresh, turn: assistant };
+  return { chat, messages: [toMessageView(userMessage), toMessageView(assistant)], newRunIds: started.fresh, newPasteJobs: pasted.jobs, readyQuotes: pasted.ready, turn: assistant };
 }
 
 /** The fallback when the assistant is unavailable: the message as one search the run reads itself. */
@@ -175,6 +257,31 @@ async function startUnreadRun(viewer: RequestViewer, text: string, admit: () => 
   if (!(await admit())) return { runIds: [], fresh: [], limited: 1 };
   const run = await insertFinderRun({ viewer, query, queryKey, budgetGhs: null, email: null, notifyWhatsapp: false, events: [{ type: "run_started", at: 0, query, budgetGhs: null }] });
   return { runIds: [run.id], fresh: [run.id], limited: 0 };
+}
+
+/** A chat's pasted links as the paste queue reports them, in the order asked. Owner-scoped. */
+async function readChatPastes(ids: readonly string[], viewer: RequestViewer): Promise<PasteStatus[]> {
+  if (ids.length === 0) return [];
+  const rows = await listPastesByIdsForViewer(ids, viewer);
+  const [facts, assisted] = await Promise.all([
+    getQuoteFacts(rows.map((r) => r.extraction_cache_id ?? "")),
+    listOpenAssistedRequestsByUrl(viewer, rows.map((r) => r.product_url)),
+  ]);
+  const byId = new Map(rows.map((r) => [r.id, toPasteStatus(r, facts.get(r.extraction_cache_id ?? ""), assisted.get(r.product_url) ?? null)]));
+  return ids.flatMap((id) => (byId.get(id) ? [byId.get(id)!] : []));
+}
+
+/** The pasted links for the model: what each is and where it stands. Prices are on the cards, not here. */
+export function summarisePastes(pastes: readonly PasteStatus[]): string | null {
+  if (pastes.length === 0) return null;
+  const state: Record<PasteStatus["outcome"], string> = {
+    reading: "still being read",
+    priced: "priced; the landed total is on its card",
+    unpriced: "page read but no price found; the customer can describe it for a buyer",
+    unavailable: "out of stock at the store",
+    expired: "quote lapsed; paste it again",
+  };
+  return pastes.map((p) => `- Pasted link: ${p.title ?? p.product_url}: ${state[p.outcome]}.`).join("\n");
 }
 
 /** After the turn's runs settle (or at once when every item was an earlier run): its one email. */
@@ -198,7 +305,14 @@ export async function getChatView(chatId: string, viewer: RequestViewer, options
   if (!chat) return null;
   const messages = await listFinderChatMessages(chat.id);
   const runIds = [...new Set(messages.flatMap((m) => m.run_ids))];
-  const runs = await listFinderRunsByIds(runIds);
+  const pasteIds = [...new Set(messages.flatMap((m) => m.paste_ids ?? []))];
+  const [runs, pastesFirst] = await Promise.all([listFinderRunsByIds(runIds), readChatPastes(pasteIds, viewer)]);
+  // Nothing on a chat reads forever: a stuck link is settled when the chat is looked at (as GET /api/pastes does).
+  let pastes = pastesFirst;
+  if (pastes.some((p) => p.outcome === "reading")) {
+    await settleStuckPastes(viewer);
+    pastes = await readChatPastes(pasteIds, viewer);
+  }
   const views = await Promise.all(runs.map((r) => toFinderRunView(r, { lite: true })));
   const [email, buyer] = options.lite
     ? [chat.email, null]
@@ -210,6 +324,7 @@ export async function getChatView(chatId: string, viewer: RequestViewer, options
     emailEditable: !chat.user_id,
     messages: messages.map(toMessageView),
     runs: Object.fromEntries(views.map((v) => [v.id, v])),
+    pastes: Object.fromEntries(pastes.map((p) => [p.id, p])),
     buyerWhatsappNumber: buyer,
   };
 }

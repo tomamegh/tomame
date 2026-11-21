@@ -31,8 +31,8 @@ export interface PasteBatchPanelProps {
   pastes: PasteStatus[];
   /** Open the describe-it form for a link we could not read. */
   onDescribe: (paste: PasteStatus) => void;
-  /** Forget the batch (the links stay in Recently pasted). */
-  onDone: () => void;
+  /** Forget the batch (the links stay in Recently pasted). Absent in a chat, where the links stay in the thread. */
+  onDone?: () => void;
 }
 
 interface Row {
@@ -130,9 +130,11 @@ export function PasteBatchPanel({ pastes, onDescribe, onDone }: PasteBatchPanelP
                 <ViewToggle active={view === "cards"} onClick={() => setView("cards")} icon={<SquaresFour className="size-4" aria-hidden />} label="One at a time" />
               </div>
             )}
-            <Button variant="ghost" size="sm" className="min-h-11 rounded-xl px-3" onClick={onDone}>
-              Done
-            </Button>
+            {onDone && (
+              <Button variant="ghost" size="sm" className="min-h-11 rounded-xl px-3" onClick={onDone}>
+                Done
+              </Button>
+            )}
           </div>
         </header>
 
