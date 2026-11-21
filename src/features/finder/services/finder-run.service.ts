@@ -340,9 +340,12 @@ async function findQuickPick(
       const cacheId = extraction?.extraction_cache_id;
       if (!extraction || !cacheId || extraction.product.price == null) continue;
       if (!saysInStock(extraction.product.availability)) continue;
+      if (isNotNew({ title: extraction.product.title ?? l.title, condition: extraction.product.condition ?? null })) continue;
+      // A fresh read often has its freight still being checked; wait for it, as the full search does.
+      const snapshot = (await settleFreight(extraction, cacheId, Math.min(FINDER.freightCheckTimeoutMs, msLeft() - 20_000))) ?? extraction;
       const checks = await checksByExtraction([cacheId]);
-      if (payHoldOf({ extraction, checks: checks.get(cacheId) ?? [] })) continue;
-      const { pricing } = await priceExtractionWith(calculator!, extraction, 1, null, null);
+      if (payHoldOf({ extraction: snapshot, checks: checks.get(cacheId) ?? [] })) continue;
+      const { pricing } = await priceExtractionWith(calculator!, snapshot, 1, null, null);
       if (!isPayablePricing(pricing)) continue;
       return { listing: l, cacheId, quote: toFinderQuote(pricing) };
     }
