@@ -54,6 +54,8 @@ describe("sellers", () => {
     expect(isWeakSeller({ sellerFeedback: { percent: 99.8, score: 5 } })).toBe(true);
     expect(isWeakSeller({ sellerFeedback: { percent: 96.5, score: 900 } })).toBe(true);
     expect(isWeakSeller({ sellerFeedback: { percent: 99.1, score: 300 } })).toBe(false);
+    expect(isWeakSeller({ sellerFeedback: { percent: 97.5, score: 900 } })).toBe(true);
+    expect(isWeakSeller({ sellerFeedback: { percent: 100, score: 30 } })).toBe(true);
     expect(isWeakSeller({ sellerFeedback: null })).toBe(false);
   });
 
@@ -78,5 +80,29 @@ describe("free store searches", () => {
     const plan = planStoreSearches(["amazon", "walmart", "ebay"], { scraperapi: true, zyte: false }, 1, new Set(["ebay"] as const));
     expect(plan.search).toEqual(["amazon", "ebay"]);
     expect(plan.skipped).toEqual([{ store: "walmart", reason: "budget" }]);
+  });
+});
+
+describe("listings that admit a catch", () => {
+  it("sets aside damage, missing parts and 'read the description'", async () => {
+    const { isRiskyListing } = await import("../shortlist");
+    for (const t of [
+      "Sony PlayStation 5 Pro (PS5 Pro) Console 4K UHDHDMI Black read description. New",
+      "PS5 Pro Console NEW - damaged box",
+      "PS5 Pro brand new, box has wear",
+      "AirPods Pro 2 new missing charging cable",
+      "Kindle Paperwhite new sold as-is",
+      "PS5 Pro new minor scratches on top",
+    ]) expect(isRiskyListing(t), t).toBe(true);
+  });
+
+  it("leaves ordinary new listings alone", async () => {
+    const { isRiskyListing } = await import("../shortlist");
+    for (const t of [
+      "Sony PlayStation 5 Pro Console 2TB PS5 Brand New Sealed",
+      "Apple iPhone 17 Pro Max 256GB, scratch-resistant Ceramic Shield",
+      "Stanley Quencher H2.0 40oz tumbler",
+      "LEGO The Missing Link building set",
+    ]) expect(isRiskyListing(t), t).toBe(false);
   });
 });

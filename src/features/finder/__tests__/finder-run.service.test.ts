@@ -58,7 +58,7 @@ import { reduceFinderEvents, selectRankedCandidates } from "../state/reducer";
 import { shortlistListings, understandRequest } from "../services/finder-ai.service";
 import { notifyFinderFinished } from "../services/finder-notify.service";
 import { FinderNotAdmittedError, runFinderJob, startFinderRun } from "../services/finder-run.service";
-import { planFinderStores, searchFinderStore } from "../services/finder-search.service";
+import { planFinderStores, searchFinderCatalogue, searchFinderStore } from "../services/finder-search.service";
 import type { FinderListing } from "../shortlist";
 import type { FinderEvent } from "../types";
 
@@ -193,6 +193,51 @@ describe("runFinderJob", () => {
     const shortlist = events.find((e) => e.type === "step_done" && e.step === "shortlist");
     expect(shortlist).toMatchObject({ summary: "3 of 4 are the exact item", details: ["1 not sold as new"] });
     expect(events.find((e) => e.type === "step_done" && e.step === "price")).toMatchObject({ summary: "2 of 3 prices confirmed. Still confirming one with the store." });
+  });
+
+  it("shows a fast in-stock Amazon pick from the catalogue, and keeps it when the full search finds nothing", async () => {
+    vi.mocked(understandRequest).mockResolvedValue({ product: "PS5 Slim Digital", searchQuery: "PS5 Slim Digital", mustHaves: [], budgetGhs: null, newOnly: true, category: null });
+    vi.mocked(planFinderStores).mockResolvedValue({ search: ["ebay"], skipped: [] });
+    vi.mocked(searchFinderStore).mockResolvedValue({ store: "ebay", failed: true, listings: [] });
+    vi.mocked(searchFinderCatalogue).mockResolvedValue([
+      { ...listing("cat-walmart"), store: "walmart", source: "catalogue", priceUsd: 399 },
+      { ...listing("cat-amazon"), source: "catalogue", priceUsd: 449.99 },
+    ]);
+    vi.mocked(extractPrepared).mockImplementation(
+      async (prepared) =>
+        ({
+          extraction_cache_id: `cache-${String(prepared.canonicalUrl).split("/").pop()}`,
+          product: { price: 449.99, title: "PlayStation 5 Slim Digital Edition", availability: "In Stock", condition: null },
+        }) as never,
+    );
+    vi.mocked(priceExtractionWith).mockImplementation(async (_calc, ex) =>
+      ({ pricing: breakdown((ex as { extraction_cache_id: string }).extraction_cache_id === "cache-cat-amazon" ? 9100 : 9300), reason: null }) as never,
+    );
+    vi.mocked(payHoldOf).mockReturnValue(null);
+    vi.mocked(shortlistListings).mockImplementation(async (_spec, listings) => ({ matches: [...listings], dropped: {} }));
+
+    expect(await runFinderJob(RUN_ID)).toBe("done");
+    const events = settledEvents();
+    // Amazon is tried before Walmart even though Walmart lists lower.
+    expect(events.find((e) => e.type === "quick_pick")).toMatchObject({ candidate: { id: "cat-amazon", store: { id: "amazon" } }, extractionCacheId: "cache-cat-amazon" });
+    const state = reduceFinderEvents(events);
+    expect(state.phase).toBe("result");
+    expect(state.result?.bestId).toBe("cat-amazon");
+    expect(selectRankedCandidates(state)[0]!.quote?.totalGhs).toBe(9100);
+  });
+
+  it("offers no fast pick the store does not say is in stock", async () => {
+    vi.mocked(understandRequest).mockResolvedValue({ product: "PS5 Slim Digital", searchQuery: "PS5 Slim Digital", mustHaves: [], budgetGhs: null, newOnly: true, category: null });
+    vi.mocked(planFinderStores).mockResolvedValue({ search: ["ebay"], skipped: [] });
+    vi.mocked(searchFinderStore).mockResolvedValue({ store: "ebay", failed: true, listings: [] });
+    vi.mocked(searchFinderCatalogue).mockResolvedValue([{ ...listing("cat-amazon"), source: "catalogue" }]);
+    vi.mocked(extractPrepared).mockResolvedValue({ extraction_cache_id: "cache-x", product: { price: 449.99, availability: "Currently unavailable." } } as never);
+    vi.mocked(priceExtractionWith).mockResolvedValue({ pricing: breakdown(9100), reason: null } as never);
+    vi.mocked(payHoldOf).mockReturnValue(null);
+    vi.mocked(shortlistListings).mockImplementation(async (_spec, listings) => ({ matches: [...listings], dropped: {} }));
+
+    await runFinderJob(RUN_ID);
+    expect(settledEvents().some((e) => e.type === "quick_pick")).toBe(false);
   });
 
   it("requeues a run that threw on its first try", async () => {

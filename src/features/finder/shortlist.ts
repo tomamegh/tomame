@@ -29,7 +29,7 @@ export interface FinderListing {
   source: "catalogue" | "live";
 }
 
-export type DropReason = "weak_seller" | "not_new" | "accessory" | "multipack" | "store" | "no_price" | "wrong_item" | "over_budget";
+export type DropReason = "risky" | "weak_seller" | "not_new" | "accessory" | "multipack" | "store" | "no_price" | "wrong_item" | "over_budget";
 
 export const DROP_REASON_LABEL: Record<DropReason, (n: number) => string> = {
   not_new: (n) => `${n} not sold as new`,
@@ -40,14 +40,28 @@ export const DROP_REASON_LABEL: Record<DropReason, (n: number) => string> = {
   wrong_item: (n) => `${n} ${n === 1 ? "is a different item" : "are different items"}`,
   over_budget: (n) => `${n} clearly over your budget`,
   weak_seller: (n) => `${n} from sellers with little or poor feedback`,
+  risky: (n) => `${n} with a damaged box, missing parts or a "read the description" warning`,
 };
 
 const NOT_NEW_TITLE = /\b(renewed|refurb(?:ished)?|re-?certified|used|pre-?owned|open[\s-]?box|for parts|not working|like new|second[\s-]?hand|grade [abc]|scratch(?:ed)? (?:and|&) dent)\b/i;
 const NEW_CONDITION = /^\s*(brand\s+)?new\b(?!.*\b(other|open|defects?|imperfections?)\b)/i;
 
 /** Below this, a seller's record is too thin or too poor to buy a customer's order from. */
-export const SELLER_MIN_FEEDBACK_PCT = 97;
-export const SELLER_MIN_FEEDBACK_SCORE = 20;
+export const SELLER_MIN_FEEDBACK_PCT = 98;
+export const SELLER_MIN_FEEDBACK_SCORE = 50;
+
+/**
+ * New, but with a catch the seller admits in the title: a damaged or missing
+ * box, missing parts, "read the description", sold as-is, or a copy. A cheap
+ * price on one of these is the poor-condition bargain we do not offer.
+ */
+const RISKY_TITLE =
+  /\b(read (the )?desc(ription)?|see desc(ription)?|read below|see (pics|photos)|(damaged|dented|crushed|torn|no|without|missing) (retail |original )?(box|packaging|package)|box (is |has )?(damaged|dented|crushed|torn|opened|wear)|missing (the )?([a-z]+ )?(parts?|pieces?|accessor(y|ies)|charger|cable|remote|controller|manual)|as[- ]is|untested|empty box|box only|(photo|picture) of (the )?box|replica|knock[- ]?off|cosmetic (damage|wear)|(minor|light|small|has|with) (dents?|scratch(es)?|scuffs?)|scratched|dented|blemish(ed)?)\b/i;
+
+/** True when the title itself warns of damage, missing parts or a catch. */
+export function isRiskyListing(title: string): boolean {
+  return RISKY_TITLE.test(title);
+}
 
 /** True when the store reports the seller's feedback and it falls short. Unknown is not weak. */
 export function isWeakSeller(listing: Pick<FinderListing, "sellerFeedback">): boolean {
@@ -110,7 +124,7 @@ function count(dropped: Partial<Record<DropReason, number>>, reason: DropReason)
 }
 
 /**
- * The hard rules: a store we buy from, a listed price (or a live Amazon or
+ * The hard rules: a store we buy from, no damage or catch admitted in the title, a listed price (or a live Amazon or
  * Walmart row, whose page is read for it), new, a seller with a
  * sound record (where the store reports one), not an accessory
  * for the thing asked about, not a multipack nobody asked for.
@@ -127,6 +141,7 @@ export function postFilterListings(
     // Amazon hides the price of some items in search (consoles, "see options"); the store read prices those.
     else if ((l.priceUsd == null || !(l.priceUsd > 0)) && !(l.source === "live" && PRICE_ON_PAGE_STORES.has(l.store))) count(dropped, "no_price");
     else if (isNotNew(l)) count(dropped, "not_new");
+    else if (isRiskyListing(l.title)) count(dropped, "risky");
     else if (isWeakSeller(l)) count(dropped, "weak_seller");
     else if (isAccessoryFor(l.title, spec)) count(dropped, "accessory");
     else if (isUnwantedMultipack(l.title, spec)) count(dropped, "multipack");

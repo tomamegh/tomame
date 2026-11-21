@@ -36,6 +36,10 @@ export const FINDER = {
   storeSearchTimeoutMs: 75_000,
   /** The freight inspector, when a candidate's freight is still being checked. */
   freightCheckTimeoutMs: 30_000,
+  /** One store read for the fast answer (catalogue match, Amazon or Walmart). A cached read is instant. */
+  quickPickReadMs: 25_000,
+  /** The model's look at the fast answer's catalogue rows (a dozen at most). */
+  quickPickShortlistMs: 8_000,
   /** How many shortlisted matches go through the full extraction and calculator. */
   priceCandidates: 3,
   /** Listings handed to the model for the shortlist; the rest are not read. */

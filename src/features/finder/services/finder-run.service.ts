@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { CatalogStore } from "@/config/catalog";
 import { FINDER } from "@/config/finder";
 import { getExtractionSnapshot, extractPrepared, prepareProductUrl, type FreshExtraction } from "@/features/extraction/extraction.service";
 import {
@@ -49,7 +50,8 @@ import {
 } from "../narration";
 import { rankCandidates, toFinderQuote, type RankInput } from "../ranking";
 import { isSuspiciouslyLow, outlierReason, outlierReference } from "../price-outlier";
-import { dropDetails, isClearlyOverBudget, keywordMatches, mergeDrops, postFilterListings, type DropReason, type FinderListing } from "../shortlist";
+import { QUICK_PICK_TRIES, quickPickOrder, quickPickReason, saysInStock } from "../quick-pick";
+import { dropDetails, isClearlyOverBudget, isNotNew, isRiskyListing, keywordMatches, mergeDrops, postFilterListings, type DropReason, type FinderListing } from "../shortlist";
 import { normaliseFinderQuery, specSummary, type ParsedFinderSpec } from "../spec";
 import { finderAllowedStores, finderStoreName, mergeListings, pickSearchStores } from "../stores";
 import type { FinderEvent, FinderQuote, FinderRunView } from "../types";
@@ -302,9 +304,85 @@ function priceHold(result: ExtractionResult, checks: Parameters<typeof payHoldOf
   return payHoldOf({ extraction: { ...result, freight_inspection: undefined }, checks });
 }
 
+interface QuickPick {
+  listing: FinderListing;
+  cacheId: string;
+  quote: FinderQuote;
+}
+
+/**
+ * The fast answer (see quick-pick.ts): an exact match we had already priced,
+ * from Amazon or Walmart, read again now and only kept when the store says it
+ * is in stock, nothing holds payment, and the calculator prices it. Never
+ * throws; null when there is nothing good enough to offer quickly.
+ */
+async function findQuickPick(
+  run: FinderRunRow,
+  spec: ParsedFinderSpec,
+  allowed: ReadonlySet<CatalogStore>,
+  catalogue: Promise<FinderListing[]>,
+  msLeft: () => number,
+  usage: TokenUsage,
+): Promise<QuickPick | null> {
+  try {
+    const rows = (await catalogue).filter((l) => allowed.has(l.store));
+    const trusted = quickPickOrder(rows, spec, allowed, () => true);
+    if (trusted.length === 0) return null;
+    // "PS5 Pro" is "PlayStation 5 Pro Console" to Amazon: the model judges the match, the word test stands in when it cannot.
+    const picked = await withTimeout(shortlistListings(spec, trusted, usage), FINDER.quickPickShortlistMs, null);
+    const exact = new Set((picked?.matches ?? keywordMatches(spec, trusted)).map((l) => l.id));
+    const order = quickPickOrder(rows, spec, allowed, (l) => exact.has(l.id));
+    const calculator = order.length > 0 ? await loadPricingCalculator() : null;
+    for (const l of order.slice(0, QUICK_PICK_TRIES)) {
+      const prepared = await prepareProductUrl(l.productUrl);
+      const read = extractPrepared(prepared, { userId: null, sessionId: null });
+      const extraction = await withTimeout<FreshExtraction | null>(read, Math.min(FINDER.quickPickReadMs, Math.max(0, msLeft() - 30_000)), null);
+      const cacheId = extraction?.extraction_cache_id;
+      if (!extraction || !cacheId || extraction.product.price == null) continue;
+      if (!saysInStock(extraction.product.availability)) continue;
+      const checks = await checksByExtraction([cacheId]);
+      if (payHoldOf({ extraction, checks: checks.get(cacheId) ?? [] })) continue;
+      const { pricing } = await priceExtractionWith(calculator!, extraction, 1, null, null);
+      if (!isPayablePricing(pricing)) continue;
+      return { listing: l, cacheId, quote: toFinderQuote(pricing) };
+    }
+    return null;
+  } catch (error) {
+    logger.warn("finder: quick pick failed", { runId: run.id, error: error instanceof Error ? error.message : String(error) });
+    return null;
+  }
+}
+
+function quickCandidate(q: QuickPick) {
+  return {
+    id: q.listing.id,
+    title: q.listing.title,
+    store: { id: q.listing.store, name: finderStoreName(q.listing.store) },
+    productUrl: q.listing.productUrl,
+    imageUrl: q.listing.imageUrl,
+    condition: "New" as const,
+    listingPriceUsd: q.listing.priceUsd ?? 0,
+    seller: q.listing.seller,
+  };
+}
+
 async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: ProgressWriter, spent: { searches: number }, usage: TokenUsage, startedAt: number): Promise<PipelineOutcome> {
   const msLeft = () => FINDER.deadlineMs - (Date.now() - startedAt);
-  const handoff = (message: string): PipelineOutcome => {
+  let quickPromise: Promise<QuickPick | null> = Promise.resolve(null);
+  const settledQuick = () => withTimeout(quickPromise, Math.max(0, msLeft() - 5_000), null);
+  const handoff = async (message: string): Promise<PipelineOutcome> => {
+    // The full search came up empty, but the fast answer stands: give that.
+    const quick = await settledQuick();
+    if (quick) {
+      const c = quickCandidate(quick);
+      narrator.emit({ type: "candidate_found", candidate: c });
+      narrator.emit({ type: "candidate_priced", candidateId: c.id, quote: quick.quote, stockCheck: false, extractionCacheId: quick.cacheId });
+      narrator.emit({ type: "result_ready", bestId: c.id, alternativeIds: [], why: { [c.id]: `In stock at ${c.store.name}, new, price confirmed` } });
+      return {
+        status: "done",
+        result: { bestId: c.id, alternativeIds: [], candidates: [{ id: c.id, store: quick.listing.store, extractionCacheId: quick.cacheId, state: "priced", totalGhs: quick.quote.totalGhs }], quick: true, tokens: usage },
+      };
+    }
     narrator.emit({ type: "nothing_found", message, whatsappText: buyerHandoffText(run.query, run.budget_ghs, run.id) });
     return { status: "no_match", result: null };
   };
@@ -332,6 +410,14 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   await writer.save();
 
   const cataloguePromise = searchFinderCatalogue(spec.searchQuery);
+  // The fast answer runs beside the store searches and lands on screen as soon as it is ready.
+  quickPromise = findQuickPick(run, spec, allowed, cataloguePromise, msLeft, usage).then((quick) => {
+    if (quick) {
+      narrator.emit({ type: "quick_pick", candidate: quickCandidate(quick), quote: quick.quote, extractionCacheId: quick.cacheId, reason: quickPickReason(finderStoreName(quick.listing.store)) });
+      void writer.save();
+    }
+    return quick;
+  });
   const searches = await Promise.all(
     plan.search.map(async (store): Promise<StoreSearchResult> => {
       const result = await searchFinderStore(store, spec.searchQuery);
@@ -444,10 +530,19 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   // The typical price of the exact matches: a new item far below it is checked, not crowned.
   const reference = outlierReference(matches.map((m) => m.priceUsd ?? 0));
   const priced: PricedCandidate[] = [];
+  const qualityDrops: string[] = [];
   const settled = await Promise.all(readable.map(async (e) => ({ e, result: await settleFreight(e.extraction!, e.cacheId!, msLeft()) })));
   for (const { e, result } of settled) {
     const l = e.listing;
     const snapshot = result ?? e.extraction!;
+    // The store page has the last word on condition: a "new" search row can read as a refurbished offer.
+    const readTitle = snapshot.product.title ?? l.title;
+    if (isNotNew({ title: readTitle, condition: snapshot.product.condition ?? null }) || isRiskyListing(readTitle)) {
+      priced.push({ listing: l, cacheId: e.cacheId, quote: null, state: "dropped" });
+      qualityDrops.push(`${finderStoreName(l.store)}: ${isRiskyListing(readTitle) ? "the listing warns of damage or missing parts" : `sold as ${snapshot.product.condition ?? "not new"}`}`);
+      narrator.emit({ type: "price_confirming", candidateId: l.id });
+      continue;
+    }
     const { pricing } = await priceExtractionWith(calculator, snapshot, 1, null, null);
     const hold = payHoldOf({ extraction: snapshot, checks: checks.get(e.cacheId!) ?? [] });
     if (hold?.kind === "unavailable" || !isPayablePricing(pricing)) {
@@ -471,8 +566,15 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
     narrator.emit({ type: "candidate_priced", candidateId: l.id, quote, stockCheck, extractionCacheId: e.cacheId! });
   }
   const shown = priced.filter((p) => p.state !== "dropped");
+  const quick = await settledQuick();
+  if (quick && !shown.some((p) => p.cacheId === quick.cacheId || p.listing.productUrl === quick.listing.productUrl)) {
+    const c = quickCandidate(quick);
+    narrator.emit({ type: "candidate_found", candidate: c });
+    narrator.emit({ type: "candidate_priced", candidateId: c.id, quote: quick.quote, stockCheck: false, extractionCacheId: quick.cacheId });
+    shown.push({ listing: quick.listing, cacheId: quick.cacheId, quote: quick.quote, state: "priced" });
+  }
   const freights = shown.filter((p) => p.state !== "confirming" && p.quote).map((p) => p.quote!.rows.find((r) => r.key === "freight")?.amountGhs ?? 0);
-  narrator.emit({ type: "step_done", step: "freight", summary: freightSummary(freights) });
+  narrator.emit({ type: "step_done", step: "freight", summary: freightSummary(freights), details: qualityDrops.map((d) => `Set aside after reading the page: ${d}`) });
   await writer.save();
   if (shown.length === 0) return handoff(nothingFoundMessage(spec.product, searchedNames, "no_price"));
 

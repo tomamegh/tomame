@@ -163,6 +163,7 @@ function FinderRun({
         {!finished && timeline}
 
         <div className="@4xl:col-start-1 @4xl:row-span-2 @4xl:row-start-2">
+          {phase === "working" && state.quickPick && <QuickPick pick={state.quickPick} onAddToBag={onAddToBag} />}
           {phase === "working" && <WorkingMatches candidates={state.candidates} />}
           {phase === "result" && <Results state={state} headingRef={resultRef} onAddToBag={onAddToBag} />}
           {phase === "nothing_found" && state.nothingFound && (
@@ -191,6 +192,44 @@ function FinderRun({
         </div>
       </div>
     </LayoutGroup>
+  );
+}
+
+/**
+ * The fast answer, while the full search works: something good to buy now.
+ * It joins the ranked results when the search finishes (same layout id, so
+ * the card moves into place rather than reappearing).
+ */
+function QuickPick({
+  pick,
+  onAddToBag,
+}: {
+  pick: NonNullable<FinderState["quickPick"]>;
+  onAddToBag?: (candidate: FinderCandidateState) => Promise<void> | void;
+}) {
+  const headingId = useId();
+  return (
+    <motion.section
+      variants={riseIn}
+      initial="hidden"
+      animate="visible"
+      layout="position"
+      transition={SPRING.layout}
+      aria-labelledby={headingId}
+      className="mb-6 flex flex-col gap-3"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="relative flex size-2.5">
+          <span className="tm-pulse-dot absolute inset-0 rounded-full bg-tm-green" />
+          <span className="relative size-2.5 rounded-full bg-tm-green" />
+        </span>
+        <h2 id={headingId} className="text-[13px] font-semibold uppercase tracking-[0.12em] text-tm-green-ink">
+          Ready now
+        </h2>
+      </div>
+      <p className="text-[14px] leading-relaxed text-muted-foreground">{pick.reason}</p>
+      <FinderResultCard featured candidate={pick} onAddToBag={onAddToBag} />
+    </motion.section>
   );
 }
 

@@ -34,6 +34,7 @@ export function createInitialFinderState(): FinderState {
     stores: [],
     candidates: [],
     result: null,
+    quickPick: null,
     nothingFound: null,
     narration: "",
   };
@@ -162,6 +163,21 @@ export function finderReducer(state: FinderState, event: FinderEvent): FinderSta
           : state.result;
       return { ...state, candidates, result };
     }
+
+    case "quick_pick":
+      return {
+        ...state,
+        quickPick: {
+          ...event.candidate,
+          status: "priced",
+          quote: event.quote,
+          stockCheck: false,
+          why: null,
+          extractionCacheId: event.extractionCacheId,
+          reason: event.reason,
+        },
+        narration: `Ready now: ${event.candidate.title} at ${event.candidate.store.name}. Still looking for a better price.`,
+      };
 
     case "result_ready": {
       const candidates = state.candidates.map((c) => ({ ...c, why: event.why[c.id] ?? c.why }));

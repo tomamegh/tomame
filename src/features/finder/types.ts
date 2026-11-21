@@ -73,6 +73,13 @@ export type FinderEvent =
   | { type: "price_confirming"; at: number; candidateId: string }
   /** `extractionCacheId` is the stored quote "Add to bag" names; the browser never sends a price. */
   | { type: "candidate_priced"; at: number; candidateId: string; quote: FinderQuote; stockCheck: boolean; extractionCacheId?: string }
+  /**
+   * A fast answer while the full search runs: an exact match we had already
+   * priced, from a store we trust (Amazon, then Walmart), read again just now
+   * as new, in stock and with its price confirmed. Kept apart from
+   * `candidates` until the result, which ranks it with the rest.
+   */
+  | { type: "quick_pick"; at: number; candidate: FinderCandidate; quote: FinderQuote; extractionCacheId: string; reason: string }
   | { type: "result_ready"; at: number; bestId: string; alternativeIds: string[]; why: Record<string, string> }
   | { type: "nothing_found"; at: number; message: string; whatsappText: string };
 
@@ -126,6 +133,8 @@ export interface FinderState {
   stores: FinderStoreProgress[];
   candidates: FinderCandidateState[];
   result: FinderResult | null;
+  /** The fast answer, shown while the run works; null until one lands. */
+  quickPick: (FinderCandidateState & { reason: string }) | null;
   nothingFound: { message: string; whatsappText: string } | null;
   /** The latest line of narration, for the screen reader live region. */
   narration: string;
