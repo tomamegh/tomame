@@ -24,6 +24,7 @@ import {
   CARRIER_LABELS,
   formatTracking,
   normaliseTracking,
+  trackingInputProblem,
   type InboundCarrier,
 } from "../inbound/tracking-number";
 import {
@@ -120,6 +121,8 @@ export async function registerInboundTracking(
   input: RegisterInboundInput,
 ): Promise<InboundParcel> {
   requireWarehouse(user);
+  const problem = trackingInputProblem(input.tracking_number);
+  if (problem) throw new APIError(400, problem);
   const tracking = normaliseTracking(input.tracking_number);
   if (!tracking) throw new APIError(400, "That does not look like a tracking number.");
   const [item] = await listWarehouseItemsByIds(user, [input.order_id]);
@@ -195,6 +198,36 @@ export async function unlinkInboundOrder(
   }
   await audit(user, "warehouse_inbound_unlinked", parcel, { order_id: orderId, outcome });
   return outcome === "deleted" ? null : getInboundParcelView(user, parcelId);
+}
+
+/**
+ * Correct a parcel's tracking number while it is still expected (a typo, a
+ * link pasted by mistake). Refused once it has arrived, when the number is what
+ * was scanned, and when another parcel already has the new number.
+ */
+export async function updateInboundTrackingNumber(
+  user: PlatformUser,
+  parcelId: string,
+  trackingNumber: string,
+): Promise<InboundParcel> {
+  requireWarehouse(user);
+  const problem = trackingInputProblem(trackingNumber);
+  if (problem) throw new APIError(400, problem);
+  const tracking = normaliseTracking(trackingNumber)!;
+  const parcel = await getInboundParcel(parcelId);
+  if (!parcel) throw new APIError(404, "Parcel not found");
+  if (parcel.status !== "expected") throw new APIError(409, "This parcel has already arrived; its number is the one that was scanned.");
+  if (tracking.candidates.includes(parcel.tracking_key)) return getInboundParcelView(user, parcelId);
+  const clash = await findInboundParcelByKeys(tracking.candidates);
+  if (clash && clash.id !== parcelId) throw new APIError(409, "Another parcel already has that tracking number.");
+  const updated = await updateInboundParcel(parcelId, "expected", {
+    tracking_number: formatTracking(tracking.key),
+    tracking_key: tracking.key,
+    carrier: tracking.carrier,
+  });
+  if (!updated) throw new APIError(409, "Someone else just changed this parcel. Try again.");
+  await audit(user, "warehouse_inbound_tracking_corrected", updated, { previous_tracking_key: parcel.tracking_key });
+  return getInboundParcelView(user, parcelId);
 }
 
 /** A parcel that is here and belongs to no order we know of. */

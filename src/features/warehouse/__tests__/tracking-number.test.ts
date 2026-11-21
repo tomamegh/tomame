@@ -66,3 +66,22 @@ describe("normaliseTracking (086)", () => {
     expect(formatTracking("9400111899223197428490")).toBe("9400 1118 9922 3197 4284 90");
   });
 });
+
+describe("trackingInputProblem: what an admin typed", () => {
+  it("accepts real carrier numbers", async () => {
+    const { trackingInputProblem } = await import("../inbound/tracking-number");
+    for (const t of ["1Z999AA10123456784", "TBA312345678901", "9400 1000 0000 0000 0000 00", "772899172645"]) expect(trackingInputProblem(t), t).toBeNull();
+  });
+
+  it("explains a link, an Amazon order number and a double paste (TM-00037)", async () => {
+    const { trackingInputProblem } = await import("../inbound/tracking-number");
+    expect(trackingInputProblem("https://a.co/d/0iXDFAEI")).toMatch(/link/);
+    expect(trackingInputProblem("a.co/d/0iXDFAEI")).toMatch(/link/);
+    expect(trackingInputProblem("https://a.co/d/0iXDFAEIhttps://a.co/d/0iXDFAEI")).toMatch(/link/);
+    expect(trackingInputProblem("www.amazon.com/progress-tracker/package")).toMatch(/link/);
+    expect(trackingInputProblem("114-3902157-0071425")).toMatch(/Amazon order number/);
+    expect(trackingInputProblem("HTTPSACOD0IXDFAEIHTTPSACOD0IXDFAEI")).toMatch(/twice/);
+    expect(trackingInputProblem("1Z999AA101234567841Z999AA10123456784")).toMatch(/twice/);
+    expect(trackingInputProblem("abc")).toMatch(/does not look like/);
+  });
+});

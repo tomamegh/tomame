@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { ArrowRightIcon, ClockAlertIcon } from "lucide-react";
 
@@ -95,9 +96,27 @@ export function ItemStatusPanel({
         </div>
       ) : null}
 
-      {onTheWay && item.package ? (
+      {item.package ? (
         <p className="text-[12px] font-medium text-tm-text-3">
-          This moves {item.order_no} alone. To move everything in {item.package.reference}, use the box or the Shipments board.
+          {onTheWay ? `This moves ${item.order_no} alone. To move everything in it, use ` : "In "}
+          <Link href={`/warehouse/packages/${item.package.id}`} className="font-semibold text-tm-coral-strong hover:underline">
+            box {item.package.reference}
+          </Link>
+          {onTheWay ? (
+            <>
+              {" "}or the{" "}
+              <Link href="/warehouse/shipments" className="font-semibold text-tm-coral-strong hover:underline">
+                Shipments board
+              </Link>
+              .
+            </>
+          ) : (
+            "."
+          )}
+        </p>
+      ) : !onTheWay && item.order_status === "processing" ? (
+        <p className="text-[12px] font-medium text-tm-text-3">
+          {item.received ? "At our US hub. Pack it into a box in the warehouse to ship it." : "Bought; waiting for it to reach our US hub. Scanning its store tracking there logs it in."}
         </p>
       ) : null}
 

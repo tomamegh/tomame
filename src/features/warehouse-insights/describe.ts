@@ -300,6 +300,12 @@ export function describeEntry(row: DescribeInput, ctx: DescribeContext): Descrip
         [t("linked parcel"), t(str(m, "tracking_key") ?? ""), t("to"), orderSeg(str(m, "order_id"), str(m, "order_no"))],
         "package",
       );
+    case "warehouse_inbound_tracking_corrected":
+      return d(
+        [t("corrected tracking"), t(str(m, "previous_tracking_key") ?? ""), t("to"), t(str(m, "tracking_key") ?? "")],
+        "package",
+        "muted",
+      );
     case "warehouse_inbound_unlinked":
       return d(
         [t("unlinked parcel"), t(str(m, "tracking_key") ?? ""), t("from"), orderSeg(str(m, "order_id"))],

@@ -124,3 +124,29 @@ export const CARRIER_LABELS: Record<InboundCarrier, string> = {
   royal_mail: "Royal Mail",
   other: "Carrier",
 };
+
+/**
+ * Why a TYPED tracking number cannot be right, in words an admin can act on;
+ * null when it can be. A scan never goes through here (a scanner can read a
+ * QR code with a link in it and still mean the parcel).
+ *
+ * 2026-11-21: TM-00037's tracking was saved as an Amazon order link pasted
+ * twice (`a.co/d/…a.co/d/…` → HTTPSACOD…HTTPSACOD…). Normalising strips the
+ * punctuation, so it passed as "a tracking number" no scan could ever match.
+ */
+export function trackingInputProblem(raw: string): string | null {
+  const text = raw.trim();
+  if (!text) return "Enter the tracking number from the store's shipping email.";
+  if (/https?:|www\.|:\/\/|\b[a-z0-9-]+\.(com|co|net|org|us|uk|io|to)\b(\/|$)/i.test(text)) {
+    return "That is a link, not a tracking number. Open it and copy the number the carrier gives (it looks like 1Z…, TBA…, 9400…).";
+  }
+  if (/^\d{3}-\d{7}-\d{7}$/.test(text)) {
+    return "That is an Amazon order number. Put it under Store order number; the tracking number is in the shipping email.";
+  }
+  const key = trackingKey(text);
+  if (key.length >= 16 && key.length % 2 === 0 && key.slice(0, key.length / 2) === key.slice(key.length / 2)) {
+    return "That looks like the same number pasted twice. Paste it once.";
+  }
+  if (!normaliseTracking(text)) return "That does not look like a tracking number.";
+  return null;
+}

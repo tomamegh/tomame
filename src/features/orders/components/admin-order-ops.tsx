@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type { Order } from "../types";
 import { orderEtaFields } from "./admin-order-display";
 import { mayEditEtaWindow, transitionsFor, type AdminTransition } from "./admin-transitions";
+import { trackingInputProblem } from "@/features/warehouse/inbound/tracking-number";
 
 /**
  * The controls that move an order: the state machine, and the delivery window.
@@ -104,6 +105,7 @@ function TransitionControl({
   const [storePaid, setStorePaid] = useState("");
   const [storePaidCurrency, setStorePaidCurrency] = useState(order.origin_country === "UK" ? "GBP" : "USD");
   const storePaidValid = Number(storePaid) > 0;
+  const trackingInvalid = filledTracking.some((t) => trackingInputProblem(t) != null);
 
   const busy = saving || pending;
 
@@ -277,7 +279,7 @@ function TransitionControl({
           <button
             type="button"
             onClick={submit}
-            disabled={busy || (isPurchase && !storePaidValid)}
+            disabled={busy || (isPurchase && (!storePaidValid || trackingInvalid))}
             aria-busy={busy}
             className={transition.destructive ? BUTTON_DANGER : BUTTON_PRIMARY}
           >
@@ -336,7 +338,8 @@ function PurchaseFields({
               value={value}
               onChange={(event) => onTracking(tracking.map((t, j) => (j === i ? event.target.value : t)))}
               placeholder="1Z999AA10123456784"
-              className={cn(INPUT, "tm-nums")}
+              aria-invalid={value.trim() && trackingInputProblem(value) ? true : undefined}
+              className={cn(INPUT, "tm-nums aria-invalid:border-tm-coral")}
             />
             {tracking.length > 1 ? (
               <button
@@ -350,6 +353,15 @@ function PurchaseFields({
             ) : null}
           </div>
         ))}
+        {tracking.map((value, i) => {
+          const problem = value.trim() ? trackingInputProblem(value) : null;
+          return problem ? (
+            <p key={`p-${i}`} role="alert" className="text-[12.5px] leading-[1.45] font-medium text-tm-coral-strong">
+              {tracking.length > 1 ? `Parcel ${i + 1}: ` : ""}
+              {problem}
+            </p>
+          ) : null;
+        })}
         {tracking.length < MAX_STORE_TRACKING ? (
           <button
             type="button"

@@ -2,7 +2,7 @@ import "server-only";
 
 import { APIError } from "@/lib/auth/api-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normaliseTracking } from "@/features/warehouse/inbound/tracking-number";
+import { trackingInputProblem } from "@/features/warehouse/inbound/tracking-number";
 import { registerInboundTracking } from "@/features/warehouse/services/inbound.service";
 import type { InboundParcel } from "@/features/warehouse/types";
 import type { PlatformUser } from "@/features/users/types";
@@ -47,9 +47,8 @@ export async function markOrderPurchased(user: PlatformUser, orderId: string, in
   // Everything that can refuse is checked BEFORE any parcel is written, so a
   // bad number or an order in the wrong state leaves nothing half done.
   for (const entry of entries) {
-    if (!normaliseTracking(entry.tracking_number)) {
-      throw new APIError(400, `“${entry.tracking_number.trim()}” does not look like a tracking number.`);
-    }
+    const problem = trackingInputProblem(entry.tracking_number);
+    if (problem) throw new APIError(400, problem);
   }
   const order = await getOrderById(createAdminClient(), orderId);
   if (!order) throw new APIError(404, "Order not found");

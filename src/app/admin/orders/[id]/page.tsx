@@ -27,6 +27,10 @@ import {
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { OrderInboundPanel } from "@/features/warehouse/components/inbound";
 import { listInboundForOrder } from "@/features/warehouse/services/inbound.service";
+import { ItemStatusPanel } from "@/features/warehouse/components/item-status-panel";
+import { getWarehouseItem } from "@/features/warehouse/services/warehouse.service";
+import { getOrderShipment, getStageSettingsForStaff } from "@/features/warehouse/services/shipment.service";
+import { listDriversForStaff } from "@/features/drivers/services/driver.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrderWhatsAppState, listOrderWhatsAppSends } from "@/db/queries/order-whatsapp";
 import { AdminWhatsAppPanel } from "@/features/notifications/components/admin-whatsapp-panel";
@@ -60,7 +64,11 @@ export default async function AdminOrderDetailPage({
 
   // Six independent reads; none of them depends on another's result, so they go
   // out together rather than in a waterfall six round trips deep.
-  const [customer, payment, delivery, group, siblings, events, auditLogs, courier, inbound, whatsapp] = await Promise.all([
+  // From purchase on, the tracking steps (hub, flight, Accra, out for delivery) are
+  // the warehouse's; they are loaded here too so an admin moves them from this page.
+  const shipped = ["processing", "in_transit", "delivered", "completed"].includes(order.status);
+  const viewerPromise = getAuthenticatedUser().catch(() => null);
+  const [customer, payment, delivery, group, siblings, events, auditLogs, courier, inbound, whatsapp, tracking] = await Promise.all([
     getOrderCustomer(order.user_id),
     getOrderPayment(order),
     getDeliveryRecord(order.id),
@@ -76,7 +84,7 @@ export default async function AdminOrderDetailPage({
     // Store parcels on their way to the hub (086). `/admin` is admin-gated by
     // the proxy, and an admin may use the warehouse, so this read is theirs.
     // A failed read shows no parcels rather than taking the order page down.
-    getAuthenticatedUser()
+    viewerPromise
       .then((user) => (user ? listInboundForOrder(user, order.id) : []))
       .catch(() => []),
     // Phase 1 WhatsApp (104). A failed read hides the panel, never the page.
@@ -84,6 +92,24 @@ export default async function AdminOrderDetailPage({
       logger.warn("admin order: WhatsApp state unavailable", { orderId: order.id, error: String(error) });
       return null;
     }),
+    // The tracking step and its controls (098). A failed read hides the panel, never the page.
+    shipped
+      ? viewerPromise
+          .then(async (viewer) => {
+            if (!viewer) return null;
+            const [item, shipment, settings, drivers] = await Promise.all([
+              getWarehouseItem(viewer, order.id),
+              getOrderShipment(viewer, order.id),
+              getStageSettingsForStaff(viewer),
+              listDriversForStaff(viewer),
+            ]);
+            return { item, shipment, settings, drivers };
+          })
+          .catch((error: unknown) => {
+            logger.warn("admin order: tracking step unavailable", { orderId: order.id, error: String(error) });
+            return null;
+          })
+      : Promise.resolve(null),
   ]);
   const whatsappEntries = whatsapp
     ? manualWhatsAppEntries({
@@ -140,6 +166,10 @@ export default async function AdminOrderDetailPage({
         when a rider was sent (read-only), so it never competes with the camera
         on a parcel still at the hub.
       */}
+      {tracking ? (
+        <ItemStatusPanel item={tracking.item} shipment={tracking.shipment} settings={tracking.settings} drivers={tracking.drivers} />
+      ) : null}
+
       {showInbound ? (
         <OrderInboundPanel
           orderId={order.id}

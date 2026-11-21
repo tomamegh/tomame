@@ -126,7 +126,7 @@ export async function insertInboundParcel(row: {
 }
 
 export type InboundPatch = Partial<
-  Pick<InboundParcelRow, "status" | "arrived_at" | "arrived_by" | "note" | "store_order_ref">
+  Pick<InboundParcelRow, "status" | "arrived_at" | "arrived_by" | "note" | "store_order_ref" | "tracking_number" | "tracking_key" | "carrier">
 >;
 
 /** Guarded on the status the caller saw; null means someone else moved it first. */

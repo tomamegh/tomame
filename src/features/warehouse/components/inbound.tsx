@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { InboxIcon, LinkIcon, PackageIcon, PlusIcon, ScaleIcon, SearchIcon, TruckIcon, UnlinkIcon } from "lucide-react";
+import { InboxIcon, LinkIcon, PackageIcon, PencilIcon, PlusIcon, ScaleIcon, SearchIcon, TruckIcon, UnlinkIcon } from "lucide-react";
 
 import { AdminBadge, type AdminTone } from "@/components/layout/admin/admin-page";
 import { AdminButton } from "@/components/layout/admin/controls";
@@ -18,6 +18,7 @@ import {
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 
+import { trackingInputProblem } from "../inbound/tracking-number";
 import { inboundParcelPath, type InboundOrderRef, type InboundParcel, type InboundStatus } from "../types";
 import { STAGE_META, formatDateTime, sanitiseDecimal } from "./format";
 import { errorText, warehouseRequest } from "./warehouse-actions";
@@ -96,9 +97,10 @@ export function OrderInboundPanel({
   const [storeRef, setStoreRef] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const problem = tracking.trim() ? trackingInputProblem(tracking) : null;
   const add = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!tracking.trim()) return;
+    if (!tracking.trim() || problem) return;
     setBusy(true);
     try {
       const parcel = await warehouseRequest<InboundParcel>("/api/warehouse/inbound", "POST", {
@@ -134,19 +136,7 @@ export function OrderInboundPanel({
         <ul className="flex flex-col gap-2">
           {parcels.map((p) => (
             <li key={p.id}>
-              <Link
-                href={inboundParcelPath(p.id)}
-                className="flex min-w-0 items-center justify-between gap-2 rounded-[14px] bg-tm-paper px-3 py-2.5 hover:bg-tm-hairline"
-              >
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="truncate font-mono text-[13px] font-bold text-tm-ink">{p.tracking_display}</span>
-                  <span className="text-[12px] font-medium text-tm-text-3">
-                    {p.carrier_label}
-                    {p.orders.length > 1 ? ` · ${p.orders.length} orders in this box` : ""}
-                  </span>
-                </span>
-                <InboundStatusBadge status={p.status} />
-              </Link>
+              <ParcelTrackingRow parcel={p} />
             </li>
           ))}
         </ul>
@@ -164,8 +154,15 @@ export function OrderInboundPanel({
             spellCheck={false}
             maxLength={120}
             placeholder="1Z…, TBA…, 9400…"
-            className="h-10 w-full rounded-[12px] border border-tm-border bg-card px-3 font-mono text-[13.5px] font-semibold text-tm-ink uppercase outline-none placeholder:font-sans placeholder:normal-case focus:border-tm-coral/60"
+            aria-invalid={problem ? true : undefined}
+            aria-describedby={problem ? "inbound-tracking-problem" : undefined}
+            className="h-10 w-full rounded-[12px] border border-tm-border bg-card px-3 font-mono text-[13.5px] font-semibold text-tm-ink uppercase outline-none placeholder:font-sans placeholder:normal-case focus:border-tm-coral/60 aria-invalid:border-tm-coral"
           />
+          {problem ? (
+            <p id="inbound-tracking-problem" role="alert" className="text-[12.5px] leading-[1.45] font-medium text-tm-coral-strong">
+              {problem}
+            </p>
+          ) : null}
           <input
             value={storeRef}
             onChange={(e) => setStoreRef(e.target.value)}
@@ -173,13 +170,109 @@ export function OrderInboundPanel({
             placeholder="Store order number (optional)"
             className="h-10 w-full rounded-[12px] border border-tm-border bg-card px-3 text-[13px] font-medium text-tm-ink outline-none placeholder:text-tm-text-3 focus:border-tm-coral/60"
           />
-          <AdminButton type="submit" variant="secondary" busy={busy} disabled={!tracking.trim()} className="self-start">
+          <AdminButton type="submit" variant="secondary" busy={busy} disabled={!tracking.trim() || !!problem} className="self-start">
             <PlusIcon className="size-4" aria-hidden />
             Add
           </AdminButton>
         </form>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * One store parcel on an order. While it is still expected its number can be
+ * corrected in place: a typo or a pasted link otherwise means the scan at the
+ * hub never finds the order.
+ */
+function ParcelTrackingRow({ parcel }: { parcel: InboundParcel }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const problem = value.trim() ? trackingInputProblem(value) : null;
+  // A number that could never be scanned (a link, a double paste) says so before anyone asks.
+  const stored = trackingInputProblem(parcel.tracking_display);
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!value.trim() || problem) return;
+    setBusy(true);
+    try {
+      const updated = await warehouseRequest<InboundParcel>(`/api/warehouse/inbound/${parcel.id}`, "PATCH", { tracking_number: value });
+      toast.success({ title: "Tracking corrected", description: `${updated.carrier_label} ${updated.tracking_display}` });
+      setEditing(false);
+      setValue("");
+      router.refresh();
+    } catch (error) {
+      toast.error({ title: "Could not correct it", description: errorText(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2 rounded-[14px] bg-tm-paper px-3 py-2.5">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <Link href={inboundParcelPath(parcel.id)} className="flex min-w-0 flex-col gap-0.5 hover:underline">
+          <span className="truncate font-mono text-[13px] font-bold text-tm-ink">{parcel.tracking_display}</span>
+          <span className="text-[12px] font-medium text-tm-text-3">
+            {parcel.carrier_label}
+            {parcel.orders.length > 1 ? ` · ${parcel.orders.length} orders in this box` : ""}
+          </span>
+        </Link>
+        <span className="flex shrink-0 items-center gap-2">
+          <InboundStatusBadge status={parcel.status} />
+          {parcel.status === "expected" && !editing ? (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="inline-flex h-8 items-center gap-1 rounded-full border border-tm-border bg-card px-2.5 text-[12px] font-semibold text-tm-text-2 hover:border-tm-coral/40 hover:text-tm-ink"
+            >
+              <PencilIcon className="size-3.5" aria-hidden />
+              Edit
+            </button>
+          ) : null}
+        </span>
+      </div>
+      {stored && parcel.status === "expected" && !editing ? (
+        <p className="text-[12.5px] leading-[1.45] font-medium text-tm-coral-strong">
+          This is not a tracking number the hub can scan. {stored} Press Edit to fix it.
+        </p>
+      ) : null}
+      {editing ? (
+        <form onSubmit={save} className="flex flex-col gap-2">
+          <label htmlFor={`fix-${parcel.id}`} className="text-[12.5px] font-semibold text-tm-ink">
+            Correct tracking number
+          </label>
+          <input
+            id={`fix-${parcel.id}`}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={120}
+            placeholder="1Z…, TBA…, 9400…"
+            aria-invalid={problem ? true : undefined}
+            className="h-10 w-full rounded-[12px] border border-tm-border bg-card px-3 font-mono text-[13.5px] font-semibold text-tm-ink uppercase outline-none placeholder:font-sans placeholder:normal-case focus:border-tm-coral/60 aria-invalid:border-tm-coral"
+          />
+          {problem ? (
+            <p role="alert" className="text-[12.5px] leading-[1.45] font-medium text-tm-coral-strong">
+              {problem}
+            </p>
+          ) : null}
+          <span className="flex gap-2">
+            <AdminButton type="submit" variant="secondary" busy={busy} disabled={!value.trim() || !!problem}>
+              Save
+            </AdminButton>
+            <AdminButton type="button" variant="quiet" onClick={() => { setEditing(false); setValue(""); }}>
+              Cancel
+            </AdminButton>
+          </span>
+        </form>
+      ) : null}
+    </div>
   );
 }
 

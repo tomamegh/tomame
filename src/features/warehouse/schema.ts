@@ -81,6 +81,9 @@ export const registerInboundSchema = z.object({
 
 export const linkInboundSchema = z.object({ order_id: z.uuid() });
 
+/** Correct an expected parcel's tracking number. */
+export const correctInboundTrackingSchema = z.object({ tracking_number: trackingText });
+
 /** A parcel that arrived and nobody expected. */
 export const unmatchedInboundSchema = z.object({
   tracking_number: trackingText,

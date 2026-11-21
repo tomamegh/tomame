@@ -32,6 +32,7 @@ import {
   receiveInboundParcel,
   registerInboundTracking,
   unlinkInboundOrder,
+  updateInboundTrackingNumber,
 } from "../services/inbound.service";
 
 const operator = { id: "op-1", email: "op@tomame.local", app_metadata: { role: "warehouse" } } as unknown as PlatformUser;
@@ -132,6 +133,30 @@ describe("registerInboundTracking", () => {
     await expect(
       registerInboundTracking(customer, { order_id: ORDER, tracking_number: "1Z999AA10123456784" }),
     ).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("updateInboundTrackingNumber", () => {
+  it("corrects an expected parcel's number and audits the old one", async () => {
+    vi.mocked(q.getInboundParcel).mockResolvedValue(parcel({ tracking_key: "HTTPSACOD0IXDFAEI", tracking_number: "HTTPSACOD0IXDFAEI" }) as never);
+    vi.mocked(q.findInboundParcelByKeys).mockResolvedValue(null);
+    vi.mocked(q.updateInboundParcel).mockResolvedValue(parcel({ tracking_key: "TBA312345678901", tracking_number: "TBA312345678901", carrier: "amazon" }) as never);
+    await updateInboundTrackingNumber(operator, "ip-1", "TBA312345678901");
+    expect(q.updateInboundParcel).toHaveBeenCalledWith("ip-1", "expected", { tracking_number: "TBA312345678901", tracking_key: "TBA312345678901", carrier: "amazon" });
+    expect(vi.mocked(logAuditEvent).mock.calls[0]![0]).toMatchObject({ action: "warehouse_inbound_tracking_corrected" });
+  });
+
+  it("refuses a link, a parcel that has arrived, and a number another parcel has", async () => {
+    await expect(updateInboundTrackingNumber(operator, "ip-1", "https://a.co/d/0iXDFAEI")).rejects.toMatchObject({ statusCode: 400 });
+    vi.mocked(q.getInboundParcel).mockResolvedValueOnce(parcel({ status: "arrived" }) as never);
+    await expect(updateInboundTrackingNumber(operator, "ip-1", "TBA312345678901")).rejects.toMatchObject({ statusCode: 409 });
+    vi.mocked(q.findInboundParcelByKeys).mockResolvedValueOnce(parcel({ id: "ip-2", tracking_key: "TBA312345678901" }) as never);
+    await expect(updateInboundTrackingNumber(operator, "ip-1", "TBA312345678901")).rejects.toMatchObject({ statusCode: 409 });
+    expect(q.updateInboundParcel).not.toHaveBeenCalled();
+  });
+
+  it("is closed to customers", async () => {
+    await expect(updateInboundTrackingNumber(customer, "ip-1", "TBA312345678901")).rejects.toMatchObject({ statusCode: 403 });
   });
 });
 
