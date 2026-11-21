@@ -111,6 +111,14 @@ export default async function AppHomePage() {
       </div>
 
       {/*
+        ── Row A2 · Your history ──────────────────────────────────────
+        Chats with the assistant and pasted links (107), straight under the
+        box that starts them: they are the customer's own work in progress,
+        and at the bottom of the page they were as good as hidden.
+      */}
+      <HomeHistoryCard history={view.history} now={now} />
+
+      {/*
         ── Row B · Shop ─────────────────────────────────────────────────
         Renders nothing at all when the catalogue holds nothing we could price.
         No placeholder shelf and no sample products: a made-up product on a
@@ -141,19 +149,14 @@ export default async function AppHomePage() {
 
       {/*
         ── Row D · Everything else ──────────────────────────────────────
-        The history (chats and pasted links, 107) keeps a half-width column of
-        its own; the two smaller cards stack beside it.
+        The two smaller cards, side by side from `lg`.
       */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <HomeHistoryCard history={view.history} now={now} />
-
-        <div className="grid content-start gap-5">
-          <PriceWatchCard
-            watches={view.watches.watches}
-            watchingCount={view.watches.watching_count}
-          />
-          <AskBuyerCard askBuyer={view.askBuyer} />
-        </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-2">
+        <PriceWatchCard
+          watches={view.watches.watches}
+          watchingCount={view.watches.watching_count}
+        />
+        <AskBuyerCard askBuyer={view.askBuyer} />
       </div>
     </div>
   );

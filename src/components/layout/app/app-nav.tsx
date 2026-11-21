@@ -47,9 +47,10 @@ export function AppNav({
     ? formatRatePill(rate.base, rate.appliedRate)
     : null;
   const initial = avatarInitial(firstName);
-  // The Cars tab makes the pill group ~90px wider than the four-tab layout the
-  // widths below were measured against. See the logo and rate-pill comments.
-  const withCarsTab = items.length > APP_NAV_ITEMS.length;
+  // Five tabs or more (Chats since 107, Cars when published) make the pill
+  // group wider than the four-tab layout the widths below were measured
+  // against. See the logo and rate-pill comments.
+  const withCarsTab = items.length > 4;
 
   return (
     <header

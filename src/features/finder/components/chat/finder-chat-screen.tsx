@@ -150,7 +150,7 @@ export function FinderChatScreen({ initial, history, defaultText = "", signedIn 
 
         <section className="flex min-h-[calc(100dvh-14rem)] min-w-0 flex-col">
           {/* Phones: history behind a button, so the thread keeps the screen. */}
-          <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
+          <div className={cn("mb-4 flex items-center justify-between gap-3 lg:hidden", empty && "hidden")}>
             <button
               type="button"
               onClick={() => setShowHistory((v) => !v)}
@@ -158,7 +158,7 @@ export function FinderChatScreen({ initial, history, defaultText = "", signedIn 
               className="inline-flex h-9 items-center gap-1.5 rounded-full border border-tm-border bg-card px-3 text-[13px] font-semibold"
             >
               <ClockCounterClockwise size={16} aria-hidden />
-              History{chats.length ? ` · ${chats.length}` : ""}
+              Your chats{chats.length ? ` · ${chats.length}` : ""}
             </button>
             <NewChatButton compact />
           </div>
@@ -176,7 +176,16 @@ export function FinderChatScreen({ initial, history, defaultText = "", signedIn 
           </AnimatePresence>
 
           {empty ? (
-            <EmptyState onPick={(s) => void submit(s)} disabled={send.isPending} />
+            <>
+              <EmptyState onPick={(s) => void submit(s)} disabled={send.isPending} />
+              {/* Phones have no sidebar: the chats sit in the open under the suggestions. */}
+              {chats.length > 0 && (
+                <div className="mb-6 flex flex-col gap-2 lg:hidden">
+                  <h2 className="text-[12px] font-bold tracking-[0.06em] text-tm-text-3 uppercase">Your chats</h2>
+                  <ChatHistoryList chats={chats} activeId={null} />
+                </div>
+              )}
+            </>
           ) : (
             <ol className="flex flex-1 flex-col gap-6 pb-6" aria-live="polite">
               {messages.map((m) => (

@@ -24,6 +24,15 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     icon: "house",
     exact: true,
   },
+  // 107: the shopping assistant and every chat kept with it. A tab of its own
+  // because a conversation reached only from Home's last card was a hidden one.
+  {
+    key: "chats",
+    label: "Chats",
+    mobileLabel: "Chats",
+    href: "/app/find",
+    icon: "chats",
+  },
   {
     key: "shop",
     label: "Buy for me",

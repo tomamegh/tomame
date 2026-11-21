@@ -2,6 +2,7 @@ import type { Icon } from "@phosphor-icons/react";
 import {
   BookmarkSimple,
   CarProfile,
+  ChatsCircle,
   House,
   Package,
   Storefront,
@@ -18,6 +19,7 @@ import type { AppNavIconName } from "./types";
  */
 export const APP_NAV_ICONS: Record<AppNavIconName, Icon> = {
   house: House,
+  chats: ChatsCircle,
   storefront: Storefront,
   bookmark: BookmarkSimple,
   package: Package,

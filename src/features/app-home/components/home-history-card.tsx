@@ -42,7 +42,7 @@ export function HomeHistoryCard({ history, now, className }: HomeHistoryCardProp
           Your history
         </h2>
         <Link href="/app/find" className="inline-flex items-center gap-1 text-[13px] font-semibold text-tm-coral hover:text-tm-coral-strong">
-          New chat
+          {chats.length > 0 ? "All chats" : "New chat"}
           <ArrowRight weight="bold" className="size-3.5" aria-hidden />
         </Link>
       </header>
@@ -65,7 +65,7 @@ export function HomeHistoryCard({ history, now, className }: HomeHistoryCardProp
           </div>
         </div>
       ) : (
-        <>
+        <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-4", chats.length > 0 && pastes.length > 0 && "lg:grid-cols-2 lg:gap-8")}>
           {chats.length > 0 && (
             <div className="flex flex-col gap-1">
               <h3 className="text-[11.5px] font-bold tracking-[0.06em] text-tm-text-3 uppercase">Chats</h3>
@@ -120,7 +120,7 @@ export function HomeHistoryCard({ history, now, className }: HomeHistoryCardProp
               </ul>
             </div>
           )}
-        </>
+        </div>
       )}
     </section>
   );

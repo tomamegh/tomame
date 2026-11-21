@@ -10,7 +10,7 @@ describe("appNavItems — the Cars tab", () => {
 
   it("joins the end of the bar once a listing is published", () => {
     const keys = appNavItems(true).map((item) => item.key);
-    expect(keys).toEqual(["home", "shop", "ship", "orders", "cars"]);
+    expect(keys).toEqual(["home", "chats", "shop", "ship", "orders", "cars"]);
   });
 
   it("links to the public forecourt", () => {
