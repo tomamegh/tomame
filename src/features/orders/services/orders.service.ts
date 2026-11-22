@@ -31,6 +31,8 @@ import { queueWhatsApp } from "@/features/notifications/services/whatsapp.servic
 import { stageDedupeKey, whatsappMessages } from "@/lib/whatsapp/templates";
 import { notifyStaff } from "@/features/staff-alerts/notify";
 import { closePackageIfAllDelivered } from "@/features/warehouse/services/package-close.service";
+import { listOrdersByGroup } from "@/db/queries/orders";
+import { listOrderPlacedRetries, markOrderPlacedDelivery, type DeliveryOutcome } from "@/db/queries/notifications";
 
 /**
  * null ONLY when there is no such order (or RLS hides it). A database error
@@ -254,6 +256,8 @@ export async function sendOrderStatusEmail(
     storeTracking?: Array<{ carrier: string; number: string }>;
   },
 ): Promise<void> {
+  // Fix 13: the "paid" message is what the customer's `order_placed` row records.
+  let outcome: DeliveryOutcome | null = null;
   try {
     // WhatsApp is its own channel with its own opt-in, so it is queued before the
     // email preference is consulted. Deduped per order and status: the Paystack
@@ -280,12 +284,19 @@ export async function sendOrderStatusEmail(
     // `profiles.notify_email` — the account screen's "Email" toggle, whose own
     // description names these messages. Checked here rather than at each call
     // site so no future sender can forget it.
-    if (!(await mayEmailUser(userId))) return;
+    if (!(await mayEmailUser(userId))) {
+      // Email switched off by the customer: the bell is the delivery.
+      outcome = { status: "sent" };
+      return;
+    }
 
     const supabase = createAdminClient();
     const { data: userData, error } =
       await supabase.auth.admin.getUserById(userId);
-    if (error || !userData?.user?.email) return;
+    if (error || !userData?.user?.email) {
+      outcome = { status: "failed", reason: error ? `Could not read the account: ${error.message}` : "No email address on the account" };
+      return;
+    }
 
     const emailData = {
       productName: order.product_name,
@@ -327,15 +338,56 @@ export async function sendOrderStatusEmail(
         subject: template.subject,
         html: template.html,
       });
+      outcome = { status: "sent" };
     }
   } catch (err) {
+    outcome = { status: "failed", reason: err instanceof Error ? err.message : String(err) };
     logger.error("sendOrderStatusEmail failed", {
       userId,
       orderId: order.id,
       newStatus,
       error: err instanceof Error ? err.message : String(err),
     });
+  } finally {
+    if (newStatus === "paid" && outcome) await recordOrderPlaced(userId, order, outcome);
   }
+}
+
+/** Fix 13: mark the customer's `order_placed` rows for this order (or its whole bag) sent or failed. Never throws. */
+async function recordOrderPlaced(userId: string, order: Order, outcome: DeliveryOutcome): Promise<void> {
+  try {
+    const orderIds = order.order_group_id
+      ? (await listOrdersByGroup(createAdminClient(), order.order_group_id)).map((o) => o.id)
+      : [order.id];
+    await markOrderPlacedDelivery(userId, orderIds.length ? orderIds : [order.id], outcome);
+  } catch (err) {
+    logger.error("order placed notification: could not record the send", { orderId: order.id, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+/**
+ * Fix 13: re-send the "paid" message for `order_placed` rows whose send failed,
+ * at most three attempts in all. Run by the notification dispatch cron.
+ */
+export async function retryOrderPlacedNotifications(limit = 10): Promise<{ retried: number }> {
+  const due = await listOrderPlacedRetries(limit);
+  const admin = createAdminClient();
+  // A bag is one message: its first failed row re-sends it and records it on all of them.
+  const handledGroups = new Set<string>();
+  for (const row of due) {
+    const { data: order } = await admin.from("orders").select("*").eq("id", row.order_id).maybeSingle();
+    if (!order) {
+      await markOrderPlacedDelivery(row.user_id, [row.order_id], { status: "failed", reason: "The order no longer exists" });
+      continue;
+    }
+    const groupId = (order as Order).order_group_id;
+    if (groupId) {
+      if (handledGroups.has(groupId)) continue;
+      handledGroups.add(groupId);
+    }
+    await sendOrderStatusEmail(row.user_id, order as Order, "paid");
+  }
+  return { retried: due.length };
 }
 
 // ── Service functions ─────────────────────────────────────────────────────────

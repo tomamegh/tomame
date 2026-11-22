@@ -166,3 +166,15 @@ describe("stuck packages (112)", () => {
     expect(deriveOpsAlerts(snapshot({ warehouse: { stuck: 0, oldestStuckDays: null, stuckReferences: [] } }), new Date()).some((a) => a.key === "packages-stuck")).toBe(false);
   });
 });
+
+describe("WhatsApp in production (Fix 13)", () => {
+  it("warns when production cannot send WhatsApp", () => {
+    const alerts = deriveOpsAlerts(snapshot({ whatsapp: { configured: false, production: true } }), new Date());
+    expect(alerts.find((a) => a.key === "whatsapp-unconfigured")?.level).toBe("warning");
+  });
+
+  it("stays quiet on dev, and once it is configured", () => {
+    expect(deriveOpsAlerts(snapshot({ whatsapp: { configured: false, production: false } }), new Date()).some((a) => a.key === "whatsapp-unconfigured")).toBe(false);
+    expect(deriveOpsAlerts(snapshot({ whatsapp: { configured: true, production: true } }), new Date()).some((a) => a.key === "whatsapp-unconfigured")).toBe(false);
+  });
+});

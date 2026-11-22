@@ -57,6 +57,8 @@ export interface OpsSnapshot {
   errors: ErrorHealth | null;
   /** 112: sealed packages that have not shipped. Optional: absent = not read. */
   warehouse?: WarehouseHealth | null;
+  /** Fix 13: whether WhatsApp can send, and whether this is production (where it must). */
+  whatsapp?: { configured: boolean; production: boolean } | null;
 }
 
 /** Minutes between an ISO stamp and `now`. */
@@ -173,6 +175,17 @@ export function deriveOpsAlerts(view: OpsSnapshot, now: Date): OpsAlert[] {
     if (b.cap > 0 && b.used / b.cap >= 0.9) {
       alerts.push({ key: `budget:${b.job}`, level: b.used >= b.cap ? "critical" : "warning", title: `${b.job} budget ${b.used >= b.cap ? "exhausted" : "nearly spent"}`, detail: `${b.used} of ${b.cap} vendor calls used this period (${b.period}).` });
     }
+  }
+
+  // ── WhatsApp (Fix 13) ───────────────────────────────────────────────────────
+  if (view.whatsapp && view.whatsapp.production && !view.whatsapp.configured) {
+    alerts.push({
+      key: "whatsapp-unconfigured",
+      level: "warning",
+      title: "WhatsApp is not configured in production",
+      detail: "Customers who opted in get nothing on WhatsApp. Set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID on the production project and get the templates approved in Meta Business Manager.",
+      href: "/admin/notifications",
+    });
   }
 
   // ── Warehouse (112) ─────────────────────────────────────────────────────────

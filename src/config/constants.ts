@@ -11,6 +11,8 @@ export const AUDIT_ENTITY_TYPES = {
   PAYMENT: "payment",
   ORDER: "order",
   JOB: "job",
+  /** Fix 13: an admin settling pending notifications in bulk. */
+  NOTIFICATION: "notification",
   STORE: "store",
   PRICE_WATCH: "price_watch",
   QUOTE_LOCK: "quote_lock",

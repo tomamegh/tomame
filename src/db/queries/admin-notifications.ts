@@ -103,6 +103,8 @@ export interface AdminNotificationCounts {
   failed: number;
   /** Failures raised in the last 24 hours — the ones still worth chasing. */
   failedLast24h: number;
+  /** Fix 13: pending email rows older than a day. */
+  pendingOverDay: number;
 }
 
 /**
@@ -130,15 +132,17 @@ export async function getAdminNotificationCounts(
     return n ?? 0;
   };
 
-  const [total, pending, sent, failed, failedLast24h] = await Promise.all([
+  const [total, pending, sent, failed, failedLast24h, pendingOverDay] = await Promise.all([
     count((c) => c.from("notifications").select("id", { count: "exact", head: true }), "notifications"),
     count((c) => c.from("notifications").select("id", { count: "exact", head: true }).eq("status", "pending"), "pending notifications"),
     count((c) => c.from("notifications").select("id", { count: "exact", head: true }).eq("status", "sent"), "sent notifications"),
     count((c) => c.from("notifications").select("id", { count: "exact", head: true }).eq("status", "failed"), "failed notifications"),
     count((c) => c.from("notifications").select("id", { count: "exact", head: true }).eq("status", "failed").gt("created_at", dayAgo), "recent failed notifications"),
+    // Fix 13: pending email rows over a day old, offered for a recorded decision.
+    count((c) => c.from("notifications").select("id", { count: "exact", head: true }).eq("status", "pending").eq("channel", "email").lt("created_at", dayAgo), "stale pending notifications"),
   ]);
 
-  return { total, pending, sent, failed, failedLast24h };
+  return { total, pending, sent, failed, failedLast24h, pendingOverDay };
 }
 
 /**

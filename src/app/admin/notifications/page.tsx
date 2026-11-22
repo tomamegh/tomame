@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { SettlePendingPanel } from "@/features/notifications/components/settle-pending-panel";
+
 import {
   AdminCard,
   AdminEmpty,
@@ -132,6 +134,8 @@ export default async function AdminNotificationsPage({
           the templates in docs/whatsapp-templates.md are approved in Meta Business Manager. Email is unaffected.
         </p>
       ) : null}
+
+      <SettlePendingPanel count={counts.pendingOverDay} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <AdminStat

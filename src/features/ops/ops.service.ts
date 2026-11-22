@@ -20,6 +20,8 @@ import {
   type WarehouseHealth,
 } from "@/db/queries/ops";
 import { PACKAGE_STUCK_AFTER_DAYS } from "@/features/warehouse/components/format";
+import { isWhatsAppConfigured } from "@/lib/whatsapp/config";
+import { isProductionHost } from "./alert-recipients";
 import { resolvePaymentTimeouts, type PaymentTimeouts } from "@/features/payments/services/payment-reconciliation.service";
 import { logger } from "@/lib/logger";
 import { deriveOpsAlerts, type JobHealth, type OpsAlert } from "./ops-alerts";
@@ -51,6 +53,7 @@ export interface OpsOverview {
   catalog: CatalogHealth | null;
   errors: ErrorHealth | null;
   warehouse: WarehouseHealth | null;
+  whatsapp: { configured: boolean; production: boolean };
 }
 
 export async function getOpsOverview(now: Date = new Date()): Promise<OpsOverview> {
@@ -84,6 +87,7 @@ export async function getOpsOverview(now: Date = new Date()): Promise<OpsOvervie
     catalog,
     errors,
     warehouse,
+    whatsapp: { configured: isWhatsAppConfigured(), production: isProductionHost(process.env) },
   };
   view.alerts = deriveOpsAlerts(view, now);
   return view;

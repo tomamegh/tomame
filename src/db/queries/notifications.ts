@@ -124,3 +124,94 @@ export async function findLatestNotificationFor(
   if (error) throw new Error(`Failed to read notifications: ${error.message}`);
   return (data as unknown as NotificationRow | null) ?? null;
 }
+
+// ── Order-placed delivery (site brief Fix 13) ───────────────────────────────
+
+/** How the customer's "paid" message went: sent (email, or the bell when email is off), or failed. */
+export interface DeliveryOutcome {
+  status: "sent" | "failed";
+  reason?: string | null;
+}
+
+const RETRY_AFTER_MS = 15 * 60_000;
+export const MAX_DELIVERY_ATTEMPTS = 3;
+
+/**
+ * Record the send on the customer's `order_placed` rows for these orders. A
+ * failure is retried (15 min apart) until the third attempt, then stays failed.
+ */
+export async function markOrderPlacedDelivery(userId: string, orderIds: readonly string[], outcome: DeliveryOutcome): Promise<number> {
+  if (orderIds.length === 0) return 0;
+  const db = createAdminClient();
+  const { data: rows, error } = await db
+    .from("notifications")
+    .select("id, attempts")
+    .eq("user_id", userId)
+    .eq("event", "order_placed")
+    .in("status", ["pending", "failed"])
+    .in("payload->>orderId", [...orderIds]);
+  if (error) throw new Error(`Failed to load order notifications: ${error.message}`);
+  const now = new Date();
+  for (const row of (rows ?? []) as { id: string; attempts: number }[]) {
+    const attempts = Math.min(MAX_DELIVERY_ATTEMPTS, (row.attempts ?? 0) + 1);
+    const patch =
+      outcome.status === "sent"
+        ? { status: "sent", sent_at: now.toISOString(), attempts, last_attempt_at: now.toISOString(), error_reason: null, next_attempt_at: null }
+        : {
+            status: "failed",
+            attempts,
+            last_attempt_at: now.toISOString(),
+            error_reason: (outcome.reason ?? "Send failed").slice(0, 500),
+            next_attempt_at: attempts < MAX_DELIVERY_ATTEMPTS ? new Date(now.getTime() + RETRY_AFTER_MS).toISOString() : null,
+          };
+    const { error: updateError } = await db.from("notifications").update(patch).eq("id", row.id);
+    if (updateError) throw new Error(`Failed to record the send: ${updateError.message}`);
+  }
+  return rows?.length ?? 0;
+}
+
+/** Failed `order_placed` rows due a retry. */
+export async function listOrderPlacedRetries(limit: number): Promise<Array<{ id: string; user_id: string; order_id: string }>> {
+  const { data, error } = await createAdminClient()
+    .from("notifications")
+    .select("id, user_id, payload")
+    .eq("event", "order_placed")
+    .eq("status", "failed")
+    .lt("attempts", MAX_DELIVERY_ATTEMPTS)
+    .lte("next_attempt_at", new Date().toISOString())
+    .order("next_attempt_at", { ascending: true })
+    .limit(limit);
+  if (error) throw new Error(`Failed to load retries: ${error.message}`);
+  return ((data ?? []) as { id: string; user_id: string; payload: { orderId?: string } | null }[])
+    .filter((r) => typeof r.payload?.orderId === "string")
+    .map((r) => ({ id: r.id, user_id: r.user_id, order_id: r.payload!.orderId! }));
+}
+
+/**
+ * An admin's recorded decision on pending rows older than `olderThan` (Fix 13):
+ * `shown_in_bell` closes them as delivered in the app (the bell showed them;
+ * nothing is sent now), `cancelled` closes them as never sent. Returns the ids.
+ */
+export async function settleStalePendingNotifications(olderThan: Date, disposition: "shown_in_bell" | "cancelled", note: string): Promise<string[]> {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("notifications")
+    .select("id")
+    .eq("status", "pending")
+    .eq("channel", "email")
+    .lt("created_at", olderThan.toISOString())
+    .limit(1000);
+  if (error) throw new Error(`Failed to load pending notifications: ${error.message}`);
+  const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+  if (ids.length === 0) return [];
+  const now = new Date().toISOString();
+  const patch =
+    disposition === "shown_in_bell"
+      ? { status: "sent", sent_at: now, error_reason: note.slice(0, 500) }
+      : { status: "failed", error_code: "cancelled", error_reason: note.slice(0, 500), next_attempt_at: null };
+  for (let i = 0; i < ids.length; i += 200) {
+    const { error: updateError } = await db.from("notifications").update(patch).in("id", ids.slice(i, i + 200)).eq("status", "pending");
+    if (updateError) throw new Error(`Failed to settle notifications: ${updateError.message}`);
+  }
+  return ids;
+}

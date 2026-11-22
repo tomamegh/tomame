@@ -73,7 +73,7 @@ export function alertsEnabled(env: DeployEnv): boolean {
  * at dev.tomame.ca and local at localhost, so the address alone tells them
  * apart; `next dev` pointed at the prod URL is still not production.
  */
-function isProductionHost(env: DeployEnv): boolean {
+export function isProductionHost(env: DeployEnv): boolean {
   const host = appHost(env);
   return host !== null && PRODUCTION_HOSTS.has(host) && env.NODE_ENV !== "development";
 }

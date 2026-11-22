@@ -295,14 +295,17 @@ export async function createOrderNotifications(
   const payload = { orderId, productName, totalGhs };
 
   // Build inserts: one for the placing user + one per admin (skip duplicates)
+  // Fix 13: the customer's row is pending until the "paid" message is sent
+  // (sendOrderStatusEmail records it, and failures are retried). An admin's copy
+  // is a bell entry and nothing else (staff emails go through staff alerts), so
+  // it is delivered the moment it is written, not left pending for ever.
   const recipientIds = [...new Set([userId, ...adminIds])];
-  const inserts = recipientIds.map((id) => ({
-    user_id: id,
-    channel: "email" as const,
-    event: id === userId ? "order_placed" : "order_placed_admin",
-    payload,
-    status: "pending" as const,
-  }));
+  const now = new Date().toISOString();
+  const inserts = recipientIds.map((id) =>
+    id === userId
+      ? { user_id: id, channel: "email" as const, event: "order_placed", payload, status: "pending" as const }
+      : { user_id: id, channel: "email" as const, event: "order_placed_admin", payload, status: "sent" as const, sent_at: now },
+  );
 
   const { error } = await admin.from("notifications").insert(inserts);
 
