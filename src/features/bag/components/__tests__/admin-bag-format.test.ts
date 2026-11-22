@@ -129,6 +129,11 @@ const CONSTANTS = {
 function box(overrides: Partial<ConsolidationBoxRow> = {}): ConsolidationBoxRow {
   return {
     id: "box-1",
+    code: "BX-1001",
+    departure_id: null,
+    closed_at: null,
+    closed_reason: null,
+    archived_at: null,
     region_code: "USA",
     label: null,
     capacity_lbs: 50,

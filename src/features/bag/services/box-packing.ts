@@ -213,6 +213,10 @@ export function nextDeparture(
 function marginalSavingGhs(box: PackedBox, constants: BoxConstants): number {
   const n = box.line_ids.length;
   if (n === 0) return 0;
+  // A box with an unweighed line has no known fill (site brief Fix 9): an
+  // unknown weight counts as 0 lb, so "one more fits" would be a guess. No
+  // promise until every line in it has a weight.
+  if (box.unweighed_line_count > 0) return 0;
   // Weight is averaged over the lines that HAVE one. Averaging over all of them
   // would let unweighed siblings drag the mean toward zero and make a nearly
   // full box promise a saving for an item that would in fact open a second one.

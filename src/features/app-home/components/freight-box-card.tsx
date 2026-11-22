@@ -82,7 +82,7 @@ export function FreightBoxCard({ box, now, className }: FreightBoxCardProps) {
   return (
     <Link
       href={box.href}
-      aria-label={`${box.label}, ${fillPct}% full${ships ? `, ${ships.toLowerCase()}` : ""}. Open your bag.`}
+      aria-label={`${box.label}, ${box.unweighedLineCount > 0 ? "weight to confirm" : `${fillPct}% full`}${ships ? `, ${ships.toLowerCase()}` : ""}. Open your bag.`}
       className={cn(
         "tm-up relative flex min-w-0 flex-col gap-3.5 overflow-hidden rounded-[24px]",
         "border border-[#F5E9E2] bg-[linear-gradient(160deg,#FFF1EC,#FFF7EA)] p-6",
@@ -138,8 +138,9 @@ export function FreightBoxCard({ box, now, className }: FreightBoxCardProps) {
 
       <div className="flex items-baseline justify-between gap-4">
         <span className="min-w-0">
+          {/* An unweighed line counts as 0 lb, so a percentage would read low (Fix 9): say so instead. */}
           <span className="tm-nums block text-[22px] leading-none font-bold">
-            {fillPct}% full
+            {box.unweighedLineCount > 0 ? "Weight to confirm" : `${fillPct}% full`}
           </span>
           <span className="text-xs leading-[1.6] font-medium text-tm-text-2">
             {box.label} · {itemLabel} · {weightLabel}

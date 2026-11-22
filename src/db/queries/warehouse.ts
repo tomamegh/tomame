@@ -482,10 +482,11 @@ export async function listBoxRefs(ids: string[]): Promise<Map<string, BoxRefRow>
   if (ids.length === 0) return out;
   const { data, error } = await createAdminClient()
     .from("consolidation_boxes")
-    .select("id, label, departs_at, status")
+    .select("id, code, label, departs_at, status")
     .in("id", ids);
   if (error) throw new Error(`Failed to load freight boxes: ${error.message}`);
-  for (const row of data ?? []) out.set(row.id as string, row as BoxRefRow);
+  // 111: the box's code is its name in the warehouse too, as on the dashboard and in admin.
+  for (const row of data ?? []) out.set(row.id as string, { ...(row as BoxRefRow), label: (row.code as string | null) ?? (row.label as string | null) });
   return out;
 }
 

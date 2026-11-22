@@ -19,6 +19,8 @@ import {
   isPastCutoff,
   itemChargeableLbs,
 } from "./admin-bag-format";
+import { CloseBoxButton } from "./admin-box-actions";
+import { departureLine } from "./box-departure";
 
 /**
  * Consolidation boxes — the packing unit a lane flies on.
@@ -92,21 +94,27 @@ function BoxCard({
 }) {
   const fill = describeBoxFill(box, box.items, constants);
   const overdue = box.status === "open" && isPastCutoff(box, now);
+  // 111: every open box rides a departure, or says it has none.
+  const unscheduled = box.status === "open" && !box.departure;
+  const flight = departureLine(box.departure);
 
   return (
     <AdminCard
       index={index}
-      title={box.label ?? `${regionName} box`}
-      blurb={`${regionName} · ${box.items.length} ${box.items.length === 1 ? "item" : "items"}`}
+      title={box.code || box.label || `${regionName} box`}
+      blurb={`${regionName} · ${box.items.length} ${box.items.length === 1 ? "item" : "items"} · ${
+        flight ?? (box.departs_at ? `departs ${formatAdminDateTime(box.departs_at)} (before the schedule)` : "No departure scheduled")
+      }`}
       action={
         <div className="flex flex-wrap items-center gap-1.5">
           <AdminBadge tone={boxStatusTone(box.status)}>{BOX_STATUS_LABEL[box.status]}</AdminBadge>
-          {/*
-            Amber because nothing closes a box automatically: an open box past
-            its cutoff will go on collecting lines that will miss the flight
-            until a person closes it.
-          */}
+          {box.status === "closed" && box.closed_reason ? (
+            <AdminBadge tone="muted">{CLOSED_REASON_LABEL[box.closed_reason]}</AdminBadge>
+          ) : null}
+          {/* The schedule job closes or moves these every 15 minutes; one showing here has not been reached yet. */}
           {overdue ? <AdminBadge tone="amber">Past cutoff</AdminBadge> : null}
+          {unscheduled ? <AdminBadge tone="amber">Unscheduled</AdminBadge> : null}
+          {box.status === "open" ? <CloseBoxButton id={box.id} code={box.code || box.label || "this box"} /> : null}
         </div>
       }
     >
@@ -235,6 +243,13 @@ const BOX_STATUS_LABEL: Record<AdminBoxRow["status"], string> = {
   closed: "Closed",
   in_transit: "In the air",
   landed: "Landed",
+  archived: "Archived",
+};
+
+const CLOSED_REASON_LABEL: Record<NonNullable<AdminBoxRow["closed_reason"]>, string> = {
+  cutoff: "Closed at cutoff",
+  capacity: "Closed full",
+  staff: "Closed by staff",
 };
 
 function BoxFact({

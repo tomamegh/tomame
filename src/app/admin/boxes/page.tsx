@@ -16,6 +16,9 @@ import {
   type AdminFilterPill,
 } from "@/components/layout/admin";
 import { formatAdminDateTime } from "@/features/orders/components/admin-order-display";
+import { listUpcomingDepartures } from "@/db/queries/flight-departures";
+import { RunScheduleButton } from "@/features/bag/components/admin-box-actions";
+import { departureLine } from "@/features/bag/components/box-departure";
 
 export const metadata: Metadata = { title: "Boxes · Admin" };
 
@@ -41,10 +44,11 @@ export default async function AdminBoxesPage({
   const params = await searchParams;
   const status = resolveStatus(params.status);
 
-  const [boxes, constantsMap, regions] = await Promise.all([
+  const [boxes, constantsMap, regions, departures] = await Promise.all([
     listAdminBoxes({ status }),
     getPricingConstantsMap(),
     listRegions(),
+    listUpcomingDepartures(4),
   ]);
 
   const constants: BoxConstants = {
@@ -63,11 +67,8 @@ export default async function AdminBoxesPage({
     (sum, box) => sum + describeBoxFill(box, box.items, constants).unweighedCount,
     0,
   );
-  // The soonest departure still ahead of us. `listAdminBoxes` already orders by
-  // `departs_at`, so this is the first one that has not already flown.
-  const nextDeparture = boxes.find(
-    (box) => box.departs_at && Date.parse(box.departs_at) > now.getTime(),
-  );
+  // The schedule itself (111), not whichever box happens to sort first.
+  const nextDeparture = departures.find((d) => d.status === "scheduled") ?? null;
 
   const pills: AdminFilterPill[] = [
     { label: "All", href: "/admin/boxes", active: !status },
@@ -97,7 +98,7 @@ export default async function AdminBoxesPage({
           value={String(overdue)}
           detail={
             overdue > 0
-              ? "Still open; nothing closes a box on its own"
+              ? "The schedule job closes or moves these within 15 minutes"
               : "Every open box is still inside its cutoff"
           }
           tone={overdue > 0 ? "amber" : "green"}
@@ -116,21 +117,20 @@ export default async function AdminBoxesPage({
         <AdminStat
           index={3}
           label="Next departure"
-          value={
-            nextDeparture?.departs_at
-              ? (formatAdminDateTime(nextDeparture.departs_at) ?? "Not scheduled")
-              : "Not scheduled"
-          }
+          value={nextDeparture ? (formatAdminDateTime(nextDeparture.departs_at) ?? "Not scheduled") : "Not scheduled"}
           detail={
             nextDeparture
-              ? (regionNames.get(nextDeparture.region_code) ?? nextDeparture.region_code)
-              : "No box ahead of us has a departure date"
+              ? `${departureLine(nextDeparture)} · cutoff ${formatAdminDateTime(nextDeparture.cutoff_at) ?? ""}`
+              : "No departure is scheduled"
           }
           tone={nextDeparture ? "neutral" : "muted"}
         />
       </div>
 
-      <AdminFilterPills pills={pills} label="Filter boxes by status" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <AdminFilterPills pills={pills} label="Filter boxes by status" />
+        <RunScheduleButton />
+      </div>
 
       <AdminBoxesBoard
         boxes={boxes}
@@ -152,6 +152,7 @@ const BOX_STATUSES = [
   { value: "closed" as const, label: "Closed" },
   { value: "in_transit" as const, label: "In the air" },
   { value: "landed" as const, label: "Landed" },
+  { value: "archived" as const, label: "Archived" },
 ];
 
 const BOX_STATUS_LABEL: Record<BoxStatus, string> = {
@@ -159,6 +160,7 @@ const BOX_STATUS_LABEL: Record<BoxStatus, string> = {
   closed: "Closed boxes",
   in_transit: "In the air",
   landed: "Landed",
+  archived: "Archived (empty)",
 };
 
 /** An unrecognised status shows everything rather than nothing. */

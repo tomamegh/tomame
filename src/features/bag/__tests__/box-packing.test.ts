@@ -111,6 +111,12 @@ describe("marginal saving — \"add one more and save GH₵X\"", () => {
     expect(two.marginal_saving_ghs).toBe(43.5);
   });
 
+  it("promises nothing while a line in the box has no weight (111: no saving the box data cannot back)", () => {
+    const box = packLines([weightLine("a", undefined), weightLine("b", 0.6)], C).boxes[0]!;
+    expect(box.unweighed_line_count).toBe(1);
+    expect(box.marginal_saving_ghs).toBe(0);
+  });
+
   it("promises nothing when the next line would not fit in the box", () => {
     // 5 lb + 3.5 lb = 8.5 of 9; the mean next line is 4.25 lb and spills into a
     // second box, which holds one line and therefore saves nothing.

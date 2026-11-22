@@ -1,4 +1,5 @@
 import "server-only";
+import { listDeparturesByIds, type FlightDepartureRow } from "./flight-departures";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
@@ -42,6 +43,8 @@ export interface AdminBoxItem {
 
 export interface AdminBoxRow extends ConsolidationBoxRow {
   items: AdminBoxItem[];
+  /** 111: the flight it rides; null = unscheduled. */
+  departure: FlightDepartureRow | null;
 }
 
 export interface AdminBoxFilters {
@@ -65,12 +68,14 @@ export async function listAdminBoxes(filters: AdminBoxFilters = {}): Promise<Adm
   let query = db
     .from("consolidation_boxes")
     .select(
-      "id, region_code, label, capacity_lbs, cutoff_at, departs_at, status, created_at, updated_at",
+      "id, code, region_code, label, capacity_lbs, cutoff_at, departs_at, status, departure_id, closed_at, closed_reason, archived_at, created_at, updated_at",
     )
     .order("departs_at", { ascending: true, nullsFirst: false })
     .limit(filters.limit ?? ADMIN_BOXES_PAGE_SIZE);
 
+  // Archived boxes (111: empty, past their cutoff) only show when asked for.
   if (filters.status) query = query.eq("status", filters.status);
+  else query = query.neq("status", "archived");
 
   const { data, error } = await query;
   if (error) throw new Error(`Failed to load boxes: ${error.message}`);
@@ -78,8 +83,15 @@ export async function listAdminBoxes(filters: AdminBoxFilters = {}): Promise<Adm
   const boxes = ((data ?? []) as Record<string, unknown>[]).map(normalizeBox);
   if (boxes.length === 0) return [];
 
-  const items = await listBoxContents(boxes.map((box) => box.id));
-  return boxes.map((box) => ({ ...box, items: items.get(box.id) ?? [] }));
+  const [items, departures] = await Promise.all([
+    listBoxContents(boxes.map((box) => box.id)),
+    listDeparturesByIds(boxes.map((box) => box.departure_id ?? "")),
+  ]);
+  return boxes.map((box) => ({
+    ...box,
+    items: items.get(box.id) ?? [],
+    departure: box.departure_id ? (departures.get(box.departure_id) ?? null) : null,
+  }));
 }
 
 /**
@@ -220,6 +232,11 @@ function push(map: Map<string, AdminBoxItem[]>, key: string, item: AdminBoxItem)
 function normalizeBox(row: Record<string, unknown>): ConsolidationBoxRow {
   return {
     id: String(row.id),
+    code: String(row.code ?? ""),
+    departure_id: (row.departure_id as string | null) ?? null,
+    closed_at: (row.closed_at as string | null) ?? null,
+    closed_reason: (row.closed_reason as ConsolidationBoxRow["closed_reason"]) ?? null,
+    archived_at: (row.archived_at as string | null) ?? null,
     region_code: String(row.region_code),
     label: (row.label as string | null) ?? null,
     capacity_lbs: Number(row.capacity_lbs),

@@ -26,7 +26,8 @@ import { getDeliveryAddressById, listDeliveryAddresses } from "@/db/queries/deli
 import { isPickupEnabled } from "./delivery-settings.service";
 import { listActiveDeliveryZones, type DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { DeliveryAddress } from "@/features/addresses/types";
-import { nextDeparture, packLines, type BoxConstants, type PackedBox } from "./box-packing";
+import { packLines, type BoxConstants, type PackedBox } from "./box-packing";
+import { listNextDepartures, type FlightDepartureRow } from "@/db/queries/flight-departures";
 import type { ExtractionResult } from "@/features/extraction/types";
 import type { Viewer } from "@/features/quotes/types";
 import { formatAddressLabel } from "@/features/addresses/format";
@@ -686,7 +687,8 @@ interface Packed {
  * the saving is recomputed at checkout from the same function.
  */
 async function packIntoBoxes(rows: CartItemRow[], lines: BagLine[]): Promise<Packed> {
-  const [constants, regions] = await Promise.all([loadBoxConstants(), listRegions()]);
+  const now = new Date();
+  const [constants, regions, departures] = await Promise.all([loadBoxConstants(), listRegions(), listNextDepartures(now)]);
   const regionByCode = new Map(regions.map((r) => [r.code, r]));
   const plan = packLines(
     lines.map((l) => ({ id: l.id, quantity: l.quantity, region_code: l.product.country, weight_lbs: l.product.weight_lbs, pricing: l.pricing })),
@@ -703,11 +705,10 @@ async function packIntoBoxes(rows: CartItemRow[], lines: BagLine[]): Promise<Pac
     openByRegion.set(box.region_code, list);
   }
 
-  const now = new Date();
   const boxes: BagBox[] = [];
   for (const packed of plan.boxes) {
     const region = regionByCode.get(packed.region_code) ?? null;
-    const row = await materializeBox(packed, region, openByRegion, constants, now);
+    const row = await materializeBox(packed, departures.get(packed.region_code) ?? null, openByRegion, constants, now);
     boxes.push(toBagBox(row, packed, region, lines));
     for (const lineId of packed.line_ids) {
       const item = rows.find((r) => r.id === lineId);
@@ -722,15 +723,20 @@ async function packIntoBoxes(rows: CartItemRow[], lines: BagLine[]): Promise<Pac
   return { boxes, unboxed_line_ids: plan.unboxed_line_ids, consolidation_saving_ghs: plan.consolidation_saving_ghs, consolidation_saving_pct: constants.consolidation_saving_pct };
 }
 
-/** Reuse the bag's n-th open box in the region, or open one; keep its schedule current. */
+/**
+ * Reuse the bag's n-th open box in the region, or open one; keep it on the
+ * region's next scheduled departure (111). A closed box is never reused, so its
+ * contents and departure stay as they were at close. No departure scheduled:
+ * the box is unscheduled and promises no day.
+ */
 async function materializeBox(
   packed: PackedBox,
-  region: RegionRow | null,
+  departure: FlightDepartureRow | null,
   openByRegion: Map<string, ConsolidationBoxRow[]>,
   constants: BoxConstants,
   now: Date,
 ): Promise<ConsolidationBoxRow> {
-  const schedule = region?.departure_weekday != null ? nextDeparture(now, region.departure_weekday, region.departure_cutoff_hours) : null;
+  const schedule = departure ? { id: departure.id, departs_at: new Date(departure.departs_at), cutoff_at: new Date(departure.cutoff_at) } : null;
   const label = `Box ${packed.index}`;
   const pool = openByRegion.get(packed.region_code) ?? [];
   const reused = pool[packed.index - 1];
@@ -739,9 +745,10 @@ async function materializeBox(
     if (reused.label !== label) patch.label = label;
     if (reused.capacity_lbs !== constants.box_capacity_lbs) patch.capacity_lbs = constants.box_capacity_lbs;
     // Roll forward once the cutoff has passed; never move a box's departure earlier.
-    if (schedule && (!reused.cutoff_at || new Date(reused.cutoff_at).getTime() <= now.getTime())) {
+    if (schedule && (!reused.departure_id || !reused.cutoff_at || new Date(reused.cutoff_at).getTime() <= now.getTime())) {
       patch.departs_at = schedule.departs_at.toISOString();
       patch.cutoff_at = schedule.cutoff_at.toISOString();
+      patch.departure_id = schedule.id;
     }
     if (Object.keys(patch).length) await updateOpenBox(reused.id, patch);
     return { ...reused, ...patch };
@@ -752,6 +759,7 @@ async function materializeBox(
     capacity_lbs: constants.box_capacity_lbs,
     departs_at: schedule ? schedule.departs_at.toISOString() : null,
     cutoff_at: schedule ? schedule.cutoff_at.toISOString() : null,
+    departure_id: schedule?.id ?? null,
   });
   pool.push(created);
   openByRegion.set(packed.region_code, pool);
@@ -762,7 +770,8 @@ function toBagBox(row: ConsolidationBoxRow, packed: PackedBox, region: RegionRow
   const inBox = new Set(packed.line_ids);
   return {
     id: row.id,
-    label: row.label ?? `Box ${packed.index}`,
+    // The box's code is its name on the dashboard, the bag and admin alike (111).
+    label: row.code || row.label || `Box ${packed.index}`,
     region_code: packed.region_code,
     region_name: region?.name ?? packed.region_code,
     departs_at: row.departs_at,

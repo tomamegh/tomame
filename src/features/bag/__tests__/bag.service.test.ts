@@ -62,6 +62,12 @@ vi.mock("@/db/queries/pricing-constants", () => ({
 vi.mock("@/db/queries/regions", () => ({
   listRegions: vi.fn(async () => [{ code: "USA", name: "United States", departure_weekday: 5, departure_cutoff_hours: 24 }]),
 }));
+vi.mock("@/db/queries/flight-departures", () => ({
+  // 111: the next Delta Cargo departure that still takes boxes.
+  listNextDepartures: vi.fn(async () =>
+    new Map([["USA", { id: "dep-1", region_code: "USA", carrier: "Delta Cargo", origin: "JFK", destination: "ACC", departs_on: "2099-01-07", departs_at: "2099-01-07T00:00:00Z", cutoff_at: "2099-01-06T00:00:00Z", status: "scheduled", awb: null }]]),
+  ),
+}));
 vi.mock("@/db/queries/consolidation-boxes", () => ({
   listBoxesByIds: vi.fn(async () => []),
   insertBox: vi.fn(async (input: Record<string, unknown>) => ({ id: "box-1", status: "open", created_at: "", updated_at: "", ...input })),
@@ -231,8 +237,9 @@ describe("getBag", () => {
     // freight_usd, so the saving reads the flat freight: 2 × 120.08 = 240.16 → 20% = 48.03.
     expect(bag.boxes).toHaveLength(1);
     expect(bag.boxes[0]).toMatchObject({ id: "box-1", label: "Box 1", region_name: "United States", weight_lbs: 3, fill_pct: 33, line_ids: ["a", "b"] });
-    expect(bag.boxes[0]!.departs_at).toMatch(/T00:00:00.000Z$/);
-    expect(new Date(bag.boxes[0]!.departs_at!).getUTCDay()).toBe(5);
+    // 111: the box rides the region's next scheduled departure (a Wednesday here).
+    expect(bag.boxes[0]!.departs_at).toBe("2099-01-07T00:00:00.000Z");
+    expect(boxes.insertBox).toHaveBeenCalledWith(expect.objectContaining({ departure_id: "dep-1" }));
     expect(bag.consolidation_saving_ghs).toBe(48.03);
     expect(bag.total_ghs).toBe(101.97);
     expect(boxes.insertBox).toHaveBeenCalledTimes(1);
@@ -243,10 +250,11 @@ describe("getBag", () => {
   it("reuses the bag's existing open box and rolls its departure forward once the cutoff has passed", async () => {
     vi.mocked(carts.findOpenCart).mockResolvedValue(cart());
     vi.mocked(carts.listCartItems).mockResolvedValue([item({ id: "a", consolidation_box_id: "box-old" })]);
-    vi.mocked(boxes.listBoxesByIds).mockResolvedValue([{ id: "box-old", region_code: "USA", label: "Box 1", capacity_lbs: 9, cutoff_at: "2020-01-01T00:00:00Z", departs_at: "2020-01-02T00:00:00Z", status: "open", created_at: "", updated_at: "" }]);
+    vi.mocked(boxes.listBoxesByIds).mockResolvedValue([{ id: "box-old", code: "BX-1001", region_code: "USA", label: "Box 1", capacity_lbs: 9, cutoff_at: "2020-01-01T00:00:00Z", departs_at: "2020-01-02T00:00:00Z", status: "open", departure_id: null, closed_at: null, closed_reason: null, archived_at: null, created_at: "", updated_at: "" }]);
     const bag = await getBag(USER);
     expect(boxes.insertBox).not.toHaveBeenCalled();
-    expect(boxes.updateOpenBox).toHaveBeenCalledWith("box-old", expect.objectContaining({ departs_at: expect.stringMatching(/^2026|^20[3-9]/) }));
+    expect(boxes.updateOpenBox).toHaveBeenCalledWith("box-old", expect.objectContaining({ departs_at: "2099-01-07T00:00:00.000Z", departure_id: "dep-1" }));
+    expect(bag.boxes[0]!.label).toBe("BX-1001");
     expect(bag.boxes[0]!.id).toBe("box-old");
     expect(carts.updateCartItem).not.toHaveBeenCalledWith("a", expect.objectContaining({ consolidation_box_id: expect.anything() }));
   });
