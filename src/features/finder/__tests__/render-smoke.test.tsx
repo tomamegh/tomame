@@ -49,7 +49,7 @@ describe("FinderExperience renders every preview state", () => {
   it("still confirming", () => {
     const html = render("confirming");
     expect(html).toContain("Confirming price");
-    expect(html).toContain("We confirm stock before you pay.");
+    expect(html).toContain("check the seller before you buy.");
   });
 
   it("nothing found", () => {

@@ -244,16 +244,12 @@ describe("pay gate (A0 + A7 + freight)", () => {
     // A customer report is never re-read or counted.
     expect(checksNeeded({ extraction: e, checks: [check({ origin: "customer", status: "pending" })], now: NOW }).price).toBe("checking");
   });
-  it("stock signals need a staff confirmation, valid 24 h", () => {
+  it("stock signals never hold payment and open no stock check", () => {
     const renewed = ext({ title: "Kindle (Renewed)" });
-    expect(payHoldOf({ extraction: renewed, checks: [], now: NOW })).toMatchObject({ kind: "stock_check", message: "We confirm stock and condition before you pay" });
-    expect(checksNeeded({ extraction: renewed, checks: [], now: NOW }).stock).toBe(true);
-    const confirmed = check({ kind: "stock", status: "confirmed", valid_until: iso(-1000) });
-    expect(payHoldOf({ extraction: renewed, checks: [confirmed], now: NOW })).toBeNull();
-    expect(checksNeeded({ extraction: renewed, checks: [confirmed], now: NOW }).stock).toBe(false);
-    const stale = { ...confirmed, valid_until: iso(1000) };
-    expect(payHoldOf({ extraction: renewed, checks: [stale], now: NOW })?.kind).toBe("stock_check");
-    expect(checksNeeded({ extraction: renewed, checks: [stale], now: NOW }).stock).toBe(true);
+    expect(payHoldOf({ extraction: renewed, checks: [], now: NOW })).toBeNull();
+    expect(checksNeeded({ extraction: renewed, checks: [], now: NOW }).stock).toBe(false);
+    const pending = check({ kind: "stock", status: "pending" });
+    expect(payHoldOf({ extraction: renewed, checks: [pending], now: NOW })).toBeNull();
   });
   it("unavailable beats everything but freight, and carries the substitute", () => {
     const gone = check({ kind: "stock", status: "unavailable", valid_until: iso(-1000), substitute_url: "https://www.amazon.com/dp/B000000001" });

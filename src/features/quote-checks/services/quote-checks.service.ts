@@ -37,6 +37,9 @@ import type { DecideQuoteCheckInput, ReportWrongPriceInput } from "../schema";
  * only loads its inputs and acts on its answers.
  */
 
+/** Off since 2026-11-22: stock checks held payment and cost sales. */
+const STOCK_CHECKS_SHOWN = false;
+
 /** A staff decision holds this long; then a new check is asked for. */
 const DECISION_VALID_MS = STOCK_CONFIRMATION_HOURS * 3600_000;
 
@@ -111,6 +114,8 @@ export function stockWhatsappUrl(number: string | null, title: string | null, re
 }
 
 async function stockCheckView(extractionCacheId: string, extraction: ExtractionResult, checks: readonly QuoteCheckRow[]): Promise<StockCheckView | null> {
+  // Stock no longer holds payment, so the quote shows no "confirm stock" step.
+  if (!STOCK_CHECKS_SHOWN) return null;
   const signals = detectStockSignals(extraction.product);
   if (signals.length === 0) return null;
   const now = Date.now();
@@ -353,7 +358,7 @@ async function loadForCustomer(extractionCacheId: string): Promise<{ productUrl:
  */
 export async function requestStockCheck(viewer: Viewer, extractionCacheId: string): Promise<StockCheckView | null> {
   const { productUrl, result } = await loadForCustomer(extractionCacheId);
-  if (detectStockSignals(result.product).length === 0) return null;
+  if (!STOCK_CHECKS_SHOWN || detectStockSignals(result.product).length === 0) return null;
   await ensureQuoteChecks(viewer, extractionCacheId, productUrl, result);
   const checks = (await checksByExtraction([extractionCacheId])).get(extractionCacheId) ?? [];
   return stockCheckView(extractionCacheId, result, checks);

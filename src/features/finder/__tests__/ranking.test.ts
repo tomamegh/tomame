@@ -39,11 +39,11 @@ describe("rankCandidates", () => {
     expect(r.alternativeIds).toEqual(["cheap"]);
   });
 
-  it("never makes a candidate that needs a stock check best, however low", () => {
+  it("never makes a far-below-market candidate best, however low", () => {
     const r = rankCandidates([c("stock", "stock_check", 500), c("b", "priced", 900)], null);
     expect(r.bestId).toBe("b");
     expect(r.why.stock).toContain("GH₵400.00 less than");
-    expect(r.why.stock).toContain("stock and condition are confirmed before you pay");
+    expect(r.why.stock).toContain("check the seller before you buy");
   });
 
   it("has no best when nothing is fully priced, and lists the rest", () => {

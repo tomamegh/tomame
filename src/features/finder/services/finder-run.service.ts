@@ -28,7 +28,7 @@ import { priceExtractionWith } from "@/features/extraction/quote.service";
 import type { ExtractionResult } from "@/features/extraction/types";
 import { freightCheckPending } from "@/features/pricing/freight-inspection";
 import { loadDisplayPricingCalculator, loadPricingCalculator } from "@/features/pricing/services/pricing.service";
-import { checksByExtraction, openSellerCheck } from "@/features/quote-checks/services/quote-checks.service";
+import { checksByExtraction } from "@/features/quote-checks/services/quote-checks.service";
 import { APIError } from "@/lib/auth/api-helpers";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -49,7 +49,7 @@ import {
   type StoreSearchOutcome,
 } from "../narration";
 import { rankCandidates, toFinderQuote, type RankInput } from "../ranking";
-import { isSuspiciouslyLow, outlierReason, outlierReference } from "../price-outlier";
+import { isSuspiciouslyLow, outlierReference } from "../price-outlier";
 import { QUICK_PICK_TRIES, quickPickOrder, quickPickReason, saysInStock } from "../quick-pick";
 import { dropDetails, isClearlyOverBudget, isNotNew, isRiskyListing, keywordMatches, mergeDrops, postFilterListings, type DropReason, type FinderListing } from "../shortlist";
 import { normaliseFinderQuery, specSummary, storedSpec, type ParsedFinderSpec } from "../spec";
@@ -584,11 +584,8 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
       continue;
     }
     const judged = l.priceUsd ?? (snapshot.product.currency === "USD" ? snapshot.product.price : null);
-    const lowPrice = hold?.kind !== "stock_check" && isSuspiciouslyLow(judged, reference);
-    if (lowPrice) {
-      await openSellerCheck({ userId: run.user_id, sessionId: run.session_id }, e.cacheId!, l.productUrl, snapshot, [outlierReason(judged!, reference!.priceUsd)]);
-    }
-    const stockCheck = hold?.kind === "stock_check" || lowPrice;
+    // Far below other new listings: shown but never picked as best. It no longer holds payment.
+    const stockCheck = isSuspiciouslyLow(judged, reference);
     priced.push({ listing: l, cacheId: e.cacheId, quote, state: stockCheck ? "stock_check" : "priced" });
     narrator.emit({ type: "candidate_priced", candidateId: l.id, quote, stockCheck, extractionCacheId: e.cacheId! });
   }

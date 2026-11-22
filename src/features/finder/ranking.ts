@@ -56,7 +56,7 @@ export function toFinderQuote(b: PricingBreakdown): FinderQuote {
 /**
  * - `priced`: a landed total we stand behind.
  * - `confirming`: the store's price (or freight) is not confirmed yet; shown, never best.
- * - `stock_check`: priced, but stock and condition are confirmed before Pay; shown, never best.
+ * - `stock_check`: priced far below other new listings; shown, never best (payable).
  */
 export type RankState = "priced" | "confirming" | "stock_check";
 
@@ -131,7 +131,7 @@ function bestWhy(best: RankInput, eligible: readonly RankInput[], ordered: reado
 
 function altWhy(c: RankInput, best: RankInput | null): string | null {
   if (!c.quote || c.state === "confirming") return null;
-  if (!best?.quote) return c.state === "stock_check" ? "We confirm stock and condition with the store before you pay." : null;
+  if (!best?.quote) return c.state === "stock_check" ? "Much cheaper than other new listings: check the seller before you buy." : null;
   const gap = c.quote.totalGhs - best.quote.totalGhs;
   const parts: string[] = [];
   const name = shortName(best.title);
@@ -140,6 +140,6 @@ function altWhy(c: RankInput, best: RankInput | null): string | null {
   const fb = freightOf(best.quote);
   if (Math.abs(fa - fb) >= 0.005) parts.push(`Freight is ${formatGhs(fa)} here against ${formatGhs(fb)}.`);
   else if (Math.abs(gap) >= 0.005) parts.push("Same freight, so the difference is the store price.");
-  if (c.state === "stock_check") parts.push(c.quote.totalGhs < best.quote.totalGhs ? "Cheaper, but the store's stock and condition are confirmed before you pay." : "Stock and condition are confirmed before you pay.");
+  if (c.state === "stock_check") parts.push("Much cheaper than other new listings: check the seller before you buy.");
   return parts.join(" ");
 }

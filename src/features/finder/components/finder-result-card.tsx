@@ -156,7 +156,7 @@ export function FinderResultCard({ candidate, featured = false, onAddToBag }: Fi
           className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2.5 text-[13px] leading-snug text-foreground"
         >
           <Package size={16} weight="duotone" className="mt-px shrink-0 text-muted-foreground" aria-hidden />
-          We confirm stock before you pay.
+          Much cheaper than other new listings: check the seller before you buy.
         </motion.p>
       )}
 

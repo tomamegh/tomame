@@ -1,7 +1,7 @@
 import { freightCheckPending } from "@/features/pricing/freight-inspection";
 import { FREIGHT_CHECKING_MESSAGE } from "./resolvers/messages";
 import { PRICE_CHECKING_MESSAGE, PRICE_CONFIRMING_MESSAGE, type PriceConfidence } from "./price-confidence";
-import { detectStockSignals, STOCK_CHECK_MESSAGE, STOCK_UNAVAILABLE_MESSAGE } from "./stock-signals";
+import { STOCK_UNAVAILABLE_MESSAGE } from "./stock-signals";
 import type { ExtractionResult } from "./types";
 
 /**
@@ -10,8 +10,9 @@ import type { ExtractionResult } from "./types";
  * there is one answer to "can this line be paid for now?", not three.
  *
  * A line can sit in the bag while held; it cannot be paid for. Precedence:
- * freight check running → item unavailable → price not confirmed → stock and
- * condition not confirmed. Pure; the caller loads the checks.
+ * freight check running → item unavailable → price not confirmed. Stock and
+ * condition never hold payment (Kelvin, 2026-11-22: "let user purchase
+ * freely"). Pure; the caller loads the checks.
  */
 
 export type PayHoldKind = "freight_check" | "unavailable" | "price_check" | "stock_check";
@@ -101,10 +102,6 @@ export function payHoldOf(input: PayGateInput): PayHold | null {
     if (state !== "clear") return { kind: "price_check", message: PRICE_CHECKING_MESSAGE, needs_staff: false };
   }
 
-  if (detectStockSignals(extraction.product).length > 0) {
-    const confirmed = stock.some((c) => c.status === "confirmed" && stillValid(c, now));
-    if (!confirmed) return { kind: "stock_check", message: STOCK_CHECK_MESSAGE, needs_staff: true };
-  }
   return null;
 }
 
@@ -189,8 +186,6 @@ export function checksNeeded(input: PayGateInput): ChecksNeeded {
     else if (state === "needed" && !open("price")) price = "checking";
   }
 
-  const stockSystem = checks.filter((c) => c.kind === "stock" && c.origin === "system");
-  const decided = stockSystem.some((c) => (c.status === "confirmed" || c.status === "unavailable") && stillValid(c, now));
-  const stock = detectStockSignals(extraction.product).length > 0 && !decided && !open("stock");
-  return { price, stock };
+  // Stock checks are no longer opened: they held payment and lost customers.
+  return { price, stock: false };
 }
