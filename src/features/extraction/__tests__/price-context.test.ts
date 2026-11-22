@@ -23,7 +23,9 @@ describe("priceContextOf — the Armani case", () => {
 
   it("says what we read before, with the day", () => {
     const ctx = priceContextOf(result(96.6, { listPrice: 138, history: [{ price: 138, currency: "USD", at: "2026-11-21T18:45:54Z" }] }), NOW);
-    expect(priceContextParts(ctx, "Amazon")).toEqual(["30% off Amazon's $138.00 list price", "Down from $138.00 when we checked on 21 Nov"]);
+    expect(priceContextParts(ctx, "Amazon")).toEqual(["30% off Amazon's $138.00 list price, the price we read on 21 Nov"]);
+    const other = priceContextOf(result(96.6, { listPrice: 138, history: [{ price: 120, currency: "USD", at: "2026-11-21T18:45:54Z" }] }), NOW);
+    expect(priceContextParts(other, "Amazon")).toEqual(["30% off Amazon's $138.00 list price", "Down from $120.00 when we checked on 21 Nov"]);
   });
 
   it("says a rise plainly", () => {

@@ -106,9 +106,13 @@ export function priceContextParts(ctx: PriceContext | null, storeName: string | 
   if (!ctx) return [];
   const parts: string[] = [];
   const store = storeName ? `${storeName}'s` : "the store's";
-  if (ctx.listPrice && ctx.savingPct) parts.push(`${ctx.savingPct}% off ${store} ${money(ctx.listPrice, ctx.currency)} list price`);
+  const sameAsList = ctx.previous != null && ctx.listPrice != null && Math.round(ctx.previous.price * 100) === Math.round(ctx.listPrice * 100);
+  if (ctx.listPrice && ctx.savingPct) {
+    const when = sameAsList ? `, the price we read on ${shortDay(ctx.previous!.at)}` : "";
+    parts.push(`${ctx.savingPct}% off ${store} ${money(ctx.listPrice, ctx.currency)} list price${when}`);
+  }
   if (ctx.dealLabel && !parts.length) parts.push(ctx.dealLabel);
-  if (ctx.previous) {
+  if (ctx.previous && !sameAsList) {
     const way = ctx.previous.price > ctx.price ? "Down" : "Up";
     parts.push(`${way} from ${money(ctx.previous.price, ctx.currency)} when we checked on ${shortDay(ctx.previous.at)}`);
   }
