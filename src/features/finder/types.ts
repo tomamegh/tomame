@@ -82,7 +82,7 @@ export type FinderEvent =
    * `candidates` until the result, which ranks it with the rest.
    */
   | { type: "quick_pick"; at: number; candidate: FinderCandidate; quote: FinderQuote; priceContext?: PriceContext | null; extractionCacheId: string; reason: string }
-  | { type: "result_ready"; at: number; bestId: string; alternativeIds: string[]; why: Record<string, string> }
+  | { type: "result_ready"; at: number; bestId: string; alternativeIds: string[]; why: Record<string, string>; specNote?: string }
   | { type: "nothing_found"; at: number; message: string; whatsappText: string };
 
 export type FinderPhase = "asking" | "working" | "result" | "nothing_found";
@@ -140,6 +140,8 @@ export interface FinderState {
   /** The fast answer, shown while the run works; null until one lands. */
   quickPick: (FinderCandidateState & { reason: string }) | null;
   nothingFound: { message: string; whatsappText: string } | null;
+  /** Why the options differ so much in price, by spec (spec-spread.ts); null when they are close. */
+  specNote?: string | null;
   /** The latest line of narration, for the screen reader live region. */
   narration: string;
 }

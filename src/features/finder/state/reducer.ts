@@ -190,6 +190,7 @@ export function finderReducer(state: FinderState, event: FinderEvent): FinderSta
         steps: closeActiveSteps(state.steps),
         candidates,
         result: resolveResult(candidates, event.bestId, event.alternativeIds),
+        specNote: event.specNote ?? null,
         narration: "Your results are ready.",
       };
     }

@@ -50,13 +50,14 @@ import {
 } from "../narration";
 import { rankCandidates, toFinderQuote, type RankInput } from "../ranking";
 import { isSuspiciouslyLow, outlierReference } from "../price-outlier";
+import { wideSpread } from "../spec-spread";
 import { priceContextOf, type PriceContext } from "@/features/extraction/price-context";
 import { QUICK_PICK_TRIES, quickPickOrder, quickPickReason, saysInStock } from "../quick-pick";
 import { dropDetails, isClearlyOverBudget, isNotNew, isRiskyListing, keywordMatches, mergeDrops, postFilterListings, type DropReason, type FinderListing } from "../shortlist";
 import { normaliseFinderQuery, specSummary, storedSpec, type ParsedFinderSpec } from "../spec";
 import { finderAllowedStores, finderStoreName, mergeListings, pickSearchStores } from "../stores";
 import type { FinderEvent, FinderQuote, FinderRunView } from "../types";
-import { shortlistListings, understandRequest, type TokenUsage } from "./finder-ai.service";
+import { explainSpecSpread, shortlistListings, understandRequest, type TokenUsage } from "./finder-ai.service";
 import { finderRecipient, finderRunPath, notifyFinderFinished } from "./finder-notify.service";
 import { estimateLandedGhs, planFinderStores, searchFinderCatalogue, searchFinderStore, type StoreSearchResult } from "./finder-search.service";
 
@@ -618,7 +619,10 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   const within = spec.budgetGhs == null ? null : fullyPriced.filter((c) => c.quote!.totalGhs <= spec.budgetGhs!).length;
   narrator.emit({ type: "step_done", step: "compare", summary: compareSummary(fullyPriced.length, within) });
   const ids = ranking.bestId ? [ranking.bestId, ...ranking.alternativeIds] : ranking.alternativeIds;
-  narrator.emit({ type: "result_ready", bestId: ids[0]!, alternativeIds: ids.slice(1), why: ranking.why });
+  // Options far apart in price are different specs: say which, so the dear one does not read as a mistake.
+  const spread = wideSpread(rankInput.filter((c) => c.quote).map((c) => ({ title: c.title, store: c.storeName, totalGhs: c.quote!.totalGhs })));
+  const specNote = spread ? await explainSpecSpread(spec.product, spread, Math.min(FINDER.specNoteTimeoutMs, msLeft() - 5_000), usage) : null;
+  narrator.emit({ type: "result_ready", bestId: ids[0]!, alternativeIds: ids.slice(1), why: ranking.why, ...(specNote ? { specNote } : {}) });
 
   return {
     status: "done",

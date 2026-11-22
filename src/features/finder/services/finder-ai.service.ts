@@ -8,6 +8,7 @@ import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
 import { applyShortlistOutput, ShortlistOutputSchema, type DropReason, type FinderListing } from "../shortlist";
+import { parseSpecNote, SpecNoteOutputSchema, type SpreadOption } from "../spec-spread";
 import { FinderSpecOutputSchema, parseSpecOutput, type ParsedFinderSpec } from "../spec";
 
 /**
@@ -126,6 +127,44 @@ export async function shortlistListings(
     return applyShortlistOutput(response.parsed_output, listings);
   } catch (error) {
     logger.warn("finder: shortlist failed", { error: error instanceof Error ? error.message : String(error), ms: Date.now() - t0 });
+    return null;
+  }
+}
+
+const SPEC_NOTE_SYSTEM = [
+  "You help a shopper in Ghana understand why the options found for one request cost such different amounts.",
+  "You get the request and each option's store, title and landed total in cedis, cheapest first.",
+  "Write at most two short sentences in plain words: what makes the dearer options dearer, by the spec their titles state (panel type such as OLED vs LED or QNED, model or series, model year, size, storage, generation), and what that means for the shopper in everyday terms.",
+  "Use only what the titles say plus the common meaning of those terms. Never invent a spec, a feature, a rating or a price; never say which to buy; never mention discounts.",
+  "If the titles do not show what differs, say they are different models and the shopper can choose by budget.",
+  "Write the totals exactly as given when you mention one.",
+].join("\n");
+
+/** Why the found options differ so much in price, from their titles. Null on any failure or nothing to say. */
+export async function explainSpecSpread(product: string, options: readonly SpreadOption[], timeoutMs: number, usage?: TokenUsage): Promise<string | null> {
+  const anthropic = getClient();
+  if (!anthropic || options.length < 2 || timeoutMs < 1_000) return null;
+  const t0 = Date.now();
+  const lines = options.map((o) => `${o.store} | ${o.title} | GH₵${o.totalGhs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  try {
+    const response = await anthropic.messages.parse(
+      {
+        model: FINDER.model,
+        max_tokens: 600,
+        output_config: { effort: "low", format: zodOutputFormat(SpecNoteOutputSchema) },
+        system: SPEC_NOTE_SYSTEM,
+        messages: [{ role: "user", content: [`Requested: ${product}`, "", "Options (store | title | landed total), cheapest first:", ...lines].join("\n") }],
+      },
+      { timeout: timeoutMs },
+    );
+    if (usage) {
+      usage.input += response.usage.input_tokens;
+      usage.output += response.usage.output_tokens;
+    }
+    if (response.stop_reason === "refusal") return null;
+    return parseSpecNote(response.parsed_output);
+  } catch (error) {
+    logger.warn("finder: spec note failed", { error: error instanceof Error ? error.message : String(error), ms: Date.now() - t0 });
     return null;
   }
 }

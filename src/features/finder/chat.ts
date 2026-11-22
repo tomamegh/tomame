@@ -97,7 +97,7 @@ export function summariseChatRuns(runs: readonly ChatRunSnapshot[]): string | nu
         const facts = c.quote ? priceContextFacts(c.priceContext ?? null) : null;
         return `  ${i === 0 ? "best" : `option ${i + 1}`}: ${c.title} at ${c.store.name}, ${price}${facts ? `; ${facts}` : ""}`;
       });
-      return [`- ${item}:`, ...lines].join("\n");
+      return [`- ${item}:`, ...lines, ...(state.specNote ? [`  why the prices differ (already shown to the customer): ${state.specNote}`] : [])].join("\n");
     })
     .join("\n");
 }

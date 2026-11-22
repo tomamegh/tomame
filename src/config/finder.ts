@@ -16,6 +16,8 @@ export const FINDER = {
    */
   chatModel: "claude-haiku-5-5",
   chatTimeoutMs: 30_000,
+  /** The note on why options differ in price (spec-spread.ts); skipped when the run has less time left. */
+  specNoteTimeoutMs: 8_000,
   /** Budget key in `job_budgets`: one unit per store search page. */
   jobName: "finder-search",
   /**

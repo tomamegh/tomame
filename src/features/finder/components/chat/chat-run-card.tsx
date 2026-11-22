@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CaretDown, CheckCircle, MagnifyingGlass, WhatsappLogo } from "@phosphor-icons/react";
+import { ArrowRight, CaretDown, CheckCircle, Info, MagnifyingGlass, WhatsappLogo } from "@phosphor-icons/react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -125,6 +125,15 @@ export function ChatRunCard({ run, buyerWhatsappNumber, onAddToBag, onHandoff }:
 
         {state.phase === "result" && (
           <div className="flex flex-col gap-3">
+            {state.specNote && (
+              <p className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2.5 text-[13px] leading-snug text-foreground">
+                <Info size={16} weight="duotone" className="mt-px shrink-0 text-muted-foreground" aria-hidden />
+                <span>
+                  <span className="font-semibold">Why the prices differ: </span>
+                  {state.specNote}
+                </span>
+              </p>
+            )}
             {best ? <FinderResultCard featured candidate={best} onAddToBag={onAddToBag} /> : null}
             {others.length > 0 && (
               <div className="flex flex-col gap-2">
