@@ -1,6 +1,7 @@
 "use client";
 
-import { formatAddressLabel } from "@/features/addresses/format";
+import { addressBlockLines } from "@/features/addresses/format";
+import { displayPhone, isContactPhone } from "@/features/addresses/phone";
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
@@ -119,12 +120,19 @@ export function BagDeliverToCard({ delivery, zones, addresses, isSignedIn, picku
                 <AddressIcon label={address.label} selected={selected} />
                 {selected && <CheckCircle weight="fill" className="size-[18px] text-tm-coral" aria-hidden />}
               </span>
-              <span className="text-sm leading-[1.2] font-semibold">
-                {formatAddressLabel(address)}
+              {/* One address block, as entered (Fix 5): the saved name, then the address, then who receives it. */}
+              <span className="text-[11px] leading-none font-semibold tracking-wide text-tm-text-3 uppercase">{address.label}</span>
+              <span className="flex flex-col text-sm leading-[1.35] font-semibold">
+                {addressBlockLines(address).map((line) => (
+                  <span key={line}>{line}</span>
+                ))}
               </span>
               <span className="text-xs leading-[1.4] text-tm-text-2">
-                {address.line1} · {address.phone}
+                {address.recipient_name} · <span className="tm-nums">{displayPhone(address.phone)}</span>
               </span>
+              {!isContactPhone(address.phone) && (
+                <span className="text-xs leading-[1.4] font-semibold text-tm-amber">This phone number looks incomplete. Edit the address.</span>
+              )}
             </button>
           );
         })}

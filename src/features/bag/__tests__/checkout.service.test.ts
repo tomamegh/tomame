@@ -5,7 +5,7 @@ vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
 vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn() }));
 vi.mock("@/features/orders/services/orders.service", () => ({ createOrder: vi.fn() }));
-vi.mock("@/db/queries/delivery-addresses", () => ({ getDeliveryAddressById: vi.fn(async () => ({ id: "a1", label: "Home", area: "East Legon" })) }));
+vi.mock("@/db/queries/delivery-addresses", () => ({ getDeliveryAddressById: vi.fn(async () => ({ id: "a1", label: "Home", area: "East Legon", phone: "+233244123456" })) }));
 vi.mock("@/db/queries/orders", () => ({ listOrdersByGroup: vi.fn(async () => []) }));
 vi.mock("@/db/queries/carts", () => ({ setCartStatus: vi.fn(async () => true) }));
 vi.mock("@/db/queries/order-groups", () => ({

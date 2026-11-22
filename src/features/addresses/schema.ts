@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { CONTACT_PHONE_MESSAGE, normaliseContactPhone } from "./phone";
+
 /**
  * Ghanaian numbers as customers type them: 024 555 0192, +233 24 555 0192,
  * 0245550192.
@@ -10,14 +12,18 @@ import { z } from "zod";
  * definition, imported; see `src/features/account/schema.ts`.
  */
 export const GHANA_PHONE_RE = /^\+?[0-9][0-9 ()-]{7,18}$/;
-const PHONE_RE = GHANA_PHONE_RE;
 /** GhanaPost GPS: two letters, three digits, four digits. */
 const DIGITAL_ADDRESS_RE = /^[A-Z]{2}-\d{3,4}-\d{4}$/i;
 
 const addressFields = {
   label: z.string().trim().min(1, "Give this address a name").max(40),
   recipient_name: z.string().trim().min(1, "Who receives it?").max(120),
-  phone: z.string().trim().regex(PHONE_RE, "Enter a phone number we can call"),
+  // Fix 5: a complete number, stored normalised (+233…). The output parses to itself.
+  phone: z
+    .string()
+    .trim()
+    .refine((v) => normaliseContactPhone(v) !== null, CONTACT_PHONE_MESSAGE)
+    .transform((v) => normaliseContactPhone(v)!),
   line1: z.string().trim().min(1, "Street or house").max(200),
   line2: z.string().trim().max(200).optional(),
   area: z.string().trim().max(80).optional(),

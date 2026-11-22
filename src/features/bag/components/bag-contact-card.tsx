@@ -5,7 +5,8 @@ import { CheckCircle, UserCircle } from "@phosphor-icons/react/ssr";
 
 import { Input } from "@/components/ui/input";
 import { AccountField } from "@/features/account/components/account-field";
-import { missingContactDetails, type ContactDetails, type ContactField } from "@/features/account/contact-details";
+import { missingContactDetails, phoneLooksIncomplete, type ContactDetails, type ContactField } from "@/features/account/contact-details";
+import { CONTACT_PHONE_MESSAGE, displayPhone } from "@/features/addresses/phone";
 import { useUpdateAccountProfile } from "@/features/account/hooks/useAccountProfile";
 import { updateAccountProfileSchema } from "@/features/account/schema";
 import { toast } from "@/lib/sonner";
@@ -38,7 +39,10 @@ export function BagContactCard({ contact, onSaved }: BagContactCardProps) {
     last_name: contact.last_name ?? "",
     phone: contact.phone ?? "",
   });
-  const [errors, setErrors] = useState<Partial<FormState>>({});
+  // A stored number that is not complete (a nine-digit slip) opens the form already flagged (Fix 5).
+  const [errors, setErrors] = useState<Partial<FormState>>(() =>
+    phoneLooksIncomplete(contact) ? { phone: `This number looks incomplete. ${CONTACT_PHONE_MESSAGE}.` } : {},
+  );
   const { save, isPending } = useUpdateAccountProfile();
 
   const set = useCallback((key: ContactField, value: string) => {
@@ -100,7 +104,7 @@ export function BagContactCard({ contact, onSaved }: BagContactCardProps) {
             <span className="truncate text-sm leading-[1.2] font-semibold">
               {contact.first_name} {contact.last_name}
             </span>
-            <span className="text-xs leading-[1.4] text-tm-text-2">{contact.phone}</span>
+            <span className="tm-nums text-xs leading-[1.4] text-tm-text-2">{displayPhone(contact.phone)}</span>
           </div>
           <CheckCircle weight="fill" className="size-[18px] shrink-0 text-tm-coral" aria-hidden />
         </div>

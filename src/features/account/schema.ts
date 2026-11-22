@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { GHANA_PHONE_RE } from "@/features/addresses/schema";
+import { CONTACT_PHONE_MESSAGE, isContactPhone, normaliseContactPhone } from "@/features/addresses/phone";
 
 /**
  * What `PATCH /api/app/me` accepts.
@@ -28,9 +28,9 @@ export const accountPhoneSchema = z
   .trim()
   .nullable()
   .transform((value) => (value === "" || value === null ? null : value))
-  .refine((value) => value === null || GHANA_PHONE_RE.test(value), {
-    message: "Enter a phone number we can reach you on",
-  });
+  .refine((value) => value === null || isContactPhone(value), { message: CONTACT_PHONE_MESSAGE })
+  // Fix 5: stored normalised (+233…), so the bag shows one spelling of one number.
+  .transform((value) => (value === null ? null : normaliseContactPhone(value)));
 
 /**
  * Free text that may be blanked. Empty string means "remove it", same as above.

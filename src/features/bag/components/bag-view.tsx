@@ -8,7 +8,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { DeliveryAddress } from "@/features/addresses/types";
-import { hasContactDetails, type ContactDetails } from "@/features/account/contact-details";
+import { hasContactDetails, phoneLooksIncomplete, type ContactDetails } from "@/features/account/contact-details";
+import { isContactPhone } from "@/features/addresses/phone";
 import type { PaymentChannel } from "@/features/payments/types";
 import { useCreateWatch } from "@/features/watches/hooks/useWatches";
 import { ApiFetchError } from "@/lib/api-client";
@@ -125,6 +126,10 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   // answers one and the re-price lands in the same read, the two stop agreeing,
   // and the pay button must follow the request's state rather than the price's.
   const hasContact = !!(contact && hasContactDetails(contact));
+  // Fix 5: an incomplete number (on the profile or the chosen address) is flagged before Pay.
+  const phoneIncomplete = !!(contact && phoneLooksIncomplete(contact));
+  const chosenAddress = bag.delivery?.address_id ? addresses.find((a) => a.id === bag.delivery?.address_id) : undefined;
+  const addressPhoneIncomplete = !!chosenAddress && !isContactPhone(chosenAddress.phone);
   const blocked =
     bag.lines.length === 0 ||
     bag.has_unpriced_lines ||
@@ -133,9 +138,10 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
     // paid for; checkout would refuse it with a 409 (pay-gate.ts).
     bag.has_pay_holds === true ||
     (isSignedIn && !bag.delivery) ||
-    (isSignedIn && !hasContact);
+    (isSignedIn && !hasContact) ||
+    (isSignedIn && addressPhoneIncomplete);
   // Said beside the button, so a waiting Pay is never a mystery.
-  const blockedReason = blocked ? payBlockReason(bag, { isSignedIn, hasContact }) : null;
+  const blockedReason = blocked ? payBlockReason(bag, { isSignedIn, hasContact, phoneIncomplete, addressPhoneIncomplete }) : null;
 
   const linesById = useMemo(() => new Map(bag.lines.map((l) => [l.id, l])), [bag.lines]);
   const unboxed = bag.unboxed_line_ids.map((id) => linesById.get(id)).filter((l): l is BagLine => !!l);

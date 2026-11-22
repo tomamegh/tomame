@@ -192,7 +192,7 @@ export function AddressFormDialog({ open, onOpenChange, zones, onCreated, onUnau
           ) : null}
 
           <div className="grid gap-3.5 sm:grid-cols-2">
-            <Field id="address-label" label="Name this address" error={errors.label}>
+            <Field id="address-label" label="Name this address (Home, Office)" error={errors.label}>
               <Input
                 id="address-label"
                 value={form.label}

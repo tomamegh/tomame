@@ -74,9 +74,17 @@ describe("the account phone rule is the address phone rule", () => {
     expect(address.success).toBe(false);
   });
 
-  it("trims before testing, so a pasted number with spaces around it is accepted", () => {
+  it("trims before testing, so a pasted number with spaces around it is accepted, and stores it normalised (Fix 5)", () => {
     const parsed = accountPhoneSchema.safeParse("  024 555 0192  ");
-    expect(parsed.success && parsed.data).toBe("024 555 0192");
+    expect(parsed.success && parsed.data).toBe("+233245550192");
+    // The output parses to itself: the form parses, the route parses again.
+    expect(accountPhoneSchema.safeParse("+233245550192").success).toBe(true);
+  });
+
+  it("refuses an incomplete Ghana number and takes one from abroad (Fix 5)", () => {
+    expect(accountPhoneSchema.safeParse("024409801").success).toBe(false);
+    const abroad = accountPhoneSchema.safeParse("+44 7700 900123");
+    expect(abroad.success && abroad.data).toBe("+447700900123");
   });
 });
 
@@ -107,7 +115,7 @@ describe("updateAccountProfileSchema", () => {
   it("rejects a bad phone with the account's own message", () => {
     const parsed = updateAccountProfileSchema.safeParse({ phone: "not a number" });
     expect(parsed.success).toBe(false);
-    expect(parsed.success === false && parsed.error.issues[0]?.message).toMatch(/phone number/i);
+    expect(parsed.success === false && parsed.error.issues[0]?.message).toMatch(/full number/i);
   });
 
   it("will not take a role, however it is spelled — role is not an account field", () => {

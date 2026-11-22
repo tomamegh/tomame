@@ -1,4 +1,5 @@
 import "server-only";
+import { isContactPhone } from "@/features/addresses/phone";
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -237,6 +238,10 @@ async function deliverySnapshot(bag: BagView): Promise<Record<string, unknown>> 
     return { kind: "pickup", zone_id: delivery.zone_id, zone_name: delivery.zone_name, fee_ghs: delivery.fee_ghs };
   }
   const address = await getDeliveryAddressById(delivery.address_id);
+  // Fix 5: the courier calls this number; an incomplete one is refused before anything is written.
+  if (address && !isContactPhone(address.phone)) {
+    throw new APIError(409, "The delivery address's phone number looks incomplete. Edit the address and try again.");
+  }
   return { ...(address ?? { id: delivery.address_id, label: delivery.label }), kind: "door", zone_id: delivery.zone_id, zone_name: delivery.zone_name, fee_ghs: delivery.fee_ghs };
 }
 

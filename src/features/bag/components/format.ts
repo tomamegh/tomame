@@ -268,6 +268,10 @@ export interface PayBlockContext {
   isSignedIn: boolean;
   /** The signed-in viewer has a name and phone on file. */
   hasContact: boolean;
+  /** Fix 5: a phone is on file but is not a complete number. */
+  phoneIncomplete?: boolean;
+  /** Fix 5: the chosen delivery address's phone is not a complete number. */
+  addressPhoneIncomplete?: boolean;
 }
 
 function countItems(n: number): string {
@@ -314,7 +318,10 @@ export function payBlockReason(view: BagView, ctx: PayBlockContext): string | nu
   if (unpriced > 0) return `${pronoun(unpriced, "1 item can't", `${unpriced} items can't`)} be priced right now. Remove ${pronoun(unpriced, "it", "them")} to pay for the rest.`;
 
   if (ctx.isSignedIn && !view.delivery) return "Choose how you'd like it delivered to pay.";
-  if (ctx.isSignedIn && !ctx.hasContact) return "Add your name and phone number to pay.";
+  if (ctx.isSignedIn && ctx.addressPhoneIncomplete) return "The delivery address's phone number looks incomplete. Edit the address to pay.";
+  if (ctx.isSignedIn && !ctx.hasContact) {
+    return ctx.phoneIncomplete ? "Your phone number looks incomplete. Fix it under Your details to pay." : "Add your name and phone number to pay.";
+  }
   return null;
 }
 
