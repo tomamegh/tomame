@@ -11,6 +11,8 @@ import {
   touchFinderChat,
   type FinderChatMessageRow,
   type FinderChatRow,
+  getProfilePhone,
+  setProfilePhone,
 } from "@/db/queries/finder-chats";
 import { listOpenAssistedRequestsByUrl } from "@/db/queries/assisted-requests";
 import { getQuoteFacts } from "@/db/queries/extraction-cache";
@@ -314,14 +316,19 @@ export async function getChatView(chatId: string, viewer: RequestViewer, options
     pastes = await readChatPastes(pasteIds, viewer);
   }
   const views = await Promise.all(runs.map((r) => toFinderRunView(r, { lite: true })));
-  const [email, buyer] = options.lite
-    ? [chat.email, null]
-    : await Promise.all([finderRecipient({ email: chat.email, user_id: chat.user_id }).catch(() => chat.email), buyerWhatsappNumber()]);
+  const [email, buyer, phone] = options.lite
+    ? [chat.email, null, chat.user_id ? await getProfilePhone(chat.user_id).catch(() => null) : chat.phone]
+    : await Promise.all([
+        finderRecipient({ email: chat.email, user_id: chat.user_id }).catch(() => chat.email),
+        buyerWhatsappNumber(),
+        chat.user_id ? getProfilePhone(chat.user_id).catch(() => null) : Promise.resolve(chat.phone),
+      ]);
   return {
     id: chat.id,
     title: chat.title,
     email,
     emailEditable: !chat.user_id,
+    phone,
     messages: messages.map(toMessageView),
     runs: Object.fromEntries(views.map((v) => [v.id, v])),
     pastes: Object.fromEntries(pastes.map((p) => [p.id, p])),
@@ -335,6 +342,19 @@ export async function updateChatEmail(chatId: string, viewer: RequestViewer, ema
   if (!chat) throw new APIError(404, "We have no record of that chat.");
   if (chat.user_id) throw new APIError(400, "Results go to your account's email address.");
   await touchFinderChat(chat.id, { email });
+  return (await listFinderChatMessages(chat.id)).filter((m) => m.role === "assistant" && m.run_ids.length > 0 && !m.emailed_at);
+}
+
+/**
+ * The customer's WhatsApp number (109): how Tomame reaches customers. A
+ * visitor's goes on the chat; an account's on the profile, with WhatsApp
+ * updates turned on. Finished turns not yet sent go now.
+ */
+export async function updateChatPhone(chatId: string, viewer: RequestViewer, phone: string): Promise<FinderChatMessageRow[]> {
+  const chat = await getFinderChatForViewer(chatId, viewer);
+  if (!chat) throw new APIError(404, "We have no record of that chat.");
+  if (chat.user_id) await setProfilePhone(chat.user_id, phone);
+  else await touchFinderChat(chat.id, { phone });
   return (await listFinderChatMessages(chat.id)).filter((m) => m.role === "assistant" && m.run_ids.length > 0 && !m.emailed_at);
 }
 

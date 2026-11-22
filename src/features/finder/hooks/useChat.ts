@@ -74,6 +74,25 @@ export function useChatHistory(initial: FinderChatSummary[]) {
 }
 
 /** A visitor's address for this chat's results. */
+/** 109: save the WhatsApp number we reach the customer on. */
+export function useChatPhone(chatId: string | null) {
+  const queryClient = useQueryClient();
+  const mutation = useMutation<{ phone: string }, Error, string>({
+    mutationFn: async (phone) => {
+      const res = await apiFetch<ApiSuccessResponse<{ phone: string }>>(`/api/finder/chat/${chatId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      if (chatId) void queryClient.invalidateQueries({ queryKey: chatKeys.chat(chatId) });
+    },
+  });
+  return useCallback((phone: string) => mutation.mutateAsync(phone), [mutation]);
+}
+
 export function useChatEmail(chatId: string | null) {
   const queryClient = useQueryClient();
   const mutation = useMutation<{ email: string }, Error, string>({

@@ -180,6 +180,8 @@ export interface FinderChatView {
   email: string | null;
   /** A visitor types their own address; an account's is fixed. */
   emailEditable: boolean;
+  /** 109: the WhatsApp number we reach this customer on (chat's for a visitor, profile's for an account); null asks for it. */
+  phone: string | null;
   messages: FinderChatMessageView[];
   /** Every run the chat started, keyed by id, as the run screen reads it. */
   runs: Record<string, FinderRunView>;

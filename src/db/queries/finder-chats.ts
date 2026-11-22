@@ -16,6 +16,8 @@ export interface FinderChatRow {
   session_id: string | null;
   title: string;
   email: string | null;
+  /** 109: a visitor's WhatsApp number, E.164. */
+  phone: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -32,7 +34,7 @@ export interface FinderChatMessageRow {
   created_at: string;
 }
 
-const CHAT_COLUMNS = "id, user_id, session_id, title, email, created_at, updated_at";
+const CHAT_COLUMNS = "id, user_id, session_id, title, email, phone, created_at, updated_at";
 const MESSAGE_COLUMNS = "id, chat_id, role, content, run_ids, paste_ids, emailed_at, created_at";
 const nowIso = () => new Date().toISOString();
 
@@ -98,10 +100,10 @@ export async function listFinderChatsForViewer(viewer: RequestViewer, limit: num
   return (data ?? []) as FinderChatRow[];
 }
 
-export async function touchFinderChat(id: string, patch: { email?: string | null } = {}): Promise<void> {
+export async function touchFinderChat(id: string, patch: { email?: string | null; phone?: string | null } = {}): Promise<void> {
   const { error } = await createAdminClient()
     .from("finder_chats")
-    .update({ updated_at: nowIso(), ...(patch.email !== undefined ? { email: patch.email } : {}) })
+    .update({ updated_at: nowIso(), ...(patch.email !== undefined ? { email: patch.email } : {}), ...(patch.phone !== undefined ? { phone: patch.phone } : {}) })
     .eq("id", id);
   if (error) logger.warn("finder chat touch failed", { id, message: error.message });
 }
@@ -176,6 +178,19 @@ export async function claimFinderTurnEmail(messageId: string): Promise<boolean> 
 
 export async function clearFinderTurnEmailed(messageId: string): Promise<void> {
   await createAdminClient().from("finder_chat_messages").update({ emailed_at: null }).eq("id", messageId);
+}
+
+/** A signed-in customer's profile number, read by the service role (own row only). */
+export async function getProfilePhone(userId: string): Promise<string | null> {
+  const { data, error } = await createAdminClient().from("profiles").select("phone").eq("id", userId).maybeSingle();
+  if (error) throw new Error(`Failed to load profile phone: ${error.message}`);
+  return ((data as { phone: string | null } | null)?.phone ?? null) || null;
+}
+
+/** Saves a signed-in customer's WhatsApp number and turns WhatsApp updates on. */
+export async function setProfilePhone(userId: string, phone: string): Promise<void> {
+  const { error } = await createAdminClient().from("profiles").update({ phone, whatsapp_opt_in: true }).eq("id", userId);
+  if (error) throw new Error(`Failed to save your number: ${error.message}`);
 }
 
 /** One chat by id, unscoped: the worker sending a turn's email. Never expose to a request handler. */

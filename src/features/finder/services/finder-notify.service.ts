@@ -16,7 +16,7 @@ import { sendEmail } from "@/lib/email/transport";
 import { logger } from "@/lib/logger";
 import { whatsappMessages } from "@/lib/whatsapp/templates";
 
-import { finderNoMatchTemplate, finderResultTemplate, finderTurnTemplate, type FinderTurnItem } from "../email/finder-result-email";
+import { finderNoMatchTemplate, finderResultTemplate, finderTurnTemplate, itemsPhrase, type FinderTurnItem } from "../email/finder-result-email";
 import { buyerWhatsappHref } from "../format";
 import { reduceFinderEvents, selectRankedCandidates } from "../state/reducer";
 
@@ -132,6 +132,20 @@ export async function notifyFinderTurn(
       ];
     });
     if (items.length === 0) return "error";
+    // Phone is how we reach customers (109): an account with a number and WhatsApp on hears here too.
+    const found = items.find((i) => i.best?.quote);
+    if (chat.user_id && found) {
+      try {
+        await queueWhatsApp({
+          userId: chat.user_id,
+          event: "finder_turn",
+          dedupeKey: `finder_turn:${turn.id}`,
+          message: whatsappMessages.quoteReady({ productName: items.length > 1 ? itemsPhrase(items.map((i) => i.product)) : found.product, reviewPath: finderChatPath(chat.id) }),
+        });
+      } catch (error) {
+        logger.warn("finder: turn WhatsApp not queued", { messageId: turn.id, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
     const missing = items.filter((i) => !i.best?.quote).map((i) => i.product);
     const buyerHref = buyerNumber && missing.length ? buyerWhatsappHref(buyerNumber, `Hi Tomame, can a buyer find this for me? ${missing.join("; ")}`) : null;
     const mail = finderTurnTemplate({ items, chatUrl: `${env.app.url}${finderChatPath(chat.id)}`, buyerHref });

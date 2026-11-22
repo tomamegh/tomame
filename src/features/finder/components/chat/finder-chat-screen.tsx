@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, ChatsCircle, ClockCounterClockwise, EnvelopeSimple, LinkSimple, NotePencil, Sparkle } from "@phosphor-icons/react";
+import { ArrowUp, ChatsCircle, ClockCounterClockwise, LinkSimple, NotePencil, Sparkle, WhatsappLogo } from "@phosphor-icons/react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -15,7 +15,7 @@ import { riseIn } from "@/lib/motion/presets";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 
-import { chatKeys, chatWorking, useChatEmail, useChatHistory, useChatView, useSendChat } from "../../hooks/useChat";
+import { chatKeys, chatWorking, useChatHistory, useChatPhone, useChatView, useSendChat } from "../../hooks/useChat";
 import { recordFinderHandoff } from "../../hooks/useFinder";
 import type { FinderCandidateState, FinderChatMessageView, FinderChatSummary, FinderChatView, PastedLinkSummary } from "../../types";
 import { WatchedPaste } from "./ask-mode";
@@ -56,7 +56,7 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
   const send = useSendChat();
   const historyQuery = useChatHistory(history);
   const addToBag = useAddToBag();
-  const saveEmail = useChatEmail(chat?.id ?? null);
+  const savePhone = useChatPhone(chat?.id ?? null);
   const [text, setText] = useState(defaultText);
   const [pending, setPending] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -137,6 +137,7 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
 
   const empty = messages.length === 0 && !pending && !watch;
   const hasRuns = chat != null && Object.keys(chat.runs).length > 0;
+  const hasWork = hasRuns || (chat != null && Object.keys(chat.pastes).length > 0);
   const chats = historyQuery.data ?? [];
 
   return (
@@ -237,11 +238,11 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
             </ol>
           )}
 
-          {chat?.emailEditable && !chat.email && hasRuns && <VisitorEmail onSave={saveEmail} />}
-          {chat && chat.email && hasRuns && (
+          {chat && !chat.phone && hasWork && <WhatsappNumber onSave={savePhone} />}
+          {chat?.phone && hasWork && (
             <p className="mb-3 flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-              <EnvelopeSimple size={14} aria-hidden />
-              You can leave this page. We&apos;ll email the results to {chat.email}.
+              <WhatsappLogo size={14} aria-hidden />
+              You can leave this page. We&apos;ll reach you on WhatsApp at {chat.phone}.
             </p>
           )}
 
@@ -379,18 +380,18 @@ function EmptyState({ onPick, disabled }: { onPick: (text: string) => void; disa
   );
 }
 
-function VisitorEmail({ onSave }: { onSave: (email: string) => Promise<unknown> }) {
-  const [email, setEmail] = useState("");
+function WhatsappNumber({ onSave }: { onSave: (phone: string) => Promise<unknown> }) {
+  const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
   return (
     <form
       onSubmit={async (e) => {
         e.preventDefault();
-        if (!email.trim()) return;
+        if (!phone.trim()) return;
         setSaving(true);
         try {
-          await onSave(email.trim());
-          toast.success({ title: "Saved", description: `We'll email the results to ${email.trim()}.` });
+          await onSave(phone.trim());
+          toast.success({ title: "Saved", description: "We'll reach you on WhatsApp about these." });
         } catch (error) {
           toast.error({ title: "Not saved", description: error instanceof Error ? error.message : "Try again." });
         } finally {
@@ -399,15 +400,18 @@ function VisitorEmail({ onSave }: { onSave: (email: string) => Promise<unknown> 
       }}
       className="mb-4 flex flex-col gap-2 rounded-2xl border border-tm-border bg-card p-3 sm:flex-row sm:items-center"
     >
-      <label htmlFor="finder-chat-email" className="text-[13px] font-medium sm:shrink-0">
-        Email me the results
+      <label htmlFor="finder-chat-phone" className="flex items-center gap-1.5 text-[13px] font-medium sm:shrink-0">
+        <WhatsappLogo size={16} weight="duotone" aria-hidden />
+        Your WhatsApp number
       </label>
       <input
-        id="finder-chat-email"
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="you@example.com"
+        id="finder-chat-phone"
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        placeholder="024 412 3456"
         className="h-10 min-w-0 flex-1 rounded-full border border-tm-border bg-background px-3 text-[14px] outline-none focus:border-tm-coral/50"
       />
       <button type="submit" disabled={saving} className="h-10 rounded-full bg-tm-ink px-4 text-[13px] font-semibold text-white disabled:opacity-50">

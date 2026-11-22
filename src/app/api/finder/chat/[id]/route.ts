@@ -1,8 +1,8 @@
 import { NextRequest, after } from "next/server";
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
-import { chatEmailSchema, finderRunIdSchema } from "@/features/finder/schema";
-import { emailTurnWhenSettled, getChatView, updateChatEmail } from "@/features/finder/services/finder-chat.service";
+import { chatEmailSchema, chatPhoneSchema, finderRunIdSchema } from "@/features/finder/schema";
+import { emailTurnWhenSettled, getChatView, updateChatEmail, updateChatPhone } from "@/features/finder/services/finder-chat.service";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
 import { readQuoteSession } from "@/lib/quote-session";
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-/** PATCH /api/finder/chat/[id] — a visitor's address for results; finished turns not yet emailed go now. */
+/** PATCH /api/finder/chat/[id] — `{phone}` (the WhatsApp number we reach the customer on, 109) or a visitor's `{email}`; finished turns not yet sent go now. */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const id = finderRunIdSchema.safeParse((await params).id);
@@ -32,9 +32,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body: unknown = await request.json().catch(() => {
       throw new APIError(400, "Invalid JSON");
     });
+    const viewer = await viewerOf(request);
+    if (body && typeof body === "object" && "phone" in body) {
+      const phone = chatPhoneSchema.safeParse(body);
+      if (!phone.success) throw new APIError(400, phone.error.issues[0]?.message ?? "Invalid input");
+      const due = await updateChatPhone(id.data, viewer, phone.data.phone);
+      after(async () => {
+        for (const turn of due) await emailTurnWhenSettled(turn);
+      });
+      return successResponse({ phone: phone.data.phone });
+    }
     const parsed = chatEmailSchema.safeParse(body);
     if (!parsed.success) throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid input");
-    const viewer = await viewerOf(request);
     const pending = await updateChatEmail(id.data, viewer, parsed.data.email);
     after(async () => {
       for (const turn of pending) await emailTurnWhenSettled(turn);

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { normaliseGhanaPhone } from "@/features/order-delivery/schema";
+
 import { FINDER } from "@/config/finder";
 
 /**
@@ -42,3 +44,18 @@ export const chatMessageSchema = z.object({
 export type ChatMessageBody = z.infer<typeof chatMessageSchema>;
 
 export const chatEmailSchema = z.object({ email: z.email("That email address does not look right").max(254) });
+
+/** 109: the chat asks for a WhatsApp number; Ghana numbers, stored E.164. */
+export const chatPhoneSchema = z.object({
+  phone: z
+    .string()
+    .max(30)
+    .transform((raw, ctx) => {
+      const phone = normaliseGhanaPhone(raw);
+      if (!phone) {
+        ctx.addIssue({ code: "custom", message: "Enter a Ghana number, like 024 412 3456" });
+        return z.NEVER;
+      }
+      return phone;
+    }),
+});

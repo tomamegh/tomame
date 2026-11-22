@@ -41,7 +41,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   runSeq = 0;
   msgs = [];
-  vi.mocked(insertFinderChat).mockResolvedValue({ id: "chat-1", user_id: "u1", session_id: null, title: "t", email: null, created_at: "", updated_at: "" });
+  vi.mocked(insertFinderChat).mockResolvedValue({ id: "chat-1", user_id: "u1", session_id: null, title: "t", email: null, phone: null, created_at: "", updated_at: "" });
   vi.mocked(insertFinderChatMessage).mockImplementation(async (m) => {
     const row = { id: `m${msgs.length}`, chat_id: m.chatId, role: m.role, content: m.content, run_ids: m.runIds ?? [], paste_ids: m.pasteIds ?? [], emailed_at: null, created_at: "" };
     msgs.push(row);
