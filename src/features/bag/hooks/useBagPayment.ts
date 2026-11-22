@@ -1,9 +1,16 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { useInitializePayment } from "@/features/payments/hooks/usePayment";
+import {
+  fetchMomoPaymentState,
+  useInitializePayment,
+  useStartMomoPayment,
+  useSubmitMomoOtp,
+} from "@/features/payments/hooks/usePayment";
+import { formatLocalGhanaPhone, type MomoPaymentState, type MomoPrefill } from "@/features/payments/momo";
+import { normaliseGhanaPhone } from "@/features/order-delivery/schema";
 import type { PaymentChannel } from "@/features/payments/types";
 import { trackMetaEvent } from "@/lib/analytics/meta-pixel";
 import { ApiFetchError } from "@/lib/api-client";
@@ -14,9 +21,15 @@ const LOGIN_HREF = `/auth/login?next=${encodeURIComponent("/app/bag")}`;
 
 export interface UseBagPaymentOptions {
   isSignedIn: boolean;
-  /** `site_settings.payment_channels`; the first is pre-selected. */
+  /** `site_settings.payment_channels`; the prefilled number's network, else the first, is pre-selected. */
   channels: PaymentChannel[];
+  /** The saved MoMo number, else the account phone; null when signed out. */
+  momoPrefill?: MomoPrefill | null;
 }
+
+/** How long the dialog keeps asking before it says "still waiting" (the prompt itself times out sooner). */
+const MOMO_POLL_MS = 4_000;
+const MOMO_PATIENCE_MS = 3 * 60_000;
 
 export interface BagPayment {
   /** The selected channel's id, or null when the admin has configured none. */
@@ -31,6 +44,33 @@ export interface BagPayment {
   /** The checkout tick: "Send me WhatsApp updates about my order". Off until ticked. */
   whatsappUpdates: boolean;
   setWhatsappUpdates: (value: boolean) => void;
+  /** The selected channel is Mobile Money: Pay sends the prompt to `momoPhone`. */
+  isMomo: boolean;
+  /** Signed in and paying by MoMo: the number field shows. */
+  showMomoField: boolean;
+  /** False while a MoMo payment has no usable Ghana number; Pay waits for it. */
+  momoReady: boolean;
+  /** What the pay buttons say while `busy`. */
+  busyLabel: string;
+  /** The selected channel's label ("MTN MoMo"), for the prompt dialog. */
+  channelLabel: string | null;
+  momoPhone: string;
+  setMomoPhone: (value: string) => void;
+  /** The consent tick: remember this number for the next order. Off until ticked, unless already saved. */
+  rememberMomo: boolean;
+  setRememberMomo: (value: boolean) => void;
+  /** The prompt in flight, or null. Drives `MomoPromptDialog`. */
+  momo: MomoPaymentState | null;
+  /** True once the prompt has waited `MOMO_PATIENCE_MS` without an outcome. */
+  momoSlow: boolean;
+  /** Ask the server now ("I've approved it"). */
+  checkMomo: () => void;
+  submitMomoOtp: (otp: string) => void;
+  otpBusy: boolean;
+  /** Close the dialog. A prompt still open stays open; Pay resumes it. */
+  dismissMomo: () => void;
+  /** After a decline: switch to the card channel, if one is offered. */
+  switchToCard: (() => void) | null;
 }
 
 /**
@@ -50,13 +90,23 @@ export interface BagPayment {
 export function useBagPayment({
   isSignedIn,
   channels,
+  momoPrefill = null,
 }: UseBagPaymentOptions): BagPayment {
   const router = useRouter();
   const checkout = useCheckout();
   const initializePayment = useInitializePayment();
+  const startMomo = useStartMomoPayment();
+  const submitOtp = useSubmitMomoOtp();
   const [channelId, setChannelId] = useState<string | null>(
-    channels[0]?.id ?? null,
+    () => channels.find((c) => c.paystack_channel === "mobile_money" && c.provider === momoPrefill?.provider)?.id ?? channels[0]?.id ?? null,
   );
+  const channel = channels.find((c) => c.id === channelId) ?? null;
+  const isMomo = channel?.paystack_channel === "mobile_money";
+  const [momoPhone, setMomoPhone] = useState(() => (momoPrefill?.phone ? formatLocalGhanaPhone(momoPrefill.phone) : ""));
+  const [rememberMomo, setRememberMomo] = useState(momoPrefill?.saved ?? false);
+  const [momo, setMomo] = useState<MomoPaymentState | null>(null);
+  const [momoSlow, setMomoSlow] = useState(false);
+  const momoStartedAt = useRef(0);
   // Consent is explicit: unticked by default, and unticked means no automated WhatsApp.
   const [whatsappUpdates, setWhatsappUpdates] = useState(false);
 
@@ -71,8 +121,50 @@ export function useBagPayment({
     [router],
   );
 
+  // One outcome handler for the start, the status checks and the code.
+  const onMomoState = useCallback((next: MomoPaymentState) => {
+    if (next.state === "paid") {
+      setMomo(next);
+      // The same page Paystack's callback lands on: full navigation, so the
+      // orders page renders the settled payment from the server.
+      window.location.assign(next.redirectUrl);
+      return;
+    }
+    setMomo(next);
+    // Checkout already turned the bag into an unpaid group; re-read the page so
+    // its "Finish paying" card is there to retry from once the dialog closes.
+    if (next.state === "failed") router.refresh();
+  }, [router]);
+
+  const checkMomo = useCallback(() => {
+    if (!momo || momo.state === "paid") return;
+    fetchMomoPaymentState(momo.reference).then(onMomoState, () => undefined);
+  }, [momo, onMomoState]);
+
+  // Ask every few seconds while the prompt is on the phone. Paystack's webhook
+  // may settle it first; the status check then simply reports `paid`.
+  const pollingRef = momo?.state === "approve" ? momo.reference : null;
+  useEffect(() => {
+    if (!pollingRef) return;
+    if (!momoStartedAt.current) momoStartedAt.current = Date.now();
+    const id = setInterval(() => {
+      if (Date.now() - momoStartedAt.current > MOMO_PATIENCE_MS) setMomoSlow(true);
+      fetchMomoPaymentState(pollingRef).then(onMomoState, () => undefined);
+    }, MOMO_POLL_MS);
+    return () => clearInterval(id);
+  }, [pollingRef, onMomoState]);
+
   const openTransaction = useCallback(
     (orderGroupId: string) => {
+      if (isMomo && channelId) {
+        momoStartedAt.current = 0;
+        setMomoSlow(false);
+        startMomo.mutate(
+          { orderGroupId, channel: channelId, phone: momoPhone, remember: rememberMomo },
+          { onSuccess: onMomoState, onError: onError("Could not send the Mobile Money prompt") },
+        );
+        return;
+      }
       initializePayment.mutate(
         { orderGroupId, channel: channelId ?? undefined },
         {
@@ -83,7 +175,7 @@ export function useBagPayment({
         },
       );
     },
-    [channelId, initializePayment, onError],
+    [channelId, initializePayment, isMomo, momoPhone, onError, onMomoState, rememberMomo, startMomo],
   );
 
   const payBag = useCallback(() => {
@@ -104,13 +196,40 @@ export function useBagPayment({
     });
   }, [checkout, isSignedIn, onError, openTransaction, router, whatsappUpdates]);
 
+  const cardChannel = channels.find((c) => c.paystack_channel === "card") ?? null;
+
   return {
     channelId,
     setChannelId,
-    busy: checkout.isPending || initializePayment.isPending,
+    busy: checkout.isPending || initializePayment.isPending || startMomo.isPending,
     payBag,
     payGroup: openTransaction,
     whatsappUpdates,
     setWhatsappUpdates,
+    isMomo,
+    showMomoField: isSignedIn && isMomo,
+    momoReady: !isMomo || normaliseGhanaPhone(momoPhone) != null,
+    busyLabel: isMomo ? "Sending the prompt…" : "Redirecting to Paystack…",
+    channelLabel: channel?.label ?? null,
+    momoPhone,
+    setMomoPhone,
+    rememberMomo,
+    setRememberMomo,
+    momo,
+    momoSlow,
+    checkMomo,
+    submitMomoOtp: (otp: string) => {
+      if (momo && momo.state === "otp") {
+        submitOtp.mutate({ reference: momo.reference, otp }, { onSuccess: onMomoState, onError: onError("Could not check that code") });
+      }
+    },
+    otpBusy: submitOtp.isPending,
+    dismissMomo: () => setMomo(null),
+    switchToCard: cardChannel
+      ? () => {
+          setChannelId(cardChannel.id);
+          setMomo(null);
+        }
+      : null,
   };
 }

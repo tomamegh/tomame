@@ -138,3 +138,36 @@ export async function updateOnboardingState(
   }
   return data as OnboardingStateRow;
 }
+
+// ── Saved Mobile Money number (120) ─────────────────────────────────────────
+// Server-only columns: 120 does not grant them to `authenticated`, so these
+// are called with the service-role client by the payment service.
+
+export interface SavedMomoRow {
+  momo_phone: string | null;
+  momo_provider: "mtn" | "vod" | "atl" | null;
+  momo_saved_at: string | null;
+}
+
+export async function selectSavedMomo(client: SupabaseClient, userId: string): Promise<SavedMomoRow | null> {
+  const { data, error } = await client
+    .from("profiles")
+    .select("momo_phone, momo_provider, momo_saved_at")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load saved MoMo number: ${error.message}`);
+  return (data as SavedMomoRow | null) ?? null;
+}
+
+/** Saves the number (all three columns) or clears it (`null`). */
+export async function updateSavedMomo(
+  client: SupabaseClient,
+  userId: string,
+  value: { phone: string; provider: "mtn" | "vod" | "atl" } | null,
+): Promise<void> {
+  const patch = value
+    ? { momo_phone: value.phone, momo_provider: value.provider, momo_saved_at: new Date().toISOString() }
+    : { momo_phone: null, momo_provider: null, momo_saved_at: null };
+  const { error } = await client.from("profiles").update(patch).eq("id", userId);
+  if (error) throw new Error(`Failed to save MoMo number: ${error.message}`);
+}

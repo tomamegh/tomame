@@ -72,7 +72,7 @@ async function insertPayment(
  * webhook answers a missing payment 200 "ignored" and Paystack never retries
  * it, so a blip read as "not found" would drop a real charge on the floor.
  */
-async function getPaymentByReference(
+export async function getPaymentByReference(
   client: SupabaseClient,
   reference: string
 ): Promise<Payment | null> {
@@ -266,7 +266,7 @@ function orderIdOf(payment: Payment): string | null {
 }
 
 /** What a payment buys: one legacy order, a bag's order group, or one car. */
-interface PayTarget {
+export interface PayTarget {
   orderId: string | null;
   groupId: string | null;
   carOrderId: string | null;
@@ -359,20 +359,28 @@ export function unresolvedPaymentUrl(): string {
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
-/** One transaction for one order (legacy), one order group (the bag), or one car. */
-export async function initializePayment(
+/**
+ * Where the customer lands once a payment has an outcome — the same pages the
+ * Paystack callback redirects to, for screens that settle without leaving the
+ * site (the MoMo prompt).
+ */
+export function paymentReturnUrl(payment: Payment, outcome: "success" | "failed"): string {
+  const target = targetOf(payment);
+  return outcome === "success" ? successUrl(target) : failureUrl(target);
+}
+
+/**
+ * The part of starting a payment that does not depend on HOW the customer pays:
+ * resolve what is being paid for (every rule in `orderCharge` / `groupCharge` /
+ * `carCharge`), then write the pending `payments` row under a fresh reference.
+ * The hosted checkout and the MoMo prompt both start here, so the two can never
+ * disagree about the amount or the double-charge guard.
+ */
+export async function openPendingPayment(
+  admin: SupabaseClient,
   user: PlatformUser,
   input: InitializePaymentInput,
-): Promise<InitializePaymentResponse> {
-  const admin = createAdminClient();
-
-  // Paystack keys the transaction on the customer's email, and PlatformUser
-  // inherits an optional email from Supabase's User. Refuse explicitly rather
-  // than failing inside the Paystack call with a payment row already written.
-  if (!user.email) {
-    throw new APIError(400, "Your account has no email address. Please contact support.");
-  }
-
+): Promise<{ charge: Charge; payment: Payment; reference: string }> {
   // `initializePaymentSchema` has already established that exactly one of the
   // three is present, so this chain is a dispatch and not a guess.
   const charge = input.carOrderId
@@ -396,6 +404,72 @@ export async function initializePayment(
   if (!payment) {
     throw new APIError(500, "Failed to create payment");
   }
+  return { charge, payment, reference };
+}
+
+/**
+ * Paystack refused to open the transaction at all: mark the row failed so the
+ * customer's retry is not blocked by `assertNoActivePayment`. Best effort — if
+ * this write also fails, the caller's provider error is the more useful thing
+ * to report, so it is logged loudly and swallowed.
+ */
+export async function failOpenedPayment(
+  admin: SupabaseClient,
+  payment: Payment,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  await transitionPaymentStatus(admin, payment.id, PAYMENT_STATUSES.PENDING, PAYMENT_STATUSES.FAILED, metadata).catch(
+    (markError: unknown) => {
+      logger.error("Could not mark payment failed after Paystack error", {
+        paymentId: payment.id,
+        reference: payment.reference,
+        error: markError instanceof Error ? markError.message : String(markError),
+      });
+    },
+  );
+}
+
+/** The audit row every started payment writes, whichever way it is paid. */
+export async function auditPaymentStarted(
+  user: PlatformUser,
+  payment: Payment,
+  charge: Charge,
+  channel: string[] | string,
+): Promise<void> {
+  await logAuditEvent({
+    actorId: user.id,
+    actorRole: "user",
+    action: "payment_initialized",
+    entityType: "payment",
+    entityId: payment.id,
+    metadata: {
+      ...(charge.target.carOrderId
+        ? { carOrderId: charge.target.carOrderId }
+        : charge.target.groupId
+          ? { orderGroupId: charge.target.groupId }
+          : { orderId: charge.target.orderId }),
+      reference: payment.reference,
+      amount: charge.amountPesewas,
+      channel,
+    },
+  });
+}
+
+/** One transaction for one order (legacy), one order group (the bag), or one car. */
+export async function initializePayment(
+  user: PlatformUser,
+  input: InitializePaymentInput,
+): Promise<InitializePaymentResponse> {
+  const admin = createAdminClient();
+
+  // Paystack keys the transaction on the customer's email, and PlatformUser
+  // inherits an optional email from Supabase's User. Refuse explicitly rather
+  // than failing inside the Paystack call with a payment row already written.
+  if (!user.email) {
+    throw new APIError(400, "Your account has no email address. Please contact support.");
+  }
+
+  const { charge, payment, reference } = await openPendingPayment(admin, user, input);
 
   let authorizationUrl: string;
   try {
@@ -410,23 +484,8 @@ export async function initializePayment(
     });
     authorizationUrl = paystackResponse.data.authorization_url;
   } catch (error) {
-    // Best effort: if this write also fails, the Paystack error below is the
-    // more useful thing to report, so swallow rather than mask it. The payment
-    // is left pending and the customer's retry is blocked by R2 until it is
-    // reconciled — logged loudly for that reason.
-    await transitionPaymentStatus(
-      admin,
-      payment.id,
-      PAYMENT_STATUSES.PENDING,
-      PAYMENT_STATUSES.FAILED,
-      { ...charge.metadata, error: "Paystack initialization failed" },
-    ).catch((markError: unknown) => {
-      logger.error("Could not mark payment failed after Paystack error", {
-        paymentId: payment.id,
-        reference,
-        error: markError instanceof Error ? markError.message : String(markError),
-      });
-    });
+    // The payment is marked failed so the customer's retry is not blocked by R2.
+    await failOpenedPayment(admin, payment, { ...charge.metadata, error: "Paystack initialization failed" });
 
     logger.error("Paystack initializeTransaction failed", {
       reference,
@@ -436,29 +495,13 @@ export async function initializePayment(
     throw new APIError(502, "Payment provider error. Please try again.");
   }
 
-  await logAuditEvent({
-    actorId: user.id,
-    actorRole: "user",
-    action: "payment_initialized",
-    entityType: "payment",
-    entityId: payment.id,
-    metadata: {
-      ...(charge.target.carOrderId
-        ? { carOrderId: charge.target.carOrderId }
-        : charge.target.groupId
-          ? { orderGroupId: charge.target.groupId }
-          : { orderId: charge.target.orderId }),
-      reference,
-      amount: charge.amountPesewas,
-      channel: charge.channels,
-    },
-  });
+  await auditPaymentStarted(user, payment, charge, charge.channels);
 
   return { payment: toPaymentResponse(payment), authorizationUrl };
 }
 
 /** Everything the Paystack call and the payment row need, decided server-side. */
-interface Charge {
+export interface Charge {
   target: PayTarget;
   amountPesewas: number;
   channels: string[];

@@ -29,6 +29,31 @@ export const initializePaymentSchema = z
   );
 export type InitializePaymentInput = z.infer<typeof initializePaymentSchema>;
 
+/**
+ * Pay by Mobile Money prompt (Seamless Roadmap, Initiative 1): a bag (order
+ * group) or one legacy order, never a car — a car deposit stays on the hosted
+ * checkout. `channel` names the MoMo network the customer picked; `phone` is
+ * normalised server-side, so any common Ghana spelling is accepted here.
+ * `remember` is the consent tick: true saves the number, false forgets it.
+ */
+export const startMomoPaymentSchema = z
+  .object({
+    orderId: z.uuid("Invalid order ID").optional(),
+    orderGroupId: z.uuid("Invalid order group").optional(),
+    channel: z.string().trim().min(1).max(40),
+    phone: z.string().trim().min(9, "Enter your Mobile Money number").max(20, "Enter your Mobile Money number"),
+    remember: z.boolean().default(false),
+  })
+  .refine((v) => (v.orderId != null) !== (v.orderGroupId != null), {
+    message: "Provide exactly one of orderId or orderGroupId",
+  });
+export type StartMomoPaymentInput = z.infer<typeof startMomoPaymentSchema>;
+
+/** The network's code for a prompt that answered `send_otp`. */
+export const momoOtpSchema = z.object({
+  otp: z.string().trim().regex(/^\d{4,8}$/, "Enter the code from the text message"),
+});
+
 export const paymentCallbackSchema = z.object({
   reference: z
     .string()

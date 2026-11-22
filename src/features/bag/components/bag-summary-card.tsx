@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { WHATSAPP_OPT_IN_LABEL } from "@/config/tracking-copy";
 import type { BagPayment } from "../hooks/useBagPayment";
 import type { BagView } from "../types";
+import { BagMomoField } from "./bag-momo-field";
 import { buildBagSummaryRows, formatLockCountdown } from "./format";
 
 export interface BagSummaryCardProps {
@@ -136,6 +137,8 @@ export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, pa
         </div>
       )}
 
+      <BagMomoField payment={payment} />
+
       {/* The checkout tick (104). Shared with the 390px bar through `payment`. */}
       <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-[1.4] font-medium text-tm-text-2">
         <input
@@ -159,7 +162,7 @@ export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, pa
         )}
       >
         {busy ? (
-          "Redirecting to Paystack…"
+          payment.busyLabel
         ) : (
           <>
             Pay {formatGhs(view.total_ghs)}
