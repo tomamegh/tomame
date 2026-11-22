@@ -86,6 +86,27 @@ export function buyForMeHref(mode: BuyForMeMode, query?: BuyForMeQuery): string 
 }
 
 /**
+ * Where an old or guessed catalogue address lands: `/browse`, `/browse/<shelf>`
+ * and `/app/products` all open Browse beside the chat, never a 404 and never a
+ * second catalogue. Every query parameter is kept (the shop drops what it does
+ * not know); `mode` and `url` are dropped because a `url` would open a quote.
+ * A path segment names the shelf unless the query already does.
+ */
+export function catalogueRedirectHref(
+  searchParams: Record<string, string | string[] | undefined>,
+  slug: readonly string[] = [],
+): string {
+  const params = new URLSearchParams({ mode: "browse" });
+  for (const [key, raw] of Object.entries(searchParams)) {
+    if (key === "mode" || key === "url" || raw == null) continue;
+    for (const value of Array.isArray(raw) ? raw : [raw]) params.append(key, value);
+  }
+  const shelf = slug[0]?.trim();
+  if (shelf && !params.has("category") && !params.has("department")) params.set("category", shelf);
+  return `${BUY_FOR_ME_PATH}?${params.toString()}`;
+}
+
+/**
  * Does this look like a link the extractor should go and read, rather than
  * words to search the catalogue for?
  *

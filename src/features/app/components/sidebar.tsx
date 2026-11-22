@@ -28,7 +28,7 @@ const data = {
     },
     {
       title: "Products",
-      url: "/app/products",
+      url: "/app/orders/new?mode=browse",
       icon: PackageSearchIcon,
     },
     {

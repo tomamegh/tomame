@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight } from "@phosphor-icons/react/ssr";
 
 import { deriveCatalogTerm } from "@/features/catalog/services/catalog-term";
+import { buyForMeHref } from "@/features/extraction/components/buy-for-me-mode";
 import { cn } from "@/lib/utils";
 import { useCatalogSearch } from "../hooks/useCatalogSearch";
 import { CatalogProductCard } from "./catalog-product-card";
@@ -83,7 +84,7 @@ export function SimilarProductsRail({
           Already priced, like this one
         </h2>
         <Link
-          href={`/app/products?q=${encodeURIComponent(term)}`}
+          href={buyForMeHref("browse", { q: term })}
           className="inline-flex items-center gap-1.5 text-[12.5px] leading-none font-semibold text-tm-coral transition-colors hover:text-tm-coral-strong focus-visible:ring-2 focus-visible:ring-tm-coral focus-visible:ring-offset-2 focus-visible:outline-none"
         >
           Search {term}

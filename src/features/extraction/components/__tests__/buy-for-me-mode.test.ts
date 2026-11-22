@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   BUY_FOR_ME_PATH,
   buyForMeHref,
+  catalogueRedirectHref,
   looksLikeUrl,
   resolveBrowseCategory,
   resolveBuyForMeMode,
@@ -123,5 +124,30 @@ describe("resolveBrowseCategory", () => {
 
   it("returns null when there is nothing to browse at all", () => {
     expect(resolveBrowseCategory("TV & Video", [])).toBeNull();
+  });
+});
+
+describe("catalogueRedirectHref", () => {
+  it("opens Browse beside the chat when nothing is asked", () => {
+    expect(catalogueRedirectHref({})).toBe(`${BUY_FOR_ME_PATH}?mode=browse`);
+  });
+
+  it("carries a search and repeated filters", () => {
+    expect(catalogueRedirectHref({ q: "airpods", store: ["amazon", "ebay"] })).toBe(
+      `${BUY_FOR_ME_PATH}?mode=browse&q=airpods&store=amazon&store=ebay`,
+    );
+  });
+
+  it("never carries a url or a different mode", () => {
+    expect(catalogueRedirectHref({ url: "https://amazon.com/dp/X", mode: "ask", q: "tv" })).toBe(
+      `${BUY_FOR_ME_PATH}?mode=browse&q=tv`,
+    );
+  });
+
+  it("reads a path segment as the shelf unless the query names one", () => {
+    expect(catalogueRedirectHref({}, ["Electronics"])).toBe(`${BUY_FOR_ME_PATH}?mode=browse&category=Electronics`);
+    expect(catalogueRedirectHref({ category: "Baby" }, ["Electronics"])).toBe(
+      `${BUY_FOR_ME_PATH}?mode=browse&category=Baby`,
+    );
   });
 });

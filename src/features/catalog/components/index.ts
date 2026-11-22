@@ -8,13 +8,7 @@ export type { CatalogProductCardProps } from "./catalog-product-card";
 export { DEPARTMENT_FALLBACK_ICON, departmentIcon } from "./department-icons";
 export { DepartmentRow } from "./department-row";
 export type { DepartmentRowItem, DepartmentRowProps } from "./department-row";
-export {
-  CatalogIdleState,
-  CatalogNoMatches,
-  CatalogQueryTooShort,
-  CatalogResultsGrid,
-} from "./catalog-results";
-export { CatalogSearchField } from "./catalog-search-field";
+export { CatalogResultsGrid } from "./catalog-results";
 export { SimilarProductsRail } from "./similar-products-rail";
 export type { SimilarProductsRailProps } from "./similar-products-rail";
 export {
