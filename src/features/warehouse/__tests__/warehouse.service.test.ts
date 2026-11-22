@@ -49,12 +49,14 @@ import { APIError } from "@/lib/auth/api-helpers";
 
 import {
   createWarehousePackage,
+  holdWarehousePackage,
   lookupWarehouseCode,
   normaliseCode,
   receiveWarehouseItem,
   sealWarehousePackage,
   shipWarehousePackage,
   toRecipient,
+  voidWarehousePackage,
 } from "../services/warehouse.service";
 
 const operator = { id: "op-1", email: "op@tomame.local", app_metadata: { role: "warehouse" } } as unknown as PlatformUser;
@@ -328,5 +330,59 @@ describe("lookupWarehouseCode: store parcels (086)", () => {
 
   it("refuses a customer", async () => {
     await expect(lookupWarehouseCode(customer, "1Z999AA10123456784")).rejects.toBeInstanceOf(APIError);
+  });
+});
+
+describe("stuck packages (112)", () => {
+  const admin = { id: "ad-1", email: "ad@tomame.local", app_metadata: { role: "admin" } } as unknown as PlatformUser;
+  function withOrders(status: string, orders: ReturnType<typeof order>[], extra: Record<string, unknown> = {}) {
+    vi.mocked(q.getPackageById).mockResolvedValue(pkgRow({ status, sealed_at: status === "packing" ? null : "2026-10-31", ...extra }) as never);
+    vi.mocked(q.listPackageItems).mockResolvedValue(orders.map((o) => line(o.id)) as never);
+    vi.mocked(q.listItemsForOrders).mockResolvedValue(orders.map((o) => line(o.id)) as never);
+    vi.mocked(q.listWarehouseOrders).mockResolvedValue(orders as never);
+  }
+
+  it("will not seal a package holding a delivered order without a reason, and records the reason when given", async () => {
+    withOrders("packing", [order({ order_no: "TM-00022", status: "completed" })]);
+    await expect(sealWarehousePackage(operator, "p-1")).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/TM-00022/) });
+    expect(q.updatePackage).not.toHaveBeenCalled();
+
+    vi.mocked(q.updatePackage).mockResolvedValue(pkgRow({ status: "sealed", sealed_at: "now" }) as never);
+    await sealWarehousePackage(operator, "p-1", "Customer asked us to re-send a replacement");
+    expect(q.updatePackage).toHaveBeenCalledWith("p-1", "packing", expect.objectContaining({ status: "sealed", seal_override_reason: "Customer asked us to re-send a replacement" }));
+    expect(logAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "warehouse_package_sealed", metadata: expect.objectContaining({ override_reason: expect.any(String) }) }));
+  });
+
+  it("refuses to ship a package whose order is already delivered, naming the ways out, before touching any order", async () => {
+    withOrders("sealed", [order({ order_no: "TM-00022", status: "completed" })]);
+    await expect(shipWarehousePackage(operator, "p-1", {})).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/record error/) });
+    expect(advanceOrderFromWarehouse).not.toHaveBeenCalled();
+  });
+
+  it("refuses to ship a held package", async () => {
+    withOrders("sealed", [order()], { hold_reason: "Box damaged, repacking" });
+    await expect(shipWarehousePackage(operator, "p-1", {})).rejects.toMatchObject({ message: expect.stringMatching(/held/) });
+  });
+
+  it("holds a sealed package with a reason", async () => {
+    vi.mocked(q.updatePackage).mockResolvedValue(pkgRow({ status: "sealed", sealed_at: "x", hold_reason: "Waiting on the customer" }) as never);
+    withOrders("sealed", [order()], { hold_reason: "Waiting on the customer" });
+    await holdWarehousePackage(operator, "p-1", "Waiting on the customer");
+    expect(q.updatePackage).toHaveBeenCalledWith("p-1", "sealed", expect.objectContaining({ hold_reason: "Waiting on the customer" }));
+    await expect(holdWarehousePackage(operator, "p-1", "  ")).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("only a manager resolves a package as a record error, with a note, and only when its orders are finished", async () => {
+    withOrders("sealed", [order({ order_no: "TM-00022", status: "completed" })]);
+    await expect(voidWarehousePackage(operator, "p-1", { reason: "record_error", note: "Delivered on 27 Oct" })).rejects.toMatchObject({ statusCode: 403 });
+    await expect(voidWarehousePackage(admin, "p-1", { reason: "record_error", note: " " })).rejects.toMatchObject({ statusCode: 400 });
+
+    vi.mocked(q.updatePackage).mockResolvedValue(pkgRow({ status: "voided", sealed_at: "x", void_reason: "record_error", void_note: "Delivered on 27 Oct" }) as never);
+    await voidWarehousePackage(admin, "p-1", { reason: "record_error", note: "Delivered on 27 Oct" });
+    expect(q.updatePackage).toHaveBeenCalledWith("p-1", ["sealed", "packing"], expect.objectContaining({ status: "voided", void_reason: "record_error", voided_by: "ad-1" }));
+    expect(logAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "warehouse_package_voided" }));
+
+    withOrders("sealed", [order({ status: "processing" })]);
+    await expect(voidWarehousePackage(admin, "p-1", { reason: "record_error", note: "x" })).rejects.toMatchObject({ statusCode: 409 });
   });
 });

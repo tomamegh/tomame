@@ -53,6 +53,7 @@ import {
   sealBlocker,
 } from "./format";
 import { PackageBox } from "./package-box";
+import { PackageResolvePanel } from "./package-resolve-panel";
 import { errorText, warehouseRequest } from "./warehouse-actions";
 import { ItemLine, PackageStatusBadge } from "./warehouse-ui";
 
@@ -74,6 +75,7 @@ export function PackageWorkbench({
   scanned,
   stageSettings,
   drivers = [],
+  isManager = false,
 }: {
   pkg: WarehousePackage;
   openAdd: boolean;
@@ -82,6 +84,8 @@ export function PackageWorkbench({
   stageSettings: Record<ShipmentStageKey, StageSetting>;
   /** 102: offered on Out for delivery. */
   drivers?: Array<{ id: string; name: string; phone: string | null }>;
+  /** 112: an admin may resolve a package that can never ship. */
+  isManager?: boolean;
 }) {
   const router = useRouter();
   const reduce = useReducedMotion();
@@ -248,6 +252,7 @@ export function PackageWorkbench({
                     </>
                   ) : null}
                 </div>
+                <PackageResolvePanel pkg={pkg} isManager={isManager} />
                 {blocker && pkg.status === "packing" ? (
                   <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-tm-text-3">
                     <TriangleAlertIcon className="size-3.5 text-tm-amber" aria-hidden />

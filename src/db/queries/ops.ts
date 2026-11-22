@@ -175,6 +175,33 @@ export async function readOrdersHealth(now: Date): Promise<OrdersHealth> {
   return { pending, pendingOver24h };
 }
 
+// ── Warehouse (112) ──────────────────────────────────────────────────────────
+
+export interface WarehouseHealth {
+  /** Sealed, not held, sealed at least `stuckDays` ago. */
+  stuck: number;
+  /** Age in days of the oldest of those; null when none. */
+  oldestStuckDays: number | null;
+  /** References of the stuck packages, oldest first, for the alert line. */
+  stuckReferences: string[];
+}
+
+export async function readWarehouseHealth(now: Date, stuckDays: number): Promise<WarehouseHealth> {
+  const cutoff = new Date(now.getTime() - stuckDays * 86_400_000).toISOString();
+  const { data, error } = await createAdminClient()
+    .from("warehouse_packages")
+    .select("reference, sealed_at")
+    .eq("status", "sealed")
+    .is("hold_reason", null)
+    .lt("sealed_at", cutoff)
+    .order("sealed_at", { ascending: true })
+    .limit(50);
+  if (error) throw new Error(`ops warehouse failed: ${error.message}`);
+  const rows = (data ?? []) as { reference: string; sealed_at: string }[];
+  const oldest = rows[0] ? Math.floor((now.getTime() - Date.parse(rows[0].sealed_at)) / 86_400_000) : null;
+  return { stuck: rows.length, oldestStuckDays: oldest, stuckReferences: rows.map((r) => r.reference) };
+}
+
 // ── Vendor budgets and the catalogue ─────────────────────────────────────────
 
 export interface JobBudgetRow {

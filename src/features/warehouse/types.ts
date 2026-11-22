@@ -12,7 +12,10 @@
 import type { CustomerRideRequest } from "@/features/order-delivery/customer-ride";
 import type { PackageStage, ShipmentStageKey } from "@/features/shipments/stages";
 
-export type PackageStatus = "packing" | "sealed" | "shipped";
+export type PackageStatus = "packing" | "sealed" | "shipped" | "voided";
+
+/** 112: how a package that could never ship was resolved. */
+export type PackageVoidReason = "record_error" | "duplicate";
 export type PackageService = "air" | "sea";
 
 /**
@@ -124,6 +127,14 @@ export interface WarehousePackage {
   stage_by_name: string | null;
   /** 098: the delay notice customers are seeing for it, if any. */
   notice: { message: string; expected_on: string | null; at: string } | null;
+  /** 112: a sealed package held with a reason; it cannot ship until released. */
+  hold: { reason: string; at: string; by_name: string | null } | null;
+  /** 112: why it was sealed although an order in it was already finished. */
+  seal_override_reason: string | null;
+  /** 112: resolved as a record error or duplicate, confirmed by a manager. */
+  void: { reason: PackageVoidReason; note: string; at: string; by_name: string | null } | null;
+  /** 112: orders in it that are already delivered, completed or cancelled: it cannot ship as it is. */
+  finished_order_nos: string[];
   created_at: string;
   updated_at: string;
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { warehousePageUser } from "@/features/warehouse/services/page-user";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { notFound } from "next/navigation";
 
 import { PackageWorkbench } from "@/features/warehouse/components/package-workbench";
@@ -39,6 +40,7 @@ export default async function WarehousePackagePage({
         scanned={query.scanned === "1"}
         stageSettings={stageSettings}
         drivers={drivers}
+        isManager={canAccessAdmin(user)}
       />
     );
   } catch (error) {

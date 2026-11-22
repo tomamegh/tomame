@@ -54,9 +54,16 @@ export const shipPackageSchema = z.object({
 });
 
 export const packageActionSchema = z.object({
-  action: z.enum(["seal", "reopen", "ship", "label_printed"]),
+  action: z.enum(["seal", "reopen", "ship", "label_printed", "hold", "release", "void"]),
   carrier: optionalText(80),
   tracking_number: optionalText(80),
+  /** 112: seal although an order in it is already delivered or closed. */
+  override_reason: optionalText(500),
+  /** 112: why a sealed package is held. */
+  hold_reason: optionalText(500),
+  /** 112: a manager resolving a package that can never ship. */
+  void_reason: z.enum(["record_error", "duplicate"]).optional(),
+  note: optionalText(1000),
 });
 
 export const lookupSchema = z.object({

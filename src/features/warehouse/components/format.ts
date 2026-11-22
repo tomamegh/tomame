@@ -24,6 +24,7 @@ export const PACKAGE_META: Record<PackageStatus, { label: string; tone: AdminTon
   packing: { label: "Packing", tone: "amber", verb: "Open on the bench" },
   sealed: { label: "Sealed", tone: "coral", verb: "Labelled, ready to leave" },
   shipped: { label: "Shipped", tone: "green", verb: "Left the hub" },
+  voided: { label: "Resolved", tone: "muted", verb: "Resolved as a record error" },
 };
 
 export function formatLbs(value: number | null | undefined, digits = 2): string {
@@ -145,4 +146,57 @@ export function sanitiseDecimal(raw: string): string {
   const cleaned = raw.replace(/[^\d.]/g, "");
   const dot = cleaned.indexOf(".");
   return dot === -1 ? cleaned : cleaned.slice(0, dot + 1) + cleaned.slice(dot + 1).replace(/\./g, "");
+}
+
+// ── Exceptions (112, site brief Fix 10) ─────────────────────────────────────
+
+/** A sealed package not shipped after this long is stuck. */
+export const PACKAGE_STUCK_AFTER_DAYS = 7;
+/** An empty package still packing after this long is clutter, offered for one-click cleanup. */
+export const EMPTY_PACKAGE_AFTER_HOURS = 24;
+
+export type PackageExceptionKind = "cannot_ship" | "stuck" | "held" | "empty";
+
+export interface PackageException {
+  kind: PackageExceptionKind;
+  pkg: WarehousePackage;
+  /** Whole days since it was sealed (or created, for an empty one). */
+  age_days: number;
+  /** One sentence: what is wrong and the way out. */
+  detail: string;
+}
+
+/**
+ * Everything on the bench a person has to act on, worst first. A package lands
+ * in exactly one group: it cannot ship (an order in it is already delivered or
+ * closed), it is held with a reason, it has sat sealed past the threshold, or
+ * it is an empty package nobody used.
+ */
+export function packageExceptions(packages: readonly WarehousePackage[], now: Date): PackageException[] {
+  const out: PackageException[] = [];
+  const days = (iso: string | null) => (iso ? Math.max(0, Math.floor((now.getTime() - Date.parse(iso)) / 86_400_000)) : 0);
+  for (const pkg of packages) {
+    if (pkg.status === "sealed") {
+      const age = days(pkg.sealed_at);
+      if (pkg.finished_order_nos.length > 0) {
+        out.push({
+          kind: "cannot_ship",
+          pkg,
+          age_days: age,
+          detail: `${pkg.finished_order_nos.join(", ")} already delivered or closed. Unseal and take ${pkg.finished_order_nos.length === 1 ? "it" : "them"} out, or a manager resolves it as a record error.`,
+        });
+      } else if (pkg.hold) {
+        out.push({ kind: "held", pkg, age_days: age, detail: `Held: ${pkg.hold.reason}` });
+      } else if (age >= PACKAGE_STUCK_AFTER_DAYS) {
+        out.push({ kind: "stuck", pkg, age_days: age, detail: `Sealed ${age} days ago and not shipped. Ship it, hold it with a reason, or unseal it.` });
+      }
+    } else if (pkg.status === "packing" && pkg.line_count === 0) {
+      const hours = (now.getTime() - Date.parse(pkg.created_at)) / 3_600_000;
+      if (hours >= EMPTY_PACKAGE_AFTER_HOURS) {
+        out.push({ kind: "empty", pkg, age_days: days(pkg.created_at), detail: "Empty since it was opened." });
+      }
+    }
+  }
+  const rank: Record<PackageExceptionKind, number> = { cannot_ship: 0, stuck: 1, held: 2, empty: 3 };
+  return out.sort((a, b) => rank[a.kind] - rank[b.kind] || b.age_days - a.age_days);
 }

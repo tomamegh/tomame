@@ -5,8 +5,11 @@ import { authenticateWarehouse, readJson } from "@/lib/auth/warehouse-route";
 import { packageActionSchema } from "@/features/warehouse/schema";
 import {
   getWarehousePackage,
+  holdWarehousePackage,
   recordLabelPrint,
+  releaseWarehousePackage,
   reopenWarehousePackage,
+  voidWarehousePackage,
   sealWarehousePackage,
   shipWarehousePackage,
 } from "@/features/warehouse/services/warehouse.service";
@@ -27,7 +30,17 @@ export async function POST(request: NextRequest, { params }: Ctx) {
 
     switch (parsed.data.action) {
       case "seal":
-        return successResponse({ package: await sealWarehousePackage(user, id), failed: [] });
+        return successResponse({ package: await sealWarehousePackage(user, id, parsed.data.override_reason), failed: [] });
+      case "hold":
+        return successResponse({ package: await holdWarehousePackage(user, id, parsed.data.hold_reason ?? ""), failed: [] });
+      case "release":
+        return successResponse({ package: await releaseWarehousePackage(user, id), failed: [] });
+      case "void":
+        if (!parsed.data.void_reason) throw new APIError(400, "Say whether it is a record error or a duplicate.");
+        return successResponse({
+          package: await voidWarehousePackage(user, id, { reason: parsed.data.void_reason, note: parsed.data.note ?? "" }),
+          failed: [],
+        });
       case "reopen":
         return successResponse({ package: await reopenWarehousePackage(user, id), failed: [] });
       case "ship":

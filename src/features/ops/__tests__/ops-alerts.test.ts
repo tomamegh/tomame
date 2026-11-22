@@ -150,3 +150,19 @@ describe("describeMinutes", () => {
     expect(describeMinutes(5 * 24 * 60)).toBe("5 days");
   });
 });
+
+describe("stuck packages (112)", () => {
+  it("warns about sealed packages a week old, naming them and the oldest age", () => {
+    const alerts = deriveOpsAlerts(
+      snapshot({ warehouse: { stuck: 4, oldestStuckDays: 38, stuckReferences: ["PKG-10008", "PKG-10009", "PKG-10020", "PKG-10021"] } }),
+      new Date("2026-11-22T12:00:00Z"),
+    );
+    const stuck = alerts.find((a) => a.key === "packages-stuck");
+    expect(stuck).toMatchObject({ level: "warning", title: "4 sealed packages not shipped", href: "/warehouse?tab=boxes" });
+    expect(stuck?.detail).toMatch(/PKG-10008.*38 days/);
+  });
+
+  it("says nothing when none is stuck", () => {
+    expect(deriveOpsAlerts(snapshot({ warehouse: { stuck: 0, oldestStuckDays: null, stuckReferences: [] } }), new Date()).some((a) => a.key === "packages-stuck")).toBe(false);
+  });
+});

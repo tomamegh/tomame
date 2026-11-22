@@ -15,7 +15,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * `pricing` is read here for its weight and never forwarded.
  */
 
-export type PackageStatus = "packing" | "sealed" | "shipped";
+export type PackageStatus = "packing" | "sealed" | "shipped" | "voided";
 export type PackageService = "air" | "sea";
 /** 098: where a shipped package is. Null until it ships. */
 export type PackageStageValue =
@@ -57,6 +57,15 @@ export interface PackageRow {
   notice: string | null;
   notice_expected_on: string | null;
   notice_at: string | null;
+  /** 112 */
+  hold_reason: string | null;
+  held_at: string | null;
+  held_by: string | null;
+  seal_override_reason: string | null;
+  voided_at: string | null;
+  voided_by: string | null;
+  void_reason: "record_error" | "duplicate" | null;
+  void_note: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -114,7 +123,7 @@ export interface BoxRefRow {
 }
 
 const PACKAGE_COLUMNS =
-  "id, package_no, reference, status, service, origin, destination, weight_lbs, length_in, width_in, height_in, carrier, tracking_number, fragile, this_way_up, keep_dry, notes, created_by, sealed_at, sealed_by, shipped_at, shipped_by, label_printed_at, label_print_count, stage, stage_at, stage_by, notice, notice_expected_on, notice_at, created_at, updated_at";
+  "id, package_no, reference, status, service, origin, destination, weight_lbs, length_in, width_in, height_in, carrier, tracking_number, fragile, this_way_up, keep_dry, notes, created_by, sealed_at, sealed_by, shipped_at, shipped_by, label_printed_at, label_print_count, stage, stage_at, stage_by, notice, notice_expected_on, notice_at, hold_reason, held_at, held_by, seal_override_reason, voided_at, voided_by, void_reason, void_note, created_at, updated_at";
 
 const ITEM_COLUMNS = "id, package_id, order_id, description, quantity, added_by, created_at";
 
@@ -162,7 +171,7 @@ export async function listPackages(filters: {
 
 export async function countPackagesByStatus(): Promise<Record<PackageStatus, number>> {
   const db = createAdminClient();
-  const statuses: PackageStatus[] = ["packing", "sealed", "shipped"];
+  const statuses: PackageStatus[] = ["packing", "sealed", "shipped", "voided"];
   const counts = await Promise.all(
     statuses.map(async (status) => {
       const { count, error } = await db
@@ -225,6 +234,14 @@ export type PackagePatch = Partial<
     | "notice"
     | "notice_expected_on"
     | "notice_at"
+    | "hold_reason"
+    | "held_at"
+    | "held_by"
+    | "seal_override_reason"
+    | "voided_at"
+    | "voided_by"
+    | "void_reason"
+    | "void_note"
   >
 >;
 

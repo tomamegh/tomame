@@ -39,6 +39,8 @@ import { notifyShipmentUpdate } from "@/features/shipments/shipment-notify.servi
 import { loadStageSettings } from "@/features/shipments/stage-settings.service";
 import { notifyStaff } from "@/features/staff-alerts/notify";
 import type { PlatformUser } from "@/features/users/types";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
+import { EMPTY_PACKAGE_AFTER_HOURS } from "../components/format";
 import { APIError } from "@/lib/auth/api-helpers";
 import { requireWarehouse, warehouseActorRole } from "@/lib/auth/guards";
 import { logger } from "@/lib/logger";
@@ -305,8 +307,15 @@ export async function removeWarehousePackageItem(
   return getWarehousePackage(user, id);
 }
 
-/** Tape it shut. Contents freeze; the label is now the truth about the box. */
-export async function sealWarehousePackage(user: PlatformUser, id: string): Promise<WarehousePackage> {
+/**
+ * Tape it shut. Contents freeze; the label is now the truth about the box.
+ *
+ * 112: an order already delivered, completed or cancelled (moved on from the
+ * admin while its parcel sat on the bench) blocks the seal, because the package
+ * could never ship. It seals only with an explicit `override_reason`, which is
+ * recorded on the package and in the audit log.
+ */
+export async function sealWarehousePackage(user: PlatformUser, id: string, overrideReason?: string | null): Promise<WarehousePackage> {
   requireWarehouse(user);
   const pkg = await getWarehousePackage(user, id);
   if (pkg.status !== "packing") throw new APIError(409, "This package is already sealed.");
@@ -314,20 +323,100 @@ export async function sealWarehousePackage(user: PlatformUser, id: string): Prom
   if (pkg.held_count > 0) {
     throw new APIError(409, "An item in this package is on hold. Release it or take it out before sealing.");
   }
+  const reason = overrideReason?.trim() || null;
+  if (pkg.finished_order_nos.length > 0 && !reason) {
+    throw new APIError(
+      409,
+      `${pkg.finished_order_nos.join(", ")} ${pkg.finished_order_nos.length === 1 ? "is" : "are"} already delivered or closed. Take ${pkg.finished_order_nos.length === 1 ? "it" : "them"} out, or seal with a reason.`,
+    );
+  }
 
   const row = await updatePackage(id, "packing", {
     status: "sealed",
     sealed_at: new Date().toISOString(),
     sealed_by: user.id,
+    seal_override_reason: pkg.finished_order_nos.length > 0 ? reason : null,
   });
   if (!row) throw new APIError(409, "Someone else just changed this package. Refresh and try again.");
-  await audit(user, "warehouse_package_sealed", row, { unit_count: pkg.unit_count });
+  await audit(user, "warehouse_package_sealed", row, {
+    unit_count: pkg.unit_count,
+    ...(pkg.finished_order_nos.length > 0 ? { override_reason: reason, finished_orders: pkg.finished_order_nos } : {}),
+  });
+  return getWarehousePackage(user, id);
+}
+
+/** 112: hold a sealed package with a reason. It stays sealed and cannot ship until released. */
+export async function holdWarehousePackage(user: PlatformUser, id: string, reason: string): Promise<WarehousePackage> {
+  requireWarehouse(user);
+  const text = reason.trim();
+  if (!text) throw new APIError(400, "Say why the package is held.");
+  const row = await updatePackage(id, "sealed", { hold_reason: text, held_at: new Date().toISOString(), held_by: user.id });
+  if (!row) throw new APIError(409, "Only a sealed package that has not shipped can be held.");
+  await audit(user, "warehouse_package_held", row, { reason: text });
+  return getWarehousePackage(user, id);
+}
+
+export async function releaseWarehousePackage(user: PlatformUser, id: string): Promise<WarehousePackage> {
+  requireWarehouse(user);
+  const before = await requirePackage(id);
+  const row = await updatePackage(id, "sealed", { hold_reason: null, held_at: null, held_by: null });
+  if (!row) throw new APIError(409, "Only a held, sealed package can be released.");
+  await audit(user, "warehouse_package_released", row, { reason: before.hold_reason });
+  return getWarehousePackage(user, id);
+}
+
+/**
+ * 112: resolve a package that can never ship: every order in it is already
+ * delivered or closed, so it is a record error (or a duplicate). A manager (an
+ * admin) confirms, with a note. The items stay linked so the orders are never
+ * packed again; the package leaves the bench and the stuck list.
+ */
+export async function voidWarehousePackage(
+  user: PlatformUser,
+  id: string,
+  input: { reason: "record_error" | "duplicate"; note: string },
+): Promise<WarehousePackage> {
+  requireWarehouse(user);
+  if (!canAccessAdmin(user)) throw new APIError(403, "A manager has to confirm this. Ask an admin to resolve it.");
+  const note = input.note.trim();
+  if (!note) throw new APIError(400, "Write what happened, for the record.");
+  const pkg = await getWarehousePackage(user, id);
+  if (pkg.status !== "sealed" && pkg.status !== "packing") throw new APIError(409, "Only a package still at the hub can be resolved.");
+  const live = pkg.lines.filter((l) => l.item && !FINISHED_ORDER_STATUSES.has(l.item.order_status));
+  if (input.reason === "record_error" && live.length > 0) {
+    throw new APIError(
+      409,
+      `${live.map((l) => l.item!.order_no).join(", ")} ${live.length === 1 ? "has" : "have"} not been delivered. Ship the package, or unseal it and take ${live.length === 1 ? "it" : "them"} out.`,
+    );
+  }
+  const now = new Date().toISOString();
+  const row = await updatePackage(id, ["sealed", "packing"], {
+    status: "voided",
+    sealed_at: pkg.sealed_at ?? now,
+    voided_at: now,
+    voided_by: user.id,
+    void_reason: input.reason,
+    void_note: note,
+    hold_reason: null,
+    held_at: null,
+    held_by: null,
+  });
+  if (!row) throw new APIError(409, "Someone else just changed this package. Refresh and try again.");
+  await audit(user, "warehouse_package_voided", row, { reason: input.reason, note, orders: pkg.lines.flatMap((l) => (l.item ? [l.item.order_no] : [])) });
   return getWarehousePackage(user, id);
 }
 
 export async function reopenWarehousePackage(user: PlatformUser, id: string): Promise<WarehousePackage> {
   requireWarehouse(user);
-  const row = await updatePackage(id, "sealed", { status: "packing", sealed_at: null, sealed_by: null });
+  const row = await updatePackage(id, "sealed", {
+    status: "packing",
+    sealed_at: null,
+    sealed_by: null,
+    seal_override_reason: null,
+    hold_reason: null,
+    held_at: null,
+    held_by: null,
+  });
   if (!row) throw new APIError(409, "Only a sealed package that has not shipped can be reopened.");
   await audit(user, "warehouse_package_reopened", row, {});
   return getWarehousePackage(user, id);
@@ -352,6 +441,15 @@ export async function shipWarehousePackage(
   const pkg = await getWarehousePackage(user, id);
   if (pkg.status !== "sealed") {
     throw new APIError(409, pkg.status === "shipped" ? "This package has already shipped." : "Seal the package before shipping it.");
+  }
+  if (pkg.hold) throw new APIError(409, `This package is held: ${pkg.hold.reason}. Release it before shipping.`);
+  // 112: an order already delivered or closed cannot move to in transit. Say so
+  // up front, with the ways out, instead of a status-transition error per order.
+  if (pkg.finished_order_nos.length > 0) {
+    throw new APIError(
+      409,
+      `${pkg.finished_order_nos.join(", ")} ${pkg.finished_order_nos.length === 1 ? "is" : "are"} already delivered or closed, so this package cannot ship as it is. Unseal it and take ${pkg.finished_order_nos.length === 1 ? "it" : "them"} out, or have a manager resolve it as a record error.`,
+    );
   }
 
   const carrier = input.carrier?.trim() || pkg.carrier || undefined;
@@ -408,6 +506,24 @@ export async function shipWarehousePackage(
     notifyStaff({ kind: "package_shipped", packageId: id, reference: row.reference, orderIds, by: user.email ?? "warehouse" });
   }
   return { package: await getWarehousePackage(user, id), failed };
+}
+
+/** 112: one click clears every empty package left packing for a day or more. Each delete is audited. */
+export async function deleteEmptyWarehousePackages(user: PlatformUser): Promise<number> {
+  requireWarehouse(user);
+  const packing = await listPackages({ statuses: ["packing"], limit: 200 });
+  const items = await listPackageItems(packing.map((p) => p.id));
+  const used = new Set(items.map((i) => i.package_id));
+  const cutoff = Date.now() - EMPTY_PACKAGE_AFTER_HOURS * 3_600_000;
+  let deleted = 0;
+  for (const pkg of packing) {
+    if (used.has(pkg.id) || Date.parse(pkg.created_at) > cutoff) continue;
+    const row = await deletePackingPackage(pkg.id);
+    if (!row) continue;
+    await audit(user, "warehouse_package_deleted", row, { reference: row.reference, reason: "empty_cleanup" });
+    deleted += 1;
+  }
+  return deleted;
 }
 
 export async function deleteWarehousePackage(user: PlatformUser, id: string): Promise<void> {
@@ -645,6 +761,9 @@ async function requirePackage(id: string): Promise<PackageRow> {
   if (!row) throw new APIError(404, "Package not found");
   return row;
 }
+
+/** 112: orders past the warehouse's reach. A package holding one cannot ship as it is. */
+const FINISHED_ORDER_STATUSES: ReadonlySet<string> = new Set(["delivered", "completed", "cancelled"]);
 
 /** Every order must be on the bench, not held, and not already in a package. */
 async function assertPackable(orderIds: string[]): Promise<void> {
@@ -901,6 +1020,15 @@ export async function hydratePackages(rows: PackageRow[]): Promise<WarehousePack
       notice: row.notice
         ? { message: row.notice, expected_on: row.notice_expected_on, at: row.notice_at ?? row.updated_at }
         : null,
+      hold: row.hold_reason
+        ? { reason: row.hold_reason, at: row.held_at ?? row.updated_at, by_name: row.held_by ? names.get(row.held_by) ?? null : null }
+        : null,
+      seal_override_reason: row.seal_override_reason,
+      void:
+        row.status === "voided" && row.void_reason
+          ? { reason: row.void_reason, note: row.void_note ?? "", at: row.voided_at ?? row.updated_at, by_name: row.voided_by ? names.get(row.voided_by) ?? null : null }
+          : null,
+      finished_order_nos: own.flatMap((l) => (l.item && FINISHED_ORDER_STATUSES.has(l.item.order_status) ? [l.item.order_no] : [])),
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

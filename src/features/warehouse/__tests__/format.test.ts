@@ -8,6 +8,7 @@ import {
   recipientLines,
   recipientPlace,
   sealBlocker,
+  packageExceptions,
 } from "../components/format";
 import { cityCode } from "../label/package-label";
 import type { WarehouseItem, WarehouseRecipient } from "../types";
@@ -72,5 +73,36 @@ describe("warehouse format", () => {
     expect(cityCode("New York, USA")).toBe("NYC");
     expect(cityCode("Accra, Ghana")).toBe("ACC");
     expect(cityCode("Tamale")).toBe("TAM");
+  });
+});
+
+describe("packageExceptions (112)", () => {
+  const now = new Date("2026-11-22T12:00:00Z");
+  const base = {
+    id: "p", reference: "PKG-1", status: "sealed", line_count: 1, sealed_at: "2026-11-20T12:00:00Z", created_at: "2026-11-01T00:00:00Z",
+    hold: null, finished_order_nos: [] as string[],
+  };
+  const pkg = (over: Record<string, unknown>) => ({ ...base, ...over }) as unknown as Parameters<typeof packageExceptions>[0][number];
+
+  it("lists what cannot ship, then what has sat sealed a week, then held, then empty ones", () => {
+    const list = packageExceptions(
+      [
+        pkg({ id: "fresh" }),
+        pkg({ id: "stuck", reference: "PKG-10008", sealed_at: "2026-10-15T00:00:00Z" }),
+        pkg({ id: "cannot", reference: "PKG-10021", finished_order_nos: ["TM-00022"], sealed_at: "2026-10-31T00:00:00Z" }),
+        pkg({ id: "held", hold: { reason: "Repacking", at: "x", by_name: null }, sealed_at: "2026-10-01T00:00:00Z" }),
+        pkg({ id: "empty", status: "packing", line_count: 0, sealed_at: null, created_at: "2026-10-05T00:00:00Z" }),
+        pkg({ id: "new-empty", status: "packing", line_count: 0, sealed_at: null, created_at: "2026-11-22T11:00:00Z" }),
+      ],
+      now,
+    );
+    expect(list.map((e) => [e.pkg.id, e.kind])).toEqual([
+      ["cannot", "cannot_ship"],
+      ["stuck", "stuck"],
+      ["held", "held"],
+      ["empty", "empty"],
+    ]);
+    expect(list[1]!.age_days).toBe(38);
+    expect(list[0]!.detail).toMatch(/TM-00022/);
   });
 });

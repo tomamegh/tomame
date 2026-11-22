@@ -1,7 +1,7 @@
 import type { CronJobSpec } from "@/config/cron";
 import type { PaymentTimeouts } from "@/features/payments/services/payment-reconciliation.service";
 import type { ErrorHealth } from "@/db/queries/error-events";
-import type { CatalogHealth, ExtractionHealth, JobBudgetRow, NotificationsHealth, OrdersHealth, PaymentsHealth } from "@/db/queries/ops";
+import type { CatalogHealth, ExtractionHealth, JobBudgetRow, NotificationsHealth, OrdersHealth, PaymentsHealth, WarehouseHealth } from "@/db/queries/ops";
 
 /**
  * The alarm rules, pure and framework-free so they can be tested with fixtures.
@@ -55,6 +55,8 @@ export interface OpsSnapshot {
   budgets: JobBudgetRow[] | null;
   catalog: CatalogHealth | null;
   errors: ErrorHealth | null;
+  /** 112: sealed packages that have not shipped. Optional: absent = not read. */
+  warehouse?: WarehouseHealth | null;
 }
 
 /** Minutes between an ISO stamp and `now`. */
@@ -171,6 +173,19 @@ export function deriveOpsAlerts(view: OpsSnapshot, now: Date): OpsAlert[] {
     if (b.cap > 0 && b.used / b.cap >= 0.9) {
       alerts.push({ key: `budget:${b.job}`, level: b.used >= b.cap ? "critical" : "warning", title: `${b.job} budget ${b.used >= b.cap ? "exhausted" : "nearly spent"}`, detail: `${b.used} of ${b.cap} vendor calls used this period (${b.period}).` });
     }
+  }
+
+  // ── Warehouse (112) ─────────────────────────────────────────────────────────
+  if (view.warehouse && view.warehouse.stuck > 0) {
+    const w = view.warehouse;
+    const refs = w.stuckReferences.slice(0, 6).join(", ");
+    alerts.push({
+      key: "packages-stuck",
+      level: "warning",
+      title: `${w.stuck} sealed package${w.stuck === 1 ? "" : "s"} not shipped`,
+      detail: `${refs}${w.stuck > 6 ? " and more" : ""}: the oldest was sealed ${w.oldestStuckDays} days ago. Ship each, hold it with a reason, unseal it, or resolve it as a record error.`,
+      href: "/warehouse?tab=boxes",
+    });
   }
 
   // ── Orders ──────────────────────────────────────────────────────────────────

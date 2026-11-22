@@ -10,13 +10,16 @@ import {
   readNotificationsHealth,
   readOrdersHealth,
   readPaymentsHealth,
+  readWarehouseHealth,
   type CatalogHealth,
   type ExtractionHealth,
   type JobBudgetRow,
   type NotificationsHealth,
   type OrdersHealth,
   type PaymentsHealth,
+  type WarehouseHealth,
 } from "@/db/queries/ops";
+import { PACKAGE_STUCK_AFTER_DAYS } from "@/features/warehouse/components/format";
 import { resolvePaymentTimeouts, type PaymentTimeouts } from "@/features/payments/services/payment-reconciliation.service";
 import { logger } from "@/lib/logger";
 import { deriveOpsAlerts, type JobHealth, type OpsAlert } from "./ops-alerts";
@@ -47,12 +50,13 @@ export interface OpsOverview {
   budgets: JobBudgetRow[] | null;
   catalog: CatalogHealth | null;
   errors: ErrorHealth | null;
+  warehouse: WarehouseHealth | null;
 }
 
 export async function getOpsOverview(now: Date = new Date()): Promise<OpsOverview> {
   const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 
-  const [timeouts, heartbeats, schedule, payments, notifications, extraction, orders, budgets, catalog, errors] = await Promise.all([
+  const [timeouts, heartbeats, schedule, payments, notifications, extraction, orders, budgets, catalog, errors, warehouse] = await Promise.all([
     degrade(resolvePaymentTimeouts(), { expiryMinutes: 60, unpaidOrderTtlHours: 48 }, "timeouts"),
     degrade(listJobHeartbeats(), null, "heartbeats"),
     degrade(listCronSchedule(), null, "cron schedule"),
@@ -63,6 +67,7 @@ export async function getOpsOverview(now: Date = new Date()): Promise<OpsOvervie
     degrade(listJobBudgets(period), null, "budgets"),
     degrade(readCatalogHealth(now), null, "catalogue"),
     degrade(readErrorHealth(now), null, "errors"),
+    degrade(readWarehouseHealth(now, PACKAGE_STUCK_AFTER_DAYS), null, "warehouse"),
   ]);
 
   const jobs = mergeJobs(CRON_JOBS, heartbeats, schedule, now);
@@ -78,6 +83,7 @@ export async function getOpsOverview(now: Date = new Date()): Promise<OpsOvervie
     budgets,
     catalog,
     errors,
+    warehouse,
   };
   view.alerts = deriveOpsAlerts(view, now);
   return view;

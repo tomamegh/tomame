@@ -19,6 +19,7 @@ import {
   ScaleIcon,
   SearchIcon,
   XIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
 
 import { AdminButton } from "@/components/layout/admin/controls";
@@ -35,7 +36,8 @@ import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 
 import type { WarehouseItem, WarehousePackage } from "../types";
-import { formatLbs, groupByRecipient, matchesQuery, pluralise, recipientPlace, relativeInline } from "./format";
+import { formatLbs, groupByRecipient, matchesQuery, packageExceptions, pluralise, recipientPlace, relativeInline } from "./format";
+import { PackageExceptions } from "./package-exceptions";
 import { NewPackageButton, errorText, warehouseRequest } from "./warehouse-actions";
 import { PackageCard } from "./package-card";
 import { ReceiveDialog } from "./receive-dialog";
@@ -110,6 +112,7 @@ export function OrdersWorkbench({
   };
 
   const counts: Record<WorkbenchTab, number> = { expected: expected.length, hub: atHub.length, boxes: boxes.length };
+  const exceptionCount = useMemo(() => packageExceptions(boxes, new Date()).filter((e) => e.kind !== "empty").length, [boxes]);
   const source = tab === "expected" ? expected : tab === "hub" ? atHub : [];
   const visible = source.filter((i) => matchesQuery(i, query));
   // Purchased first: a paid order nobody has bought yet has no parcel coming.
@@ -280,6 +283,21 @@ export function OrdersWorkbench({
           </label>
         )}
       </div>
+
+      {/* 112: packages that cannot ship or have sat sealed a week: straight to the Boxes tab's list. */}
+      {tab !== "boxes" && exceptionCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => switchTab("boxes")}
+          className="flex items-center gap-3 rounded-[16px] border border-[#f5d9b0] bg-tm-amber-bg px-4 py-3 text-left hover:border-tm-amber/50"
+        >
+          <TriangleAlertIcon className="size-5 shrink-0 text-tm-amber" aria-hidden />
+          <span className="min-w-0 flex-1 text-[13px] font-semibold text-[#7a4a06]">
+            {pluralise(exceptionCount, "package")} need{exceptionCount === 1 ? "s" : ""} attention
+          </span>
+          <ChevronRightIcon className="size-4 shrink-0 text-tm-amber" aria-hidden />
+        </button>
+      ) : null}
 
       {(attention.issues > 0 || attention.held > 0) && (
         <Link
@@ -578,6 +596,7 @@ function Tick({ on, disabled = false }: { on: boolean; disabled?: boolean }) {
 function BoxesTab({ boxes }: { boxes: WarehousePackage[] }) {
   return (
     <div className="flex flex-col gap-4">
+      <PackageExceptions boxes={boxes} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[13px] font-medium text-tm-text-2">
           Boxes on the bench. Open one to weigh it, seal it, print the label and ship it.
