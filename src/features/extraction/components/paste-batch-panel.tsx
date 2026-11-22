@@ -278,7 +278,6 @@ function BatchListRow({ row, added, single, onDescribe }: { row: Row; added: boo
           )}
           <span className="truncate text-[12px] text-muted-foreground">{line?.store ?? host}</span>
         </div>
-        {line?.total_ghs != null && <PriceNote paste={paste} store={line.store} />}
         {working && !single && <ReadingStepsCompact host={host} stage={stage} />}
         {working && single && (
           <div className="pt-1.5">
@@ -300,6 +299,11 @@ function BatchListRow({ row, added, single, onDescribe }: { row: Row; added: boo
           </button>
         ) : null}
       </div>
+      {line?.total_ghs != null && priceContextParts(paste.price_context ?? null, line.store).length > 0 && (
+        <div className="col-span-3 -mt-1 pl-[60px]">
+          <PriceNote paste={paste} store={line.store} />
+        </div>
+      )}
     </div>
   );
 }
