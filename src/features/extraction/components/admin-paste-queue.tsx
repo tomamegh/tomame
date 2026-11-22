@@ -197,7 +197,8 @@ function PasteStats({
         // know which denominator it is.
         detail={
           coverage.finished > 0
-            ? `${coverage.read} read of ${coverage.finished} finished`
+            ? `${coverage.read} priced by the live read of ${coverage.finished} finished` +
+              (coverage.unrecorded > 0 ? ` · ${coverage.unrecorded} older not recorded` : "")
             : "Nothing has finished in the window yet"
         }
         // No threshold colouring. Any line drawn at "80% is green, 79% is amber"
@@ -207,10 +208,19 @@ function PasteStats({
       />
       <AdminStat
         index={1}
-        label={`Gave up, ${windowDays} days`}
+        label={`Live read failed, ${windowDays} days`}
         value={String(coverage.failed)}
-        detail={coverage.failed > 0 ? "Each one is a customer who saw a dead link" : "Nothing has failed"}
-        tone={coverage.failed > 0 ? "amber" : "green"}
+        detail={
+          coverage.failed > 0
+            ? [
+                `${coverage.from_cache} priced from cache`,
+                `${coverage.manual} awaiting manual quote`,
+                `${coverage.by_staff} priced by a buyer`,
+                `${coverage.unrecoverable} unrecoverable`,
+              ].join(" · ")
+            : "Nothing has failed"
+        }
+        tone={coverage.manual > 0 ? "amber" : coverage.failed > 0 ? "neutral" : "green"}
       />
       <AdminStat
         index={2}
@@ -361,8 +371,8 @@ function PasteRow({
           <span className="font-display text-[15px] leading-none font-bold text-tm-ink">
             {row.host}
           </span>
-          <AdminBadge tone={pasteStatusTone(row.status, row.stalled)}>
-            {pasteStatusLabel(row.status, row.stalled)}
+          <AdminBadge tone={pasteStatusTone(row.status, row.stalled, row.outcome)}>
+            {pasteStatusLabel(row.status, row.stalled, row.outcome)}
           </AdminBadge>
           {row.assisted ? (
             <AdminBadge tone="coral">

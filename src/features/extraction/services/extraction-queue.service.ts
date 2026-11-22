@@ -22,6 +22,7 @@ import { storeSaysUnavailable } from "../stock-signals";
 import type { ExtractionResult } from "../types";
 import { notifyPasteFinished, type PasteFinishedResult } from "./paste-notify.service";
 import { enqueueCatalogQueryFromPaste } from "@/features/catalog/services/catalog-enqueue.service";
+import { settlePasteOutcome, settleUnsettledPastes } from "./paste-outcome.service";
 
 /**
  * The paste queue — extraction as a background job (migration 049).
@@ -124,11 +125,10 @@ export async function enqueuePaste(
   if (!request) return null;
 
   const open = request.status === "pending" || request.status === "running";
-  return {
-    request,
-    ready: request.status === "ready" && !!request.extraction_cache_id,
-    rechecking: open && !!request.extraction_cache_id,
-  };
+  const ready = request.status === "ready" && !!request.extraction_cache_id;
+  // A cache hit is settled on the spot (110): priced, or handed to a buyer.
+  if (ready && !request.outcome) await settlePasteOutcome(request, { status: "ready", extractionCacheId: request.extraction_cache_id! });
+  return { request, ready, rechecking: open && !!request.extraction_cache_id };
 }
 
 /**
@@ -227,6 +227,11 @@ export async function runExtractionJob(requestId: string): Promise<"ran" | "skip
   // The missing table is still reported, at error level, because the job's
   // state is already correct by this point and re-running it cannot fix a
   // schema problem.
+  // A first read records how it ended (110). A no-price ending is answered from
+  // the catalogue's last check or handed to a buyer, and the customer is told
+  // THAT, not "we couldn't read it". A re-check keeps the outcome it had.
+  if (finished && !recheck) finished = await settlePasteOutcome(claimed, finished);
+
   // A re-check is not news to announce: the customer is looking at the quote.
   if (finished) {
     try {
@@ -296,6 +301,8 @@ export async function sweepExtractions(batchSize = 3): Promise<SweepSummary> {
   const reclaimed = await reclaimStaleExtractionRequests(STALE_RUNNING_MS, MAX_EXTRACTION_ATTEMPTS);
   // Nothing reads forever: past the give-up window a paste ends (106).
   const gaveUp = await giveUpStuckExtractionRequests(PASTE_GIVE_UP_MS);
+  // Give-up failures and any lost inline settle get their outcome here (110).
+  await settleUnsettledPastes();
   const queued = await listQueuedExtractionRequests(batchSize);
 
   let ran = 0;

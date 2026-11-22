@@ -204,6 +204,8 @@ export interface QuoteFacts {
   title: string | null;
   /** Store discount / our earlier read, as facts (price-context.ts). */
   priceContext?: PriceContext | null;
+  /** 110: the price is the catalogue's last check (the live read failed): when that check was. */
+  pricedFromAt?: string | null;
 }
 
 /**
@@ -245,6 +247,7 @@ export async function getQuoteFacts(ids: readonly string[]): Promise<Map<string,
         unavailable: usable && storeSaysUnavailable(product),
         title: typeof product?.title === "string" && product.title.trim() ? product.title : null,
         priceContext: priceContextOf(normalizeResult(row.result)),
+        pricedFromAt: pricedFromAtOf(product?.metadata),
       });
     }
   } catch {
@@ -252,4 +255,13 @@ export async function getQuoteFacts(ids: readonly string[]): Promise<Map<string,
     // treat a missing entry as "not usable", which is the safe direction.
   }
   return facts;
+}
+
+/** 110: `product.metadata.priced_from.checked_at`, when the price came from the catalogue. */
+function pricedFromAtOf(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const from = (metadata as Record<string, unknown>).priced_from;
+  if (!from || typeof from !== "object") return null;
+  const at = (from as Record<string, unknown>).checked_at;
+  return typeof at === "string" ? at : null;
 }

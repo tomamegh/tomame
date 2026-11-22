@@ -1,7 +1,7 @@
 import type { AdminTone } from "@/components/layout/admin/admin-page";
 import { hostOf } from "@/features/bag/components/format";
 import { findStore, type StoreStatus } from "@/features/extraction/stores";
-import type { ExtractionRequestStatus } from "@/db/queries/extraction-requests";
+import type { ExtractionRequestStatus, PasteOutcome as PasteEnding } from "@/db/queries/extraction-requests";
 
 /**
  * The paste queue, described for an administrator.
@@ -36,6 +36,8 @@ export interface AdminPasteView {
   store_name: string | null;
   store_status: StoreStatus | null;
   status: ExtractionRequestStatus;
+  /** 110: how the paste really ended. Null while reading, and on rows settled before 110. */
+  outcome: PasteEnding | null;
   attempts: number;
   /** Customer-readable, written by the queue service. Null when it never got that far. */
   error: string | null;
@@ -74,8 +76,20 @@ export interface StorePasteSummary {
 
 /** The window's totals, same arithmetic as a single host. */
 export interface PasteCoverage {
+  /** Priced by the live read. */
   read: number;
+  /** Every finished paste the live read could not price: the four below. */
   failed: number;
+  /** 110: the live read failed and the catalogue's last check priced it. */
+  from_cache: number;
+  /** 110: a buyer task is open (or a failure is about to open one). */
+  manual: number;
+  /** 110: a buyer priced it by hand. */
+  by_staff: number;
+  /** 110: a buyer closed it as impossible. */
+  unrecoverable: number;
+  /** Finished before 110 with no recorded outcome: left out of the rate rather than guessed. */
+  unrecorded: number;
   unfinished: number;
   finished: number;
   /** `read / (read + failed)`, or null when nothing has finished in the window. */
@@ -85,6 +99,33 @@ export interface PasteCoverage {
 interface PasteOutcomeInput {
   product_url: string;
   status: ExtractionRequestStatus;
+  outcome?: PasteEnding | null;
+}
+
+type Ending = "read" | "from_cache" | "manual" | "by_staff" | "unrecoverable" | "unrecorded" | "unfinished";
+
+/**
+ * One paste's real ending (110). `status: ready` used to count as "read" even
+ * when no price came out; the outcome decides now. A failure still waiting on
+ * its settle is a manual quote in the making. A pre-110 `ready` row with no
+ * outcome is not guessed at.
+ */
+export function pasteEnding(p: PasteOutcomeInput): Ending {
+  if (p.status === "pending" || p.status === "running") return "unfinished";
+  switch (p.outcome) {
+    case "priced":
+      return "read";
+    case "priced_from_cache":
+      return "from_cache";
+    case "manual_quote":
+      return "manual";
+    case "priced_by_staff":
+      return "by_staff";
+    case "unrecoverable":
+      return "unrecoverable";
+    default:
+      return p.status === "failed" ? "manual" : "unrecorded";
+  }
 }
 
 /**
@@ -121,9 +162,10 @@ export function summarisePasteHosts(outcomes: readonly PasteOutcomeInput[]): Sto
     }
 
     summary.total += 1;
-    if (outcome.status === "ready") summary.read += 1;
-    else if (outcome.status === "failed") summary.failed += 1;
-    else summary.unfinished += 1;
+    const ending = pasteEnding(outcome);
+    if (ending === "read") summary.read += 1;
+    else if (ending === "unfinished") summary.unfinished += 1;
+    else if (ending !== "unrecorded") summary.failed += 1;
   }
 
   const summaries = [...byHost.values()];
@@ -139,18 +181,23 @@ export function summarisePasteHosts(outcomes: readonly PasteOutcomeInput[]): Sto
 
 /** The same counting over every host at once — the headline on the page. */
 export function summarisePasteCoverage(outcomes: readonly PasteOutcomeInput[]): PasteCoverage {
-  let read = 0;
-  let failed = 0;
-  let unfinished = 0;
+  const n: Record<Ending, number> = { read: 0, from_cache: 0, manual: 0, by_staff: 0, unrecoverable: 0, unrecorded: 0, unfinished: 0 };
+  for (const outcome of outcomes) n[pasteEnding(outcome)] += 1;
 
-  for (const outcome of outcomes) {
-    if (outcome.status === "ready") read += 1;
-    else if (outcome.status === "failed") failed += 1;
-    else unfinished += 1;
-  }
-
-  const finished = read + failed;
-  return { read, failed, unfinished, finished, read_rate: finished > 0 ? read / finished : null };
+  const failed = n.from_cache + n.manual + n.by_staff + n.unrecoverable;
+  const finished = n.read + failed;
+  return {
+    read: n.read,
+    failed,
+    from_cache: n.from_cache,
+    manual: n.manual,
+    by_staff: n.by_staff,
+    unrecoverable: n.unrecoverable,
+    unrecorded: n.unrecorded,
+    unfinished: n.unfinished,
+    finished,
+    read_rate: finished > 0 ? n.read / finished : null,
+  };
 }
 
 /**
@@ -171,12 +218,24 @@ export function formatAttempts(attempts: number): string {
   return n === 1 ? "1 try" : `${n} tries`;
 }
 
-/** What a row's job state is called on screen. */
-export function pasteStatusLabel(status: ExtractionRequestStatus, stalled = false): string {
+/** What a row is called on screen: the job while it runs, the real outcome once it ends (110). */
+export function pasteStatusLabel(status: ExtractionRequestStatus, stalled = false, outcome: PasteEnding | null = null): string {
   if (status === "running") return stalled ? "Stalled" : "Reading";
   if (status === "pending") return "Waiting";
-  if (status === "failed") return "Failed";
-  return "Read";
+  switch (pasteEnding({ product_url: "", status, outcome })) {
+    case "read":
+      return "Priced";
+    case "from_cache":
+      return "Priced from cache";
+    case "manual":
+      return "Failed · awaiting manual quote";
+    case "by_staff":
+      return "Priced by a buyer";
+    case "unrecoverable":
+      return "Failed · unrecoverable";
+    default:
+      return "Read (not recorded)";
+  }
 }
 
 /**
@@ -187,11 +246,12 @@ export function pasteStatusLabel(status: ExtractionRequestStatus, stalled = fals
  * customer is looking at a dead link) and one whose worker died. A job that is
  * merely queued or reading is the machine's business, and is muted.
  */
-export function pasteStatusTone(status: ExtractionRequestStatus, stalled = false): AdminTone {
-  if (status === "failed") return "amber";
+export function pasteStatusTone(status: ExtractionRequestStatus, stalled = false, outcome: PasteEnding | null = null): AdminTone {
   if (status === "running") return stalled ? "amber" : "muted";
   if (status === "pending") return "muted";
-  return "green";
+  const ending = pasteEnding({ product_url: "", status, outcome });
+  if (ending === "manual" || ending === "unrecoverable") return "amber";
+  return ending === "unrecorded" ? "muted" : "green";
 }
 
 /**

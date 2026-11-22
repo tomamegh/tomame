@@ -298,3 +298,10 @@ export const CAR_ENQUIRY_STATUSES = {
 
 export type CarEnquiryStatus =
   (typeof CAR_ENQUIRY_STATUSES)[keyof typeof CAR_ENQUIRY_STATUSES];
+
+/**
+ * The free quote's life (site brief, Fix 1.6): "Free quote — pay within 24
+ * hours or this quote will be cancelled." A business rule, not a pricing knob;
+ * a re-paste inside the window never extends it.
+ */
+export const QUOTE_VALID_HOURS = 24;

@@ -63,10 +63,27 @@ describe("toPasteStatus — what the screen may promise", () => {
     expect(toPasteStatus(row({ status: "running", extraction_cache_id: null })).outcome).toBe("reading");
   });
 
-  it("is expired when the job gave up, and carries its reason", () => {
+  it("hands a failed paste to a buyer, never calls it lapsed, and carries its reason (110)", () => {
     const status = toPasteStatus(row({ status: "failed", error: "We could not read that page." }));
-    expect(status.outcome).toBe("expired");
+    expect(status.outcome).toBe("manual");
+    expect(status.quote_expires_at).toBeNull();
     expect(status.error).toBe("We could not read that page.");
+    expect(toPasteStatus(row({ status: "ready", outcome: "manual_quote" }), PRICED).outcome).toBe("manual");
+  });
+
+  it("runs a priced paste's free quote for 24 hours from when it was priced (110)", () => {
+    const pricedAt = "2026-11-20T10:00:00Z";
+    const live = toPasteStatus(row({ outcome: "priced", outcome_at: pricedAt }), PRICED, null, Date.parse("2026-11-21T09:00:00Z"));
+    expect(live.outcome).toBe("priced");
+    expect(live.quote_expires_at).toBe("2026-11-21T10:00:00.000Z");
+    const lapsed = toPasteStatus(row({ outcome: "priced", outcome_at: pricedAt }), PRICED, null, Date.parse("2026-11-21T10:00:01Z"));
+    expect(lapsed.outcome).toBe("expired");
+    expect(lapsed.extraction_cache_id).toBeNull();
+  });
+
+  it("asks for a re-check, not a new quote, when the read lapses inside the 24 hours (110)", () => {
+    const stale = toPasteStatus(row({ outcome: "priced", outcome_at: "2026-11-20T10:00:00Z" }), { ...PRICED, usable: false }, null, Date.parse("2026-11-20T23:00:00Z"));
+    expect(stale.outcome).toBe("stale");
   });
 
   it("only surfaces an error once the job has given up on it", () => {

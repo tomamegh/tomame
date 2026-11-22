@@ -199,3 +199,19 @@ export async function getFinderChatById(id: string): Promise<FinderChatRow | nul
   if (error) throw new Error(`Failed to load chat: ${error.message}`);
   return (data as FinderChatRow | null) ?? null;
 }
+
+/** 110: the chat a pasted link was sent in (its turn names the paste), for a buyer's reply. */
+export async function findChatIdForPaste(pasteId: string): Promise<string | null> {
+  const { data, error } = await createAdminClient()
+    .from("finder_chat_messages")
+    .select("chat_id")
+    .contains("paste_ids", [pasteId])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    logger.warn("finder chat lookup by paste failed", { pasteId, message: error.message });
+    return null;
+  }
+  return (data as { chat_id: string } | null)?.chat_id ?? null;
+}

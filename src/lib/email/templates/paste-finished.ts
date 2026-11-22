@@ -49,16 +49,16 @@ export function pastePricedTemplate(data: PasteFinishedEmailData) {
 
 export function pasteUnreadableTemplate(data: PasteFinishedEmailData) {
   const host = escapeHtml(data.storeHost);
-  return renderEmail(`We couldn't read your link from ${data.storeHost}`, {
-    preheader: "A second try often works, and a buyer can always find it for you by hand.",
+  return renderEmail(`We'll price your ${data.storeHost} link by hand`, {
+    preheader: "A buyer is quoting it for you. The reply comes to your chat within a few hours.",
     body: `
       ${eyebrow("Link update", "amber")}
-      ${heading("We couldn't read that page")}
+      ${heading("A buyer is pricing this one by hand")}
       ${paragraph(
-        `We tried a few times to read your link from <strong>${host}</strong> and could not get a price out of it. Some stores block readers.`,
+        `We couldn't read a price from your link on <strong>${host}</strong> automatically. Some stores block readers.`,
       )}
-      ${paragraph("A second try often works. If it does not, describe the item and one of our buyers will source it for you by hand.")}
-      ${button(data.destinationUrl, "Try again or ask a buyer")}
+      ${paragraph("One of our buyers is quoting it for you now. The quote comes to your chat within a few hours, and nothing is charged until you pay it.")}
+      ${button(data.destinationUrl, "Open your chat")}
     `,
     reason: "You are getting this because a link you pasted took longer than usual and we said we would let you know how it went.",
   });

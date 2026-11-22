@@ -20,6 +20,7 @@ import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 import type { CreateAssistedRequestInput, TransitionAssistedRequestInput } from "../schema";
 import type { AssistedRequest } from "../types";
+import { closeManualQuote } from "./manual-quote.service";
 
 /**
  * Assisted requests — the human fallback when extraction cannot read a page.
@@ -155,6 +156,8 @@ export async function moveAssistedRequest(
     note: input.note,
   });
   if (!row) throw new APIError(409, "Someone else already picked this one up. Refresh the queue.");
+  // A failed paste's task closed as impossible: the paste and its chat say so (110).
+  if (input.status === "cancelled") await closeManualQuote(row);
 
   await logAuditEvent({
     actorId: adminId,

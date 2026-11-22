@@ -4,7 +4,7 @@ import { PRICE_CONFIRMING_MESSAGE } from "@/features/extraction/price-confidence
 import { STOCK_CHECK_MESSAGE, STOCK_UNAVAILABLE_MESSAGE } from "@/features/extraction/stock-signals";
 import type { PasteBatchLine } from "../../services/paste-batch";
 import type { PasteStatus } from "../../services/paste-status";
-import { batchRowStatus, linksInText, splitLinks } from "../batch-format";
+import { batchRowStatus, quoteExpiry, readingClock, linksInText, splitLinks } from "../batch-format";
 
 describe("splitLinks", () => {
   it("splits several links pasted at once, in order, without repeats", () => {
@@ -33,6 +33,8 @@ const paste = (over: Partial<PasteStatus> = {}): PasteStatus => ({
   created_at: "2026-11-20T10:00:00Z",
   updated_at: "2026-11-20T10:00:05Z",
   assisted: null,
+  quote_expires_at: "2026-11-21T10:00:05Z",
+  priced_from_cache_at: null,
   ...over,
 });
 
@@ -47,6 +49,7 @@ const line = (over: Partial<PasteBatchLine> = {}): PasteBatchLine => ({
   total_usd: 349.36,
   pricing_unavailable_reason: null,
   pay_hold: null,
+  receipt: [],
   ...over,
 });
 
@@ -73,8 +76,19 @@ describe("batchRowStatus", () => {
   });
 
   it("offers a buyer when the link could not be read or priced", () => {
-    expect(batchRowStatus(paste({ outcome: "expired", status: "failed", extraction_cache_id: null }), null)).toMatchObject({ label: "Couldn't read", askable: true });
+    expect(batchRowStatus(paste({ outcome: "unpriced", extraction_cache_id: null }), null)).toMatchObject({ label: "Couldn't read", askable: true });
+    expect(batchRowStatus(paste({ outcome: "manual", status: "failed", extraction_cache_id: null }), null)).toMatchObject({ kind: "manual", askable: false });
     expect(batchRowStatus(paste(), line({ total_ghs: null, pricing_unavailable_reason: "needs_review" }))).toMatchObject({ label: "Couldn't price", askable: true });
+  });
+
+  it("offers a fresh read for a stale or expired quote, never a buyer (110)", () => {
+    expect(batchRowStatus(paste({ outcome: "expired" }), null)).toMatchObject({ kind: "expired", refreshable: true, askable: false });
+    expect(batchRowStatus(paste({ outcome: "stale" }), null)).toMatchObject({ kind: "stale", refreshable: true });
+  });
+
+  it("says Checking freight, not Couldn't price, while the freight check runs (110)", () => {
+    const hold = { kind: "freight_check" as const, message: "Checking", needs_staff: false };
+    expect(batchRowStatus(paste(), line({ total_ghs: null, pricing_unavailable_reason: "Checking", pay_hold: hold }))).toMatchObject({ kind: "pricing", label: "Checking freight" });
   });
 
   it("keeps a priced link on Pricing while its total is still settling", () => {
@@ -101,5 +115,20 @@ describe("links inside typed or pasted text", () => {
 
   it("still takes a single bare link", () => {
     expect(linksInText("amazon.com/dp/B07Q31WX1C")).toEqual(["amazon.com/dp/B07Q31WX1C"]);
+  });
+});
+
+describe("quoteExpiry / readingClock (110)", () => {
+  it("names the end in Accra time with what is left", () => {
+    const e = quoteExpiry("2026-11-23T20:41:00Z", Date.parse("2026-11-22T21:00:00Z"));
+    expect(e).toMatchObject({ lapsed: false, left: "23 h 41 min left" });
+    expect(e?.at).toContain("20:41");
+    expect(quoteExpiry("2026-11-23T20:41:00Z", Date.parse("2026-11-23T20:42:00Z"))?.lapsed).toBe(true);
+    expect(quoteExpiry(null, 0)).toBeNull();
+  });
+
+  it("counts the read and explains a long one", () => {
+    expect(readingClock("2026-11-22T10:00:00Z", Date.parse("2026-11-22T10:00:42Z"))).toEqual({ elapsed: "0:42", note: null });
+    expect(readingClock("2026-11-22T10:00:00Z", Date.parse("2026-11-22T10:01:05Z")).note).toMatch(/buyer quotes it/);
   });
 });

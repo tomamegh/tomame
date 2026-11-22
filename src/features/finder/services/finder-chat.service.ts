@@ -282,7 +282,9 @@ export function summarisePastes(pastes: readonly PasteStatus[]): string | null {
     priced: "priced; the landed total is on its card",
     unpriced: "page read but no price found; the customer can describe it for a buyer",
     unavailable: "out of stock at the store",
-    expired: "quote lapsed; paste it again",
+    expired: "the free quote passed its 24 hours unpaid and was cancelled; a fresh quote is one tap on its card",
+    stale: "priced, but the price needs a fresh check before paying; the card has a re-check button",
+    manual: "we could not price it automatically; a buyer is quoting it by hand and the reply comes to this chat",
   };
   return pastes
     .map((p) => {

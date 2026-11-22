@@ -149,6 +149,7 @@ function toView(
     store_name: store?.name ?? null,
     store_status: store?.status ?? null,
     status: row.status,
+    outcome: row.outcome ?? null,
     attempts: row.attempts,
     error: row.error,
     created_at: row.created_at,

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { TomameCategory } from "@/config/categories";
+
 /** Same shape the address book accepts: 024 555 0192, +233 24 555 0192, 0245550192. */
 const PHONE_RE = /^\+?[0-9][0-9 ()-]{7,18}$/;
 
@@ -36,3 +38,17 @@ export const transitionAssistedRequestSchema = z.object({
 });
 
 export type TransitionAssistedRequestInput = z.infer<typeof transitionAssistedRequestSchema>;
+
+/**
+ * Admin (110): a buyer's answer to a paste no reader could price. Facts only —
+ * the store's price, the category, a weight — never a cedi total; the pricing
+ * engine strikes that.
+ */
+export const priceManualQuoteSchema = z.object({
+  price_usd: z.number().positive("Enter the store's price").max(100_000),
+  category: z.enum(Object.values(TomameCategory) as [string, ...string[]], { message: "Pick the category" }),
+  weight_lbs: z.number().positive().max(2_000).nullable().optional(),
+  title: z.string().trim().max(300).nullable().optional(),
+});
+
+export type PriceManualQuoteInput = z.infer<typeof priceManualQuoteSchema>;

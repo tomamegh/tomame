@@ -25,7 +25,7 @@ const OBSCURE = "https://shop.example.org/item/9";
 describe("summarisePasteHosts", () => {
   it("counts outcomes per host and strips www", () => {
     const [first] = summarisePasteHosts([
-      { product_url: AMAZON, status: "ready" },
+      { product_url: AMAZON, status: "ready", outcome: "priced" },
       { product_url: AMAZON, status: "failed" },
       { product_url: AMAZON, status: "pending" },
     ]);
@@ -52,8 +52,8 @@ describe("summarisePasteHosts", () => {
   it("rates failures against finished jobs only", () => {
     const [only] = summarisePasteHosts([
       { product_url: WALMART, status: "failed" },
-      { product_url: WALMART, status: "ready" },
-      { product_url: WALMART, status: "ready" },
+      { product_url: WALMART, status: "ready", outcome: "priced" },
+      { product_url: WALMART, status: "ready", outcome: "priced" },
       // Still in flight — it has not earned a place in the rate either way.
       { product_url: WALMART, status: "running" },
     ]);
@@ -95,14 +95,29 @@ describe("summarisePasteHosts", () => {
 describe("summarisePasteCoverage", () => {
   it("counts the window and rates reads against finished jobs", () => {
     const coverage = summarisePasteCoverage([
-      { product_url: AMAZON, status: "ready" },
-      { product_url: WALMART, status: "ready" },
-      { product_url: WALMART, status: "ready" },
+      { product_url: AMAZON, status: "ready", outcome: "priced" },
+      { product_url: WALMART, status: "ready", outcome: "priced" },
+      { product_url: WALMART, status: "ready", outcome: "priced" },
       { product_url: OBSCURE, status: "failed" },
       { product_url: OBSCURE, status: "running" },
     ]);
 
-    expect(coverage).toEqual({ read: 3, failed: 1, unfinished: 1, finished: 4, read_rate: 0.75 });
+    expect(coverage).toMatchObject({ read: 3, failed: 1, manual: 1, unfinished: 1, finished: 4, read_rate: 0.75 });
+  });
+
+  it("counts a ready paste with no price as a failure, by its outcome (110)", () => {
+    const coverage = summarisePasteCoverage([
+      { product_url: AMAZON, status: "ready", outcome: "priced" },
+      { product_url: AMAZON, status: "ready", outcome: "priced_from_cache" },
+      { product_url: AMAZON, status: "ready", outcome: "manual_quote" },
+      { product_url: AMAZON, status: "ready", outcome: "unrecoverable" },
+      { product_url: AMAZON, status: "ready", outcome: "priced_by_staff" },
+      // Settled before 110: not guessed at, and left out of the rate.
+      { product_url: AMAZON, status: "ready" },
+    ]);
+    expect(coverage).toMatchObject({ read: 1, from_cache: 1, manual: 1, unrecoverable: 1, by_staff: 1, failed: 4, unrecorded: 1, finished: 5 });
+    expect(pasteStatusLabel("ready", false, "manual_quote")).toBe("Failed · awaiting manual quote");
+    expect(pasteStatusLabel("ready", false, "priced_from_cache")).toBe("Priced from cache");
   });
 
   it("refuses to invent a rate when nothing has finished", () => {
@@ -142,7 +157,8 @@ describe("pasteStatusLabel / pasteStatusTone", () => {
   it("spends amber only where a person owes somebody an action", () => {
     expect(pasteStatusTone("failed")).toBe("amber");
     expect(pasteStatusTone("pending")).toBe("muted");
-    expect(pasteStatusTone("ready")).toBe("green");
+    expect(pasteStatusTone("ready", false, "priced")).toBe("green");
+    expect(pasteStatusTone("ready", false, "manual_quote")).toBe("amber");
   });
 });
 

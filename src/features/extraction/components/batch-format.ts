@@ -39,7 +39,7 @@ export function linksInText(text: string): string[] {
   return splitLinks(t).filter((l) => /^https?:\/\//i.test(l) || /^[^/\s]+\.[a-z]{2,}\/\S+/i.test(l));
 }
 
-export type BatchRowKind = "reading" | "pricing" | "ready" | "held" | "unavailable" | "failed" | "assisted";
+export type BatchRowKind = "reading" | "pricing" | "ready" | "held" | "unavailable" | "failed" | "assisted" | "manual" | "stale" | "expired";
 
 export interface BatchRowStatus {
   kind: BatchRowKind;
@@ -51,6 +51,8 @@ export interface BatchRowStatus {
   addable: boolean;
   /** The row offers "Ask a buyer". */
   askable: boolean;
+  /** The row offers a fresh read: "Re-check price" (stale) or "Get a fresh quote" (expired). */
+  refreshable: boolean;
 }
 
 /**
@@ -59,16 +61,24 @@ export interface BatchRowStatus {
  * server's priced preview for the row, once it has one.
  */
 export function batchRowStatus(paste: PasteStatus, line: PasteBatchLine | null): BatchRowStatus {
-  const base = { pulse: false, addable: false, askable: false };
-  if (paste.assisted) return { ...base, kind: "assisted", label: "With a buyer", tone: "success" };
+  const base = { pulse: false, addable: false, askable: false, refreshable: false };
   if (paste.outcome === "reading") return { ...base, kind: "reading", label: "Reading", tone: "progress", pulse: true };
   // A stale read being read again (106): the old figures are not offered until it lands.
   if (paste.rechecking) return { ...base, kind: "reading", label: "Re-checking", tone: "progress", pulse: true };
+  // A failed paste is a buyer's job now (110), never a lapsed quote.
+  if (paste.outcome === "manual") return { ...base, kind: "manual", label: "A buyer is pricing it", tone: "progress" };
+  if (paste.assisted) return { ...base, kind: "assisted", label: "With a buyer", tone: "success" };
+  if (paste.outcome === "expired") return { ...base, kind: "expired", label: "Quote expired", tone: "neutral", refreshable: true };
+  if (paste.outcome === "stale") return { ...base, kind: "stale", label: "Price needs a re-check", tone: "warning", refreshable: true };
   if (paste.outcome === "unavailable") return { ...base, kind: "unavailable", label: "Out of stock", tone: "warning", askable: true };
   if (paste.outcome !== "priced") return { ...base, kind: "failed", label: "Couldn't read", tone: "warning", askable: true };
   if (!line) return { ...base, kind: "pricing", label: "Pricing", tone: "progress", pulse: true };
-  // No total and no reason yet: the price is still settling, and the preview asks again.
-  if (line.total_ghs == null && !line.pricing_unavailable_reason) return { ...base, kind: "pricing", label: "Pricing", tone: "progress", pulse: true };
+  // No total yet: the price is still settling (freight being checked, a
+  // category landing) and the preview asks again. Never "Couldn't price" for a
+  // price that is about to appear.
+  if (line.total_ghs == null && (!line.pricing_unavailable_reason || line.pay_hold?.kind === "freight_check")) {
+    return { ...base, kind: "pricing", label: line.pay_hold?.kind === "freight_check" ? "Checking freight" : "Pricing", tone: "progress", pulse: true };
+  }
   if (line.total_ghs == null) return { ...base, kind: "failed", label: "Couldn't price", tone: "warning", askable: true };
 
   const hold = line.pay_hold;
@@ -82,4 +92,48 @@ export function batchRowStatus(paste: PasteStatus, line: PasteBatchLine | null):
     pulse: hold.kind !== "stock_check",
     addable: true,
   };
+}
+
+/**
+ * The free-quote line (site brief Fix 1.6): the exact moment the quote ends and
+ * how long is left, in Accra time (GMT, no daylight saving).
+ */
+export function quoteExpiry(expiresAt: string | null, now: number): { at: string; left: string; lapsed: boolean } | null {
+  if (!expiresAt) return null;
+  const end = Date.parse(expiresAt);
+  if (!Number.isFinite(end)) return null;
+  const at = new Date(end).toLocaleString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Africa/Accra",
+  });
+  const ms = end - now;
+  if (ms <= 0) return { at, left: "expired", lapsed: true };
+  const minutes = Math.ceil(ms / 60_000);
+  const left = minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min left` : `${minutes} min left`;
+  return { at, left, lapsed: false };
+}
+
+/** "Checked 11 Nov": when a catalogue price was last read (the live read failed). */
+export function checkedOn(iso: string | null): string | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  return new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Accra" });
+}
+
+/** The reading clock: "0:42", and from a minute on, a line saying what happens next. */
+export function readingClock(queuedAt: string, now: number): { elapsed: string; note: string | null } {
+  const start = Date.parse(queuedAt);
+  const seconds = Number.isFinite(start) ? Math.max(0, Math.floor((now - start) / 1000)) : 0;
+  const elapsed = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  const note =
+    seconds >= 60
+      ? "Some stores take up to two minutes. If we can't read a price, a buyer quotes it for you by hand."
+      : null;
+  return { elapsed, note };
 }

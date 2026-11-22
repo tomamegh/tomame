@@ -22,6 +22,7 @@ import {
   describeAssistedWait,
   type AssistedAction,
 } from "./queue-format";
+import { ManualQuoteForm } from "./manual-quote-form";
 
 /**
  * `/admin/assisted-requests` — the queue of customers a machine could not help.
@@ -173,6 +174,7 @@ function AssistedRow({
     <li className="flex flex-col gap-3 rounded-[16px] border border-tm-border bg-card p-4">
       <div className="flex flex-wrap items-center gap-2">
         <AdminBadge tone={assistedStatusTone(row.status)}>{assistedStatusLabel(row.status)}</AdminBadge>
+        {row.source === "paste" ? <AdminBadge tone="amber">Failed paste · quote by hand</AdminBadge> : null}
         {wait ? (
           <span className="text-[12px] leading-none font-semibold text-tm-text-3">{wait}</span>
         ) : null}
@@ -200,7 +202,7 @@ function AssistedRow({
 
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-[1.4] font-medium text-tm-text-3">
         <PhoneIcon className="size-3.5 shrink-0" aria-hidden />
-        <span className="tm-nums text-tm-text-2">{row.phone}</span>
+        <span className="tm-nums text-tm-text-2">{row.phone ?? "No number: the quote goes to their chat"}</span>
         <span>· {row.user_id ? "signed-in customer" : "signed-out visitor"}</span>
         {row.contacted_at ? (
           <span>
@@ -211,6 +213,8 @@ function AssistedRow({
           </span>
         ) : null}
       </p>
+
+      {actions.length > 0 && row.source === "paste" ? <ManualQuoteForm row={row} /> : null}
 
       {actions.length > 0 ? (
         <div className="flex flex-col gap-2.5">
@@ -239,11 +243,11 @@ function AssistedRow({
                 <MessageCircleIcon className="size-4" aria-hidden />
                 Open WhatsApp
               </a>
-            ) : (
+            ) : row.phone ? (
               <span className="text-[12px] leading-none font-medium text-tm-text-3">
                 That number cannot be dialled, so ring the customer back another way.
               </span>
-            )}
+            ) : null}
 
             {actions.map((action) => (
               <Button

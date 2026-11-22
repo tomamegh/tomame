@@ -19,6 +19,18 @@ export interface PasteBatchLine {
   total_usd: number | null;
   pricing_unavailable_reason: string | null;
   pay_hold: PayHold | null;
+  /**
+   * The full breakdown the quote page shows (site brief Fix 1.2): item, tax,
+   * fee, store shipping when charged, freight incl. customs, rate. Rows are the
+   * server's own figures as display strings; empty when the line is not priced.
+   */
+  receipt: PasteReceiptRow[];
+}
+
+export interface PasteReceiptRow {
+  key: string;
+  label: string;
+  value: string;
 }
 
 export interface PasteBatchPreview {

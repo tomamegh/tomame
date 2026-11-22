@@ -16,6 +16,10 @@ vi.mock("@/db/queries/extraction-requests", () => ({
 }));
 vi.mock("@/db/queries/extraction-cache", () => ({ getCachedExtractionByHash: vi.fn() }));
 vi.mock("../paste-notify.service", () => ({ notifyPasteFinished: vi.fn(async () => "too_quick") }));
+vi.mock("../paste-outcome.service", () => ({
+  settlePasteOutcome: vi.fn(async (_row: unknown, finished: unknown) => finished),
+  settleUnsettledPastes: vi.fn(async () => 0),
+}));
 // The catalogue enqueue (055/057) runs beside the notification after the job has
 // settled. Mocked for the same reason the notifier is: it reaches a service-role
 // client at module scope, so an unmocked import constructs one with no env and

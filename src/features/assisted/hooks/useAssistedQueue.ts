@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AssistedRequestRow, AssistedRequestStatus } from "@/db/queries/assisted-requests";
 import { apiFetch } from "@/lib/api-client";
 import type { ApiSuccessResponse } from "@/types/api";
-import type { TransitionAssistedRequestInput } from "../schema";
+import type { PriceManualQuoteInput, TransitionAssistedRequestInput } from "../schema";
 
 const queueKey = (status: AssistedRequestStatus | "all") => ["assisted-queue", status] as const;
 
@@ -35,6 +35,22 @@ export function useMoveAssistedRequest() {
     mutationFn: async ({ id, ...body }) => {
       const res = await apiFetch<ApiSuccessResponse<AssistedRequestRow>>(`/api/admin/assisted-requests/${id}`, {
         method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return res.data;
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["assisted-queue"] }),
+  });
+}
+
+/** 110: a buyer prices a failed paste by hand. The customer's chat card turns into the quote. */
+export function usePriceManualQuote() {
+  const queryClient = useQueryClient();
+  return useMutation<AssistedRequestRow, Error, { id: string } & PriceManualQuoteInput>({
+    mutationFn: async ({ id, ...body }) => {
+      const res = await apiFetch<ApiSuccessResponse<AssistedRequestRow>>(`/api/admin/assisted-requests/${id}/price`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });

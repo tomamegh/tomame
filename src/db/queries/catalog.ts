@@ -651,3 +651,49 @@ export async function deleteCatalogProducts(ids: readonly string[]): Promise<str
     typeof r === "string" ? r : r.delete_catalog_products,
   );
 }
+
+// ── Paste fallback (110) ────────────────────────────────────────────────────
+
+/** The catalogue's last check of one product, for a paste whose live read failed. */
+export interface CatalogFallbackRow {
+  id: string;
+  store: string;
+  external_id: string | null;
+  product_url: string;
+  title: string;
+  image_url: string | null;
+  price_usd: number | null;
+  currency: string | null;
+  category: string | null;
+  weight_lbs: number | null;
+  landed_ghs: number | null;
+  last_seen_at: string;
+  raw: Record<string, unknown> | null;
+}
+
+/**
+ * The same product only: matched on the pasted link's own hash, else on the
+ * store's item id (an ASIN, an eBay item number). Never a similar title — a
+ * look-alike is a different product at a different price.
+ */
+export async function findCatalogProductForPaste(input: {
+  urlHash: string;
+  store: string;
+  externalId: string | null;
+}): Promise<CatalogFallbackRow | null> {
+  const db = createAdminClient();
+  const columns = "id, store, external_id, product_url, title, image_url, price_usd, currency, category, weight_lbs, landed_ghs, last_seen_at, raw";
+  const byHash = await db.from("catalog_products").select(columns).eq("url_hash", input.urlHash).limit(1).maybeSingle();
+  if (byHash.error) throw new Error(byHash.error.message);
+  if (byHash.data) return byHash.data as CatalogFallbackRow;
+  if (!input.externalId) return null;
+  const byId = await db
+    .from("catalog_products")
+    .select(columns)
+    .eq("store", input.store)
+    .eq("external_id", input.externalId)
+    .limit(1)
+    .maybeSingle();
+  if (byId.error) throw new Error(byId.error.message);
+  return (byId.data as CatalogFallbackRow | null) ?? null;
+}

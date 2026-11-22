@@ -75,7 +75,8 @@ export function describeAssistedWait(createdAt: string, now: Date): string | nul
  * Returns null when the number cannot be dialled, so the caller drops the button
  * rather than rendering a link that goes nowhere.
  */
-export function assistedWhatsappHref(request: { phone: string; product_url: string }): string | null {
+export function assistedWhatsappHref(request: { phone: string | null; product_url: string }): string | null {
+  if (!request.phone) return null;
   const base = whatsappHref(request.phone);
   if (!base) return null;
 

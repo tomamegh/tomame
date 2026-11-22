@@ -90,10 +90,17 @@ export interface ExtractionJobRow extends ExtractionRequestRow {
   queued_at?: string | null;
   /** 106: the sweep leaves a requeued job alone until then. */
   not_before?: string | null;
+  /** 110: how the paste ended for the customer. Null while unsettled, and on rows settled before 110. */
+  outcome?: PasteOutcome | null;
+  /** 110: when `outcome` was reached; a priced outcome's 24-hour free-quote clock starts here. */
+  outcome_at?: string | null;
 }
 
+/** 110: the customer's answer, not the job's (see the migration's header). */
+export type PasteOutcome = "priced" | "priced_from_cache" | "manual_quote" | "priced_by_staff" | "unrecoverable";
+
 const JOB_COLUMNS =
-  "id, url_hash, product_url, extraction_cache_id, created_at, updated_at, user_id, session_id, status, attempts, started_at, finished_at, error, queued_at, not_before";
+  "id, url_hash, product_url, extraction_cache_id, created_at, updated_at, user_id, session_id, status, attempts, started_at, finished_at, error, queued_at, not_before, outcome, outcome_at";
 
 /** The column that owns a row, and its value. Exactly one identity, enforced by a CHECK in 049. */
 function ownerFilter(viewer: RequestViewer): { column: "user_id" | "session_id"; value: string } | null {
@@ -266,10 +273,53 @@ export async function completeExtractionRequest(input: {
       attempts: input.attempts,
       finished_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      // Settled anew by `settlePasteOutcome`; the sweep's safety net finds it if that is lost.
+      outcome: null,
     })
     .eq("id", input.id);
 
   if (error) logger.warn("extraction request completion failed", { id: input.id, message: error.message });
+}
+
+/** 110: record how a paste ended. `outcomeAt` is the 24-hour clock for a priced outcome. */
+export async function setPasteOutcome(id: string, outcome: PasteOutcome, outcomeAt: string): Promise<void> {
+  const { error } = await createAdminClient()
+    .from("extraction_requests")
+    .update({ outcome, outcome_at: outcomeAt })
+    .eq("id", id);
+  if (error) logger.warn("extraction request outcome write failed", { id, message: error.message });
+}
+
+/** 110: a first read that failed is answered from the catalogue's last check: the row becomes `ready`. */
+export async function readyFromCache(id: string, extractionCacheId: string): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await createAdminClient()
+    .from("extraction_requests")
+    .update({ status: "ready", extraction_cache_id: extractionCacheId, error: null, finished_at: now, updated_at: now })
+    .eq("id", id)
+    .in("status", ["ready", "failed"]);
+  if (error) logger.warn("extraction request cache answer failed", { id, message: error.message });
+}
+
+/**
+ * 110: pastes that finished in the last `withinMs` with no recorded outcome —
+ * the give-up sweep's failures, and any job whose inline settle was lost.
+ */
+export async function listUnsettledPastes(withinMs: number, limit: number): Promise<ExtractionJobRow[]> {
+  const since = new Date(Date.now() - withinMs).toISOString();
+  const { data, error } = await createAdminClient()
+    .from("extraction_requests")
+    .select(JOB_COLUMNS)
+    .is("outcome", null)
+    .in("status", ["ready", "failed"])
+    .gt("finished_at", since)
+    .order("finished_at", { ascending: true })
+    .limit(limit);
+  if (error) {
+    logger.warn("extraction requests: unsettled lookup failed", { message: error.message });
+    return [];
+  }
+  return (data ?? []) as ExtractionJobRow[];
 }
 
 /**
@@ -312,6 +362,7 @@ export async function reclaimStaleExtractionRequests(staleAfterMs: number, maxAt
               attempts: row.attempts + 1,
               finished_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
+              outcome: null,
             }
           : { status: "pending", attempts: row.attempts + 1, started_at: null, updated_at: new Date().toISOString() },
       )
@@ -421,7 +472,7 @@ export async function giveUpStuckExtractionRequests(olderThanMs: number, viewer?
       .update(
         row.extraction_cache_id
           ? { status: "ready", error: null, finished_at: now, updated_at: now, not_before: null }
-          : { status: "failed", error: GIVE_UP_ERROR, finished_at: now, updated_at: now, not_before: null },
+          : { status: "failed", error: GIVE_UP_ERROR, finished_at: now, updated_at: now, not_before: null, outcome: null },
       )
       .eq("id", row.id)
       .eq("status", row.status)

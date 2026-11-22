@@ -19,11 +19,12 @@ import { riseIn, SPRING } from "@/lib/motion/presets";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 import { priceContextParts } from "../price-context";
-import { usePasteBatchPreview } from "../hooks/usePastes";
+import { useCreatePaste, usePasteBatchPreview } from "../hooks/usePastes";
 import type { PasteBatchLine } from "../services/paste-batch";
 import type { PasteStatus } from "../services/paste-status";
 import { batchRowStatus, type BatchRowStatus } from "./batch-format";
 import { ReadingSteps, ReadingStepsCompact, readingStageOf } from "./reading-indicator";
+import { CachedPriceNote, ManualQuoteNote, QuoteExpiryLine, QuoteReceipt, ReadingClock, RefreshNote, RefreshQuoteButton } from "./paste-quote-parts";
 
 export type BatchView = "list" | "cards";
 
@@ -57,7 +58,22 @@ export function PasteBatchPanel({ pastes, onDescribe, onDone }: PasteBatchPanelP
   const [added, setAdded] = useState<ReadonlySet<string>>(new Set());
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addingAll, setAddingAll] = useState(false);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const addToBag = useAddToBag();
+  const createPaste = useCreatePaste();
+
+  // A stale or expired quote is read again: a fresh price at today's rate (110).
+  const onRefresh = useCallback(
+    (paste: PasteStatus) => {
+      setRefreshingId(paste.id);
+      createPaste
+        .mutateAsync({ product_url: paste.product_url })
+        .then(() => router.refresh())
+        .catch((error: unknown) => toast.error({ title: "Couldn't re-check that link", description: error instanceof Error ? error.message : undefined }))
+        .finally(() => setRefreshingId(null));
+    },
+    [createPaste, router],
+  );
 
   // A row being re-checked joins the preview once its fresh read lands, which re-asks for it.
   const pricedIds = useMemo(() => pastes.filter((p) => p.outcome === "priced" && !p.rechecking && p.extraction_cache_id).map((p) => p.id), [pastes]);
@@ -145,7 +161,14 @@ export function PasteBatchPanel({ pastes, onDescribe, onDone }: PasteBatchPanelP
               <AnimatePresence initial={false}>
                 {rows.map((row) => (
                   <motion.li key={row.paste.id} className="border-t border-border first:border-t-0" layout="position" variants={riseIn} initial="hidden" animate="visible" exit="exit" transition={SPRING.layout}>
-                    <BatchListRow row={row} single={!many} added={row.line ? added.has(row.line.extraction_cache_id) : false} onDescribe={() => onDescribe(row.paste)} />
+                    <BatchListRow
+                      row={row}
+                      single={!many}
+                      added={row.line ? added.has(row.line.extraction_cache_id) : false}
+                      onDescribe={() => onDescribe(row.paste)}
+                      onRefresh={() => onRefresh(row.paste)}
+                      refreshing={refreshingId === row.paste.id}
+                    />
                   </motion.li>
                 ))}
               </AnimatePresence>
@@ -194,6 +217,8 @@ export function PasteBatchPanel({ pastes, onDescribe, onDone }: PasteBatchPanelP
             addingId={addingId}
             onAdd={onAddOne}
             onDescribe={onDescribe}
+            onRefresh={onRefresh}
+            refreshingId={refreshingId}
           />
         )}
       </section>
@@ -247,16 +272,33 @@ function PriceNote({ paste, store }: { paste: PasteStatus; store: string | null 
   );
 }
 
-function BatchListRow({ row, added, single, onDescribe }: { row: Row; added: boolean; single: boolean; onDescribe: () => void }) {
+function BatchListRow({
+  row,
+  added,
+  single,
+  onDescribe,
+  onRefresh,
+  refreshing,
+}: {
+  row: Row;
+  added: boolean;
+  single: boolean;
+  onDescribe: () => void;
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
   const { paste, line, status } = row;
   const host = hostOf(paste.product_url);
   const working = !added && (status.kind === "reading" || status.kind === "pricing");
   const stage = readingStageOf(paste.status, status.kind === "pricing");
   const title = line?.title ?? paste.title ?? host;
   const href = paste.extraction_cache_id ? `/app/orders/review/${paste.extraction_cache_id}` : null;
+  // Notes, the breakdown and the 24-hour line run the row's full width, so a phone never squeezes them.
+  const hasDetail =
+    (status.kind === "reading" && !paste.rechecking) || status.kind === "manual" || status.refreshable || line?.total_ghs != null;
 
   return (
-    <div className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3">
+    <div className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3">
       <Thumb image={line?.image ?? null} host={host} className="size-12" />
       <div className="flex min-w-0 flex-col gap-1.5">
         {href ? (
@@ -288,6 +330,8 @@ function BatchListRow({ row, added, single, onDescribe }: { row: Row; added: boo
       <div className="flex flex-col items-end gap-1 text-right">
         {line?.total_ghs != null ? (
           <span className="tm-nums text-[15px] leading-none font-bold text-foreground">{formatGhs(line.total_ghs)}</span>
+        ) : status.refreshable ? (
+          <RefreshQuoteButton expired={status.kind === "expired"} loading={refreshing} onClick={onRefresh} className="px-3" />
         ) : status.askable ? (
           <button
             type="button"
@@ -299,9 +343,30 @@ function BatchListRow({ row, added, single, onDescribe }: { row: Row; added: boo
           </button>
         ) : null}
       </div>
-      {line?.total_ghs != null && priceContextParts(paste.price_context ?? null, line.store).length > 0 && (
-        <div className="col-span-3 -mt-1 pl-[60px]">
-          <PriceNote paste={paste} store={line.store} />
+      {hasDetail && (
+        <div className="col-span-3 flex min-w-0 flex-col gap-1.5">
+          {status.kind === "reading" && !paste.rechecking && <ReadingClock queuedAt={paste.queued_at} />}
+          {status.kind === "manual" && <ManualQuoteNote className="pt-1" />}
+          {status.refreshable && <RefreshNote expired={status.kind === "expired"} className="pt-0.5" />}
+          {line?.total_ghs != null && <PriceNote paste={paste} store={line.store} />}
+          {line?.total_ghs != null && !added && (
+            <>
+              <CachedPriceNote checkedAt={paste.priced_from_cache_at} />
+              {single ? (
+                <QuoteReceipt rows={line.receipt} className="pt-1.5" />
+              ) : (
+                line.receipt.length > 0 && (
+                  <details className="group">
+                    <summary className="cursor-pointer text-[12.5px] font-semibold text-tm-coral-strong select-none dark:text-tm-coral">
+                      See the breakdown
+                    </summary>
+                    <QuoteReceipt rows={line.receipt} className="pt-2" />
+                  </details>
+                )
+              )}
+              <QuoteExpiryLine expiresAt={paste.quote_expires_at} />
+            </>
+          )}
         </div>
       )}
     </div>
@@ -314,12 +379,16 @@ function BatchCards({
   addingId,
   onAdd,
   onDescribe,
+  onRefresh,
+  refreshingId,
 }: {
   rows: Row[];
   added: ReadonlySet<string>;
   addingId: string | null;
   onAdd: (line: PasteBatchLine) => void;
   onDescribe: (paste: PasteStatus) => void;
+  onRefresh: (paste: PasteStatus) => void;
+  refreshingId: string | null;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
@@ -367,12 +436,20 @@ function BatchCards({
                 <>
                   <PriceDisplay amount={formatGhs(line.total_ghs)} usd={line.total_usd != null ? `≈ ${formatUsd(line.total_usd)}` : null} />
                   <PriceNote paste={paste} store={line.store} />
+                  <CachedPriceNote checkedAt={paste.priced_from_cache_at} />
+                  <QuoteReceipt rows={line.receipt} />
+                  <QuoteExpiryLine expiresAt={paste.quote_expires_at} />
                 </>
               ) : (
                 status.kind === "reading" || status.kind === "pricing" ? (
-                  <div className="min-h-[52px]">
+                  <div className="flex min-h-[52px] flex-col gap-2">
                     <ReadingSteps host={hostOf(paste.product_url)} stage={readingStageOf(paste.status, status.kind === "pricing")} />
+                    {status.kind === "reading" && !paste.rechecking && <ReadingClock queuedAt={paste.queued_at} />}
                   </div>
+                ) : status.kind === "manual" ? (
+                  <ManualQuoteNote className="min-h-[52px]" />
+                ) : status.refreshable ? (
+                  <RefreshNote expired={status.kind === "expired"} className="min-h-[52px]" />
                 ) : (
                   <p className="tm-caption min-h-[52px] text-muted-foreground">
                     {line?.pricing_unavailable_reason ?? paste.error ?? "We couldn't read a price from this page."}
@@ -383,7 +460,7 @@ function BatchCards({
                 <PayHoldNotice hold={line.pay_hold} extractionId={line.extraction_cache_id} compact />
               )}
               <div className="mt-auto flex gap-2 pt-1">
-                {paste.extraction_cache_id && (
+                {paste.extraction_cache_id && !status.refreshable && (
                   <Button asChild variant="outline" size="touch" className="flex-1">
                     <Link href={`/app/orders/review/${paste.extraction_cache_id}`}>
                       Full quote
@@ -391,7 +468,9 @@ function BatchCards({
                     </Link>
                   </Button>
                 )}
-                {status.askable ? (
+                {status.refreshable ? (
+                  <RefreshQuoteButton expired={status.kind === "expired"} loading={refreshingId === paste.id} onClick={() => onRefresh(paste)} className="flex-1" />
+                ) : status.askable ? (
                   <Button variant="outline" size="touch" className="flex-1" onClick={() => onDescribe(paste)}>
                     <ChatCircleText weight="bold" className="size-4" aria-hidden />
                     Ask a buyer

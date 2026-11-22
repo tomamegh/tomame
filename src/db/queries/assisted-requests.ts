@@ -24,7 +24,10 @@ export interface AssistedRequestRow {
   extraction_request_id: string | null;
   product_url: string;
   description: string;
-  phone: string;
+  /** 110: empty on a paste-sourced request; the buyer uses the account's or the chat's number. */
+  phone: string | null;
+  /** 110: `paste` = opened automatically when a pasted link could not be priced. */
+  source: "customer" | "paste";
   status: AssistedRequestStatus;
   handled_by: string | null;
   contacted_at: string | null;
@@ -34,7 +37,7 @@ export interface AssistedRequestRow {
 }
 
 const COLUMNS =
-  "id, user_id, session_id, extraction_request_id, product_url, description, phone, status, handled_by, contacted_at, note, created_at, updated_at";
+  "id, user_id, session_id, extraction_request_id, product_url, description, phone, source, status, handled_by, contacted_at, note, created_at, updated_at";
 
 export async function insertAssistedRequest(input: {
   userId: string | null;
@@ -59,6 +62,60 @@ export async function insertAssistedRequest(input: {
 
   if (error) throw new Error(`Failed to record the request: ${error.message}`);
   return data as AssistedRequestRow;
+}
+
+/**
+ * 110: the buyer task a failed paste opens by itself. One open task per paste
+ * (a unique index); a second settle of the same paste is a no-op, not an error.
+ */
+export async function insertPasteAssistedRequest(input: {
+  userId: string | null;
+  sessionId: string | null;
+  extractionRequestId: string;
+  productUrl: string;
+  description: string;
+}): Promise<AssistedRequestRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("assisted_requests")
+    .insert({
+      user_id: input.userId,
+      session_id: input.userId ? null : input.sessionId,
+      extraction_request_id: input.extractionRequestId,
+      product_url: input.productUrl,
+      description: input.description,
+      phone: null,
+      source: "paste",
+    })
+    .select(COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "23505") return null;
+    throw new Error(`Failed to open the buyer task: ${error.message}`);
+  }
+  return (data as AssistedRequestRow | null) ?? null;
+}
+
+export async function getAssistedRequestById(id: string): Promise<AssistedRequestRow | null> {
+  const { data, error } = await createAdminClient().from("assisted_requests").select(COLUMNS).eq("id", id).maybeSingle();
+  if (error) throw new Error(`Failed to load the request: ${error.message}`);
+  return (data as AssistedRequestRow | null) ?? null;
+}
+
+/** 110: the open paste-sourced task for one paste, if any. */
+export async function findOpenPasteAssistedRequest(extractionRequestId: string): Promise<AssistedRequestRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("assisted_requests")
+    .select(COLUMNS)
+    .eq("extraction_request_id", extractionRequestId)
+    .in("status", ["open", "contacted"])
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    logger.warn("assisted request paste lookup failed", { message: error.message });
+    return null;
+  }
+  return (data as AssistedRequestRow | null) ?? null;
 }
 
 /**

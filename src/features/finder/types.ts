@@ -1,4 +1,5 @@
 import type { PriceContext } from "@/features/extraction/price-context";
+import type { PasteOutcomeView } from "@/features/extraction/services/paste-status";
 
 /**
  * The AI price finder's event stream and the screen state built from it.
@@ -210,7 +211,7 @@ export interface PastedLinkSummary {
   /** The listing's title once read, else the store's host. */
   title: string;
   storeHost: string;
-  outcome: "reading" | "priced" | "unpriced" | "unavailable" | "expired";
+  outcome: PasteOutcomeView;
   /** The quote when priced, else the paste's row on Buy for me. */
   href: string;
   pastedAt: string;

@@ -2,7 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
-import type { ExtractionJobRow, ExtractionRequestStatus } from "@/db/queries/extraction-requests";
+import type { ExtractionJobRow, ExtractionRequestStatus, PasteOutcome as PasteEnding } from "@/db/queries/extraction-requests";
 
 /**
  * The paste queue, read as an ADMINISTRATOR rather than as its owner.
@@ -22,7 +22,7 @@ import type { ExtractionJobRow, ExtractionRequestStatus } from "@/db/queries/ext
  */
 
 const JOB_COLUMNS =
-  "id, url_hash, product_url, extraction_cache_id, created_at, updated_at, user_id, session_id, status, attempts, started_at, finished_at, error";
+  "id, url_hash, product_url, extraction_cache_id, created_at, updated_at, user_id, session_id, status, attempts, started_at, finished_at, error, outcome, outcome_at";
 
 /** Which slice of the queue a screen is asking for. */
 export type AdminPasteFilter = "failed" | "unfinished" | "all";
@@ -36,7 +36,8 @@ export type AdminPasteFilter = "failed" | "unfinished" | "all";
 export async function listAdminPastes(filter: AdminPasteFilter, limit = 100): Promise<ExtractionJobRow[]> {
   let query = createAdminClient().from("extraction_requests").select(JOB_COLUMNS);
 
-  if (filter === "failed") query = query.eq("status", "failed");
+  // "Failed" is every paste the live read could not price (110), whatever the job status says.
+  if (filter === "failed") query = query.or("status.eq.failed,outcome.in.(priced_from_cache,manual_quote,priced_by_staff,unrecoverable)");
   // `pending` and `running` together: from an admin's chair they are one thing
   // — work the machine has accepted and not yet answered. Which of the two a
   // row is in only matters for how long it has been that way, and the service
@@ -52,6 +53,7 @@ export async function listAdminPastes(filter: AdminPasteFilter, limit = 100): Pr
 export interface PasteOutcome {
   product_url: string;
   status: ExtractionRequestStatus;
+  outcome: PasteEnding | null;
 }
 
 /**
@@ -69,7 +71,7 @@ export interface PasteOutcome {
 export async function listRecentPasteOutcomes(sinceIso: string, limit = 1000): Promise<PasteOutcome[]> {
   const { data, error } = await createAdminClient()
     .from("extraction_requests")
-    .select("product_url, status")
+    .select("product_url, status, outcome")
     .gt("updated_at", sinceIso)
     .order("updated_at", { ascending: false })
     .limit(limit);

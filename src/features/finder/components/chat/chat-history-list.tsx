@@ -13,7 +13,9 @@ const OUTCOME: Record<PastedLinkSummary["outcome"], { label: string; tone: "gree
   priced: { label: "Priced", tone: "green" },
   unpriced: { label: "No price found", tone: "amber" },
   unavailable: { label: "Out of stock", tone: "amber" },
-  expired: { label: "Quote lapsed", tone: "amber" },
+  expired: { label: "Quote expired", tone: "amber" },
+  stale: { label: "Re-check price", tone: "amber" },
+  manual: { label: "Buyer pricing it", tone: "muted" },
 };
 
 /**

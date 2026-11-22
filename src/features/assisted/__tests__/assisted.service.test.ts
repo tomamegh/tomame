@@ -12,6 +12,7 @@ vi.mock("@/db/queries/assisted-requests", () => ({
 vi.mock("@/db/queries/extraction-requests", () => ({ getExtractionRequestById: vi.fn() }));
 vi.mock("@/db/queries/site-settings", () => ({ getSiteSettingsMap: vi.fn(async () => ({ whatsapp_number: "+233 59 442 4746" })) }));
 vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn(async () => undefined) }));
+vi.mock("../services/manual-quote.service", () => ({ closeManualQuote: vi.fn(async () => undefined) }));
 
 import {
   findOpenAssistedRequest,
