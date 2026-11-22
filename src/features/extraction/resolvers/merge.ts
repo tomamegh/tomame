@@ -18,6 +18,24 @@ export interface MergeState {
   sources: Partial<Record<Field, ExtractionSource>>;
   /** Fields refused because the value was script or JSON, not copy (A2). Counted in daily health. */
   leaked?: Array<{ field: string; source: ExtractionSource }>;
+  /** Every tier's own price beside its list price, to corroborate a list price across tiers. */
+  listPriceReads?: Array<{ price: number; currency: string | null; listPrice: number }>;
+}
+
+const cents = (n: number) => Math.round(n * 100);
+
+/**
+ * The winning tier gave no list price, but another tier read the SAME price
+ * and its strike-through beside it: that strike-through describes this offer
+ * too, so it may stand ("30% off Amazon's $138.00 list price"). Never from a
+ * tier that read a different price.
+ */
+function adoptCorroboratedListPrice(state: MergeState): void {
+  const price = state.product.price;
+  if (typeof price !== "number" || typeof state.product.metadata.listPrice === "number") return;
+  const currency = state.product.currency ?? null;
+  const match = state.listPriceReads?.find((r) => cents(r.price) === cents(price) && r.listPrice > price && (!r.currency || !currency || r.currency === currency));
+  if (match) state.product.metadata.listPrice = match.listPrice;
 }
 
 /** Metadata about the offer a price was read from; it travels with the winning price only. */
@@ -109,7 +127,12 @@ export function mergeResult(state: MergeState, source: ExtractionSource, result:
       if (PRICE_METADATA.includes(k) && !ownsPrice) continue;
       if (k && isPresent(v) && !(k in state.product.metadata)) state.product.metadata[k] = v;
     }
+    const lp = incoming.metadata.listPrice;
+    if (typeof lp === "number" && Number.isFinite(lp) && typeof incoming.price === "number") {
+      (state.listPriceReads ??= []).push({ price: incoming.price, currency: incoming.currency ?? null, listPrice: lp });
+    }
   }
+  adoptCorroboratedListPrice(state);
 
   if (Array.isArray(incoming.images)) {
     for (const raw of incoming.images) {

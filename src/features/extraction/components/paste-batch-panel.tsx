@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { ArrowRight, ChatCircleText, Rows, SquaresFour, Tote } from "@phosphor-icons/react/ssr";
+import { ArrowRight, ChatCircleText, Rows, SquaresFour, Tag, Tote } from "@phosphor-icons/react/ssr";
 
 import { StoreImage as Image } from "@/components/store-image";
 import { PriceDisplay } from "@/components/price/price-display";
@@ -18,6 +18,7 @@ import { PayHoldNotice } from "@/features/quote-checks/components/pay-hold-notic
 import { riseIn, SPRING } from "@/lib/motion/presets";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
+import { priceContextParts } from "../price-context";
 import { usePasteBatchPreview } from "../hooks/usePastes";
 import type { PasteBatchLine } from "../services/paste-batch";
 import type { PasteStatus } from "../services/paste-status";
@@ -234,6 +235,18 @@ function Thumb({ image, host, className }: { image: string | null; host: string;
   );
 }
 
+/** The store's discount or our earlier read, as facts (price-context.ts). */
+function PriceNote({ paste, store }: { paste: PasteStatus; store: string | null }) {
+  const parts = priceContextParts(paste.price_context ?? null, store);
+  if (parts.length === 0) return null;
+  return (
+    <span className="flex items-start gap-1 text-[12px] leading-[1.35] font-medium text-tm-green">
+      <Tag weight="duotone" className="mt-px size-3.5 shrink-0" aria-hidden />
+      <span className="min-w-0">{parts.join(" · ")}</span>
+    </span>
+  );
+}
+
 function BatchListRow({ row, added, single, onDescribe }: { row: Row; added: boolean; single: boolean; onDescribe: () => void }) {
   const { paste, line, status } = row;
   const host = hostOf(paste.product_url);
@@ -265,6 +278,7 @@ function BatchListRow({ row, added, single, onDescribe }: { row: Row; added: boo
           )}
           <span className="truncate text-[12px] text-muted-foreground">{line?.store ?? host}</span>
         </div>
+        {line?.total_ghs != null && <PriceNote paste={paste} store={line.store} />}
         {working && !single && <ReadingStepsCompact host={host} stage={stage} />}
         {working && single && (
           <div className="pt-1.5">
@@ -346,7 +360,10 @@ function BatchCards({
                 {title}
               </h3>
               {line?.total_ghs != null ? (
-                <PriceDisplay amount={formatGhs(line.total_ghs)} usd={line.total_usd != null ? `≈ ${formatUsd(line.total_usd)}` : null} />
+                <>
+                  <PriceDisplay amount={formatGhs(line.total_ghs)} usd={line.total_usd != null ? `≈ ${formatUsd(line.total_usd)}` : null} />
+                  <PriceNote paste={paste} store={line.store} />
+                </>
               ) : (
                 status.kind === "reading" || status.kind === "pricing" ? (
                   <div className="min-h-[52px]">
