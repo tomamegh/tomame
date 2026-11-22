@@ -50,6 +50,7 @@ import {
 } from "../narration";
 import { rankCandidates, toFinderQuote, type RankInput } from "../ranking";
 import { isSuspiciouslyLow, outlierReference } from "../price-outlier";
+import { priceContextOf, type PriceContext } from "@/features/extraction/price-context";
 import { QUICK_PICK_TRIES, quickPickOrder, quickPickReason, saysInStock } from "../quick-pick";
 import { dropDetails, isClearlyOverBudget, isNotNew, isRiskyListing, keywordMatches, mergeDrops, postFilterListings, type DropReason, type FinderListing } from "../shortlist";
 import { normaliseFinderQuery, specSummary, storedSpec, type ParsedFinderSpec } from "../spec";
@@ -308,6 +309,7 @@ interface QuickPick {
   listing: FinderListing;
   cacheId: string;
   quote: FinderQuote;
+  priceContext: PriceContext | null;
 }
 
 /**
@@ -347,7 +349,7 @@ async function findQuickPick(
       if (payHoldOf({ extraction: snapshot, checks: checks.get(cacheId) ?? [] })) continue;
       const { pricing } = await priceExtractionWith(calculator!, snapshot, 1, null, null);
       if (!isPayablePricing(pricing)) continue;
-      return { listing: l, cacheId, quote: toFinderQuote(pricing) };
+      return { listing: l, cacheId, quote: toFinderQuote(pricing), priceContext: priceContextOf(snapshot) };
     }
     return null;
   } catch (error) {
@@ -379,7 +381,7 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
     if (quick) {
       const c = quickCandidate(quick);
       narrator.emit({ type: "candidate_found", candidate: c });
-      narrator.emit({ type: "candidate_priced", candidateId: c.id, quote: quick.quote, stockCheck: false, extractionCacheId: quick.cacheId });
+      narrator.emit({ type: "candidate_priced", candidateId: c.id, quote: quick.quote, priceContext: quick.priceContext, stockCheck: false, extractionCacheId: quick.cacheId });
       narrator.emit({ type: "result_ready", bestId: c.id, alternativeIds: [], why: { [c.id]: `In stock at ${c.store.name}, new, price confirmed` } });
       return {
         status: "done",
@@ -435,7 +437,7 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   ]);
   quickPromise = findQuickPick(run, spec, allowed, fastRows, msLeft, usage).then((quick) => {
     if (quick) {
-      narrator.emit({ type: "quick_pick", candidate: quickCandidate(quick), quote: quick.quote, extractionCacheId: quick.cacheId, reason: quickPickReason(finderStoreName(quick.listing.store)) });
+      narrator.emit({ type: "quick_pick", candidate: quickCandidate(quick), quote: quick.quote, priceContext: quick.priceContext, extractionCacheId: quick.cacheId, reason: quickPickReason(finderStoreName(quick.listing.store)) });
       void writer.save();
     }
     return quick;
@@ -587,14 +589,14 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
     // Far below other new listings: shown but never picked as best. It no longer holds payment.
     const stockCheck = isSuspiciouslyLow(judged, reference);
     priced.push({ listing: l, cacheId: e.cacheId, quote, state: stockCheck ? "stock_check" : "priced" });
-    narrator.emit({ type: "candidate_priced", candidateId: l.id, quote, stockCheck, extractionCacheId: e.cacheId! });
+    narrator.emit({ type: "candidate_priced", candidateId: l.id, quote, priceContext: priceContextOf(snapshot), stockCheck, extractionCacheId: e.cacheId! });
   }
   const shown = priced.filter((p) => p.state !== "dropped");
   const quick = await settledQuick();
   if (quick && !shown.some((p) => p.cacheId === quick.cacheId || p.listing.productUrl === quick.listing.productUrl)) {
     const c = quickCandidate(quick);
     narrator.emit({ type: "candidate_found", candidate: c });
-    narrator.emit({ type: "candidate_priced", candidateId: c.id, quote: quick.quote, stockCheck: false, extractionCacheId: quick.cacheId });
+    narrator.emit({ type: "candidate_priced", candidateId: c.id, quote: quick.quote, priceContext: quick.priceContext, stockCheck: false, extractionCacheId: quick.cacheId });
     shown.push({ listing: quick.listing, cacheId: quick.cacheId, quote: quick.quote, state: "priced" });
   }
   const freights = shown.filter((p) => p.state !== "confirming" && p.quote).map((p) => p.quote!.rows.find((r) => r.key === "freight")?.amountGhs ?? 0);

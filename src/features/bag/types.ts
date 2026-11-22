@@ -84,6 +84,8 @@ export interface BagLine {
    * cannot be paid for, and the bag polls until the check clears.
    */
   freight_checking: boolean;
+  /** Why the store price is what it is, as facts (price-context.ts): "30% off Amazon's $138.00 list price". */
+  price_notes?: string[];
   /**
    * 103: why this line cannot be paid for yet — the price is being confirmed,
    * stock and condition need a person, or the item is unavailable

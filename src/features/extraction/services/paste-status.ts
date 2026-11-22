@@ -1,3 +1,4 @@
+import type { PriceContext } from "@/features/extraction/price-context";
 import type { ExtractionJobRow, ExtractionRequestStatus } from "@/db/queries/extraction-requests";
 import type { QuoteFacts } from "@/db/queries/extraction-cache";
 import type { OpenAssistedRequestSummary } from "@/db/queries/assisted-requests";
@@ -31,6 +32,8 @@ export interface PasteStatus {
    * - `expired`  — the quote has lapsed or the job failed; paste it again.
    */
   outcome: "reading" | "priced" | "unpriced" | "unavailable" | "expired";
+  /** Store discount / our earlier read of a priced link, as facts (price-context.ts). */
+  price_context?: PriceContext | null;
   /**
    * 106: a stale read is being read again. `outcome` describes the figures on
    * hand meanwhile (usually `priced`); the screen marks them "Re-checking price
@@ -84,6 +87,7 @@ export function toPasteStatus(
     rechecking: (row.status === "pending" || row.status === "running") && outcome !== "reading",
     queued_at: row.queued_at ?? row.created_at,
     extraction_cache_id: outcome === "priced" ? row.extraction_cache_id : null,
+    price_context: outcome === "priced" ? (facts?.priceContext ?? null) : null,
     title: facts?.title ?? null,
     error: row.status === "failed" ? row.error : null,
     created_at: row.created_at,

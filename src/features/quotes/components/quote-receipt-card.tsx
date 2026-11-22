@@ -7,6 +7,7 @@ import {
   HandWaving,
   Minus,
   Plus,
+  Tag,
   Tote,
   Truck,
 } from "@phosphor-icons/react/ssr";
@@ -58,6 +59,8 @@ export interface QuoteReceiptCardProps {
   stockCheck?: StockCheckView | null;
   /** The quote's extraction id, for the stock check and "Report a wrong price". */
   extractionId?: string | null;
+  /** Why the store price is what it is, as facts (price-context.ts): a store discount, our earlier read. */
+  priceNotes?: string[];
   /** "$" or "£", the listing currency, for the price report form. */
   currencySymbol?: string;
   onContinue: () => void;
@@ -98,6 +101,7 @@ export function QuoteReceiptCard({
   freightCheckSeenAt = null,
   payHold = null,
   stockCheck = null,
+  priceNotes = [],
   extractionId = null,
   currencySymbol = "$",
   onContinue,
@@ -158,6 +162,13 @@ export function QuoteReceiptCard({
             <p className="tm-body text-muted-foreground">{unavailableReason ?? "We couldn't read a price for this link yet."}</p>
           )}
         </div>
+      )}
+
+      {total && pricing && priceNotes.length > 0 && (
+        <p className="flex items-start gap-2 rounded-xl bg-tm-green/10 px-3 py-2 text-[13px] leading-snug font-medium text-tm-green">
+          <Tag weight="duotone" className="mt-px size-4 shrink-0" aria-hidden />
+          <span>{priceNotes.join(". ")}.</span>
+        </p>
       )}
 
       {rows.length > 0 && (

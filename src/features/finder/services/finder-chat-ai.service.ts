@@ -1,5 +1,7 @@
 import "server-only";
 
+import { shoppingSeasonNote } from "@/features/extraction/price-context";
+
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 
@@ -44,7 +46,21 @@ const SYSTEM = [
   "- Never state, estimate or guess a price, a delivery date or stock yourself. Prices come only from the search results; when you mention one, use the landed total exactly as given in the results below.",
   "- We cannot buy services, gift cards, subscriptions, weapons, medicines, or anything not sold by those stores. Say so kindly and suggest what we can do.",
   "- Links the customer pastes are read and priced for them automatically and appear as cards under your reply. Never ask them to paste a link anywhere else; never search again for an item they gave a link to unless they ask for alternatives.",
+  "",
+  "Selling honestly:",
+  "- A result may carry price facts: the store's list price and today's saving, the store's own deal badge, and what we read for the same listing on an earlier day. When they help the customer decide, say them in a few words, exactly as given (\"30% below Amazon's $138.00 list price\", \"down from $138.00 when we checked on 21 Nov\").",
+  "- If the customer asks why a price changed, answer from those facts. A store sets its own prices and changes them, often for sales; our fee, tax and freight do not move with it.",
+  "- Never invent or estimate a saving, a percentage, an old price, a \"lowest ever\", a deal's end time, a stock level or how many people are buying. If no price fact is given, say nothing about savings.",
+  "- Call a price a Black Friday (or any named) deal only when the store's own deal badge says so. Otherwise you may say it is Black Friday week and store deals can end without notice, but never that this item's price is a Black Friday price.",
+  "- Gentle, true reasons to act are fine (a store discount is on today; store prices can change). No pressure, no \"only today\" unless a badge says it, no guilt.",
 ].join("\n");
+
+/** The rules plus today's date and, in season, the US shopping calendar (a calendar fact only). */
+function systemPrompt(now = new Date()): string {
+  const today = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Accra" }).format(now);
+  const season = shoppingSeasonNote(now);
+  return [SYSTEM, "", `Today is ${today} in Accra.`, season].filter((l) => l != null).join("\n");
+}
 
 export interface ChatHistoryMessage {
   role: "user" | "assistant";
@@ -73,7 +89,7 @@ export async function planChatTurn(history: readonly ChatHistoryMessage[], resul
         model: FINDER.chatModel,
         max_tokens: 2_000,
         output_config: { effort: "low", format: zodOutputFormat(ChatTurnOutputSchema) },
-        system: SYSTEM,
+        system: systemPrompt(),
         messages,
       },
       { timeout: FINDER.chatTimeoutMs },

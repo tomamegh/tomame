@@ -3,6 +3,7 @@ import type { ExtractionSource } from "@/config/extraction";
 import type { PricingBreakdown } from "@/lib/pricing";
 import type { FreightInspection } from "@/features/pricing/freight-inspection";
 import type { HtmlPriceRejection, PriceConfidence, PriceRead, PriceVerdict } from "../price-confidence";
+import type { PriceHistoryEntry } from "../price-context";
 import type { PayHold } from "../pay-gate";
 
 export type { ScrapedProduct };
@@ -40,6 +41,8 @@ export interface ExtractionResult {
   freight_inspection?: FreightInspection;
   /** Every tier's price reading (A0). Absent on rows cached before 2026-11-20. */
   price_reads?: PriceRead[];
+  /** Earlier reads at a different price, oldest first (price-context.ts). Absent before 2026-11-22. */
+  price_history?: PriceHistoryEntry[];
   /** Tier the quoted price came from; `"staff"` once a buyer corrected it. */
   price_source?: ExtractionSource | "staff" | null;
   /** How far the quoted price can be trusted, judged at extraction (price-confidence.ts). */

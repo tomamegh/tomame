@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowSquareOut, Check, HourglassMedium, Package, Tote } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, HourglassMedium, Package, Tag, Tote } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useId, useState } from "react";
 
 import { NumberRoll } from "@/components/motion/number-roll";
 import { Button } from "@/components/ui/button";
 import { fadeIn, popIn, PRESS, riseIn, SPRING } from "@/lib/motion/presets";
+import { priceContextParts } from "@/features/extraction/price-context";
 import { cn } from "@/lib/utils";
 
 import { formatGhs, formatUsd } from "../format";
@@ -34,6 +35,7 @@ export function FinderResultCard({ candidate, featured = false, onAddToBag }: Fi
   const [adding, setAdding] = useState(false);
 
   const { quote } = candidate;
+  const priceNotes = priceContextParts(candidate.priceContext ?? null, candidate.store.name);
   const confirming = candidate.status !== "priced" || quote == null;
 
   async function add() {
@@ -157,6 +159,13 @@ export function FinderResultCard({ candidate, featured = false, onAddToBag }: Fi
         >
           <Package size={16} weight="duotone" className="mt-px shrink-0 text-muted-foreground" aria-hidden />
           Much cheaper than other new listings: check the seller before you buy.
+        </motion.p>
+      )}
+
+      {candidate.quote && priceNotes.length > 0 && (
+        <motion.p layout="position" className="flex items-start gap-2 text-[13px] leading-snug font-medium text-tm-green">
+          <Tag size={16} weight="duotone" className="mt-px shrink-0" aria-hidden />
+          <span>{priceNotes.join(". ")}.</span>
         </motion.p>
       )}
 

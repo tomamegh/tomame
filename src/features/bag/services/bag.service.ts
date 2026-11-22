@@ -1,5 +1,6 @@
 import "server-only";
 import { APIError } from "@/lib/auth/api-helpers";
+import { priceContextOf, priceContextParts } from "@/features/extraction/price-context";
 import { logger } from "@/lib/logger";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { getExtractionRequestById } from "@/db/queries/extraction-requests";
@@ -855,6 +856,7 @@ function toLine(row: LineSource, snapshot: Snapshot, priced: Priced): BagLine {
     sourcing: null,
     freight_checking: priced.freightChecking === true,
     pay_hold: priced.payHold ?? null,
+    price_notes: priced.pricing && snapshot ? priceContextParts(priceContextOf(snapshot.result), findStore(snapshot.productUrl)?.name ?? null) : [],
   };
 }
 

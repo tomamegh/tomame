@@ -86,10 +86,10 @@ export function formatLineMeta(line: BagLine): string {
   return parts.filter((p): p is string => !!p).join(" · ");
 }
 
-/** "$586.47 incl. tax & fee" — the line's USD echo, from the server's total_usd. */
+/** "$586.47 incl. tax, fee & freight" — the line's USD echo, from the server's total_usd (freight is in it). */
 export function formatLineUsd(line: BagLine): string | null {
   const usd = line.pricing?.total_usd;
-  return usd != null ? `${formatUsd(usd)} incl. tax & fee` : null;
+  return usd != null ? `${formatUsd(usd)} incl. tax, fee & freight` : null;
 }
 
 export interface BagSummaryRow {

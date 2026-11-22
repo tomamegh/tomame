@@ -1,3 +1,5 @@
+import type { PriceContext } from "@/features/extraction/price-context";
+
 /**
  * The AI price finder's event stream and the screen state built from it.
  *
@@ -72,14 +74,14 @@ export type FinderEvent =
   /** The store would not confirm the price yet; the job keeps trying. */
   | { type: "price_confirming"; at: number; candidateId: string }
   /** `extractionCacheId` is the stored quote "Add to bag" names; the browser never sends a price. */
-  | { type: "candidate_priced"; at: number; candidateId: string; quote: FinderQuote; stockCheck: boolean; extractionCacheId?: string }
+  | { type: "candidate_priced"; at: number; candidateId: string; quote: FinderQuote; priceContext?: PriceContext | null; stockCheck: boolean; extractionCacheId?: string }
   /**
    * A fast answer while the full search runs: an exact match we had already
    * priced, from a store we trust (Amazon, then Walmart), read again just now
    * as new, in stock and with its price confirmed. Kept apart from
    * `candidates` until the result, which ranks it with the rest.
    */
-  | { type: "quick_pick"; at: number; candidate: FinderCandidate; quote: FinderQuote; extractionCacheId: string; reason: string }
+  | { type: "quick_pick"; at: number; candidate: FinderCandidate; quote: FinderQuote; priceContext?: PriceContext | null; extractionCacheId: string; reason: string }
   | { type: "result_ready"; at: number; bestId: string; alternativeIds: string[]; why: Record<string, string> }
   | { type: "nothing_found"; at: number; message: string; whatsappText: string };
 
@@ -114,6 +116,8 @@ export interface FinderCandidateState extends FinderCandidate {
   why: string | null;
   /** The stored quote behind `quote`, once priced through the extraction chain. */
   extractionCacheId?: string | null;
+  /** Store discount / our earlier read of this listing, as facts (price-context.ts). */
+  priceContext?: PriceContext | null;
 }
 
 export interface FinderResult {

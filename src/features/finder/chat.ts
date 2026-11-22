@@ -1,3 +1,4 @@
+import { priceContextFacts } from "@/features/extraction/price-context";
 import { z } from "zod";
 
 import { TomameCategory } from "@/config/categories";
@@ -93,7 +94,8 @@ export function summariseChatRuns(runs: readonly ChatRunSnapshot[]): string | nu
       const ranked = selectRankedCandidates(state).slice(0, 3);
       const lines = ranked.map((c, i) => {
         const price = c.quote ? `${formatGhs(c.quote.totalGhs)} landed in Accra` : "price still being confirmed";
-        return `  ${i === 0 ? "best" : `option ${i + 1}`}: ${c.title} at ${c.store.name}, ${price}`;
+        const facts = c.quote ? priceContextFacts(c.priceContext ?? null) : null;
+        return `  ${i === 0 ? "best" : `option ${i + 1}`}: ${c.title} at ${c.store.name}, ${price}${facts ? `; ${facts}` : ""}`;
       });
       return [`- ${item}:`, ...lines].join("\n");
     })

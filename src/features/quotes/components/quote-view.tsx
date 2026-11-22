@@ -13,6 +13,7 @@ import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { Quote } from "@/features/extraction/types";
 import type { OriginCountry } from "@/features/orders/types";
 import { storeForUrl } from "@/features/extraction/stores";
+import { priceContextOf, priceContextParts } from "@/features/extraction/price-context";
 import { SimilarProductsRail } from "@/features/catalog/components/similar-products-rail";
 import { useAddToBag } from "@/features/bag/hooks/useAddToBag";
 import { useRequestSourcing } from "@/features/sourcing/hooks/useRequestSourcing";
@@ -568,6 +569,7 @@ export function QuoteView({
             payHold={payHold}
             stockCheck={quote.stock_check ?? null}
             extractionId={quote.extraction_cache_id ?? null}
+            priceNotes={priceContextParts(priceContextOf(quote), store?.name ?? null)}
             currencySymbol={currencySymbol}
             onContinue={addLineToBag}
             canContinue={canContinue && !!quote.extraction_cache_id}

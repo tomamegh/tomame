@@ -1,7 +1,7 @@
 "use client";
 
 import { StoreImage as Image } from "@/components/store-image";
-import { BookmarkSimple, ChatCircleText, CheckCircle, CircleNotch, Minus, Plus, X } from "@phosphor-icons/react/ssr";
+import { BookmarkSimple, ChatCircleText, CheckCircle, CircleNotch, Minus, Plus, Tag, X } from "@phosphor-icons/react/ssr";
 
 import { safeImageSrc } from "@/features/app-home/components/format";
 import { PayHoldNotice } from "@/features/quote-checks/components/pay-hold-notice";
@@ -131,6 +131,12 @@ export function BagLineRow({
                 {meta}
               </span>
             )
+          )}
+          {!wait && line.price_notes && line.price_notes.length > 0 && (
+            <span className="flex items-start gap-1 text-[12px] leading-[1.35] font-medium text-tm-green">
+              <Tag weight="duotone" className="mt-px size-3.5 shrink-0" aria-hidden />
+              <span className="min-w-0">{line.price_notes.join(" · ")}</span>
+            </span>
           )}
           {line.special_instructions && (
             <span className="truncate text-[12px] leading-none text-tm-text-3">

@@ -153,6 +153,7 @@ export function finderReducer(state: FinderState, event: FinderEvent): FinderSta
         ...c,
         status: "priced",
         quote: event.quote,
+        priceContext: event.priceContext ?? c.priceContext ?? null,
         stockCheck: event.stockCheck,
         extractionCacheId: event.extractionCacheId ?? c.extractionCacheId ?? null,
       }));
@@ -171,6 +172,7 @@ export function finderReducer(state: FinderState, event: FinderEvent): FinderSta
           ...event.candidate,
           status: "priced",
           quote: event.quote,
+          priceContext: event.priceContext ?? null,
           stockCheck: false,
           why: null,
           extractionCacheId: event.extractionCacheId,

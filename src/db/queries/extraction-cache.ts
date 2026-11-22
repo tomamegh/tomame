@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 import { withProductDefaults, type ExtractionResult } from "@/features/extraction/types";
 import { storeSaysUnavailable } from "@/features/extraction/stock-signals";
+import { carryPriceHistory, priceContextOf, type PriceContext } from "@/features/extraction/price-context";
 import type { ExtractionSource } from "@/config/extraction";
 
 /**
@@ -122,13 +123,20 @@ export async function upsertExtractionCache(input: {
       }
     }
 
+    // Keep the price we had when a re-read changes it, so the quote can say
+    // "down from $138.00 when we checked on 21 Nov" instead of a silent jump.
+    const { data: stored } = await db.from("extraction_cache").select("result").eq("url_hash", input.urlHash).maybeSingle();
+    const result = carryPriceHistory(stored?.result ? normalizeResult(stored.result) : null, input.result);
+    // The caller returns this same object to the customer: let it carry the history it now has.
+    input.result.price_history = result.price_history;
+
     const { data, error } = await db
       .from("extraction_cache")
       .upsert(
         {
           url_hash: input.urlHash,
           product_url: input.productUrl,
-          result: input.result,
+          result,
           is_valid: true,
           complete: input.complete,
           source: input.source,
@@ -194,6 +202,8 @@ export interface QuoteFacts {
   unavailable: boolean;
   /** The listing's title when the page yielded one — for a notification to name the product. */
   title: string | null;
+  /** Store discount / our earlier read, as facts (price-context.ts). */
+  priceContext?: PriceContext | null;
 }
 
 /**
@@ -234,6 +244,7 @@ export async function getQuoteFacts(ids: readonly string[]): Promise<Map<string,
         priced: usable && typeof price === "number" && Number.isFinite(price) && price > 0,
         unavailable: usable && storeSaysUnavailable(product),
         title: typeof product?.title === "string" && product.title.trim() ? product.title : null,
+        priceContext: priceContextOf(normalizeResult(row.result)),
       });
     }
   } catch {

@@ -27,6 +27,7 @@ import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 
+import { priceContextFacts } from "@/features/extraction/price-context";
 import { chatTitle, recentHistory, summariseChatRuns } from "../chat";
 import { normaliseFinderQuery, type ParsedFinderSpec } from "../spec";
 import { reduceFinderEvents, selectRankedCandidates } from "../state/reducer";
@@ -283,7 +284,12 @@ export function summarisePastes(pastes: readonly PasteStatus[]): string | null {
     unavailable: "out of stock at the store",
     expired: "quote lapsed; paste it again",
   };
-  return pastes.map((p) => `- Pasted link: ${p.title ?? p.product_url}: ${state[p.outcome]}.`).join("\n");
+  return pastes
+    .map((p) => {
+      const facts = p.outcome === "priced" ? priceContextFacts(p.price_context ?? null) : null;
+      return `- Pasted link: ${p.title ?? p.product_url}: ${state[p.outcome]}${facts ? `; ${facts}` : ""}.`;
+    })
+    .join("\n");
 }
 
 /** After the turn's runs settle (or at once when every item was an earlier run): its one email. */
