@@ -166,14 +166,15 @@ export function orderStatusLabel(status: string): string {
       return "Awaiting payment";
     case "paid":
       return "Paid";
+    // The same words as the admin order filters and the customer journey (Fix 3):
+    // completed (receipt confirmed) is still delivered.
     case "processing":
-      return "Processing";
+      return "Purchased";
     case "in_transit":
-      return "In transit";
+      return "In the air";
     case "delivered":
-      return "Delivered";
     case "completed":
-      return "Completed";
+      return "Delivered";
     case "cancelled":
       return "Cancelled";
     default:

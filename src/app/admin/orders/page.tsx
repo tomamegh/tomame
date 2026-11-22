@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
 
+import {
+  ADMIN_ORDER_FILTERS,
+  countForFilter,
+  isAdminOrderFilter,
+  statusesForFilter,
+  type AdminOrderFilter,
+} from "@/features/orders/admin-status-filters";
+
 import { AdminPage, AdminStat } from "@/components/layout/admin/admin-page";
 import {
   ADMIN_ORDERS_PAGE_SIZE,
@@ -40,6 +48,8 @@ export default async function AdminOrdersPage({
     getAdminOrderCounts(),
     listAdminOrders({
       status,
+      // One definition per filter: the tile, the chip and this list agree (Fix 3).
+      statuses: statusesForFilter(status) ?? undefined,
       needsReview: review ? true : undefined,
       search,
     }),
@@ -85,17 +95,15 @@ export default async function AdminOrdersPage({
         <AdminStat
           index={2}
           label="In flight"
-          value={String(
-            counts.byStatus.paid + counts.byStatus.processing + counts.byStatus.in_transit,
-          )}
+          value={String(countForFilter("in_flight", counts.byStatus))}
           detail="Paid, being bought, or in the air"
           tone="coral"
-          href="/admin/orders?status=in_transit"
+          href="/admin/orders?status=in_flight"
         />
         <AdminStat
           index={3}
           label="Delivered"
-          value={String(counts.byStatus.delivered + counts.byStatus.completed)}
+          value={String(countForFilter("delivered", counts.byStatus))}
           detail={`${counts.total} in total, all time`}
           tone="green"
           href="/admin/orders?status=delivered"
@@ -141,6 +149,13 @@ function buildPills({
     return qs ? `/admin/orders?${qs}` : "/admin/orders";
   };
 
+  const chip = (filter: AdminOrderFilter): AdminFilterPill => ({
+    label: ADMIN_ORDER_FILTERS[filter].label,
+    href: href({ status: filter }),
+    active: status === filter,
+    count: countForFilter(filter, counts.byStatus),
+  });
+
   return [
     { label: "All", href: href(), active: !status && !review, count: counts.total },
     {
@@ -149,42 +164,12 @@ function buildPills({
       active: review,
       count: counts.needsReview,
     },
-    {
-      label: "Awaiting payment",
-      href: href({ status: "pending" }),
-      active: status === "pending",
-      count: counts.byStatus.pending,
-    },
-    {
-      label: "Paid",
-      href: href({ status: "paid" }),
-      active: status === "paid",
-      count: counts.byStatus.paid,
-    },
-    {
-      label: "Purchased",
-      href: href({ status: "processing" }),
-      active: status === "processing",
-      count: counts.byStatus.processing,
-    },
-    {
-      label: "In the air",
-      href: href({ status: "in_transit" }),
-      active: status === "in_transit",
-      count: counts.byStatus.in_transit,
-    },
-    {
-      label: "Delivered",
-      href: href({ status: "delivered" }),
-      active: status === "delivered",
-      count: counts.byStatus.delivered,
-    },
-    {
-      label: "Cancelled",
-      href: href({ status: "cancelled" }),
-      active: status === "cancelled",
-      count: counts.byStatus.cancelled,
-    },
+    chip("pending"),
+    chip("paid"),
+    chip("processing"),
+    chip("in_transit"),
+    chip("delivered"),
+    chip("cancelled"),
   ];
 }
 
@@ -200,7 +185,7 @@ function describeFilter({
 }): string | null {
   const parts: string[] = [];
   if (review) parts.push("the review queue");
-  if (status) parts.push(`status “${status}”`);
+  if (status) parts.push(isAdminOrderFilter(status) ? `“${ADMIN_ORDER_FILTERS[status].label}”` : `status “${status}”`);
   if (search) parts.push(`“${search}”`);
   return parts.length > 0 ? parts.join(" and ") : null;
 }

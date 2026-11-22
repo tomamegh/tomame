@@ -106,7 +106,8 @@ describe("tones", () => {
   });
 
   it("uses the state machine's own states, humanised", () => {
-    expect(orderStatusLabel("in_transit")).toBe("In transit");
+    expect(orderStatusLabel("in_transit")).toBe("In the air");
+    expect(orderStatusLabel("completed")).toBe("Delivered");
     expect(orderStatusLabel("pending")).toBe("Awaiting payment");
     expect(orderStatusTone("delivered")).toBe("green");
     expect(orderStatusTone("pending")).toBe("amber");

@@ -41,6 +41,8 @@ export interface AdminOrderRow extends Order {
 export interface AdminOrderFilters {
   /** One `orders.status`. Anything not in `ORDER_STATUSES` is ignored, not guessed at. */
   status?: string;
+  /** Several statuses (a filter group: Delivered = delivered + completed). Wins over `status`. */
+  statuses?: readonly OrderStatus[];
   /** Only the hand-pricing queue (`needs_review = true`), or only the rest. */
   needsReview?: boolean;
   /** Free text over the order number and the product name. */
@@ -62,7 +64,9 @@ export async function listAdminOrders(
     .order("created_at", { ascending: false })
     .limit(filters.limit ?? ADMIN_ORDERS_PAGE_SIZE);
 
-  if (filters.status && isOrderStatus(filters.status)) {
+  if (filters.statuses?.length) {
+    query = query.in("status", [...filters.statuses]);
+  } else if (filters.status && isOrderStatus(filters.status)) {
     query = query.eq("status", filters.status);
   }
   if (filters.needsReview !== undefined) {
