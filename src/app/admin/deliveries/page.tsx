@@ -15,6 +15,12 @@ import {
   reconcileShipments,
 } from "@/features/deliveries/delivery-filters";
 import { AdminDeliveriesBoard } from "@/features/deliveries/components/admin-deliveries-board";
+import { PromiseAccuracyCard } from "@/features/deliveries/components/promise-accuracy-card";
+import { promiseAccuracy } from "@/features/deliveries/promise-accuracy";
+import { listDeliveredPromises } from "@/db/queries/promise-accuracy";
+
+/** How far back the promise numbers look. */
+const PROMISE_WINDOW_DAYS = 90;
 import {
   AdminFilterPills,
   type AdminFilterPill,
@@ -44,10 +50,12 @@ export default async function AdminDeliveriesPage({
   // Fix 15: one definition per filter for tiles, chips and list (delivery-filters.ts).
   const filter = deliveryFilterOf(status);
 
-  const [counts, deliveries, shipmentFacts] = await Promise.all([
+  const [counts, deliveries, shipmentFacts, delivered] = await Promise.all([
     getDeliveryPipelineCounts(),
     listAdminDeliveries({ status: filter, originCountry: origin }),
     getShipmentFacts(),
+    // A failure costs this card, not the page.
+    listDeliveredPromises(new Date(Date.now() - PROMISE_WINDOW_DAYS * 86_400_000)).catch(() => null),
   ]);
   const reconciliation = reconcileShipments(shipmentFacts);
 
@@ -118,6 +126,8 @@ export default async function AdminDeliveriesPage({
         filterSummary={describeFilter(filter === "moving" ? undefined : DELIVERY_FILTERS[filter].label, origin)}
         truncated={deliveries.length >= ADMIN_DELIVERIES_PAGE_SIZE}
       />
+
+      {delivered && <PromiseAccuracyCard accuracy={promiseAccuracy(delivered)} windowDays={PROMISE_WINDOW_DAYS} index={3} />}
 
       {/* Fix 15: why "packages shipped" and "orders delivered" are different numbers. */}
       <AdminCard
