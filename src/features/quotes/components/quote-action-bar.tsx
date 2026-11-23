@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { ctaLabel } from "./quote-receipt-card";
 
 export interface QuoteActionBarProps {
+  /** Opens the checkout panel on this screen; without it the handoff is a link to /app/bag. */
+  onPayNow?: () => void;
   /** False while the line has no server price — there is nothing to pay for. */
   canContinue: boolean;
   continuePending: boolean;
@@ -53,6 +55,7 @@ export function QuoteActionBar({
   totalGhs = null,
   onContinue,
   addedCount,
+  onPayNow,
   watching,
   watchPending,
   onToggleWatch,
@@ -91,13 +94,21 @@ export function QuoteActionBar({
                   Add another
                 </Link>
               </Button>
-              <Button asChild variant="primary" size="lg" className="flex-1 px-3">
-                <Link href="/app/bag">
+              {onPayNow ? (
+                <Button variant="primary" size="lg" className="flex-1 px-3" onClick={onPayNow}>
                   <Tote weight="bold" className="size-[18px]" aria-hidden />
-                  View bag · {addedCount}
+                  Pay now · {addedCount}
                   <ArrowRight weight="bold" className="size-4" aria-hidden />
-                </Link>
-              </Button>
+                </Button>
+              ) : (
+                <Button asChild variant="primary" size="lg" className="flex-1 px-3">
+                  <Link href="/app/bag">
+                    <Tote weight="bold" className="size-[18px]" aria-hidden />
+                    View bag · {addedCount}
+                    <ArrowRight weight="bold" className="size-4" aria-hidden />
+                  </Link>
+                </Button>
+              )}
             </>
           ) : needsSourcing ? (
             <Button variant="primary" size="lg" className="flex-1" onClick={onAskToSource} loading={sourcePending}>

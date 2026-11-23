@@ -69,6 +69,8 @@ export interface QuoteReceiptCardProps {
   onContinue: () => void;
   /** Bag count once THIS screen added the line; the CTA then hands off to the bag. */
   addedCount: number | null;
+  /** Opens the checkout panel on this screen; without it the handoff is a link to /app/bag. */
+  onPayNow?: () => void;
   /** False when a gap is unfilled or the last re-price failed. */
   canContinue: boolean;
   /** Nobody has confirmed we can buy this (065): the CTA asks a person instead. */
@@ -110,6 +112,7 @@ export function QuoteReceiptCard({
   currencySymbol = "$",
   onContinue,
   addedCount,
+  onPayNow,
   canContinue,
   needsSourcing = false,
   onAskToSource,
@@ -232,13 +235,21 @@ export function QuoteReceiptCard({
         <div className="hidden flex-col gap-2 lg:flex">
           {addedCount != null ? (
             <>
-              <Button asChild variant="primary" size="lg" className="w-full">
-                <Link href="/app/bag">
+              {onPayNow ? (
+                <Button variant="primary" size="lg" className="w-full" onClick={onPayNow}>
                   <Tote weight="bold" className="size-[18px]" aria-hidden />
-                  View bag · {addedCount}
+                  Pay now · {addedCount} item{addedCount === 1 ? "" : "s"}
                   <ArrowRight weight="bold" className="size-4" aria-hidden />
-                </Link>
-              </Button>
+                </Button>
+              ) : (
+                <Button asChild variant="primary" size="lg" className="w-full">
+                  <Link href="/app/bag">
+                    <Tote weight="bold" className="size-[18px]" aria-hidden />
+                    View bag · {addedCount}
+                    <ArrowRight weight="bold" className="size-4" aria-hidden />
+                  </Link>
+                </Button>
+              )}
               <Button asChild variant="outline" size="touch" className="w-full">
                 <Link href="/app/orders/new">
                   <Plus weight="bold" className="size-4" aria-hidden />
