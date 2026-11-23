@@ -55,6 +55,8 @@ export function deliveryPlanFor(input: DeliveryPlanInput): DeliveryPlan | null {
   if (DONE.has(input.status)) return null;
 
   if (input.shippedOn) return firm(input.shippedOn, "flown");
+  // In the air with no flight on record (moved on from the admin console): promise nothing rather than a later flight.
+  if (input.status === "in_transit") return null;
 
   if (input.storeTracking || input.hubArrivedAt) {
     const arrived = input.storeTracking?.arrivedAt ?? input.hubArrivedAt ?? null;
@@ -92,11 +94,15 @@ export function planDay(isoDate: string): string {
 }
 
 /** The one-line promise every screen prints. */
-export function describePlan(plan: DeliveryPlan): { label: string; line: string; detail: string | null } {
+export function describePlan(plan: DeliveryPlan, now: Date = new Date()): { label: string; line: string; detail: string | null } {
   if (plan.kind === "estimate") {
     return { label: "Estimated delivery", line: plan.range.charAt(0).toUpperCase() + plan.range.slice(1), detail: plan.explanation };
   }
   const flight = `${plan.flight.carrier} ${plan.flight.origin} → Accra, ${planDay(plan.flight.departsOn)}`;
+  // Flown and past its usual door date: never a "By" date that has already gone.
+  if (plan.basis === "flown" && plan.deliveryOn < now.toISOString().slice(0, 10)) {
+    return { label: "At your door", line: "Any day now", detail: `Flew on ${flight}; it is clearing in Accra.` };
+  }
   return {
     label: "At your door",
     line: `By ${planDay(plan.deliveryOn)}`,

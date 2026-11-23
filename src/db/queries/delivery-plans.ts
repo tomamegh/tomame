@@ -25,7 +25,7 @@ export async function loadDeliveryPlanFacts(orderIds: readonly string[]): Promis
 
   const [links, items, upcoming, hubEvents] = await Promise.all([
     db.from("inbound_parcel_orders").select("order_id, parcel:inbound_parcels(created_at, arrived_at)").in("order_id", ids),
-    db.from("warehouse_package_items").select("order_id, package:warehouse_packages(status, departure_id)").in("order_id", ids),
+    db.from("warehouse_package_items").select("order_id, package:warehouse_packages(status, departure_id, shipped_at, carrier)").in("order_id", ids),
     db
       .from("flight_departures")
       .select(DEPARTURE_COLUMNS)
@@ -56,8 +56,20 @@ export async function loadDeliveryPlanFacts(orderIds: readonly string[]): Promis
   }
 
   const departureIds = new Map<string, string>();
-  for (const row of (items.data ?? []) as unknown as { order_id: string | null; package: { status: string; departure_id: string | null } | null }[]) {
-    if (row.order_id && row.package?.status === "shipped" && row.package.departure_id) departureIds.set(row.order_id, row.package.departure_id);
+  for (const row of (items.data ?? []) as unknown as { order_id: string | null; package: { status: string; departure_id: string | null; shipped_at: string | null; carrier: string | null } | null }[]) {
+    if (!row.order_id || row.package?.status !== "shipped") continue;
+    if (row.package.departure_id) departureIds.set(row.order_id, row.package.departure_id);
+    else if (row.package.shipped_at) {
+      // Shipped before departures were recorded (113): the package's own ship date is the flight.
+      facts.shippedOn.set(row.order_id, {
+        carrier: row.package.carrier?.trim() || "Delta Cargo",
+        origin: "JFK",
+        destination: "ACC",
+        departs_on: row.package.shipped_at.slice(0, 10),
+        departs_at: row.package.shipped_at,
+        cutoff_at: row.package.shipped_at,
+      });
+    }
   }
   if (departureIds.size > 0) {
     const { data, error } = await db.from("flight_departures").select(DEPARTURE_COLUMNS).in("id", [...new Set(departureIds.values())]);

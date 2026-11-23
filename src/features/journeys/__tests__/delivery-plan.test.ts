@@ -49,6 +49,17 @@ describe("the two-stage delivery promise (Fix 6)", () => {
     expect(plan).toMatchObject({ kind: "firm", basis: "flown", deliveryOn: "2026-12-05" });
   });
 
+  it("never promises a later flight for an order already in the air with no flight on record (TM-00036 on prod)", () => {
+    const hub = "2026-11-17T10:00:00Z";
+    expect(deliveryPlanFor({ status: "in_transit", storeTracking: null, hubArrivedAt: hub, shippedOn: null, departures: DEPARTURES, estimate: null })).toBeNull();
+  });
+
+  it("says any day now, never a date already gone, for a flight that landed past its usual door date", () => {
+    const plan = deliveryPlanFor({ status: "in_transit", storeTracking: null, shippedOn: dep("2026-11-18"), departures: DEPARTURES, estimate: null })!;
+    expect(describePlan(plan, new Date("2026-11-23T12:00:00Z"))).toMatchObject({ line: "Any day now" });
+    expect(describePlan(plan, new Date("2026-11-19T12:00:00Z")).line).toMatch(/^By /);
+  });
+
   it("promises nothing for an unpaid, cancelled or delivered order", () => {
     for (const status of ["pending", "cancelled", "delivered", "completed"]) {
       expect(deliveryPlanFor({ status, storeTracking: null, shippedOn: null, departures: DEPARTURES, estimate: null })).toBeNull();
