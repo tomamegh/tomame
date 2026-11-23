@@ -33,7 +33,7 @@ import { AssuranceCards } from "./assurance-cards";
 import { BuyerNoteCard, ProductColourCard, ProductFacts } from "./product-facts";
 import { QuoteActionBar } from "./quote-action-bar";
 import { QuoteBreadcrumb } from "./quote-breadcrumb";
-import { canContinueToPayment, formatStorePillLabel, needsSourcing } from "./format";
+import { canContinueToPayment, formatStorePillLabel, needsSourcing, stockNote } from "./format";
 import { QuoteGallery, QuoteThumbRail } from "./quote-gallery";
 import { QuoteGapFillers } from "./quote-gap-fillers";
 import { QuoteMobileHeader } from "./quote-mobile-header";
@@ -594,6 +594,7 @@ export function QuoteView({
             freightCheckSeenAt={checkingFreight ? (freightCheckSeenAt ?? receivedAt.getTime()) : null}
             payHold={payHold}
             stockCheck={quote.stock_check ?? null}
+            stockNote={stockNote({ availability: quote.product.availability, fetchedAt: quote.fetched_at, now: receivedAt, stockCheckStatus: quote.stock_check?.status ?? null })}
             extractionId={quote.extraction_cache_id ?? null}
             priceNotes={priceContextParts(priceContextOf(quote), store?.name ?? null)}
             storeName={store?.name ?? null}

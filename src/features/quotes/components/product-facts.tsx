@@ -2,7 +2,6 @@
 
 import type { Icon } from "@phosphor-icons/react";
 import {
-  CheckCircle,
   Scales,
   SealCheck,
   Star,
@@ -12,8 +11,7 @@ import {
 } from "@phosphor-icons/react/ssr";
 
 import type { ScrapedProduct } from "@/features/extraction/types";
-import { cn } from "@/lib/utils";
-import { availabilityNotice, buildSpecChips, pickProductColour, type SpecChipIcon } from "./format";
+import { buildSpecChips, pickProductColour, type SpecChipIcon } from "./format";
 
 /** One duotone glyph per spec chip, keyed by the fact the builder emitted. */
 const CHIP_ICONS: Record<SpecChipIcon, Icon> = {
@@ -44,7 +42,6 @@ export function ProductFacts({
   messages,
 }: ProductFactsProps) {
   const chips = buildSpecChips(product);
-  const availability = availabilityNotice(product.availability);
   const title = product.title ?? productUrl;
 
   return (
@@ -54,21 +51,7 @@ export function ProductFacts({
         {title}
       </h1>
 
-      {availability && (
-        <p
-          className={cn(
-            "flex items-center gap-1.5 text-[13px] leading-none font-semibold",
-            availability.tone === "success" ? "text-tm-green-ink dark:text-tm-green" : "text-tm-amber",
-          )}
-        >
-          {availability.tone === "success" ? (
-            <CheckCircle weight="fill" className="size-4 shrink-0" aria-hidden />
-          ) : (
-            <Warning weight="fill" className="size-4 shrink-0" aria-hidden />
-          )}
-          {availability.label}
-        </p>
-      )}
+      {/* Stock now sits beside the price, with when we checked it (`stockNote` in the receipt card). */}
 
       {chips.length > 0 && (
         <ul className="flex flex-wrap gap-1.5 lg:gap-2">

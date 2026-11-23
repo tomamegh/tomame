@@ -14,6 +14,7 @@
  */
 
 import type { ScrapedProduct } from "@/features/extraction/types";
+import { formatRelativeTime } from "@/features/app-home/components/format";
 
 // ── Counts ───────────────────────────────────────────────────────────────────
 
@@ -427,6 +428,26 @@ export interface AvailabilityNotice {
  * stock) and anything else is left out. Low counts and slow dispatch also
  * open a stock check (stock-signals.ts), which explains the rest.
  */
+/**
+ * The stock note beside the price (Seamless Roadmap, Initiative 3, as Kelvin
+ * chose it on 2026-11-23): what the store said and when we read it — "In stock
+ * at the store · checked 2 min ago". Information only; it never holds Pay.
+ * A stock check our team confirmed (103) outranks the store's own wording.
+ */
+export function stockNote(input: {
+  availability: string | null | undefined;
+  /** When the store page was read (`Quote.fetched_at`). */
+  fetchedAt: string | null | undefined;
+  now: Date;
+  stockCheckStatus?: string | null;
+}): AvailabilityNotice | null {
+  if (input.stockCheckStatus === "confirmed") return { tone: "success", label: "Stock confirmed by our team" };
+  const base = availabilityNotice(input.availability);
+  if (!base) return null;
+  const when = input.fetchedAt ? formatRelativeTime(input.fetchedAt, input.now) : null;
+  return when ? { ...base, label: `${base.label} · checked ${when}` } : base;
+}
+
 export function availabilityNotice(availability: string | null | undefined): AvailabilityNotice | null {
   const text = availability?.trim();
   if (!text) return null;
