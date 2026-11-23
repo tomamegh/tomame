@@ -44,6 +44,7 @@ import { EMPTY_PACKAGE_AFTER_HOURS } from "../components/format";
 import { awbInputProblem, DELTA_CARGO, normaliseDeltaAwb } from "../inbound/tracking-number";
 import { findShipDeparture, setDepartureAwbIfEmpty } from "@/db/queries/flight-departures";
 import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
+import { orderPeople } from "@/features/orders/order-people";
 import { addItemsWeightProblem, packageLoad, sealWeightProblem, type LoadLine, type SealOverrides } from "../weights";
 import { APIError } from "@/lib/auth/api-helpers";
 import { requireWarehouse, warehouseActorRole } from "@/lib/auth/guards";
@@ -1148,10 +1149,10 @@ export function toRecipient(
     const v = snapshot?.[key];
     return typeof v === "string" && v.trim() ? v.trim() : null;
   };
-  const profileName = profile ? [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() : "";
   const kind = s("kind");
   return {
-    name: s("recipient_name") ?? (profileName || null),
+    // Fix 15: the same name rule as Admin Deliveries (order-people.ts).
+    name: orderPeople(snapshot, profile).name,
     phone: s("phone") ?? profile?.phone?.trim() ?? null,
     kind: kind === "door" || kind === "pickup" ? kind : null,
     line1: s("line1"),

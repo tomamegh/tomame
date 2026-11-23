@@ -97,7 +97,7 @@ export function AdminDeliveriesBoard({
                 >
                   <span className="tm-nums">{row.order.order_no}</span>
                   <span className="font-medium">
-                    · {row.customer_name ?? "Customer not named"}
+                    · {row.customer_name ?? "Name missing"}
                   </span>
                 </Link>
               </li>
@@ -175,9 +175,18 @@ function DeliveryRow({ row }: { row: AdminDeliveryRow }) {
         </Link>
       </td>
       <td className={ADMIN_TD}>
-        <span className="text-[13px] font-medium text-tm-text-2">
-          {row.customer_name ?? "–"}
-        </span>
+        {/* Fix 15: the Shipments name rule (order-people.ts); a missing name is flagged, never "–". */}
+        {row.name_missing ? (
+          <span className="flex flex-col items-start gap-1">
+            <AdminBadge tone="amber">Name missing</AdminBadge>
+            {row.customer_email ? <span className="text-[11.5px] font-medium break-all text-tm-text-3">{row.customer_email}</span> : null}
+          </span>
+        ) : (
+          <span className="flex flex-col gap-0.5">
+            <span className="text-[13px] font-medium text-tm-text-2">{row.customer_name}</span>
+            {row.account_name ? <span className="text-[11.5px] font-medium text-tm-text-3">Account: {row.account_name}</span> : null}
+          </span>
+        )}
       </td>
       <td className={ADMIN_TD}>
         <div className="flex flex-col items-start gap-1">

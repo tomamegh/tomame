@@ -1,18 +1,24 @@
 import type { Metadata } from "next";
 
-import { AdminPage, AdminStat } from "@/components/layout/admin/admin-page";
+import { AdminCard, AdminPage, AdminStat } from "@/components/layout/admin/admin-page";
 import {
   ADMIN_DELIVERIES_PAGE_SIZE,
-  DELIVERY_PIPELINE_STATUSES,
   getDeliveryPipelineCounts,
+  getShipmentFacts,
   listAdminDeliveries,
 } from "@/db/queries/admin-deliveries";
+import {
+  DELIVERY_FILTERS,
+  DELIVERY_FILTER_ORDER,
+  deliveryFilterCount,
+  deliveryFilterOf,
+  reconcileShipments,
+} from "@/features/deliveries/delivery-filters";
 import { AdminDeliveriesBoard } from "@/features/deliveries/components/admin-deliveries-board";
 import {
   AdminFilterPills,
   type AdminFilterPill,
 } from "@/components/layout/admin";
-import { adminStatusLabel } from "@/features/orders/components/admin-transitions";
 
 export const metadata: Metadata = { title: "Deliveries · Admin" };
 
@@ -35,11 +41,15 @@ export default async function AdminDeliveriesPage({
   const params = await searchParams;
   const status = single(params.status);
   const origin = single(params.origin);
+  // Fix 15: one definition per filter for tiles, chips and list (delivery-filters.ts).
+  const filter = deliveryFilterOf(status);
 
-  const [counts, deliveries] = await Promise.all([
+  const [counts, deliveries, shipmentFacts] = await Promise.all([
     getDeliveryPipelineCounts(),
-    listAdminDeliveries({ status, originCountry: origin }),
+    listAdminDeliveries({ status: filter, originCountry: origin }),
+    getShipmentFacts(),
   ]);
+  const reconciliation = reconcileShipments(shipmentFacts);
 
   const href = (extra: Record<string, string> = {}) => {
     const query = new URLSearchParams(extra);
@@ -48,20 +58,12 @@ export default async function AdminDeliveriesPage({
     return qs ? `/admin/deliveries?${qs}` : "/admin/deliveries";
   };
 
-  const pills: AdminFilterPill[] = [
-    {
-      label: "Everything moving",
-      href: href(),
-      active: !status,
-      count: DELIVERY_PIPELINE_STATUSES.reduce((sum, stage) => sum + counts[stage], 0),
-    },
-    ...DELIVERY_PIPELINE_STATUSES.map((stage) => ({
-      label: adminStatusLabel(stage),
-      href: href({ status: stage }),
-      active: status === stage,
-      count: counts[stage],
-    })),
-  ];
+  const pills: AdminFilterPill[] = DELIVERY_FILTER_ORDER.map((key) => ({
+    label: DELIVERY_FILTERS[key].label,
+    href: key === "moving" ? href() : href({ status: key }),
+    active: filter === key,
+    count: deliveryFilterCount(key, counts),
+  }));
 
   return (
     <AdminPage
@@ -102,7 +104,7 @@ export default async function AdminDeliveriesPage({
         <AdminStat
           index={3}
           label="Delivered"
-          value={String(counts.delivered + counts.completed)}
+          value={String(deliveryFilterCount("delivered", counts))}
           detail="Signed for, all time"
           tone="green"
           href="/admin/deliveries?status=delivered"
@@ -113,16 +115,29 @@ export default async function AdminDeliveriesPage({
 
       <AdminDeliveriesBoard
         deliveries={deliveries}
-        filterSummary={describeFilter(status, origin)}
+        filterSummary={describeFilter(filter === "moving" ? undefined : DELIVERY_FILTERS[filter].label, origin)}
         truncated={deliveries.length >= ADMIN_DELIVERIES_PAGE_SIZE}
       />
+
+      {/* Fix 15: why "packages shipped" and "orders delivered" are different numbers. */}
+      <AdminCard
+        index={2}
+        title="Shipped packages and delivered orders"
+        blurb={reconciliation.agree ? "Every delivered order left in a shipped package." : "The two counts differ, and here is why."}
+      >
+        <ul className="flex flex-col gap-1.5 text-[13px] leading-[1.5] font-medium text-tm-text-2">
+          {reconciliation.lines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      </AdminCard>
     </AdminPage>
   );
 }
 
 function describeFilter(status?: string, origin?: string): string | null {
   const parts: string[] = [];
-  if (status) parts.push(`stage “${adminStatusLabel(status)}”`);
+  if (status) parts.push(`stage “${status}”`);
   if (origin) parts.push(`origin “${origin}”`);
   return parts.length > 0 ? parts.join(" and ") : null;
 }
