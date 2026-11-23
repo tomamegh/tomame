@@ -1,6 +1,7 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { useEffect, useRef } from "react";
+import { AnimatePresence, motion, useAnimate, useReducedMotion } from "motion/react";
 
 import { cn } from "@/lib/utils";
 
@@ -26,8 +27,12 @@ export interface PackageBoxProps {
   reference?: string;
   /** Pixel width; height follows at 0.82. */
   size?: number;
+  /** Units inside: up to three parcels show over the rim while it is open, and a new one drops in. */
+  items?: number;
   className?: string;
 }
+
+const PARCEL_COLOURS = ["#fde1da", "#e5eefb", "#e3f1e8"] as const;
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -36,11 +41,33 @@ export function PackageBox({
   open,
   reference,
   size = 120,
+  items = 0,
   className,
 }: PackageBoxProps) {
   const reduce = useReducedMotion();
   const isOpen = open ?? status === "packing";
   const sealed = !isOpen && status !== "packing";
+  const shipped = status === "shipped" && !isOpen;
+  const [scope, animate] = useAnimate();
+  const was = useRef({ sealed, shipped });
+
+  // The moments worth seeing happen once, when the state changes on screen:
+  // sealing squashes the carton as the flaps fold home; shipping lifts it and
+  // the stamp lands with a jolt. Nothing replays on a first render.
+  useEffect(() => {
+    const before = was.current;
+    was.current = { sealed, shipped };
+    if (reduce || !scope.current) return;
+    if (sealed && !before.sealed) {
+      void animate(
+        scope.current,
+        { scaleY: [1, 1, 0.92, 1.035, 1], scaleX: [1, 1, 1.05, 0.985, 1] },
+        { duration: 0.9, times: [0, 0.38, 0.55, 0.78, 1], ease: "easeOut" },
+      );
+    } else if (shipped && !before.shipped) {
+      void animate(scope.current, { y: [0, -12, 0, 0, 0], x: [0, 0, 0, -2.5, 0] }, { duration: 0.9, times: [0, 0.3, 0.55, 0.7, 1], ease: "easeOut" });
+    }
+  }, [sealed, shipped, reduce, animate, scope]);
   const width = size;
   const height = Math.round(size * 0.82);
   const flapH = Math.round(height * 0.2);
@@ -52,7 +79,8 @@ export function PackageBox({
 
   return (
     <div
-      className={cn("relative select-none", className)}
+      ref={scope}
+      className={cn("relative origin-bottom select-none", className)}
       style={{ width, height: height + flapH }}
       aria-hidden
     >
@@ -75,6 +103,31 @@ export function PackageBox({
           transition: "opacity .3s",
         }}
       />
+
+      {/* What is inside, peeking over the rim while it is open. A new unit drops in. */}
+      <div className="absolute inset-x-0 flex justify-center" style={{ top: bodyTop - flapH * 0.9, height: flapH * 1.6, gap: width * 0.03 }}>
+        <AnimatePresence initial={false}>
+          {isOpen
+            ? Array.from({ length: Math.min(3, items) }, (_, i) => (
+                <motion.span
+                  key={i}
+                  className="rounded-[3px] shadow-[0_1px_0_rgba(0,0,0,.08)]"
+                  style={{
+                    width: width * (i === 1 ? 0.24 : 0.2),
+                    height: flapH * (i === 1 ? 1.15 : 0.95),
+                    marginTop: i === 1 ? 0 : flapH * 0.25,
+                    background: PARCEL_COLOURS[i],
+                    border: "1px solid rgba(120,72,30,.18)",
+                  }}
+                  initial={reduce ? false : { y: -height * 0.5, opacity: 0, rotate: i === 0 ? -14 : 12 }}
+                  animate={{ y: 0, opacity: 1, rotate: i === 0 ? -6 : i === 2 ? 5 : 0 }}
+                  exit={{ y: flapH, opacity: 0, transition: { duration: 0.25 } }}
+                  transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 18, delay: 0.05 * i }}
+                />
+              ))
+            : null}
+        </AnimatePresence>
+      </div>
 
       {/*
         The flaps. Each is hinged on the body's top OUTER corner and swings up
@@ -131,12 +184,25 @@ export function PackageBox({
           initial={false}
           animate={{ height: sealed ? height * 0.42 : 0, opacity: sealed ? 0.95 : 0 }}
           transition={reduce ? { duration: 0 } : { duration: 0.5, ease: EASE, delay: sealed ? 0.35 : 0 }}
-        />
+        >
+          {/* A glint runs down fresh tape. */}
+          {sealed && !reduce ? (
+            <motion.span
+              className="absolute inset-x-0 block h-1/3 bg-gradient-to-b from-transparent via-white/55 to-transparent"
+              initial={{ top: "-40%" }}
+              animate={{ top: "120%" }}
+              transition={{ duration: 0.7, delay: 0.85, ease: "easeInOut" }}
+            />
+          ) : null}
+        </motion.div>
 
         {/* The label sticker */}
         {size >= 88 ? (
-          <div
+          <motion.div
             className="absolute rounded-[3px] bg-white/95 shadow-[0_1px_2px_rgba(0,0,0,.15)]"
+            initial={false}
+            animate={status === "packing" && !sealed ? { opacity: 0, y: -6, rotate: -6, scale: 1.08 } : { opacity: 1, y: 0, rotate: 0, scale: 1 }}
+            transition={reduce ? { duration: 0 } : { duration: 0.4, ease: EASE, delay: sealed ? 0.75 : 0 }}
             style={{
               right: width * 0.1,
               bottom: height * 0.14,
@@ -170,7 +236,7 @@ export function PackageBox({
                 <span className="h-[14%] w-[60%] rounded-full bg-tm-ink/25" />
               </div>
             </div>
-          </div>
+          </motion.div>
         ) : null}
 
         {/* This-way-up arrows, the universal box mark */}
@@ -184,7 +250,7 @@ export function PackageBox({
         ) : null}
 
         {/* Shipped stamp */}
-        {status === "shipped" && !isOpen ? (
+        {shipped ? (
           <motion.div
             className="absolute rounded-[4px] border-2 border-tm-green font-display leading-none font-extrabold tracking-[0.08em] text-tm-green uppercase"
             style={{
@@ -194,9 +260,9 @@ export function PackageBox({
               padding: `${size * 0.015}px ${size * 0.03}px`,
               background: "rgba(238,248,241,.72)",
             }}
-            initial={reduce ? false : { scale: 1.6, opacity: 0, rotate: -14 }}
+            initial={reduce ? false : { scale: 2.2, opacity: 0, rotate: -20 }}
             animate={{ scale: 1, opacity: 1, rotate: -9 }}
-            transition={{ duration: 0.35, ease: EASE, delay: 0.2 }}
+            transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 22, delay: 0.32 }}
           >
             Shipped
           </motion.div>

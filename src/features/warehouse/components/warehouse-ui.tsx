@@ -86,12 +86,10 @@ export function ItemFlags({
 }: {
   item: Pick<WarehouseItem, "held" | "has_open_issue"> & Partial<Pick<WarehouseItem, "stage" | "order_status">>;
 }) {
-  // Paid, not yet marked purchased: no store parcel is on its way yet.
-  const notBought = item.stage === "awaiting" && item.order_status === "paid";
-  if (!item.held && !item.has_open_issue && !notBought) return null;
+  // Exceptions only. The order's stage has its own single label (board/stage.ts).
+  if (!item.held && !item.has_open_issue) return null;
   return (
     <span className="flex flex-wrap gap-1.5">
-      {notBought ? <AdminBadge tone="muted">Not bought yet</AdminBadge> : null}
       {item.held ? (
         <AdminBadge tone="coral">
           <PauseCircleIcon className="size-3" aria-hidden />

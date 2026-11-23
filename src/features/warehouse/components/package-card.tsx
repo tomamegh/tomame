@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowUpRightIcon, PrinterIcon, UsersIcon } from "lucide-react";
+import { ArrowUpRightIcon, PlaneIcon, PrinterIcon, UsersIcon } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -50,7 +50,7 @@ export function PackageCard({ pkg, index = 0 }: { pkg: WarehousePackage; index?:
             </span>
           ) : null}
           <div className="transition-transform duration-500 ease-[cubic-bezier(.16,1,.3,1)] group-hover:-translate-y-1 group-hover:scale-[1.03]">
-            <PackageBox status={pkg.status} size={112} />
+            <PackageBox status={pkg.status} size={112} items={pkg.unit_count} />
           </div>
         </div>
         <div className="flex flex-col gap-2 border-t border-tm-hairline p-4">
@@ -75,11 +75,37 @@ export function PackageCard({ pkg, index = 0 }: { pkg: WarehousePackage; index?:
             </span>
             {pkg.held_count > 0 ? <span className="ml-auto text-tm-coral-strong">{pkg.held_count} held</span> : null}
           </div>
+          <FlightLine pkg={pkg} />
           <ThumbStrip pkg={pkg} />
         </div>
       </button>
       <PackagePeek pkg={pkg} open={open} onOpenChange={setOpen} />
     </>
+  );
+}
+
+/** The Delta departure the box is booked on (Fix 9): the earliest one among its orders' freight boxes. */
+function FlightLine({ pkg }: { pkg: WarehousePackage }) {
+  if (pkg.status === "voided") return null;
+  const departs = pkg.lines
+    .map((l) => l.item?.box?.departs_at ?? null)
+    .filter((d): d is string => !!d)
+    .sort()[0];
+  if (pkg.status === "shipped") {
+    return pkg.shipped_at ? (
+      <span className="flex items-center gap-1.5 text-[12px] font-semibold text-tm-green-ink">
+        <PlaneIcon className="size-3.5" aria-hidden />
+        Flew {new Date(pkg.shipped_at).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Accra" })}
+        {pkg.tracking_number ? <span className="font-mono font-medium text-tm-text-3">· {pkg.tracking_number}</span> : null}
+      </span>
+    ) : null;
+  }
+  if (!departs) return null;
+  return (
+    <span className="flex items-center gap-1.5 text-[12px] font-semibold text-tm-text-2">
+      <PlaneIcon className="size-3.5 text-tm-coral" aria-hidden />
+      Booked on {new Date(departs).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Accra" })} flight
+    </span>
   );
 }
 

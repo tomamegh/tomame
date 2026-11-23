@@ -173,7 +173,7 @@ export function PackageWorkbench({
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", stiffness: 260, damping: 18 }}
                 >
-                  <PackageBox status={pkg.status} reference={pkg.reference} size={172} />
+                  <PackageBox status={pkg.status} reference={pkg.reference} size={172} items={pkg.unit_count} />
                 </motion.div>
               </div>
 

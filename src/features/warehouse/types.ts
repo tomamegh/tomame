@@ -12,6 +12,8 @@
 import type { CustomerRideRequest } from "@/features/order-delivery/customer-ride";
 import type { PackageStage, ShipmentStageKey } from "@/features/shipments/stages";
 
+import type { BoardStage } from "./board/stage";
+
 export type PackageStatus = "packing" | "sealed" | "shipped" | "voided";
 
 /** 112: how a package that could never ship was resolved. */
@@ -163,6 +165,17 @@ export interface ShipmentBoard {
   order_stages: Record<string, ShipmentStageKey | null>;
   /** 101: customers sending their own rider, not handed over yet, oldest first. */
   rides: Array<{ item: WarehouseItem; ride: CustomerRideRequest }>;
+  /** The Delta departures (111) the packages above flew on, by id: the board groups by flight. */
+  flights: Record<string, ShipmentFlight>;
+}
+
+export interface ShipmentFlight {
+  id: string;
+  carrier: string;
+  origin: string;
+  destination: string;
+  departs_on: string;
+  awb: string | null;
 }
 
 export interface WarehouseReturnAddress {
@@ -280,4 +293,31 @@ export function packageScanPath(reference: string): string {
 /** Where a photo's bytes come from. The route re-checks the viewer each time. */
 export function warehousePhotoUrl(photoId: string): string {
   return `/api/order-photos/${photoId}`;
+}
+
+// ── The order board (warehouse redesign, 2026-11) ───────────────────────────
+
+/** A store tracking number on an order, as the board shows it. Staff only. */
+export interface BoardTracking {
+  parcel_id: string;
+  display: string;
+  carrier_label: string;
+  status: InboundStatus;
+  arrived_at: string | null;
+  /** The carrier's public tracking page, when it has one. */
+  url: string | null;
+}
+
+/** An order on the warehouse board: the item, its one stage and its store tracking. */
+export interface BoardItem extends WarehouseItem {
+  board_stage: BoardStage;
+  tracking: BoardTracking[];
+  /** Orders paid in one checkout share it. Opaque; used to group, never shown. */
+  checkout_key: string | null;
+}
+
+export interface OrderBoard {
+  items: BoardItem[];
+  /** More active orders exist than were read: the board says so instead of counting short. */
+  truncated: boolean;
 }

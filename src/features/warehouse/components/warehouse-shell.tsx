@@ -111,7 +111,7 @@ export function WarehouseShell({
             </span>
           </Link>
 
-          <nav className="ml-4 hidden items-center gap-1 md:flex" aria-label="Warehouse">
+          <nav className="ml-2 hidden min-w-0 items-center gap-1 md:flex xl:ml-4" aria-label="Warehouse">
             {nav.map((item) => {
               const active = isActive(pathname, item.href, "exact" in item ? item.exact : false);
               return (
@@ -121,7 +121,7 @@ export function WarehouseShell({
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative inline-flex h-9 items-center gap-2 rounded-full px-3.5 text-[13px] font-semibold transition-colors",
-                    "wide" in item && item.wide && "hidden lg:inline-flex",
+                    "wide" in item && item.wide && "hidden xl:inline-flex",
                     active ? "bg-tm-ink text-white" : "text-tm-text-2 hover:bg-tm-hairline hover:text-tm-ink",
                   )}
                 >
@@ -135,7 +135,7 @@ export function WarehouseShell({
               href={GUIDE_HREF}
               aria-current={isActive(pathname, GUIDE_HREF) ? "page" : undefined}
               className={cn(
-                "relative hidden h-9 items-center gap-2 rounded-full px-3.5 text-[13px] font-semibold transition-colors lg:inline-flex",
+                "relative hidden h-9 items-center gap-2 rounded-full px-3.5 text-[13px] font-semibold transition-colors xl:inline-flex",
                 isActive(pathname, GUIDE_HREF) ? "bg-tm-ink text-white" : "text-tm-text-2 hover:bg-tm-hairline hover:text-tm-ink",
               )}
             >
@@ -152,7 +152,7 @@ export function WarehouseShell({
               title="Help and guide"
               aria-current={isActive(pathname, GUIDE_HREF) ? "page" : undefined}
               className={cn(
-                "flex size-9 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-tm-coral/40 focus-visible:outline-none lg:hidden",
+                "flex size-9 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-tm-coral/40 focus-visible:outline-none xl:hidden",
                 isActive(pathname, GUIDE_HREF) ? "bg-tm-ink text-white" : "text-tm-text-2 hover:bg-tm-hairline hover:text-tm-ink",
               )}
             >
@@ -172,7 +172,7 @@ export function WarehouseShell({
                 <span className="flex size-7 items-center justify-center rounded-full bg-[image:var(--tm-gradient-avatar)] text-[11px] font-bold text-tm-coral-strong">
                   {initials(operator.name)}
                 </span>
-                <span className="hidden max-w-[140px] truncate text-[13px] font-semibold text-tm-ink sm:inline">
+                <span className="hidden max-w-[140px] truncate text-[13px] font-semibold text-tm-ink sm:inline md:hidden xl:inline">
                   {operator.name}
                 </span>
                 <ChevronDownIcon className="size-3.5 text-tm-text-3" aria-hidden />
@@ -188,6 +188,17 @@ export function WarehouseShell({
                   </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {/* Inbound and Deliveries leave the top bar below xl; they stay one tap away here. */}
+                {driver
+                  ? null
+                  : NAV.filter((item) => "wide" in item && item.wide).map((item) => (
+                      <DropdownMenuItem key={item.href} asChild className="xl:hidden">
+                        <Link href={item.href} className="gap-2">
+                          <item.icon className="size-4" aria-hidden />
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
                 {driver ? null : (
                   <DropdownMenuItem asChild>
                     <Link href={GUIDE_HREF} className="gap-2">

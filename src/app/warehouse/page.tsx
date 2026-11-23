@@ -1,25 +1,27 @@
 import { warehousePageUser } from "@/features/warehouse/services/page-user";
 
-import { OrdersWorkbench, type WorkbenchTab } from "@/features/warehouse/components/orders-workbench";
+import { isBoardStage } from "@/features/warehouse/board/stage";
+import { OrderBoardView, type BoardGroup } from "@/features/warehouse/components/order-board";
 import { GuideTourCard } from "@/features/warehouse/guide/components/guide-tour-card";
 import { WarehouseHeading } from "@/features/warehouse/components/warehouse-ui";
-import {
-  countOpenWarehouseIssues,
-  listWarehouseItems,
-  listWarehousePackages,
-} from "@/features/warehouse/services/warehouse.service";
+import { getOrderBoard } from "@/features/warehouse/services/board.service";
+import { getStageSettingsForStaff } from "@/features/warehouse/services/shipment.service";
+import { countOpenWarehouseIssues, listWarehousePackages } from "@/features/warehouse/services/warehouse.service";
+import { listDriversForStaff } from "@/features/drivers/services/driver.service";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 
 export const dynamic = "force-dynamic";
 
-const TABS: WorkbenchTab[] = ["expected", "hub", "boxes"];
+const GROUPS: BoardGroup[] = ["customer", "checkout", "none"];
+/** Old links (`?tab=expected`) land on the stage they meant. */
+const TAB_STAGE = { expected: "on_way", hub: "at_hub", boxes: "boxed" } as const;
 
 /**
- * `/warehouse` — the orders the hub has to act on (098).
+ * `/warehouse` — every order from paid to delivered, by stage (2026-11).
  *
- * Opens on the work, not on boxes: purchased orders on their way (Expected),
- * parcels logged in and waiting to be boxed (At hub), then the boxes on the
- * bench (Boxes). Packing and shipping happen from here and the box page; this
- * is the only place an order's status moves now.
+ * One read (`getOrderBoard`) feeds the strip's counts and the lists, so they
+ * cannot disagree. Buying, tracking, receiving, packing and the Ghana legs all
+ * start here, one order at a time or in bulk.
  */
 export default async function WarehouseHomePage({
   searchParams,
@@ -28,31 +30,38 @@ export default async function WarehouseHomePage({
 }) {
   const user = await warehousePageUser("/warehouse");
   const params = await searchParams;
-  const tab = TABS.find((t) => t === params.tab) ?? null;
-  const [items, boxes, issues] = await Promise.all([
-    listWarehouseItems(user),
-    listWarehousePackages(user, { statuses: ["packing", "sealed"], limit: 48 }),
+  const tab = typeof params.tab === "string" && params.tab in TAB_STAGE ? TAB_STAGE[params.tab as keyof typeof TAB_STAGE] : null;
+  const stage = isBoardStage(params.stage) ? params.stage : tab;
+  const group = GROUPS.find((g) => g === params.group) ?? null;
+
+  const [board, openBoxes, issues, settings, drivers] = await Promise.all([
+    getOrderBoard(user),
+    listWarehousePackages(user, { statuses: ["packing"], limit: 100 }),
     countOpenWarehouseIssues(user),
+    getStageSettingsForStaff(user),
+    listDriversForStaff(user),
   ]);
   const firstName = user.profile?.first_name?.trim() || null;
 
   return (
     // Bottom room so the action bar never covers the last row or the guide card.
     <div className="flex flex-col gap-4 pb-36 md:pb-28">
-      {/* On a phone the tabs are the title: the work starts above the fold. */}
       <div className="hidden md:block">
         <WarehouseHeading
           kicker={new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Accra" })}
           title={firstName ? `Hi, ${firstName}` : "Orders"}
         />
       </div>
-      <OrdersWorkbench
-        items={items.filter((i) => (i.stage === "awaiting" || i.stage === "received") && !i.package)}
-        boxes={boxes}
-        initialTab={tab}
-        attention={{ issues, held: items.filter((i) => i.held).length }}
+      <OrderBoardView
+        board={board}
+        openBoxes={openBoxes}
+        isAdmin={canAccessAdmin(user)}
+        issues={issues}
+        settings={settings}
+        drivers={drivers}
+        initialStage={stage}
+        initialGroup={group}
       />
-      {/* 081 guide: offered until this device has finished it or closed the card. Below the work, not above it. */}
       <GuideTourCard />
     </div>
   );

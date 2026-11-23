@@ -9,6 +9,9 @@ import { AdminOrderParcelPanel } from "@/features/order-photos/components/admin-
 import { formatDateTime, formatLbs, recipientLines, STAGE_META } from "@/features/warehouse/components/format";
 import { OrderInboundPanel } from "@/features/warehouse/components/inbound";
 import { ItemActions } from "@/features/warehouse/components/item-actions";
+import { ItemNextStep } from "@/features/warehouse/components/item-next-step";
+import { getBoardItemWithCheckout } from "@/features/warehouse/services/board.service";
+import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { ItemStatusPanel } from "@/features/warehouse/components/item-status-panel";
 import { ItemFlags, ItemThumb, PackageStatusBadge, StageBadge } from "@/features/warehouse/components/warehouse-ui";
 import { listInboundForOrder } from "@/features/warehouse/services/inbound.service";
@@ -44,11 +47,12 @@ export default async function WarehouseItemPage({ params }: { params: Promise<{ 
   }
   // 086: the store's tracking numbers for this order, so the scan finds it.
   // 098: its status and tracking step, to move it on its own.
-  const [inbound, shipment, stageSettings, drivers] = await Promise.all([
+  const [inbound, shipment, stageSettings, drivers, board] = await Promise.all([
     listInboundForOrder(user, id),
     getOrderShipment(user, id),
     getStageSettingsForStaff(user),
     listDriversForStaff(user),
+    getBoardItemWithCheckout(user, id),
   ]);
 
   const facts: Array<{ label: string; value: string }> = [
@@ -103,7 +107,17 @@ export default async function WarehouseItemPage({ params }: { params: Promise<{ 
         </div>
       </section>
 
-      <ItemStatusPanel item={item} shipment={shipment} settings={stageSettings} drivers={drivers} />
+      {board.item ? (
+        <ItemNextStep
+          item={board.item}
+          isAdmin={canAccessAdmin(user)}
+          sameCheckout={board.checkout.filter((o) => o.board_stage === "to_buy" && !o.held)}
+        />
+      ) : null}
+
+      <div id="status" className="scroll-mt-24">
+        <ItemStatusPanel item={item} shipment={shipment} settings={stageSettings} drivers={drivers} />
+      </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div id="photos" className="flex min-w-0 scroll-mt-24 flex-col gap-6">
@@ -133,6 +147,7 @@ export default async function WarehouseItemPage({ params }: { params: Promise<{ 
             orderNo={item.order_no}
             parcels={inbound}
             canAdd={item.order_status === "paid" || item.order_status === "processing"}
+            orderStatus={item.order_status}
           />
 
           <section className="tm-up rounded-[22px] border border-tm-border bg-card p-5 [animation-duration:0.5s] [animation-delay:.1s]">

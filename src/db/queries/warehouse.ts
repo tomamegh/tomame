@@ -367,12 +367,18 @@ export async function deletePackageItem(
 export async function listWarehouseOrders(filters: {
   statuses?: string[];
   ids?: string[];
+  /** Only orders touched since then (the board's recently delivered). */
+  updatedSince?: string;
+  /** One checkout's orders. */
+  groupId?: string;
   limit?: number;
 }): Promise<WarehouseOrderRow[]> {
   if (filters.ids && filters.ids.length === 0) return [];
   let query = createAdminClient().from("orders").select(ORDER_COLUMNS);
   if (filters.statuses?.length) query = query.in("status", filters.statuses);
   if (filters.ids) query = query.in("id", filters.ids);
+  if (filters.updatedSince) query = query.gte("updated_at", filters.updatedSince);
+  if (filters.groupId) query = query.eq("order_group_id", filters.groupId);
   const { data, error } = await query
     .order("created_at", { ascending: true })
     .limit(filters.limit ?? 300);

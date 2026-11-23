@@ -218,6 +218,12 @@ export async function listWarehousePackages(
   return hydratePackages(rows);
 }
 
+/** Exact counts per package status, for screens whose lists are capped (the count never comes from a capped list). */
+export async function countWarehousePackages(user: PlatformUser): Promise<Record<PackageStatus, number>> {
+  requireWarehouse(user);
+  return countPackagesByStatus();
+}
+
 export async function getWarehousePackage(user: PlatformUser, id: string): Promise<WarehousePackage> {
   requireWarehouse(user);
   const row = await getPackageById(id);

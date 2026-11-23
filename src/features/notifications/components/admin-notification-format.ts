@@ -47,6 +47,7 @@ const EVENT_LABELS: Record<string, string> = {
   parcel_photo_added: "Parcel photo added",
   shipment_update: "Shipment step",
   shipment_delay: "Shipment delay",
+  store_tracking_added: "Store shipped it",
   courier_dispatched: "Rider sent",
   order_paid: "Payment confirmed",
   order_processing: "Buying the item",

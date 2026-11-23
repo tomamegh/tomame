@@ -113,3 +113,15 @@ export type ShipPackageInput = z.infer<typeof shipPackageSchema>;
 export const bulkReceiveSchema = z.object({
   order_ids: z.array(z.uuid()).min(1, "Choose at least one item").max(100),
 });
+
+/** Store tracking added to orders after they were bought: one or many orders, one or many numbers (or links). */
+export const addOrdersTrackingSchema = z.object({
+  order_ids: z.array(z.uuid()).min(1, "Pick at least one order").max(50, "Fifty orders at most at once"),
+  tracking_numbers: z
+    .array(z.string().trim().min(1).max(500))
+    .min(1, "Enter a tracking number or link")
+    .max(5, "Five tracking numbers at most at once"),
+  store_order_ref: z.string().trim().max(80).optional(),
+  share_store_tracking: z.boolean().optional(),
+});
+export type AddOrdersTrackingInput = z.infer<typeof addOrdersTrackingSchema>;

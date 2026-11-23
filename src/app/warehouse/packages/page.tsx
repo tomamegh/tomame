@@ -8,7 +8,8 @@ import { PackageCard } from "@/features/warehouse/components/package-card";
 import { NewPackageButton } from "@/features/warehouse/components/warehouse-actions";
 import { WarehouseHeading } from "@/features/warehouse/components/warehouse-ui";
 import { GuideLink } from "@/features/warehouse/guide/components/guide-link";
-import { listWarehousePackages } from "@/features/warehouse/services/warehouse.service";
+import { countWarehousePackages, listWarehousePackages } from "@/features/warehouse/services/warehouse.service";
+import { PackageExceptions } from "@/features/warehouse/components/package-exceptions";
 import type { PackageStatus } from "@/features/warehouse/types";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,8 @@ export const metadata: Metadata = { title: "Boxes" };
 export const dynamic = "force-dynamic";
 
 const STATUSES: PackageStatus[] = ["packing", "sealed", "shipped"];
+/** Shipped boxes listed at once, newest first; older ones are found by scanning or searching their reference. */
+const SHIPPED_LIMIT = 120;
 
 /** `/warehouse/packages` — every box, by where it is in its life (081). */
 export default async function WarehousePackagesPage({
@@ -26,12 +29,14 @@ export default async function WarehousePackagesPage({
   const user = await warehousePageUser("/warehouse/packages");
   const params = await searchParams;
   const status = STATUSES.find((s) => s === params.status);
-  const all = await listWarehousePackages(user, { limit: 200 });
-  const packages = status ? all.filter((p) => p.status === status) : all.filter((p) => p.status !== "shipped");
-  const counts = Object.fromEntries(STATUSES.map((s) => [s, all.filter((p) => p.status === s).length])) as Record<
-    PackageStatus,
-    number
-  >;
+  // Counts are exact (a count query); each list is read on its own, so a pill's
+  // number is what its list holds, and a capped list says it is capped.
+  const [counts, packages] = await Promise.all([
+    countWarehousePackages(user),
+    listWarehousePackages(user, { statuses: status ? [status] : ["packing", "sealed"], limit: status === "shipped" ? SHIPPED_LIMIT : 500 }),
+  ]);
+  const listed = status ? counts[status] : counts.packing + counts.sealed;
+  const capped = packages.length < listed;
 
   const pills: Array<{ href: string; label: string; count: number; active: boolean }> = [
     { href: "/warehouse/packages", label: "On the bench", count: counts.packing + counts.sealed, active: !status },
@@ -48,7 +53,7 @@ export default async function WarehousePackagesPage({
       <WarehouseHeading
         kicker="Outbound"
         title="Boxes"
-        blurb="Every box the hub has packed, and the ones that have shipped. Tap one to see what is inside."
+        blurb="Packing → sealed → shipped. Each box is booked on the next Delta Cargo flight (Wednesdays and Fridays) and closes 24 hours before it. Tap one to see inside."
         action={
           <>
             <GuideLink section="screens">Learn how</GuideLink>
@@ -81,6 +86,14 @@ export default async function WarehousePackagesPage({
         ))}
       </nav>
 
+      {!status || status === "sealed" ? <PackageExceptions boxes={packages} /> : null}
+
+      {capped ? (
+        <p className="text-[12.5px] font-semibold text-tm-text-3">
+          Showing the newest {packages.length} of {listed}. Scan a label or search its reference to open an older one.
+        </p>
+      ) : null}
+
       {packages.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-[22px] border border-dashed border-tm-border bg-card px-6 py-14 text-center">
           <PackageBox status={status ?? "packing"} size={96} />
@@ -88,7 +101,7 @@ export default async function WarehousePackagesPage({
             {status ? `No ${PACKAGE_META[status].label.toLowerCase()} packages` : "Nothing on the bench"}
           </p>
           <p className="max-w-[44ch] text-[13px] font-medium text-tm-text-2">
-            Start one from the shelf on Receive, or open an empty package and scan items into it.
+            Tick items under At the hub on Orders and pack them into one box, or start an empty one and scan items into it.
           </p>
         </div>
       ) : (

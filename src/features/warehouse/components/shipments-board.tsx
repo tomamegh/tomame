@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowRightIcon, CheckIcon, ChevronDownIcon, ClockAlertIcon, PackageIcon, UsersIcon, XIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon, ChevronDownIcon, ClockAlertIcon, PackageIcon, PlaneIcon, UsersIcon, XIcon } from "lucide-react";
 
 import { AdminBadge, type AdminTone } from "@/components/layout/admin/admin-page";
 import { AdminButton } from "@/components/layout/admin/controls";
@@ -199,25 +199,62 @@ export function ShipmentsBoard({
             </button>
           </div>
 
-          {packages.length > 0 && (
-            <section className="flex flex-col gap-2.5">
-              <h2 className="text-[12px] font-bold tracking-[0.12em] text-tm-text-3 uppercase">Packages</h2>
-              <ul className="flex flex-col gap-2">
-                {packages.map((pkg) => (
-                  <PackageRow
-                    key={pkg.id}
-                    pkg={pkg}
-                    picked={pickedPackages.has(pkg.id)}
-                    onToggle={() => toggle(pickedPackages, pkg.id, setPickedPackages)}
-                    pickedOrders={pickedOrders}
-                    onToggleOrder={(id) => toggle(pickedOrders, id, setPickedOrders)}
-                    orderStages={board.order_stages}
-                    typicalDays={pkg.stage ? settings[pkg.stage].typical_days : null}
-                  />
-                ))}
-              </ul>
-            </section>
-          )}
+          {/* Grouped by the Delta flight each box flew on: a whole flight moves with one tick. */}
+          {flightGroups(packages, board.flights).map((group, gi) => {
+            const allOn = group.packages.every((p) => pickedPackages.has(p.id));
+            const orders = group.packages.reduce((n, p) => n + p.lines.filter((l) => l.item).length, 0);
+            return (
+              <section key={group.key} className="tm-up flex flex-col gap-2.5 [animation-duration:0.45s]" style={{ animationDelay: `${Math.min(gi, 6) * 0.05}s` }}>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[18px] border border-tm-border bg-card px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = new Set(pickedPackages);
+                      for (const p of group.packages) {
+                        if (allOn) next.delete(p.id);
+                        else next.add(p.id);
+                      }
+                      setPickedPackages(next);
+                    }}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    aria-label={`Select every box on ${group.title}`}
+                  >
+                    <Tick on={allOn} />
+                    <PlaneIcon className="size-5 shrink-0 text-tm-coral" aria-hidden />
+                    <span className="min-w-0">
+                      <span className="block font-display text-[17px] leading-tight font-bold text-tm-ink">{group.title}</span>
+                      <span className="block text-[12px] font-medium text-tm-text-3">
+                        {group.route}
+                        {group.awb ? (
+                          <>
+                            {" · AWB "}
+                            <span className="font-mono font-semibold text-tm-text-2">{group.awb}</span>
+                          </>
+                        ) : null}
+                      </span>
+                    </span>
+                  </button>
+                  <span className="text-[12.5px] font-semibold text-tm-text-2">
+                    {pluralise(group.packages.length, "box", "boxes")} · {pluralise(orders, "order")}
+                  </span>
+                </div>
+                <ul className="flex flex-col gap-2 pl-0 md:pl-4">
+                  {group.packages.map((pkg) => (
+                    <PackageRow
+                      key={pkg.id}
+                      pkg={pkg}
+                      picked={pickedPackages.has(pkg.id)}
+                      onToggle={() => toggle(pickedPackages, pkg.id, setPickedPackages)}
+                      pickedOrders={pickedOrders}
+                      onToggleOrder={(id) => toggle(pickedOrders, id, setPickedOrders)}
+                      orderStages={board.order_stages}
+                      typicalDays={pkg.stage ? settings[pkg.stage].typical_days : null}
+                    />
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
 
           {loose.length > 0 && (
             <section className="flex flex-col gap-2.5">
@@ -284,6 +321,40 @@ export function ShipmentsBoard({
       />
     </div>
   );
+}
+
+interface FlightGroup {
+  key: string;
+  title: string;
+  route: string;
+  awb: string | null;
+  packages: WarehousePackage[];
+}
+
+/** Packages by the departure they flew on, newest flight first; boxes shipped before flights were recorded go last. */
+function flightGroups(packages: WarehousePackage[], flights: ShipmentBoard["flights"]): FlightGroup[] {
+  const map = new Map<string, WarehousePackage[]>();
+  for (const pkg of packages) {
+    const key = pkg.departure_id && flights[pkg.departure_id] ? pkg.departure_id : "none";
+    map.set(key, [...(map.get(key) ?? []), pkg]);
+  }
+  return [...map.entries()]
+    .map(([key, list]) => {
+      const flight = key === "none" ? null : flights[key]!;
+      const awbs = [...new Set(list.map((p) => p.tracking_number).filter(Boolean))];
+      return {
+        key,
+        title: flight
+          ? new Date(`${flight.departs_on}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) + " flight"
+          : "Flight not recorded",
+        route: flight ? `${flight.carrier} · ${flight.origin} → ${flight.destination}` : "Shipped before departures were tracked",
+        awb: flight?.awb ?? (awbs.length === 1 ? awbs[0]! : null),
+        packages: list,
+        sort: flight?.departs_on ?? "",
+      };
+    })
+    .sort((a, b) => (a.sort === b.sort ? 0 : a.sort === "" ? 1 : b.sort === "" ? -1 : a.sort < b.sort ? 1 : -1))
+    .map(({ sort: _sort, ...g }) => g);
 }
 
 function summaryText(packages: number, orders: number, customers: number): string {

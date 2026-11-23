@@ -180,6 +180,7 @@ function notificationTitle(event: string, payload: Record<string, unknown>): str
         : `${stageTitle}${orderNo ? `: ${orderNo}` : ""}`
       : "Your parcel moved",
     shipment_delay: orderNo && !many ? `${orderNo} is running late` : "Your parcel is running late",
+    store_tracking_added: many ? `The store has shipped ${payload.order_count} of your orders` : `The store has shipped${orderNo ? ` ${orderNo}` : " your order"}`,
     courier_dispatched:
       payload.is_update === true ? "Your rider's details changed" : "A rider has your package",
     /*

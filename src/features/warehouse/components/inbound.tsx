@@ -19,6 +19,7 @@ import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 
 import { trackingInputProblem } from "../inbound/tracking-number";
+import { trackingFromLink } from "../inbound/tracking-link";
 import { inboundParcelPath, type InboundOrderRef, type InboundParcel, type InboundStatus } from "../types";
 import { STAGE_META, formatDateTime, sanitiseDecimal } from "./format";
 import { errorText, warehouseRequest } from "./warehouse-actions";
@@ -86,26 +87,46 @@ export function OrderInboundPanel({
   orderNo,
   parcels,
   canAdd,
+  orderStatus,
 }: {
   orderId: string;
   orderNo: string;
   parcels: InboundParcel[];
   canAdd: boolean;
+  /** A bought order's first tracking tells the customer (order-tracking.service). */
+  orderStatus?: string;
 }) {
   const router = useRouter();
   const [tracking, setTracking] = useState("");
   const [storeRef, setStoreRef] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const problem = tracking.trim() ? trackingInputProblem(tracking) : null;
+  // "Number or link": a carrier link is read for its number first.
+  const number = trackingFromLink(tracking) ?? tracking;
+  const problem = tracking.trim() ? trackingInputProblem(number) : null;
   const add = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!tracking.trim() || problem) return;
     setBusy(true);
     try {
+      if (orderStatus === "processing") {
+        const res = await warehouseRequest<{ notified: number }>("/api/warehouse/orders/tracking", "POST", {
+          order_ids: [orderId],
+          tracking_numbers: [number],
+          ...(storeRef.trim() ? { store_order_ref: storeRef.trim() } : {}),
+        });
+        toast.success({
+          title: "Tracking added",
+          description: `Scanning it at the hub now opens ${orderNo}.${res.notified ? " The customer was told the store has shipped it." : ""}`,
+        });
+        setTracking("");
+        setStoreRef("");
+        router.refresh();
+        return;
+      }
       const parcel = await warehouseRequest<InboundParcel>("/api/warehouse/inbound", "POST", {
         order_id: orderId,
-        tracking_number: tracking,
+        tracking_number: number,
         store_order_ref: storeRef.trim() || null,
       });
       toast.success({

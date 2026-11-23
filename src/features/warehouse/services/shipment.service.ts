@@ -6,6 +6,7 @@ import {
   type OrderEventInsert,
   type OrderEventRow,
 } from "@/db/queries/order-events";
+import { listDeparturesByIds } from "@/db/queries/flight-departures";
 import { listStageSettingRows, upsertStageSettingRow } from "@/db/queries/shipment-stage-settings";
 import {
   getPackageById,
@@ -145,7 +146,15 @@ export async function getShipmentBoard(user: PlatformUser): Promise<ShipmentBoar
     return item && item.order_status === "in_transit" ? [{ item, ride }] : [];
   });
 
-  return { packages, loose, order_stages: orderStages, rides };
+  const departures = await listDeparturesByIds(packages.map((p) => p.departure_id ?? "").filter(Boolean));
+  const flights = Object.fromEntries(
+    [...departures.values()].map((d) => [
+      d.id,
+      { id: d.id, carrier: d.carrier, origin: d.origin, destination: d.destination, departs_on: d.departs_on, awb: d.awb },
+    ]),
+  );
+
+  return { packages, loose, order_stages: orderStages, rides, flights };
 }
 
 /** One order's step and live delay, for its own page (098): moved on its own, or with its box. */
@@ -496,7 +505,7 @@ async function resolveTargets(packageIds: string[], orderIds: string[]) {
   return { packages, orders, packageByOrder };
 }
 
-async function eventsByOrder(orderIds: string[]): Promise<Map<string, OrderEventRow[]>> {
+export async function eventsByOrder(orderIds: string[]): Promise<Map<string, OrderEventRow[]>> {
   const out = new Map<string, OrderEventRow[]>();
   if (orderIds.length === 0) return out;
   for (const row of await listOrderEventsForOrders(createAdmin(), orderIds)) {
