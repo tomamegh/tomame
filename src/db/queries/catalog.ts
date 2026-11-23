@@ -47,6 +47,10 @@ export interface CatalogProductInput {
   category: string | null;
   query_id: string | null;
   raw: Record<string, unknown> | null;
+  /** 116: the product's identity at its store (catalog-tidy.ts). */
+  title_key?: string | null;
+  /** 116: the tidy rules version the row was written under. */
+  tidy_version?: number | null;
 }
 
 export interface CatalogSearchHit {
@@ -696,4 +700,67 @@ export async function findCatalogProductForPaste(input: {
     .maybeSingle();
   if (byId.error) throw new Error(byId.error.message);
   return (byId.data as CatalogFallbackRow | null) ?? null;
+}
+
+// ── Tidy (116, site brief Fix 4) ────────────────────────────────────────────
+
+export interface CatalogTidyRow {
+  id: string;
+  store: CatalogStore;
+  title: string;
+  category: string | null;
+  title_key: string | null;
+}
+
+/** Rows the current tidy rules have not seen yet, oldest version first. */
+export async function listCatalogRowsToTidy(version: number, limit: number): Promise<CatalogTidyRow[]> {
+  const { data, error } = await createAdminClient()
+    .from("catalog_products")
+    .select("id, store, title, category, title_key")
+    .or(`tidy_version.is.null,tidy_version.lt.${version}`)
+    .order("id", { ascending: true })
+    .limit(limit);
+  if (error) throw new Error(`Failed to load catalog rows to tidy: ${error.message}`);
+  return (data ?? []) as CatalogTidyRow[];
+}
+
+export async function setCatalogTidy(
+  rows: ReadonlyArray<{ id: string; title: string; title_key: string; category: string | null; tidy_version: number }>,
+): Promise<number> {
+  if (rows.length === 0) return 0;
+  const { data, error } = await createAdminClient().rpc("set_catalog_tidy", { p_rows: rows });
+  if (error) throw new Error(`Failed to write catalog tidy: ${error.message}`);
+  return Number(data ?? 0);
+}
+
+export interface CatalogDuplicateRow {
+  store: CatalogStore;
+  title_key: string;
+  id: string;
+  price_usd: number | null;
+  landed_ghs: number | null;
+  last_seen_at: string;
+  referenced: boolean;
+}
+
+/** Every row of up to `groups` (store, title_key) sets that hold more than one listing. */
+export async function listCatalogTitleDuplicates(groups: number): Promise<CatalogDuplicateRow[]> {
+  const { data, error } = await createAdminClient().rpc("catalog_title_duplicates", { p_groups: groups });
+  if (error) throw new Error(`Failed to load catalog duplicates: ${error.message}`);
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    store: r.store as CatalogStore,
+    title_key: String(r.title_key),
+    id: String(r.id),
+    price_usd: r.price_usd == null ? null : Number(r.price_usd),
+    landed_ghs: r.landed_ghs == null ? null : Number(r.landed_ghs),
+    last_seen_at: String(r.last_seen_at),
+    referenced: r.referenced === true,
+  }));
+}
+
+export async function setCatalogDedupeNotes(rows: ReadonlyArray<{ id: string; note: string }>): Promise<number> {
+  if (rows.length === 0) return 0;
+  const { data, error } = await createAdminClient().rpc("set_catalog_dedupe_notes", { p_rows: rows });
+  if (error) throw new Error(`Failed to write dedupe notes: ${error.message}`);
+  return Number(data ?? 0);
 }

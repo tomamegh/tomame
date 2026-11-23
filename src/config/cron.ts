@@ -27,6 +27,7 @@ export const CRON_JOBS: readonly CronJobSpec[] = [
   { job: "catalog-scrape", label: "Catalogue scrape", route: "/api/cron/catalog-scrape", everyMinutes: 15, staleAfterMinutes: 60, migration: "084" },
   { job: "catalog-enrich", label: "Catalogue weights", route: "/api/cron/catalog-enrich", everyMinutes: 10, staleAfterMinutes: 40, migration: "084" },
   { job: "catalog-cleanup", label: "Catalogue clean-up", route: "/api/cron/catalog-cleanup", everyMinutes: 1440, staleAfterMinutes: 1560, migration: "084" },
+  { job: "catalog-tidy", label: "Catalogue tidy (dedupe, categories)", route: "/api/cron/catalog-tidy", everyMinutes: 10, staleAfterMinutes: 60, migration: "116" },
   { job: "ops-alerts", label: "Platform alerts", route: "/api/cron/ops-alerts", everyMinutes: 5, staleAfterMinutes: 20, migration: "083" },
   { job: "ops-daily-summary", label: "Daily health email", route: "/api/cron/ops-daily-summary", everyMinutes: 60, staleAfterMinutes: 180, migration: "095" },
   { job: "fetch-exchange-rates", label: "Exchange rates", route: "/api/cron/exchange-rates", everyMinutes: 360, staleAfterMinutes: 780, migration: "092" },

@@ -1,4 +1,5 @@
 import "server-only";
+import { tidyCatalogInput } from "./catalog-tidy.service";
 import { logger } from "@/lib/logger";
 import { CATALOG_JOB } from "@/config/catalog";
 import {
@@ -109,7 +110,8 @@ export async function runCatalogScrapeJob(now: Date = new Date()): Promise<Catal
 
   summary.fetched = items.length;
   try {
-    summary.upserted = await upsertCatalogProducts(items);
+    // Fix 4: display title, identity key and department from the product's own title, at source.
+    summary.upserted = await upsertCatalogProducts(items.map(tidyCatalogInput));
   } catch (error) {
     if (isSchemaMissingError(error)) throw error;
     // The credit is spent and the vendor answered; a write failure is ours, not the query's.

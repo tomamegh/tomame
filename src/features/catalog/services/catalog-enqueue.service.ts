@@ -4,6 +4,7 @@ import { enqueueDerivedQuery } from "@/db/queries/catalog";
 import { getValidExtractionById } from "@/db/queries/extraction-cache";
 import { logger } from "@/lib/logger";
 import { catalogStoreFor, deriveCatalogTerm } from "./catalog-term";
+import { departmentFor } from "../catalog-tidy";
 
 /**
  * A pasted link teaches the catalogue what to scrape next (055).
@@ -58,7 +59,8 @@ export async function enqueueCatalogQueryFromPaste(
     // wrong products into the catalogue and nobody would know which term did it.
     // An extraction that could not classify the product is exactly the case
     // where we should not be guessing what it is similar to.
-    const category = product?.category?.trim();
+    // Fix 4: the store's category, checked against the title (a men's polo is not Women's Clothing).
+    const category = departmentFor(product?.title, product?.category?.trim());
     if (!category) return "no_category";
 
     const term = deriveCatalogTerm(product?.title, product?.brand);
