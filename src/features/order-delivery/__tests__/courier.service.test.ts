@@ -73,6 +73,7 @@ function stored(overrides: Partial<OrderCourier> = {}): OrderCourier {
     dispatchedBy: "admin-1",
     lastNotifiedAt: "2026-09-30T11:00:00.000Z",
     window: null,
+    rebook: null,
     ...overrides,
   };
 }
@@ -90,6 +91,7 @@ beforeEach(() => {
     dispatchedAt: w.dispatchedAt,
     dispatchedBy: w.dispatchedBy,
     window: w.window ?? null,
+    rebook: null,
     lastNotifiedAt: null,
   }));
   vi.mocked(insertNotification).mockResolvedValue({ id: "n1" } as never);

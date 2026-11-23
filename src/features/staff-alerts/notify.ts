@@ -26,6 +26,8 @@ export type StaffAlertTrigger =
   | { kind: "car_enquiry"; enquiryId: string; carTitle: string }
   /** 101: a customer is sending (or called off) their own rider to the Accra warehouse. */
   | { kind: "customer_ride"; orderId: string; action: "requested" | "cancelled"; at: string }
+  /** 126: the customer missed the rider and picked another window. */
+  | { kind: "delivery_rebooked"; orderId: string; at: string; window: string }
   /** 103: a price or stock check needs a person before the customer can pay (or a customer reported a wrong price). */
   | { kind: "quote_check"; checkId: string }
   | { kind: "new_signup"; userId: string; method: "google" | "email" };
@@ -55,6 +57,7 @@ export function eventOf(t: StaffAlertTrigger): StaffAlertEvent {
     case "contact_message":
     case "car_enquiry":
     case "customer_ride":
+    case "delivery_rebooked":
       return "customer_message";
     case "quote_check":
       return "quote_check";
@@ -98,6 +101,8 @@ export function eventKeyOf(t: StaffAlertTrigger): string {
     case "customer_ride":
       // A changed request is news too, so the key carries when it was made.
       return `customer_message:ride:${t.orderId}:${t.action}:${t.at}`;
+    case "delivery_rebooked":
+      return `customer_message:rebook:${t.orderId}:${t.at}`;
     case "quote_check":
       return `quote_check:${t.checkId}`;
     case "new_signup":
@@ -111,6 +116,7 @@ export function entityOf(t: StaffAlertTrigger): { entity_type: string; entity_id
     case "order_status":
     case "order_review":
     case "customer_ride":
+    case "delivery_rebooked":
       return { entity_type: "order", entity_id: t.orderId };
     case "bag_placed":
     case "bag_status":

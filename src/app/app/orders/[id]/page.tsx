@@ -11,6 +11,7 @@ import { MetaPurchase } from "@/components/analytics/meta-purchase";
 import { orderTotalGhs } from "@/features/journeys/order-facts";
 import { JourneyDeliveryChangeCard } from "@/features/journeys/components/journey-delivery-change-card";
 import { getDeliveryChangeView } from "@/features/order-delivery/services/delivery-change.service";
+import { getRebookView } from "@/features/order-delivery/services/rider-rebook.service";
 import { listDeliveryAddresses } from "@/db/queries/delivery-addresses";
 import { logger } from "@/lib/logger";
 
@@ -60,6 +61,8 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
     // Shown while the order is still on its way to the hub; once it has left, the rider card takes over.
     const showChange = deliveryChange && (journey.status === "paid" || journey.status === "processing");
     const addresses = showChange ? await listDeliveryAddresses(user.id).catch(() => []) : [];
+    // 126: missed the rider? Only once one has been sent.
+    const rebook = courier ? await getRebookView(user.id, id, journey.status).catch(() => null) : null;
     // A legacy single-order checkout returns here. `paidAt` comes from the
     // order's own `payment_received` event, so the URL alone reports nothing.
     const paidTotal =
@@ -71,7 +74,7 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
         <JourneyDetailView
           journey={journey}
           paymentOutcome={payment ?? null}
-          courier={<CourierCard courier={courier} orderStatus={journey.status} />}
+          courier={<CourierCard courier={courier} orderStatus={journey.status} rebook={rebook} />}
           deliveryChange={
             showChange ? (
               <JourneyDeliveryChangeCard

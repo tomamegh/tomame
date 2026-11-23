@@ -103,6 +103,8 @@ export function describeNotification(event: string, payload: Record<string, unkn
       if (window) return { title: `Delivery window noted${orderNo && !many ? `: ${orderNo}` : ""}`, detail: `Preferred: ${window}`, href };
       return { title: `Delivery changed${orderNo && !many ? `: ${orderNo}` : ""}`, detail: to ? `It now goes to ${to}` : null, href };
     }
+    case "delivery_rebooked":
+      return { title: `Delivery rebooked${orderNo ? `: ${orderNo}` : ""}`, detail: str(p.window) ? `We'll bring it ${str(p.window)}` : null, href };
     case "courier_dispatched":
       return { title: p.is_update === true ? "Your rider's details changed" : "A rider has your package", detail: orderNo, href };
     case "paste_priced":

@@ -2,6 +2,8 @@ import { MapPinLine, Moped, Phone } from "@phosphor-icons/react/ssr";
 
 import { windowText } from "../delivery-windows";
 import { formatGhanaPhone } from "../schema";
+import type { RebookView } from "../services/rider-rebook.service";
+import { RiderRebook } from "./rider-rebook";
 import type { OrderCourier } from "../types";
 import { providerName } from "./courier-format";
 
@@ -21,13 +23,18 @@ import { providerName } from "./courier-format";
 export function CourierCard({
   courier,
   orderStatus,
+  rebook = null,
   className,
 }: {
   courier: OrderCourier | null;
   orderStatus: string;
+  /** 126: missed the rider? Rebook the next window (customer's own order page only). */
+  rebook?: RebookView | null;
   className?: string;
 }) {
   if (!courier || orderStatus !== "in_transit") return null;
+  // A rebooked delivery waits for a new rider: the old one's details would mislead.
+  const rebooked = !!rebook?.rebooked;
 
   const via = providerName(courier.provider);
 
@@ -43,48 +50,79 @@ export function CourierCard({
     >
       <div className="flex items-start gap-3">
         <span className="flex size-11 shrink-0 items-center justify-center rounded-[14px] bg-tm-pill-bg">
-          <Moped weight="duotone" className="size-6 text-tm-coral" aria-hidden />
+          <Moped
+            weight="duotone"
+            className="size-6 text-tm-coral"
+            aria-hidden
+          />
         </span>
         <div className="flex min-w-0 flex-col gap-1">
           <span className="text-xs leading-none font-semibold tracking-[0.04em] text-tm-text-3 uppercase">
             Out for delivery
           </span>
-          <h2 id={`courier-${courier.orderId}`} className="font-display text-lg leading-tight font-bold break-words">
-            {courier.name ? `${courier.name} has your package` : "A rider has your package"}
+          <h2
+            id={`courier-${courier.orderId}`}
+            className="font-display text-lg leading-tight font-bold break-words"
+          >
+            {rebooked
+              ? "Your delivery is rebooked"
+              : courier.name
+                ? `${courier.name} has your package`
+                : "A rider has your package"}
           </h2>
-          {courier.window ? (
-            <p className="text-[15px] leading-[1.4] font-semibold text-tm-ink" data-testid="courier-window">
+          {courier.window && !rebooked ? (
+            <p
+              className="text-[15px] leading-[1.4] font-semibold text-tm-ink"
+              data-testid="courier-window"
+            >
               Arriving {windowText(courier.window.start, courier.window.end)}
             </p>
           ) : null}
-          <p className="text-[13px] leading-[1.5] font-medium text-tm-text-2">
-            {via ? `On its way to you on ${via}.` : courier.window ? "Keep your phone close; the rider calls when they are near." : "On its way to you now."}
-          </p>
+          {!rebooked && (
+            <p className="text-[13px] leading-[1.5] font-medium text-tm-text-2">
+              {via
+                ? `On its way to you on ${via}.`
+                : courier.window
+                  ? "Keep your phone close; the rider calls when they are near."
+                  : "On its way to you now."}
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-2.5 sm:grid-cols-2">
-        {courier.phone ? (
-          <a
-            href={`tel:${courier.phone}`}
-            className="flex h-12 min-w-0 items-center justify-center gap-2 rounded-[14px] border border-tm-border px-4 text-[14px] leading-none font-bold text-tm-ink transition-colors hover:bg-tm-paper"
-          >
-            <Phone weight="bold" className="size-4 shrink-0" aria-hidden />
-            <span className="tm-nums truncate">Call {formatGhanaPhone(courier.phone)}</span>
-          </a>
-        ) : null}
-        {courier.trackingUrl ? (
-          <a
-            href={courier.trackingUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex h-12 min-w-0 items-center justify-center gap-2 rounded-[14px] bg-[image:var(--tm-gradient-cta)] px-4 text-[14px] leading-none font-bold text-white"
-          >
-            <MapPinLine weight="bold" className="size-4 shrink-0" aria-hidden />
-            <span className="truncate">{via ? `Track on ${via}` : "Track your rider"}</span>
-          </a>
-        ) : null}
-      </div>
+      {!rebooked && (
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-2.5 sm:grid-cols-2">
+          {courier.phone ? (
+            <a
+              href={`tel:${courier.phone}`}
+              className="flex h-12 min-w-0 items-center justify-center gap-2 rounded-[14px] border border-tm-border px-4 text-[14px] leading-none font-bold text-tm-ink transition-colors hover:bg-tm-paper"
+            >
+              <Phone weight="bold" className="size-4 shrink-0" aria-hidden />
+              <span className="tm-nums truncate">
+                Call {formatGhanaPhone(courier.phone)}
+              </span>
+            </a>
+          ) : null}
+          {courier.trackingUrl ? (
+            <a
+              href={courier.trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-12 min-w-0 items-center justify-center gap-2 rounded-[14px] bg-[image:var(--tm-gradient-cta)] px-4 text-[14px] leading-none font-bold text-white"
+            >
+              <MapPinLine
+                weight="bold"
+                className="size-4 shrink-0"
+                aria-hidden
+              />
+              <span className="truncate">
+                {via ? `Track on ${via}` : "Track your rider"}
+              </span>
+            </a>
+          ) : null}
+        </div>
+      )}
+      {rebook && <RiderRebook orderId={courier.orderId} view={rebook} />}
     </section>
   );
 }

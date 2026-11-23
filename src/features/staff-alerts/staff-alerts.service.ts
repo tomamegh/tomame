@@ -556,6 +556,25 @@ export async function buildAlert(t: StaffAlertTrigger, environment: string | nul
           : [],
       };
     }
+    case "delivery_rebooked": {
+      const target = await orderTarget(t.orderId);
+      const customer = await customerOf(target.userId);
+      return {
+        customer,
+        items: target.items,
+        totalGhs: null,
+        payment: null,
+        adminHref: "/warehouse/shipments",
+        adminLabel: "Open shipments",
+        environment,
+        subject: `${p} Missed delivery rebooked ${target.reference} · ${t.window}`,
+        eyebrow: "Rebooked",
+        tone: "amber",
+        headline: `${target.reference}: the customer missed the rider`,
+        summary: `${customer.name ?? customer.email ?? "The customer"} asked for ${t.window}. Send it out again in that window from the shipments board; the new rider clears the request.`,
+        facts: [["New window", t.window]],
+      };
+    }
     case "new_signup": {
       const customer = await customerOf(t.userId);
       const who = customer.name ?? customer.email ?? "A new customer";

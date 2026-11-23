@@ -1,6 +1,7 @@
 import "server-only";
 
-import { slotText, windowProblem } from "@/features/order-delivery/delivery-windows";
+import { slotText, windowProblem, windowText } from "@/features/order-delivery/delivery-windows";
+import { listRebooks } from "@/db/queries/order-courier";
 import { loadWindowSlots } from "@/features/order-delivery/services/delivery-change.service";
 import { listGroupWindowPrefs } from "@/db/queries/order-groups";
 import {
@@ -572,8 +573,15 @@ export async function listWindowPrefs(
 ): Promise<Array<{ order_no: string; preference: string | null }>> {
   requireWarehouse(user);
   const { orders } = await resolveTargets(input.package_ids, input.order_ids);
-  const [prefs, slots] = await Promise.all([listGroupWindowPrefs(orders.map((o) => o.order_group_id ?? "")), loadWindowSlots()]);
+  const [prefs, slots, rebooks] = await Promise.all([
+    listGroupWindowPrefs(orders.map((o) => o.order_group_id ?? "")),
+    loadWindowSlots(),
+    listRebooks(orders.map((o) => o.id)),
+  ]);
   return orders.map((o) => {
+    // 126: a customer who missed the rider has asked for a specific window; that comes first.
+    const rebook = rebooks.get(o.id);
+    if (rebook) return { order_no: o.order_no, preference: `rebooked for ${windowText(rebook.start, rebook.end)}` };
     const key = o.order_group_id ? (prefs.get(o.order_group_id) ?? null) : null;
     const slot = key ? slots.find((s) => s.key === key) : null;
     return { order_no: o.order_no, preference: slot ? slotText(slot) : null };

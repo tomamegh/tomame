@@ -35,10 +35,13 @@ interface CourierColumns {
   courier_last_notified_at: string | null;
   window_start: string | null;
   window_end: string | null;
+  rebook_requested_at: string | null;
+  rebook_window_start: string | null;
+  rebook_window_end: string | null;
 }
 
 const COURIER_SELECT =
-  "order_id, courier_name, courier_phone, courier_tracking_url, courier_provider, courier_dispatched_at, courier_dispatched_by, courier_last_notified_at, window_start, window_end";
+  "order_id, courier_name, courier_phone, courier_tracking_url, courier_provider, courier_dispatched_at, courier_dispatched_by, courier_last_notified_at, window_start, window_end, rebook_requested_at, rebook_window_start, rebook_window_end";
 
 /** Null when no rider has been dispatched, even if the delivery row exists. */
 export function toOrderCourier(row: CourierColumns | null | undefined): OrderCourier | null {
@@ -53,6 +56,10 @@ export function toOrderCourier(row: CourierColumns | null | undefined): OrderCou
     dispatchedBy: row.courier_dispatched_by,
     lastNotifiedAt: row.courier_last_notified_at,
     window: row.window_start && row.window_end ? { start: row.window_start, end: row.window_end } : null,
+    rebook:
+      row.rebook_requested_at && row.rebook_window_start && row.rebook_window_end
+        ? { requestedAt: row.rebook_requested_at, start: row.rebook_window_start, end: row.rebook_window_end }
+        : null,
   };
 }
 
@@ -148,6 +155,10 @@ export async function upsertOrderCourier(input: CourierWrite): Promise<OrderCour
         courier_dispatched_by: input.dispatchedBy,
         courier_arranged_by: input.arrangedBy ?? "tomame",
         ...(input.window !== undefined && { window_start: input.window?.start ?? null, window_end: input.window?.end ?? null }),
+        // 126: sending it out again answers a customer's rebook.
+        rebook_requested_at: null,
+        rebook_window_start: null,
+        rebook_window_end: null,
       },
       { onConflict: "order_id" },
     )
@@ -174,4 +185,33 @@ export async function getProfileDisplayName(userId: string): Promise<string | nu
   const row = data as { first_name: string | null; last_name: string | null } | null;
   const name = [row?.first_name, row?.last_name].filter(Boolean).join(" ").trim();
   return name || null;
+}
+
+/** 126: the customer missed the rider and asks for another window. Their own dispatched order only; returns whether a row moved. */
+export async function setCourierRebook(userId: string, orderId: string, window: { start: string; end: string }, at: string): Promise<boolean> {
+  const { data, error } = await createAdminClient()
+    .from("order_deliveries")
+    .update({ rebook_requested_at: at, rebook_window_start: window.start, rebook_window_end: window.end })
+    .eq("order_id", orderId)
+    .eq("user_id", userId)
+    .not("courier_dispatched_at", "is", null)
+    .select("order_id");
+  if (error) throw new Error(`Failed to rebook the delivery: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/** 126: standing rebook requests for these orders, for staff at dispatch. */
+export async function listRebooks(orderIds: readonly string[]): Promise<Map<string, { start: string; end: string }>> {
+  const out = new Map<string, { start: string; end: string }>();
+  if (orderIds.length === 0) return out;
+  const { data, error } = await createAdminClient()
+    .from("order_deliveries")
+    .select("order_id, rebook_window_start, rebook_window_end")
+    .in("order_id", [...orderIds])
+    .not("rebook_requested_at", "is", null);
+  if (error) throw new Error(`Failed to load rebooks: ${error.message}`);
+  for (const row of (data ?? []) as Array<{ order_id: string; rebook_window_start: string | null; rebook_window_end: string | null }>) {
+    if (row.rebook_window_start && row.rebook_window_end) out.set(row.order_id, { start: row.rebook_window_start, end: row.rebook_window_end });
+  }
+  return out;
 }

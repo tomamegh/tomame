@@ -86,3 +86,23 @@ export function windowProblem(startIso: string, endIso: string, now: Date = new 
   if (end <= now.getTime()) return "That window is already over.";
   return null;
 }
+
+/**
+ * 126: the windows a customer who missed the rider can rebook into: the rest
+ * of today's slots that start at least an hour from now, then tomorrow's.
+ */
+export function nextWindows(slots: readonly WindowSlot[], now: Date = new Date(), limit = 5): Array<{ start: string; end: string; label: string }> {
+  const today = now.toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.parse(`${today}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const soonest = now.getTime() + 60 * 60_000;
+  const out: Array<{ start: string; end: string; label: string }> = [];
+  for (const day of [today, tomorrow]) {
+    for (const slot of slots) {
+      const start = new Date(`${day}T${slot.from}:00Z`);
+      const end = new Date(`${day}T${slot.to}:00Z`);
+      if (start.getTime() < soonest) continue;
+      out.push({ start: start.toISOString(), end: end.toISOString(), label: `${windowText(start.toISOString(), end.toISOString(), now)}` });
+    }
+  }
+  return out.slice(0, limit);
+}

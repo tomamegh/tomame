@@ -19,6 +19,8 @@ export interface OrderCourier {
   lastNotifiedAt: string | null;
   /** 125: the delivery window staff gave the customer, when they gave one. */
   window: { start: string; end: string } | null;
+  /** 126: the customer missed the rider and asked for this window instead, until staff send it out again. */
+  rebook: { requestedAt: string; start: string; end: string } | null;
 }
 
 /** What the admin card shows under "Last sent". */
