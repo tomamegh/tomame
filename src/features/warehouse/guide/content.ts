@@ -156,7 +156,7 @@ export const FLOW: FlowStep[] = [
       "A whole truckload? Tap each row to tick it and press Mark received. Weigh them later from At the hub.",
     ],
     customer: "Their tracking shows “Arrived at our US hub”, with the weight you typed.",
-    rule: "Weight is optional in the app, but it is what the box is charged on. If you skip it, use Re-weigh later.",
+    rule: "You can log it in without a weight, but it shows “No weight” in red and its box will not seal until it is weighed. Weigh it now; if you skip it, use Re-weigh.",
     clip: "receive",
   },
   {
@@ -197,10 +197,11 @@ export const FLOW: FlowStep[] = [
     where: { href: "/warehouse/packages?status=packing", label: "the package page" },
     doing: [
       "Weigh the packed box and type its weight in Details. Add the size, Air or Sea, and any handling marks, then Save details.",
+      "Watch the capacity bar on the box: it fills as items go in and turns amber past the air box's limit. Over the limit? Split it into another box, or give a reason.",
       "Press Seal package. On screen the flaps close and the tape runs down the seam.",
     ],
     customer: "Nothing yet.",
-    rule: "Sealing freezes the contents. An empty box, or one with a held item in it, will not seal.",
+    rule: "A box seals only on a real weight: the box weighed, or every item in it weighed. Otherwise give a reason to seal on the estimate. An item with no weight at all, an empty box, or a held item stops the seal. An item heavier than a whole box ships on its own as oversize freight.",
     clip: "seal",
   },
   {
@@ -288,6 +289,7 @@ export const SCREENS: ScreenInfo[] = [
     points: [
       "The dark Next step card shows the nine stages with this order's highlighted, and the one button that moves it on.",
       "Store tracking: add a number or link, correct it, or remove it. The customer hears once, the first time.",
+      "On Orders, rows at the hub and in a box show the weight: green “weighed”, grey “listed, not weighed yet”, red “No weight”, amber when it is heavier than a box.",
       "Buttons change with the stage: Log it in, Pack it, Re-weigh, Photos, Open PKG-…, and Hold or Release hold.",
       "Photos: send pictures to the customer and read their replies underneath.",
       "Deliver to: the address or pickup point and a tap-to-call phone number.",
@@ -823,7 +825,7 @@ export const FAQ: Array<Searchable & { section?: string }> = [
   {
     id: "no-weight",
     q: "Do I have to type a weight when I log a parcel in?",
-    a: "The app lets you leave it blank and weigh later, but please weigh it now: the weight is what the box is charged on. To add or fix it later, use Re-weigh.",
+    a: "You can leave it blank, but the item then shows “No weight” and its box cannot be sealed until it is weighed. Weigh it now: the weight is what the box is charged on. To add or fix it later, use Re-weigh.",
     tags: ["scale", "pounds", "lb", "receive"],
     section: "daily-flow",
   },
@@ -968,6 +970,8 @@ export const GLOSSARY: Searchable[] = [
   { id: "described", q: "Described item", a: "A line added by hand in Add items, not linked to an order. On the label, but no one is notified." },
   { id: "waybill", q: "Air waybill", a: "The Delta Cargo number for a flight's cargo: 006 then 8 digits. Staff only; customers track by the TM number." },
   { id: "freight-box", q: "Freight box", a: "The weekly flight a customer's items are booked on, with its departure date." },
+  { id: "capacity", q: "Box capacity", a: "The most an air box may weigh. The bar on each box shows how full it is; going over needs a reason or a second box." },
+  { id: "oversize", q: "Oversize freight", a: "An item heavier than a whole box. It ships in a package on its own." },
   { id: "air-sea", q: "Air / Sea", a: "The freight service for a package. Printed large at the top right of the label." },
   { id: "issue", q: "Issue", a: "A customer's reply to a photo saying something is wrong. Worked on the Issues screen." },
 ];

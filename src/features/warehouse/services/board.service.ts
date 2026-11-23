@@ -1,6 +1,7 @@
 import "server-only";
 
 import { listInboundLinks, listInboundParcels } from "@/db/queries/inbound-parcels";
+import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
 import { listWarehouseOrders } from "@/db/queries/warehouse";
 import type { PlatformUser } from "@/features/users/types";
 import { requireWarehouse } from "@/lib/auth/guards";
@@ -22,13 +23,15 @@ const ACTIVE_LIMIT = 800;
 export async function getOrderBoard(user: PlatformUser, now: Date = new Date()): Promise<OrderBoard> {
   requireWarehouse(user);
   const since = new Date(now.getTime() - BOARD_DELIVERED_DAYS * 86_400_000).toISOString();
-  const [active, delivered] = await Promise.all([
+  const [active, delivered, constants] = await Promise.all([
     listWarehouseOrders({ statuses: ["paid", "processing", "in_transit"], limit: ACTIVE_LIMIT }),
     listWarehouseOrders({ statuses: ["delivered", "completed"], updatedSince: since, limit: 200 }),
+    getPricingConstantsMap(),
   ]);
   const orders = [...active, ...delivered];
   const items = await toBoardItems(orders);
-  return { items, truncated: active.length >= ACTIVE_LIMIT };
+  const capacity = constants.box_capacity_lbs;
+  return { items, truncated: active.length >= ACTIVE_LIMIT, box_capacity_lbs: typeof capacity === "number" && capacity > 0 ? capacity : null };
 }
 
 /** Board rows for a few orders, in any stage: the item page's next-step card. */

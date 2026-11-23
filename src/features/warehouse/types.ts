@@ -326,4 +326,6 @@ export interface OrderBoard {
   items: BoardItem[];
   /** More active orders exist than were read: the board says so instead of counting short. */
   truncated: boolean;
+  /** 114 (Fix 11): the air box capacity, for each row's weight note; null when unset. */
+  box_capacity_lbs: number | null;
 }

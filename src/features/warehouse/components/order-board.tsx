@@ -42,6 +42,7 @@ import { ReceiveDialog } from "./receive-dialog";
 import { ShipmentUpdateDialog } from "./shipment-update-dialog";
 import { errorText, warehouseRequest } from "./warehouse-actions";
 import { ItemThumb } from "./warehouse-ui";
+import { weightNote, type WeightTone } from "../weights";
 
 /**
  * The warehouse home: every order from paid to delivered, each in exactly one
@@ -93,6 +94,25 @@ function shortDay(iso: string | null): string | null {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Accra" });
 }
 
+const WEIGHT_TONE: Record<WeightTone, string> = {
+  confirmed: "bg-tm-green-bg text-tm-green-ink",
+  estimate: "bg-tm-paper text-tm-text-2",
+  over: "bg-tm-amber-bg text-[#7a4a06]",
+  missing: "bg-tm-pill-bg text-tm-coral-strong",
+};
+
+/** Fix 11's weight line, where weight is the job: at the hub and in a box being packed. */
+function WeightChip({ item, capacityLbs }: { item: BoardItem; capacityLbs: number | null }) {
+  if (item.board_stage !== "at_hub" && item.board_stage !== "boxed") return null;
+  const note = weightNote(item, capacityLbs);
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-[6px] px-1.5 py-px text-[11px] font-bold", WEIGHT_TONE[note.tone])}>
+      <ScaleIcon className="size-3" aria-hidden />
+      {note.text}
+    </span>
+  );
+}
+
 function contextLine(item: BoardItem): string {
   switch (item.board_stage) {
     case "to_buy":
@@ -104,7 +124,7 @@ function contextLine(item: BoardItem): string {
       return first ? `${first.carrier_label} ${first.display}${rest.length ? ` +${rest.length}` : ""}` : "On its way";
     }
     case "at_hub":
-      return `Arrived ${relativeInline(item.received?.at)} · ${item.received?.weight_lbs ? formatLbs(item.received.weight_lbs) : "not weighed"}`;
+      return `Arrived ${relativeInline(item.received?.at)}`;
     case "boxed": {
       const day = shortDay(item.box?.departs_at ?? null);
       return `In ${item.package?.reference ?? "a box"} (${item.package?.status === "sealed" ? "sealed" : "packing"})${day ? ` · flies ${day}` : ""}`;
@@ -457,7 +477,7 @@ export function OrderBoardView({
             </div>
           ) : (
             groups.map((g) => (
-              <GroupCard key={g.key} group={g} selected={selected} onToggle={toggle} onToggleGroup={toggleMany} onNext={nextStep} isAdmin={isAdmin} />
+              <GroupCard key={g.key} group={g} selected={selected} onToggle={toggle} onToggleGroup={toggleMany} onNext={nextStep} isAdmin={isAdmin} capacityLbs={board.box_capacity_lbs} />
             ))
           )}
         </motion.div>
@@ -685,6 +705,7 @@ function GroupCard({
   onToggleGroup,
   onNext,
   isAdmin,
+  capacityLbs,
 }: {
   group: Group;
   selected: Set<string>;
@@ -692,6 +713,7 @@ function GroupCard({
   onToggleGroup: (items: BoardItem[]) => void;
   onNext: (item: BoardItem) => void;
   isAdmin: boolean;
+  capacityLbs: number | null;
 }) {
   const pickable = group.items.filter((i) => !i.held);
   const allOn = pickable.length > 0 && pickable.every((i) => selected.has(i.order_id));
@@ -716,7 +738,7 @@ function GroupCard({
       <ul className="divide-y divide-tm-hairline">
         <AnimatePresence initial={false}>
           {group.items.map((item) => (
-            <BoardRow key={item.order_id} item={item} on={selected.has(item.order_id)} onToggle={() => onToggle(item)} onNext={() => onNext(item)} isAdmin={isAdmin} />
+            <BoardRow key={item.order_id} item={item} on={selected.has(item.order_id)} onToggle={() => onToggle(item)} onNext={() => onNext(item)} isAdmin={isAdmin} capacityLbs={capacityLbs} />
           ))}
         </AnimatePresence>
       </ul>
@@ -730,12 +752,14 @@ function BoardRow({
   onToggle,
   onNext,
   isAdmin,
+  capacityLbs,
 }: {
   item: BoardItem;
   on: boolean;
   onToggle: () => void;
   onNext: () => void;
   isAdmin: boolean;
+  capacityLbs: number | null;
 }) {
   const meta = BOARD_STAGE_META[item.board_stage];
   const Icon = STAGE_ICON[item.board_stage];
@@ -771,6 +795,7 @@ function BoardRow({
             {item.held ? <Flag>On hold</Flag> : null}
             {item.has_open_issue ? <Flag>Customer issue</Flag> : null}
             {waiting >= 2 ? <Flag>Waiting {waiting} days</Flag> : null}
+            <WeightChip item={item} capacityLbs={capacityLbs} />
           </span>
         </span>
       </button>

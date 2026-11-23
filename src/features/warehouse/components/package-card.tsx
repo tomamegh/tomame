@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { cn } from "@/lib/utils";
 
 import type { WarehousePackage } from "../types";
-import { formatLbs, formatRelative, packageWeight, pluralise, recipientPlace } from "./format";
+import { capacityLine, packageLoad } from "../weights";
+import { formatLbs, formatRelative, pluralise, recipientPlace } from "./format";
 import { PackageBox } from "./package-box";
 import { ItemFlags, ItemThumb, PackageStatusBadge } from "./warehouse-ui";
 
@@ -27,7 +28,9 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 
 export function PackageCard({ pkg, index = 0 }: { pkg: WarehousePackage; index?: number }) {
   const [open, setOpen] = useState(false);
-  const weight = packageWeight(pkg);
+  // Fix 11: a package whose items were all weighed is confirmed too, not only one put on the scale.
+  const load = packageLoad(pkg, pkg.capacity_lbs);
+  const capacity = pkg.status !== "shipped" ? capacityLine(load.lbs, pkg.capacity_lbs) : null;
   const primary = pkg.recipients[0];
 
   return (
@@ -70,17 +73,46 @@ export function PackageCard({ pkg, index = 0 }: { pkg: WarehousePackage; index?:
             <span>{pluralise(pkg.unit_count, "item")}</span>
             <span aria-hidden>·</span>
             <span>
-              {formatLbs(weight.value)}
-              {weight.estimated ? " est." : ""}
+              {load.lbs === 0 && load.missing.length > 0 ? (
+                <span className="text-tm-coral-strong">No weight</span>
+              ) : (
+                <>
+                  {formatLbs(load.lbs)}
+                  {load.confirmed ? "" : " est."}
+                </>
+              )}
             </span>
             {pkg.held_count > 0 ? <span className="ml-auto text-tm-coral-strong">{pkg.held_count} held</span> : null}
           </div>
+          {capacity ? <CapacityMeter pct={load.fill.pct} over={load.fill.over} text={capacity} /> : null}
+          {load.missing.length > 0 && pkg.status === "packing" ? (
+            <span className="text-[12px] font-semibold text-tm-coral-strong">No weight: {load.missing.join(", ")}</span>
+          ) : null}
           <FlightLine pkg={pkg} />
           <ThumbStrip pkg={pkg} />
         </div>
       </button>
       <PackagePeek pkg={pkg} open={open} onOpenChange={setOpen} />
     </>
+  );
+}
+
+/** How full the box is against its air capacity (Fix 11): a bar that fills in, amber past full. */
+function CapacityMeter({ pct, over, text }: { pct: number | null; over: boolean; text: string }) {
+  const reduce = useReducedMotion();
+  if (pct == null) return null;
+  return (
+    <span className="flex flex-col gap-1">
+      <span className="h-1.5 overflow-hidden rounded-full bg-tm-hairline">
+        <motion.span
+          className={cn("block h-full origin-left rounded-full", over ? "bg-tm-amber" : "bg-[image:var(--tm-gradient-cta)]")}
+          initial={reduce ? false : { scaleX: 0 }}
+          animate={{ scaleX: Math.min(1, pct / 100) }}
+          transition={{ duration: 0.8, ease: EASE, delay: 0.15 }}
+        />
+      </span>
+      <span className={cn("tm-nums text-[11.5px] font-semibold", over ? "text-[#7a4a06]" : "text-tm-text-3")}>{text}</span>
+    </span>
   );
 }
 
@@ -150,7 +182,7 @@ export function PackagePeek({
     return () => window.clearTimeout(t);
   }, [open, reduce]);
 
-  const weight = packageWeight(pkg);
+  const load = packageLoad(pkg, pkg.capacity_lbs);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -180,8 +212,8 @@ export function PackagePeek({
             <PackageStatusBadge status={pkg.status} />
           </div>
           <DialogDescription className="text-[13px] font-medium text-tm-text-2">
-            {pluralise(pkg.unit_count, "item")} · {formatLbs(weight.value)}
-            {weight.estimated ? " estimated" : ""} · {pkg.origin} → {pkg.destination}
+            {pluralise(pkg.unit_count, "item")} · {formatLbs(load.lbs)}
+            {load.confirmed ? "" : " estimated"} · {pkg.origin} → {pkg.destination}
           </DialogDescription>
         </div>
 
