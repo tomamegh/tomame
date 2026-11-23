@@ -34,6 +34,18 @@
         "3100"
       ],
       "port": 3100
+    },
+    {
+      "name": "tomame-mobile",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "-p",
+        "3010"
+      ],
+      "port": 3010
     }
   ]
 }

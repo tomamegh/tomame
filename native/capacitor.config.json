@@ -1,0 +1,41 @@
+{
+  "appId": "ca.tomame.ios",
+  "appName": "Tomame",
+  "webDir": "www",
+  "server": {
+    "url": "https://dev.tomame.ca/m",
+    "cleartext": false,
+    "allowNavigation": [
+      "checkout.paystack.com",
+      "*.paystack.com",
+      "*.paystack.co"
+    ]
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#FDF9F6",
+    "scrollEnabled": true,
+    "allowsLinkPreview": false,
+    "appendUserAgent": "TomameIOS"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 600,
+      "backgroundColor": "#FDF9F6",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "LIGHT",
+      "overlaysWebView": true
+    },
+    "LocalNotifications": {
+      "presentationOptions": [
+        "banner",
+        "list",
+        "sound"
+      ],
+      "iconColor": "#F25B3D"
+    }
+  }
+}

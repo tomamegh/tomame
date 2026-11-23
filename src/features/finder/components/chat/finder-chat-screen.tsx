@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, ChatsCircle, ClockCounterClockwise, LinkSimple, NotePencil, Sparkle, WhatsappLogo } from "@phosphor-icons/react";
+import { ArrowUp, ChatsCircle, ClockCounterClockwise, NotePencil, Sparkle, WhatsappLogo } from "@phosphor-icons/react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,7 @@ import type { FinderCandidateState, FinderChatMessageView, FinderChatSummary, Fi
 import { WatchedPaste } from "./ask-mode";
 import { ChatHistoryList } from "./chat-history-list";
 import { ChatRunCard } from "./chat-run-card";
+import { useAppRoutes } from "@/lib/native/app-routes";
 
 interface FinderChatScreenProps {
   /** The open chat, server-read; null on a new chat. */
@@ -51,6 +52,7 @@ const SUGGESTIONS = [
  * every figure is on a card the finder priced.
  */
 export function FinderChatScreen({ initial, history, pastes, defaultText = "", header, watch = null, signedIn }: FinderChatScreenProps) {
+  const routes = useAppRoutes();
   const router = useRouter();
   const chat = useChatView(initial, initial?.id ?? null);
   const send = useSendChat();
@@ -98,7 +100,7 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
     try {
       const res = await send.mutateAsync({ chatId: chat?.id ?? null, text: value });
       // A new chat opens its own page; the typed message stays on screen until it does.
-      if (!chat) return router.replace(`/app/find/chat/${res.chatId}`);
+      if (!chat) return router.replace(routes.chat(res.chatId));
       await chat.refetch();
       setPending(null);
     } catch (error) {
@@ -286,12 +288,9 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
                 </button>
               </div>
             </div>
-            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 px-3 text-[12px] text-muted-foreground">
-              <span>Prices are landed in Accra: item, US tax, our fee and freight.</span>
-              <span className="inline-flex items-center gap-1">
-                <LinkSimple size={13} weight="bold" aria-hidden />
-                Paste links straight in, up to 10 at once.
-              </span>
+            {/* Kelvin, 2026-11-23: one line only, and it is the one that protects the customer. */}
+            <p className="mt-1.5 px-3 text-[12px] leading-snug text-muted-foreground">
+              Check the item on the store (size, colour, seller) before you buy.
             </p>
           </form>
         </section>
@@ -301,9 +300,10 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
 }
 
 function NewChatButton({ compact = false }: { compact?: boolean }) {
+  const routes = useAppRoutes();
   return (
     <Link
-      href="/app/orders/new"
+      href={routes.newChat}
       className={cn(
         "inline-flex items-center gap-2 rounded-full font-semibold transition-colors",
         compact ? "h-9 border border-tm-border bg-card px-3 text-[13px]" : "h-11 justify-center bg-tm-ink px-4 text-[14px] text-white hover:opacity-90",
@@ -427,7 +427,8 @@ function WhatsappNumber({ onSave }: { onSave: (phone: string) => Promise<unknown
  * routes bring them back to this chat, which moves to their account on sign-in.
  */
 function ChatSignInCard({ chatId }: { chatId: string | null }) {
-  const next = encodeURIComponent(chatId ? `/app/find/chat/${chatId}` : "/app/orders/new");
+  const routes = useAppRoutes();
+  const next = encodeURIComponent(chatId ? routes.chat(chatId) : routes.newChat);
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-tm-coral/30 bg-tm-tint p-4">
       <p className="text-[14px] leading-snug font-semibold text-foreground">Keep going with a free Tomame account</p>

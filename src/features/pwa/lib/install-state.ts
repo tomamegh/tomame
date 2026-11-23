@@ -41,7 +41,10 @@ export function isStandalone(win: Window | undefined = typeof window === "undefi
       (mode) => win.matchMedia(`(display-mode: ${mode})`).matches,
     );
   const iosLegacy = (win.navigator as Navigator & { standalone?: boolean }).standalone === true;
-  return byDisplayMode || iosLegacy;
+  // The iPhone app (native/) is installed by definition: never offer to install it,
+  // whatever page it is on, and send "/" to the app like an installed PWA.
+  const iphoneApp = (win.navigator.userAgent ?? "").includes("TomameIOS");
+  return byDisplayMode || iosLegacy || iphoneApp;
 }
 
 /**
@@ -123,8 +126,11 @@ const UNPROMPTABLE_PREFIXES = [
   "/admin",
   "/app/bag",
   "/app/orders/review",
+  // The iPhone app (native/) is already installed.
+  "/m/",
 ];
 
 export function isPromptableRoute(pathname: string): boolean {
+  if (pathname === "/m") return false;
   return !UNPROMPTABLE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }

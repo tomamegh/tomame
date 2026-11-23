@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/admin-access";
 import { buildCsp } from "@/lib/security/csp";
 import { imageOptimizerDecision } from "@/lib/security/image-hosts";
+import { isAppUserAgent, mobilePathFor } from "@/lib/native/mobile-routes";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
@@ -102,9 +103,23 @@ export async function updateSession(request: NextRequest) {
   const user = data?.claims;
   const pathname = request.nextUrl.pathname;
 
+  // The iPhone app (native/) loads `/m`. A link to a website page it has its own
+  // screen for (`/app/bag`, Paystack's `/app/orders?payment=success`, sign-in)
+  // opens that screen instead. Page GETs only; the API is shared as it is.
+  if (request.method === "GET" && !pathname.startsWith("/api/") && isAppUserAgent(request.headers.get("user-agent"))) {
+    const to = mobilePathFor(pathname, request.nextUrl.searchParams);
+    if (to) {
+      const url = request.nextUrl.clone();
+      const [toPath, toQuery] = to.split("?");
+      url.pathname = toPath ?? "/m";
+      url.search = toQuery ? `?${toQuery}` : "";
+      return withCsp(NextResponse.redirect(url), csp);
+    }
+  }
+
   // ── Route config ────────────────────────────────────────────────────────────
   // Add any new protected prefixes here. No other code needs to change.
-  const authRoutes = ["/app", "/admin", "/warehouse"]; // requires login
+  const authRoutes = ["/app", "/admin", "/warehouse", "/m"]; // requires login (`/m` is the iPhone app)
   // Requires the admin role.
   //
   // `/api/admin` IS LOAD-BEARING, not belt and braces. `adminRoutes` was
@@ -153,6 +168,8 @@ export async function updateSession(request: NextRequest) {
     "/app/cars",
     // 105: a price finder run, viewer-scoped by the quote-session cookie like a paste.
     "/app/find",
+    // The iPhone app's sign-in screen.
+    "/m/welcome",
   ];
 
   const isPublic = publicRoutes.some((p) => pathname.startsWith(p));
@@ -173,7 +190,8 @@ export async function updateSession(request: NextRequest) {
   if (isProtected && !user) {
     if (isApi) return jsonError(401, "Authentication required", csp);
     const url = request.nextUrl.clone();
-    url.pathname = "/auth/login";
+    // The iPhone app signs in on its own welcome screen.
+    url.pathname = pathname === "/m" || pathname.startsWith("/m/") ? "/m/welcome" : "/auth/login";
     url.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
     return withCsp(NextResponse.redirect(url), csp);
   }

@@ -25,6 +25,7 @@ import type { PasteStatus } from "../services/paste-status";
 import { batchRowStatus, type BatchRowStatus } from "./batch-format";
 import { ReadingSteps, ReadingStepsCompact, readingStageOf } from "./reading-indicator";
 import { CachedPriceNote, ManualQuoteNote, QuoteExpiryLine, QuoteReceipt, ReadingClock, RefreshNote, RefreshQuoteButton } from "./paste-quote-parts";
+import { useAppRoutes } from "@/lib/native/app-routes";
 
 export type BatchView = "list" | "cards";
 
@@ -290,12 +291,13 @@ function BatchListRow({
   onRefresh: () => void;
   refreshing: boolean;
 }) {
+  const routes = useAppRoutes();
   const { paste, line, status } = row;
   const host = hostOf(paste.product_url);
   const working = !added && (status.kind === "reading" || status.kind === "pricing");
   const stage = readingStageOf(paste.status, status.kind === "pricing");
   const title = line?.title ?? paste.title ?? host;
-  const href = paste.extraction_cache_id ? `/app/orders/review/${paste.extraction_cache_id}` : null;
+  const href = paste.extraction_cache_id ? routes.quote(paste.extraction_cache_id) : null;
   // Notes, the breakdown and the 24-hour line run the row's full width, so a phone never squeezes them.
   const hasDetail =
     (status.kind === "reading" && !paste.rechecking) || status.kind === "manual" || status.refreshable || line?.total_ghs != null;
@@ -393,6 +395,7 @@ function BatchCards({
   onRefresh: (paste: PasteStatus) => void;
   refreshingId: string | null;
 }) {
+  const routes = useAppRoutes();
   const scroller = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
 
@@ -465,7 +468,7 @@ function BatchCards({
               <div className="mt-auto flex gap-2 pt-1">
                 {paste.extraction_cache_id && !status.refreshable && (
                   <Button asChild variant="outline" size="touch" className="flex-1">
-                    <Link href={`/app/orders/review/${paste.extraction_cache_id}`}>
+                    <Link href={routes.quote(paste.extraction_cache_id)}>
                       Full quote
                       <ArrowRight className="size-4" aria-hidden />
                     </Link>

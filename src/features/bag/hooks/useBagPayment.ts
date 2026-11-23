@@ -44,6 +44,12 @@ export interface UseBagPaymentOptions {
   momoPrefill?: MomoPrefill | null;
   /** Where a signed-out viewer returns after signing in. Defaults to the bag. */
   loginNext?: string;
+  /**
+   * Called instead of the full navigation to Paystack's success page once MoMo
+   * settles. The iPhone app (`/m`) passes it to land on its own Paid screen;
+   * the website leaves it out and keeps the redirect.
+   */
+  onPaid?: (paid: { orderGroupId: string | null; redirectUrl: string }) => void;
 }
 
 /** How long the dialog keeps asking before it says "still waiting" (the prompt itself times out sooner). */
@@ -115,6 +121,7 @@ export function useBagPayment({
   channels,
   momoPrefill = null,
   loginNext = "/app/bag",
+  onPaid,
 }: UseBagPaymentOptions): BagPayment {
   const router = useRouter();
   const checkout = useCheckout();
@@ -131,6 +138,8 @@ export function useBagPayment({
   const [momo, setMomo] = useState<MomoPaymentState | null>(null);
   const [momoSlow, setMomoSlow] = useState(false);
   const momoStartedAt = useRef(0);
+  // The group the current MoMo prompt pays for, handed to `onPaid`.
+  const groupRef = useRef<string | null>(null);
   const [handoff, setHandoff] = useState<PaymentHandoff | null>(null);
   const [lastGroup, setLastGroup] = useState<CheckedOutGroup | null>(null);
   // Consent is explicit: unticked by default, and unticked means no automated WhatsApp.
@@ -156,6 +165,10 @@ export function useBagPayment({
     if (next.state === "paid") {
       setMomo(next);
       setHandoff("paid");
+      if (onPaid) {
+        onPaid({ orderGroupId: groupRef.current, redirectUrl: next.redirectUrl });
+        return;
+      }
       // The same page Paystack's callback lands on: full navigation, so the
       // orders page renders the settled payment from the server.
       window.location.assign(next.redirectUrl);
@@ -167,7 +180,7 @@ export function useBagPayment({
     // Checkout already turned the bag into an unpaid group; re-read the page so
     // its "Finish paying" card is there to retry from once the dialog closes.
     if (next.state === "failed") router.refresh();
-  }, [router]);
+  }, [router, onPaid]);
 
   const checkMomo = useCallback(() => {
     if (!momo || momo.state === "paid") return;
@@ -189,6 +202,7 @@ export function useBagPayment({
 
   const openTransaction = useCallback(
     (orderGroupId: string) => {
+      groupRef.current = orderGroupId;
       setHandoff(isMomo ? "momo" : "paystack");
       if (isMomo && channelId) {
         momoStartedAt.current = 0;

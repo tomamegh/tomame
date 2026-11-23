@@ -1,0 +1,25 @@
+{
+  "name": "tomame-native",
+  "private": true,
+  "description": "Tomame for iPhone: a Capacitor shell that loads the mobile app (/m) from the Tomame web app. Installed with Xcode.",
+  "scripts": {
+    "sim": "node configure.mjs http://localhost:3010/m && cap sync ios",
+    "dev": "node configure.mjs https://dev.tomame.ca/m && cap sync ios",
+    "prod": "node configure.mjs https://tomame.ca/m && cap sync ios",
+    "open": "cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/clipboard": "^8.0.1",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.6.2",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.2"
+  }
+}

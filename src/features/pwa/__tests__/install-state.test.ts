@@ -15,12 +15,13 @@ const DAY = 24 * 60 * 60 * 1000;
 function fakeWindow(options: {
   matches?: string[];
   iosStandalone?: boolean;
+  userAgent?: string;
 }): Window {
   return {
     matchMedia: (query: string) => ({
       matches: (options.matches ?? []).some((mode) => query.includes(mode)),
     }),
-    navigator: { standalone: options.iosStandalone },
+    navigator: { standalone: options.iosStandalone, userAgent: options.userAgent ?? "" },
   } as unknown as Window;
 }
 
@@ -42,6 +43,11 @@ describe("isStandalone", () => {
     // for anyone browsing fullscreen.
     expect(isStandalone(fakeWindow({ matches: ["fullscreen"] }))).toBe(false);
     expect(isStandalone(fakeWindow({ matches: ["browser", "fullscreen"] }))).toBe(false);
+  });
+
+  it("treats the Tomame iPhone app as installed, so it never offers to install itself", () => {
+    expect(isStandalone(fakeWindow({ userAgent: "Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Mobile/15E148 TomameIOS" }))).toBe(true);
+    expect(isStandalone(fakeWindow({ userAgent: "Mozilla/5.0 (iPhone) Safari/604.1" }))).toBe(false);
   });
 
   it("detects iOS, which reports navigator.standalone and not the media query", () => {
