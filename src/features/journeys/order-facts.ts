@@ -44,6 +44,9 @@ export function orderEta(order: {
   eta_from?: string | null;
   eta_to?: string | null;
   estimated_delivery_date: string | null;
+  /** 123: the window promised at payment, counted from the paid day. Beats the quote's. */
+  promised_from?: string | null;
+  promised_to?: string | null;
   pricing: OrderPricingBreakdown | null;
 }): JourneyEta | null {
   if (order.eta_from || order.eta_to) {
@@ -55,6 +58,9 @@ export function orderEta(order: {
       to: order.estimated_delivery_date,
       source: "confirmed",
     };
+  }
+  if (order.promised_from && order.promised_to) {
+    return { from: order.promised_from, to: order.promised_to, source: "estimated" };
   }
   const from = order.pricing?.delivery_eta_from ?? null;
   const to = order.pricing?.delivery_eta_to ?? null;

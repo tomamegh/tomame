@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { JourneysView } from "@/features/journeys/components";
-import { getJourneys, getPaidBagPurchase } from "@/features/journeys/services/journeys.service";
+import { getJourneys, getPaidBagConfirmation } from "@/features/journeys/services/journeys.service";
 import { MetaPurchase } from "@/components/analytics/meta-purchase";
 
 export const metadata: Metadata = {
@@ -34,15 +34,15 @@ export default async function OrdersPage({ searchParams }: Props) {
   const [{ payment, group }, user] = await Promise.all([searchParams, getAuthenticatedUser()]);
   if (!user) redirect(`/auth/login?next=${encodeURIComponent("/app/orders")}`);
 
-  const [data, purchase] = await Promise.all([
+  const [data, paidBag] = await Promise.all([
     getJourneys(user),
-    payment === "success" ? getPaidBagPurchase(user.id, group) : null,
+    payment === "success" ? getPaidBagConfirmation(user.id, group) : null,
   ]);
 
   return (
     <>
-      <JourneysView data={data} paymentOutcome={payment ?? null} />
-      {purchase ? <MetaPurchase purchase={purchase} /> : null}
+      <JourneysView data={data} paymentOutcome={payment ?? null} paidBag={paidBag} />
+      {paidBag ? <MetaPurchase purchase={{ id: paidBag.id, valueGhs: paidBag.valueGhs, numItems: paidBag.numItems }} /> : null}
     </>
   );
 }

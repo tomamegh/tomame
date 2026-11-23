@@ -10,6 +10,7 @@ import {
   sendOrderStatusEmail,
 } from "@/features/orders/services/orders.service";
 import { recordOrderEvent } from "@/features/orders/services/order-events.service";
+import { stampDeliveryPromise } from "@/features/orders/services/delivery-promise.service";
 import { listOrdersByGroup } from "@/db/queries/orders";
 import { getOrderGroupById, updateOrderGroupStatus } from "@/db/queries/order-groups";
 import { getCarOrderById, updateCarOrderStatus } from "@/db/queries/car-orders";
@@ -901,8 +902,10 @@ export async function handlePaymentCallback(
  * notification, so a re-run of the fan-out never repeats an effect.
  */
 async function settleOrder(admin: SupabaseClient, payment: Payment, orderId: string): Promise<Order | null> {
-  const order = await linkOrderToPayment(admin, orderId, payment.id);
-  if (!order) return null;
+  const linked = await linkOrderToPayment(admin, orderId, payment.id);
+  if (!linked) return null;
+  // The window promised at payment (123), before the "paid" mail that prints it.
+  const order = await stampDeliveryPromise(admin, linked);
 
   await logAuditEvent({
     actorId: payment.user_id,

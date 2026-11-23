@@ -33,7 +33,7 @@ describe("getRecentOrdersForUser", () => {
     expect(calls.select?.[0]).toBe(
       "id, order_no, product_name, product_url, product_image_url, " +
         "store_platform:extraction_metadata->>platform, status, pricing, admin_total_ghs, " +
-        "estimated_delivery_date, eta_from, eta_to, delivered_at, created_at",
+        "estimated_delivery_date, eta_from, eta_to, promised_from, promised_to, delivered_at, created_at",
     );
     expect(calls.select?.[0]).not.toBe("*");
     expect(calls.eq).toEqual(["user_id", "user-1"]);

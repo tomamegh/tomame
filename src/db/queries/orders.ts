@@ -46,6 +46,9 @@ const RECENT_COLUMNS = [
   "estimated_delivery_date",
   "eta_from",
   "eta_to",
+  // 123: the window promised at payment.
+  "promised_from",
+  "promised_to",
   "delivered_at",
   "created_at",
 ].join(", ");

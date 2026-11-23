@@ -2,6 +2,7 @@ import "server-only";
 
 import type { OrderEventRow } from "@/db/queries/order-events";
 import { getOrderGroupById, listOrderGroupsByIds, type OrderGroupRow } from "@/db/queries/order-groups";
+import { listOrdersByGroup } from "@/db/queries/orders";
 import { mapCustomerOrderEvents } from "@/features/orders/services/order-events.service";
 import { journeyStageFor } from "@/features/orders/services/journey-stage";
 import { transitLabel } from "@/features/shipments/stages";
@@ -301,6 +302,40 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * callback verified it with Paystack before redirecting here). Never throws;
  * an analytics read must not take the orders page down.
  */
+/** What the bag-payment landing says (Seamless Roadmap, Initiative 2): paid, how much, and the promised window. */
+export interface PaidBagConfirmation {
+  id: string;
+  valueGhs: number;
+  numItems: number;
+  /** "Fri 28 – Sun 30 Nov": the window promised at payment (123), widest across the bag; null when none was stamped. */
+  promiseText: string | null;
+}
+
+/**
+ * The bag the viewer has just paid for — or null. `?payment=success&group=…`
+ * is only a URL anyone can type, so this reads the group's own state: it must
+ * be the viewer's and already `paid` (the callback verified it with Paystack
+ * before redirecting here). Feeds both the confirmation card and the Meta
+ * Pixel's `Purchase`. Never throws: a read here must not take the orders page down.
+ */
+export async function getPaidBagConfirmation(
+  userId: string,
+  groupId: string | null | undefined,
+): Promise<PaidBagConfirmation | null> {
+  const purchase = await getPaidBagPurchase(userId, groupId);
+  if (!purchase || !groupId) return null;
+  try {
+    const orders = await listOrdersByGroup(createAdminClient(), groupId);
+    const froms = orders.map((o) => o.promised_from).filter((d): d is string => !!d).sort();
+    const tos = orders.map((o) => o.promised_to).filter((d): d is string => !!d).sort();
+    const promiseText = froms.length && tos.length ? formatEtaWindow({ from: froms[0]!, to: tos[tos.length - 1]!, source: "estimated" }) : null;
+    return { ...purchase, promiseText };
+  } catch (error: unknown) {
+    logger.error("getPaidBagConfirmation failed", { message: error instanceof Error ? error.message : String(error) });
+    return { ...purchase, promiseText: null };
+  }
+}
+
 export async function getPaidBagPurchase(
   userId: string,
   groupId: string | null | undefined,

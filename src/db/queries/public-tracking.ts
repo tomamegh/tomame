@@ -23,6 +23,9 @@ export interface TrackingOrderRow {
   product_url: string | null;
   product_image_url: string | null;
   eta_from: string | null;
+  /** 123: the window promised at payment. */
+  promised_from: string | null;
+  promised_to: string | null;
   eta_to: string | null;
   estimated_delivery_date: string | null;
   delivered_at: string | null;
@@ -44,7 +47,7 @@ export interface TrackingEventRow {
 }
 
 const ORDER_COLUMNS =
-  "id, order_no, user_id, status, product_name, product_url, product_image_url, eta_from, eta_to, estimated_delivery_date, delivered_at, order_group_id, delivery_address_id, est_from:pricing->>delivery_eta_from, est_to:pricing->>delivery_eta_to, platform:extraction_metadata->>platform";
+  "id, order_no, user_id, status, product_name, product_url, product_image_url, eta_from, eta_to, estimated_delivery_date, promised_from, promised_to, delivered_at, order_group_id, delivery_address_id, est_from:pricing->>delivery_eta_from, est_to:pricing->>delivery_eta_to, platform:extraction_metadata->>platform";
 
 export async function getTrackingOrderByNo(orderNo: string): Promise<TrackingOrderRow | null> {
   const { data, error } = await createAdminClient()

@@ -273,7 +273,7 @@ export async function sendOrderStatusEmail(
       productName: order.product_name,
       status: newStatus,
       trackingNumber: order.order_no,
-      expectedOn: order.eta_to ?? trackingData?.estimatedDeliveryDate ?? order.estimated_delivery_date ?? null,
+      expectedOn: order.eta_to ?? trackingData?.estimatedDeliveryDate ?? order.estimated_delivery_date ?? order.promised_to ?? null,
     });
     await queueWhatsApp({
       userId,
@@ -321,6 +321,8 @@ export async function sendOrderStatusEmail(
         // is not the bag, so a grouped one gets the customs line alone.
         template = orderPaidTemplate({
           ...emailData,
+          // 123: the window promised at payment; a bag's orders share their paid day.
+          promise: order.promised_from && order.promised_to ? { from: order.promised_from, to: order.promised_to } : undefined,
           pricing: !order.order_group_id ? emailPricing(order.pricing) : undefined,
         });
         break;

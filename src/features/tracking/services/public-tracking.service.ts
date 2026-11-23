@@ -92,6 +92,8 @@ export async function lookupPublicTracking(input: {
         eta_from: order.eta_from,
         eta_to: order.eta_to,
         estimated_delivery_date: order.estimated_delivery_date,
+        promised_from: order.promised_from,
+        promised_to: order.promised_to,
         // Only the two forecast dates were selected; nothing else of `pricing` is read.
         pricing: { delivery_eta_from: order.est_from, delivery_eta_to: order.est_to } as unknown as OrderPricingBreakdown,
       }),
