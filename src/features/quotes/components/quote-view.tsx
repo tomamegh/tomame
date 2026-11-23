@@ -543,8 +543,8 @@ export function QuoteView({
           // The 72px rail column only exists when there is a rail to put in it;
           // an empty track would leave a 72px hole beside a one-image listing.
           hasRail
-            ? "lg:grid-cols-[72px_1fr_420px]"
-            : "lg:grid-cols-[1fr_420px]",
+            ? "lg:grid-cols-[72px_minmax(0,1fr)_420px]"
+            : "lg:grid-cols-[minmax(0,1fr)_420px]",
         )}
       >
         {hasRail && (

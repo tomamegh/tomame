@@ -269,7 +269,7 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   }
 
   return (
-    <div className="grid items-start gap-7 pb-[95px] lg:grid-cols-[1fr_420px] lg:pb-0">
+    <div className="grid items-start gap-7 pb-[95px] lg:grid-cols-[minmax(0,1fr)_420px] lg:pb-0">
       <div className="flex flex-col gap-[18px]">
         <BagHeader />
         <CheckoutBanners banners={banners} className="lg:hidden" />
