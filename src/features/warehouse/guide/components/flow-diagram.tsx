@@ -49,7 +49,11 @@ export function FlowDiagram() {
       {/* The rail */}
       <div className="rounded-[24px] border border-tm-border bg-card px-3 pt-5 pb-4 sm:px-6">
        <div className="relative">
-        <div className="pointer-events-none absolute top-[34.5px] right-[8.333%] left-[8.333%] h-[3px] rounded-full bg-tm-hairline sm:top-[36.5px]" aria-hidden>
+        <div
+          className="pointer-events-none absolute top-[34.5px] h-[3px] rounded-full bg-tm-hairline sm:top-[36.5px]"
+          style={{ left: `${50 / FLOW.length}%`, right: `${50 / FLOW.length}%` }}
+          aria-hidden
+        >
           <motion.div
             className="h-full origin-left rounded-full bg-[image:var(--tm-gradient-cta)]"
             initial={false}
@@ -77,7 +81,13 @@ export function FlowDiagram() {
           </motion.span>
         </motion.div>
 
-        <div role="tablist" aria-label="The daily flow, step by step" className="relative grid grid-cols-6" onKeyDown={onKey}>
+        <div
+          role="tablist"
+          aria-label="The daily flow, step by step"
+          className="relative grid"
+          style={{ gridTemplateColumns: `repeat(${FLOW.length}, minmax(0, 1fr))` }}
+          onKeyDown={onKey}
+        >
           {FLOW.map((s, i) => {
             const on = i === active;
             const done = i < active;
@@ -220,7 +230,17 @@ export function FlowDiagram() {
             </div>
 
             <div className="min-w-0 xl:pt-1">
-              <GuideVideo clip={step.clip} size="sm" />
+              {step.clip ? (
+                <GuideVideo clip={step.clip} size="sm" />
+              ) : (
+                <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 rounded-[24px] border border-tm-border bg-[radial-gradient(110%_100%_at_50%_0%,#fff1ec_0%,#fdf9f6_70%)] p-6 text-center">
+                  <span className="flex size-14 items-center justify-center rounded-[18px] bg-tm-ink text-white shadow-[0_14px_30px_-16px_rgba(43,36,34,0.8)]">
+                    <step.icon className="size-6" aria-hidden />
+                  </span>
+                  <span className="font-display text-[18px] font-bold text-tm-ink">{step.verb}</span>
+                  <span className="text-[13px] font-medium text-tm-text-2">{step.where.label}</span>
+                </div>
+              )}
             </div>
           </motion.div>
         </AnimatePresence>

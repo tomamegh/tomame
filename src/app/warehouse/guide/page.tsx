@@ -66,7 +66,7 @@ export default function WarehouseGuidePage() {
               {...section("daily-flow")}
               kicker="The job"
               title="The daily flow"
-              lead="Six steps, always in this order. Click a step to see what you do, what the customer sees, and the screen itself."
+              lead="Eight steps, from buying the item to the customer's door, always in this order. Admins do Buy; the hub does the rest. Click a step to see what you do, what the customer sees, and the screen itself."
             >
               <FlowDiagram />
             </GuideSection>

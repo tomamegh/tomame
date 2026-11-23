@@ -347,7 +347,7 @@ export function simReducer(state: SimState, action: SimAction): SimState {
         notice: {
           tone: "success",
           title: `${pkg.reference} is on its way`,
-          detail: `${orders} customer order${orders === 1 ? "" : "s"} moved to in transit and notified.`,
+          detail: `${orders} customer order${orders === 1 ? "" : "s"} moved to In flight and notified.`,
         },
       };
     }

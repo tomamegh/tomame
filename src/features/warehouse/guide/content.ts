@@ -11,9 +11,11 @@ import {
   MessageSquareWarningIcon,
   MonitorSmartphoneIcon,
   PlaneTakeoffIcon,
+  PlaneLandingIcon,
   PrinterIcon,
   RouteIcon,
   ScanLineIcon,
+  ShoppingCartIcon,
   SparklesIcon,
   Undo2Icon,
   type LucideIcon,
@@ -66,14 +68,17 @@ export const ROLES = [
     badge: "Your role",
     summary: "The packaging platform and nothing else. Sign in and you land on Orders.",
     can: [
+      "Add or correct a store tracking number (number or link)",
       "Log parcels in and weigh them",
       "Photograph parcels for the customer",
       "Pack, seal, label and ship boxes",
+      "Move a whole flight on when it lands, and hand parcels to drivers",
       "Answer customer replies and put parcels on hold",
       "Scan any Tomame label or order number",
     ],
     cannot: [
       "Open the admin console or the customer shop (both send you back here)",
+      "Mark an order purchased (you see Waiting for a buyer)",
       "See prices, payments, or a customer's email",
       "Change an order's status by hand",
     ],
@@ -85,6 +90,7 @@ export const ROLES = [
     summary: "Everything you have, plus the admin console, linked from the account menu.",
     can: [
       "Everything a warehouse operator can do",
+      "Mark orders purchased from Orders → Paid, not bought, with or without the tracking",
       "Create warehouse accounts and change roles: Users → Add a user → Warehouse operator",
       "Talk to the customer when something cannot be undone, like a box shipped too early",
     ],
@@ -95,7 +101,7 @@ export const ROLES = [
 export const YOU_SEE = [
   { label: "The item", detail: "Name, picture, store, quantity and its listed weight" },
   { label: "Who it is for", detail: "Name, delivery address or pickup point, and phone, for the label" },
-  { label: "Where it is", detail: "Expected, At hub, Packed or Shipped, and which box" },
+  { label: "Where it is", detail: "One of nine stages, from Paid, not bought to Delivered, and which box and flight" },
   { label: "What they said", detail: "Customer instructions and their replies to your photos" },
 ];
 
@@ -103,7 +109,7 @@ export const GOLDEN_RULES = [
   { title: "Log it in before it goes on the shelf", body: "Weigh it as you log it. The customer's tracking starts moving the moment you press Log it in." },
   { title: "One customer, one box", body: "Unless you mean to make a consolidated carton. The Add items window warns you when you mix." },
   { title: "Sealed means frozen", body: "To change what is inside a sealed box, Reopen it, change it, seal it again and reprint the label." },
-  { title: "Shipping is final", body: "Mark shipped moves every order to in transit and notifies each customer. Order statuses only move forward, so it cannot be undone." },
+  { title: "Shipping is final", body: "Mark shipped needs the Delta air waybill (006-…) or a reason. It moves every order to In flight and tells each customer. Order statuses only move forward, so it cannot be undone." },
 ];
 
 // ── The daily flow ──────────────────────────────────────────────────────────
@@ -117,21 +123,37 @@ export interface FlowStep {
   doing: string[];
   customer: string;
   rule: string;
-  clip: ClipKey;
+  /** A recording of the step, when there is one. */
+  clip?: ClipKey;
 }
 
 export const FLOW: FlowStep[] = [
+  {
+    id: "buy",
+    title: "Buy",
+    verb: "Mark purchased",
+    icon: ShoppingCartIcon,
+    where: { href: "/warehouse?stage=to_buy", label: "Orders → Paid, not bought" },
+    doing: [
+      "An admin buys the item from the store, then presses Mark purchased on its row (or ticks several and uses the bar).",
+      "Paste the store's tracking number or the tracking link if the shipping email has come. Nothing in the window is required: a number that does not look right is left out and named, and the purchase still goes through.",
+      "Bought a whole checkout in one store order? Tick “Add the other items from this checkout”.",
+      "No tracking yet? The order waits under Purchased · no tracking. Anyone adds it later with Add tracking, and fixes a wrong one the same way.",
+    ],
+    customer: "“Purchased from the store”. When tracking is added later they get one more message: the store has shipped it to our US hub. They see only Tomame's number unless the share box is ticked.",
+    rule: "Only admins mark purchased; hub staff see Waiting for a buyer. A tracking number is never a reason to hold a purchase back.",
+  },
   {
     id: "receive",
     title: "Receive",
     verb: "Log it in",
     icon: InboxIcon,
-    where: { href: "/warehouse?tab=expected", label: "Orders → Expected" },
+    where: { href: "/warehouse?stage=on_way", label: "Orders → On its way to hub" },
     doing: [
       "Scan or type the parcel's TM-number into the search box and press Enter. The log-in window opens by itself.",
       "Check it matches the listing, put it on the scale and type the weight in pounds. The weight box is already focused.",
-      "Press Log it in (or Enter). It moves from Expected to At hub.",
-      "A whole truckload? Tap each row to tick it and press Mark received. Weigh them later from At hub.",
+      "Press Log it in (or Enter). It moves from On its way to hub to At the hub.",
+      "A whole truckload? Tap each row to tick it and press Mark received. Weigh them later from At the hub.",
     ],
     customer: "Their tracking shows “Arrived at our US hub”, with the weight you typed.",
     rule: "Weight is optional in the app, but it is what the box is charged on. If you skip it, use Re-weigh later.",
@@ -142,7 +164,7 @@ export const FLOW: FlowStep[] = [
     title: "Photograph",
     verb: "Show the customer",
     icon: CameraIcon,
-    where: { href: "/warehouse?tab=hub", label: "the item page" },
+    where: { href: "/warehouse?stage=at_hub", label: "the item page" },
     doing: [
       "Open the item (tap its name anywhere) and go to Photos.",
       "On a phone, Take a photo opens the camera. On a computer, Choose photos. Up to ten at a time.",
@@ -157,7 +179,7 @@ export const FLOW: FlowStep[] = [
     title: "Pack",
     verb: "Box it by customer",
     icon: BoxesIcon,
-    where: { href: "/warehouse?tab=hub", label: "Orders → At hub" },
+    where: { href: "/warehouse?stage=at_hub", label: "Orders → At the hub" },
     doing: [
       "Tick one customer's items: tap a row, or the customer's name to tick all of theirs.",
       "Pack into one box starts a box and opens it. Add to box puts them in a box already on the bench.",
@@ -204,12 +226,27 @@ export const FLOW: FlowStep[] = [
     where: { href: "/warehouse/packages?status=sealed", label: "Mark shipped" },
     doing: [
       "When the box leaves with the carrier, open it and press Mark shipped.",
-      "Type the carrier and the waybill or tracking number. Customers see both.",
-      "Press Ship it.",
+      "Type the Delta Cargo air waybill: 006 then 8 digits, the last one a check digit. A box going on a flight that already has a waybill gets it filled in.",
+      "No waybill yet? Write why, and it ships without one until the waybill is added.",
+      "Press Ship it. The box is recorded on its Wednesday or Friday flight.",
     ],
-    customer: "Every order in the box moves to in transit, and each customer gets ONE email listing what of theirs is in the box. They only ever see the Tomame number, never the carrier or waybill.",
+    customer: "Every order in the box moves to In flight, and each customer gets ONE email listing what of theirs is in the box. They only ever see the Tomame number, never the carrier or waybill.",
     rule: "This cannot be undone from any screen: order statuses only move forward. Not sure? Press Not yet.",
     clip: "ship",
+  },
+  {
+    id: "land",
+    title: "Land",
+    verb: "Move the flight",
+    icon: PlaneLandingIcon,
+    where: { href: "/warehouse/shipments", label: "Shipments" },
+    doing: [
+      "Shipments groups boxes by the Delta flight they flew on. When the flight lands, tick the flight and press the next step.",
+      "From Orders → In Accra, tick parcels and press Out for delivery. Pick the driver; the customer gets the rider's details.",
+      "The driver finishes at the door with a photo and the customer's 6-digit code.",
+    ],
+    customer: "One update per step: landed, at the Accra warehouse, out for delivery, delivered.",
+    rule: "Move a whole flight together. Move a single parcel only when it really is different (held back, or picked up).",
   },
 ];
 
@@ -232,23 +269,25 @@ export const SCREENS: ScreenInfo[] = [
     name: "Orders",
     href: "/warehouse",
     path: "/warehouse",
-    purpose: "Where you land: the orders the hub has to act on, in the order the work happens.",
+    purpose: "Where you land: every order from paid to delivered, each in exactly one stage.",
     points: [
-      "Three tabs. Expected: purchased orders on their way to us. At hub: logged in, not boxed yet. Boxes: boxes on the bench.",
-      "Tap a row to tick it. The customer's name ticks all of theirs. A dark bar rises above the tab bar with the next step: Mark received on Expected, Pack into one box on At hub.",
-      "Each row shows two different things: the order's status (Order: Purchased) and where the parcel is (On its way to the hub, At our US hub).",
-      "The search box is also the scanner input. Scan a TM-number and press Enter: an expected parcel opens its log-in window, one at the hub gets ticked, anything else opens its page.",
-      "An amber bar appears when customer issues are open or items are on hold. Check it before you seal anything.",
+      "The strip is the journey in three legs: Buy (Paid, not bought → Purchased · no tracking), US hub (On its way → At the hub → Boxed) and To the customer (In flight → In Accra → Out for delivery → Delivered). Tap a stage to list it. A coral number is work waiting on us.",
+      "Each row has one stage label and one button: the next step. Mark purchased, Add tracking, Receive, Pack, Open the box, or the next Ghana step.",
+      "Tick rows, or a whole group with its name. The dark bar offers that stage's action for all of them at once. Group by customer, by checkout (one store order), or not at all.",
+      "The search box searches every stage and is the scanner input. Scan a TM-number or a store tracking number and press Enter: it jumps to that order, and one on its way opens its log-in window.",
+      "An amber bar appears when customer issues are open. Check it before you seal anything.",
     ],
     tip: "Start every shift here. If the amber bar is showing, go to Issues first.",
   },
   {
     id: "item",
     name: "Item page",
-    href: "/warehouse?tab=hub",
+    href: "/warehouse?stage=at_hub",
     path: "/warehouse/items/…",
     purpose: "One parcel: what it is, who it is for, and what the customer has said about it.",
     points: [
+      "The dark Next step card shows the nine stages with this order's highlighted, and the one button that moves it on.",
+      "Store tracking: add a number or link, correct it, or remove it. The customer hears once, the first time.",
       "Buttons change with the stage: Log it in, Pack it, Re-weigh, Photos, Open PKG-…, and Hold or Release hold.",
       "Photos: send pictures to the customer and read their replies underneath.",
       "Deliver to: the address or pickup point and a tap-to-call phone number.",
@@ -264,7 +303,8 @@ export const SCREENS: ScreenInfo[] = [
     path: "/warehouse/packages",
     purpose: "Every box, by where it is in its life.",
     points: [
-      "Tabs: On the bench (packing and sealed), Packing, Sealed, Shipped.",
+      "Tabs: On the bench (packing and sealed), Packing, Sealed, Shipped. Each number is the whole count; if a list is cut short it says so.",
+      "Each card says which Delta flight the box is booked on, and closes 24 hours before it.",
       "The drawing tells you the state before you read a word: flaps up is packing, coral tape is sealed, a green stamp is shipped.",
       "Tap a card and the box opens in place to show what is inside. Label and Open package are one more tap.",
       "New package starts an empty box you can scan items into.",
@@ -316,6 +356,20 @@ export const SCREENS: ScreenInfo[] = [
     ],
     tip: "On a phone, the round coral button in the middle of the bottom bar is always Scan.",
     clip: "scan",
+  },
+  {
+    id: "shipments",
+    name: "Shipments",
+    href: "/warehouse/shipments",
+    path: "/warehouse/shipments",
+    purpose: "Boxes after they leave the hub, grouped by the Delta flight they flew on.",
+    points: [
+      "Each flight shows its date, JFK → ACC and its air waybill. Tick the flight to select every box on it.",
+      "The bar moves the selection to the next step (Arrived in Ghana, Accra warehouse, Out for delivery, Delivered), or posts a delay customers see.",
+      "Open a box to move one order inside it on its own.",
+      "Customers sending their own rider are listed at the top until they are handed over.",
+    ],
+    tip: "Single parcels can also be moved from Orders → In flight, In Accra or Out for delivery.",
   },
   {
     id: "issues",
@@ -564,8 +618,8 @@ export const MISTAKES: Array<{ id: string; problem: string; fix: string; where: 
   {
     id: "weight",
     problem: "I typed the wrong weight when logging it in",
-    fix: "Re-weigh it: the scale button on its At hub row, or Re-weigh on the item page. The customer's timeline shows “Re-weighed at our US hub”. Logging it again with the same weight changes nothing.",
-    where: "Orders → At hub · Item page",
+    fix: "Re-weigh it: Re-weigh on the item page. The customer's timeline shows “Re-weighed at our US hub”. Logging it again with the same weight changes nothing.",
+    where: "Orders → At the hub · Item page",
     level: "easy",
   },
   {
@@ -658,7 +712,7 @@ export const QUIZ: QuizQuestion[] = [
     prompt: "A parcel comes off the truck. What do you do first?",
     options: [
       { id: "a", text: "Put it straight in a box for its customer" },
-      { id: "b", text: "Log it in on Orders → Expected and type its weight" },
+      { id: "b", text: "Log it in on Orders → On its way to hub and type its weight" },
       { id: "c", text: "Print its label" },
     ],
     answer: "b",
@@ -730,11 +784,23 @@ export const QUIZ: QuizQuestion[] = [
     prompt: "What happens when you press Ship it?",
     options: [
       { id: "a", text: "Nothing the customer sees until the box lands" },
-      { id: "b", text: "Every order in the box moves to in transit and each customer is notified" },
+      { id: "b", text: "Every order in the box moves to In flight and each customer is notified" },
       { id: "c", text: "The box can be reopened and changed later" },
     ],
     answer: "b",
     why: "Order statuses only move forward, so shipping cannot be undone from any screen. If you are unsure, press Not yet.",
+    section: "daily-flow",
+  },
+  {
+    id: "tracking-later",
+    prompt: "An order was bought yesterday without tracking. The store's shipping email has just arrived. What do you do?",
+    options: [
+      { id: "a", text: "Wait for the parcel and log it in when it lands" },
+      { id: "b", text: "Orders → Purchased · no tracking, press Add tracking and paste the number or the tracking link" },
+      { id: "c", text: "Ask an admin to mark it purchased again" },
+    ],
+    answer: "b",
+    why: "Tracking can be added any time after purchase, by anyone. The hub's scan then finds the order, and the customer is told once.",
     section: "daily-flow",
   },
   {
@@ -765,7 +831,7 @@ export const FAQ: Array<Searchable & { section?: string }> = [
     id: "not-listed",
     q: "A parcel arrived but I cannot find it on Orders.",
     a: "Search its TM-number, the customer's name or the store. Only paid orders appear. If it is still missing, the order may not be paid yet. Keep the parcel aside and tell an admin.",
-    tags: ["missing", "search", "expected"],
+    tags: ["missing", "search", "expected", "on its way"],
     section: "screens",
   },
   {
@@ -882,10 +948,13 @@ export const FAQ: Array<Searchable & { section?: string }> = [
 export const GLOSSARY: Searchable[] = [
   { id: "tm", q: "TM-number", a: "An order's number, like TM-00042. One order is one item line for one customer." },
   { id: "pkg", q: "Package (PKG-…)", a: "A box you pack, like PKG-10042. Its number is on the label's barcode and QR." },
-  { id: "expected", q: "Expected", a: "A paid order on its way to the hub, not logged in yet." },
-  { id: "shelf", q: "At hub", a: "Logged in at the hub and waiting to be boxed." },
-  { id: "packed", q: "Packed", a: "In a package that has not left yet." },
-  { id: "shipped", q: "Shipped", a: "Left the hub. The customer's order is in transit." },
+  { id: "to-buy", q: "Paid, not bought", a: "The customer has paid; nobody has bought it from the store yet. Admins mark it purchased." },
+  { id: "no-tracking", q: "Purchased · no tracking", a: "Bought, but the store has not given a tracking number yet. Add it when the shipping email comes." },
+  { id: "expected", q: "On its way to hub", a: "Bought and tracked, not logged in at the hub yet." },
+  { id: "shelf", q: "At the hub", a: "Logged in at the hub and waiting to be boxed." },
+  { id: "packed", q: "Boxed", a: "In a package that has not left yet." },
+  { id: "shipped", q: "In flight", a: "Left the hub on a Delta Cargo flight. The customer's order is in transit." },
+  { id: "store-tracking", q: "Store tracking", a: "The store's carrier number for the parcel to our hub (UPS, USPS, FedEx, TBA…). Staff only, unless share was ticked." },
   { id: "log-in", q: "Log in (a parcel)", a: "Record that a parcel has arrived, with its weight. Not the same as signing in to the app." },
   { id: "reweigh", q: "Re-weigh", a: "Correct a parcel's recorded weight. The customer's timeline shows it as a re-weigh." },
   { id: "hub-photo", q: "Hub photo", a: "A picture you took of the actual parcel. Marked with a green dot on thumbnails." },
@@ -897,7 +966,7 @@ export const GLOSSARY: Searchable[] = [
   { id: "handling", q: "Handling marks", a: "Fragile, This way up and Keep dry. Printed along the bottom of the label." },
   { id: "print-count", q: "Label print count", a: "How many times a package's label has been printed. Shown as “Label printed ×N”." },
   { id: "described", q: "Described item", a: "A line added by hand in Add items, not linked to an order. On the label, but no one is notified." },
-  { id: "waybill", q: "Waybill", a: "The carrier's tracking number for the box. Customers see it once it ships." },
+  { id: "waybill", q: "Air waybill", a: "The Delta Cargo number for a flight's cargo: 006 then 8 digits. Staff only; customers track by the TM number." },
   { id: "freight-box", q: "Freight box", a: "The weekly flight a customer's items are booked on, with its departure date." },
   { id: "air-sea", q: "Air / Sea", a: "The freight service for a package. Printed large at the top right of the label." },
   { id: "issue", q: "Issue", a: "A customer's reply to a photo saying something is wrong. Worked on the Issues screen." },

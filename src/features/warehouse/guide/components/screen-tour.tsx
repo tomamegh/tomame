@@ -124,17 +124,23 @@ function ScreenSketch({ screen }: { screen: ScreenInfo }) {
         </div>
         {screen.id === "overview" ? (
           <div className="flex flex-col gap-3 p-4">
-            <div className="grid grid-cols-3 gap-1 rounded-[12px] border border-tm-border bg-card p-1">
-              {[["Expected", 3], ["At hub", 2], ["Boxes", 1]].map(([label, n], i) => (
-                <span
-                  key={label}
-                  className={cn(
-                    "flex items-center justify-center gap-1 rounded-[9px] py-1.5 text-[10px] font-semibold",
-                    i === 1 ? "bg-tm-ink text-white" : "text-tm-text-2",
-                  )}
-                >
-                  {label} <span className="tm-nums opacity-70">{n}</span>
-                </span>
+            <div className="grid grid-cols-[2fr_3fr_4fr] gap-1.5">
+              {[
+                ["Buy", [["Not bought", 2], ["No tracking", 0]], "bg-[#fff4ef] border-[#f6d8cd]"],
+                ["US hub", [["On its way", 1], ["At the hub", 2], ["Boxed", 1]], "bg-[#f3f7fd] border-[#dde7f6]"],
+                ["To the customer", [["In flight", 3], ["In Accra", 0], ["Out", 1], ["Done", 4]], "bg-[#f1f9f4] border-[#d6ebdd]"],
+              ].map(([leg, stages, cls]) => (
+                <div key={leg as string} className={cn("flex flex-col gap-1 rounded-[10px] border p-1", cls as string)}>
+                  <span className="px-1 text-[7.5px] font-bold tracking-[0.1em] text-tm-text-3 uppercase">{leg as string}</span>
+                  <span className="flex gap-0.5">
+                    {(stages as Array<[string, number]>).map(([label, n]) => (
+                      <span key={label} className={cn("flex min-w-0 flex-1 flex-col rounded-[7px] px-1 py-1", label === "At the hub" ? "bg-tm-ink text-white" : "text-tm-text-2")}>
+                        <span className="tm-nums font-display text-[12px] leading-none font-bold">{n}</span>
+                        <span className="truncate text-[7.5px] font-semibold">{label}</span>
+                      </span>
+                    ))}
+                  </span>
+                </div>
               ))}
             </div>
             <div className="overflow-hidden rounded-[12px] border border-tm-border bg-card">
@@ -149,8 +155,8 @@ function ScreenSketch({ screen }: { screen: ScreenInfo }) {
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className={cn(bar, "h-2 w-3/4 bg-tm-ink/70")} />
                     <span className="flex gap-1">
-                      <span className="rounded-full bg-tm-paper px-1.5 py-0.5 text-[8.5px] font-semibold text-tm-text-2">Order: Purchased</span>
-                      <span className="text-[8.5px] font-semibold text-tm-green-ink">At our US hub</span>
+                      <span className="rounded-full bg-[#eef4fd] px-1.5 py-0.5 text-[8.5px] font-semibold text-[#2f6fd0]">At the hub</span>
+                      <span className="text-[8.5px] font-semibold text-tm-text-2">Arrived today · 1.2 lb</span>
                     </span>
                   </div>
                 </div>

@@ -80,7 +80,7 @@ export function PracticeBench() {
             Start over
           </button>
           <p className="col-span-3 text-[13.5px] font-medium text-tm-text-2" aria-live="polite">
-            {complete ? "All six done. That is a whole day's flow." : next ? <><b className="text-tm-ink">Next:</b> {next.hint}</> : null}
+            {complete ? "All six done. That is a whole day at the hub." : next ? <><b className="text-tm-ink">Next:</b> {next.hint}</> : null}
           </p>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-tm-hairline" aria-hidden>
@@ -248,9 +248,9 @@ function Shelf({ state, dispatch }: { state: SimState; dispatch: Dispatch }) {
 }
 
 const STAGE_LABEL: Record<SimParcel["stage"], { text: string; cls: string }> = {
-  expected: { text: "Expected", cls: "bg-tm-paper text-tm-text-2" },
-  shelf: { text: "At hub", cls: "bg-tm-amber-bg text-[#7a4a06]" },
-  packed: { text: "Packed", cls: "bg-tm-pill-bg text-tm-coral-strong" },
+  expected: { text: "On its way to hub", cls: "bg-tm-paper text-tm-text-2" },
+  shelf: { text: "At the hub", cls: "bg-tm-amber-bg text-[#7a4a06]" },
+  packed: { text: "Boxed", cls: "bg-tm-pill-bg text-tm-coral-strong" },
   shipped: { text: "Shipped", cls: "bg-tm-green-bg text-tm-green-ink" },
 };
 
@@ -557,7 +557,7 @@ function Bench({ state, dispatch }: { state: SimState; dispatch: Dispatch }) {
             >
               <div className="flex flex-col gap-3 rounded-[16px] border border-tm-border bg-card p-3.5">
                 <p className="text-[13px] leading-[1.5] font-medium text-tm-text-2">
-                  <b className="text-tm-ink">Ship {pkg.reference}?</b> On the real bench, {pkg.items.length} order{pkg.items.length === 1 ? "" : "s"} move to “in transit” and each
+                  <b className="text-tm-ink">Ship {pkg.reference}?</b> On the real bench, {pkg.items.length} order{pkg.items.length === 1 ? "" : "s"} move to “In flight” and each
                   customer gets their shipping update. That cannot be undone. Here it is safe.
                 </p>
                 {pkg.printCount === 0 ? (
