@@ -108,6 +108,91 @@ export async function verifyTransaction(
   );
 }
 
+// ── Mobile Money charge (Seamless Roadmap, Initiative 1) ────────────────────
+
+/** Paystack's Ghana MoMo provider codes, as `/charge` takes them. */
+export type MomoProvider = "mtn" | "vod" | "atl";
+
+export interface ChargeMobileMoneyParams {
+  email: string;
+  /** Amount in pesewas (GHS × 100) */
+  amount: number;
+  reference: string;
+  /** Local Ghana form, `0XXXXXXXXX`. */
+  phone: string;
+  provider: MomoProvider;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * What a charge call answered. `status` is Paystack's charge vocabulary:
+ * `success`, `failed`, `pay_offline` (the prompt is on the phone), `send_otp`
+ * (the network wants a code first), `pending` / `ongoing` / `processing`, and
+ * card-only steps (`send_pin`, `send_birthday`, …) a MoMo charge never asks for.
+ */
+export interface ChargeResult {
+  status: string;
+  reference: string;
+  /** Paystack's sentence for the customer (`display_text`), when it gave one. */
+  displayText: string | null;
+  /** Why it failed, when it did (`data.message` / `message`). */
+  message: string | null;
+}
+
+/**
+ * `/charge` and `/charge/submit_otp` answer a DECLINE with HTTP 400 and a body
+ * that still carries `data.status = "failed"` and Paystack's reason. That body
+ * is the answer, not an outage, so it is returned rather than thrown. Only a
+ * body with no charge in it (5xx, a validation error) throws.
+ */
+async function chargeFetch(path: string, body: Record<string, unknown>, reference: string): Promise<ChargeResult> {
+  const res = await fetch(`${PAYSTACK_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.paystack.secretKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const parsed = (await res.json().catch(() => null)) as {
+    message?: string;
+    data?: { status?: string; reference?: string; display_text?: string; message?: string | null };
+  } | null;
+  const status = parsed?.data?.status;
+  if (!status) {
+    logger.error("Paystack charge error", { path, status: res.status, message: parsed?.message ?? null });
+    throw new Error(`Paystack API error: ${res.status}`);
+  }
+  return {
+    status,
+    reference: parsed?.data?.reference ?? reference,
+    displayText: parsed?.data?.display_text ?? null,
+    message: parsed?.data?.message ?? (res.ok ? null : parsed?.message ?? null),
+  };
+}
+
+/** Send a Mobile Money prompt straight to the customer's phone. */
+export async function chargeMobileMoney(params: ChargeMobileMoneyParams): Promise<ChargeResult> {
+  return chargeFetch(
+    "/charge",
+    {
+      email: params.email,
+      amount: params.amount,
+      currency: "GHS",
+      reference: params.reference,
+      mobile_money: { phone: params.phone, provider: params.provider },
+      ...(params.metadata ? { metadata: params.metadata } : {}),
+    },
+    params.reference,
+  );
+}
+
+/** Answer a `send_otp` step with the code the network texted the customer. */
+export async function submitChargeOtp(reference: string, otp: string): Promise<ChargeResult> {
+  return chargeFetch("/charge/submit_otp", { otp, reference }, reference);
+}
+
 /**
  * Generate a unique payment reference: TOM_<timestamp>_<random>
  */

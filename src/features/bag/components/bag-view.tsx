@@ -8,9 +8,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import type { DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { DeliveryAddress } from "@/features/addresses/types";
-import { hasContactDetails, phoneLooksIncomplete, type ContactDetails } from "@/features/account/contact-details";
-import { isContactPhone } from "@/features/addresses/phone";
+import type { ContactDetails } from "@/features/account/contact-details";
 import type { PaymentChannel } from "@/features/payments/types";
+import type { MomoPrefill } from "@/features/payments/momo";
+import { MomoPromptDialog } from "@/features/payments/components/momo-prompt-dialog";
+import { PaymentHandoffOverlay } from "@/features/payments/components/payment-handoff-overlay";
 import { useCreateWatch } from "@/features/watches/hooks/useWatches";
 import { ApiFetchError } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
@@ -19,6 +21,7 @@ import { useBagPayment } from "../hooks/useBagPayment";
 import type { BagLine, BagView as BagViewData, PendingGroupSummary } from "../types";
 import { BagBoxCard } from "./bag-box-card";
 import { BagContactCard } from "./bag-contact-card";
+import { bagPayGate } from "./bag-pay-gate";
 import { BagDeliverToCard } from "./bag-deliver-to-card";
 import { BagEmpty } from "./bag-empty";
 import { SiteBanner } from "@/features/banners/components/site-banner";
@@ -29,7 +32,7 @@ import { BagPasteLinkBar, BagPayBar } from "./bag-pay-bar";
 import { BagPendingGroupCard } from "./bag-pending-group-card";
 import { BagLineRow } from "./bag-line-row";
 import { BagSummaryCard } from "./bag-summary-card";
-import { formatLockCountdown, payBlockReason } from "./format";
+import { formatLockCountdown } from "./format";
 
 export interface BagViewProps {
   initialBag: BagViewData;
@@ -52,6 +55,8 @@ export interface BagViewProps {
   pendingGroup: PendingGroupSummary | null;
   /** Server render time, ISO — the countdown is struck from it on both sides so hydration agrees. */
   renderedAt: string;
+  /** The remembered MoMo number, else the account phone; null when signed out. */
+  momoPrefill?: MomoPrefill | null;
 }
 
 /**
@@ -70,11 +75,11 @@ export interface BagViewProps {
  * whole bag is refetched, because a quantity change moves the box fill, the
  * saving and the total together — nothing here does arithmetic.
  */
-export function BagView({ initialBag, zones, addresses, paymentChannels, paymentHoldNote, isSignedIn, pickupEnabled, contact: initialContact, banners, pendingGroup, renderedAt }: BagViewProps) {
+export function BagView({ initialBag, zones, addresses, paymentChannels, paymentHoldNote, isSignedIn, pickupEnabled, contact: initialContact, banners, pendingGroup, renderedAt, momoPrefill = null }: BagViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: bag } = useBag(initialBag);
-  const payment = useBagPayment({ isSignedIn, channels: paymentChannels });
+  const payment = useBagPayment({ isSignedIn, channels: paymentChannels, momoPrefill });
   const updateLine = useUpdateBagLine();
   const removeLine = useRemoveBagLine();
   const createWatch = useCreateWatch();
@@ -125,23 +130,29 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   // unanswered line has no price — but it is named here anyway: the day a buyer
   // answers one and the re-price lands in the same read, the two stop agreeing,
   // and the pay button must follow the request's state rather than the price's.
-  const hasContact = !!(contact && hasContactDetails(contact));
-  // Fix 5: an incomplete number (on the profile or the chosen address) is flagged before Pay.
-  const phoneIncomplete = !!(contact && phoneLooksIncomplete(contact));
-  const chosenAddress = bag.delivery?.address_id ? addresses.find((a) => a.id === bag.delivery?.address_id) : undefined;
-  const addressPhoneIncomplete = !!chosenAddress && !isContactPhone(chosenAddress.phone);
-  const blocked =
-    bag.lines.length === 0 ||
-    bag.has_unpriced_lines ||
-    bag.has_sourcing_lines ||
-    // A held line (price or stock being confirmed, or unavailable) cannot be
-    // paid for; checkout would refuse it with a 409 (pay-gate.ts).
-    bag.has_pay_holds === true ||
-    (isSignedIn && !bag.delivery) ||
-    (isSignedIn && !hasContact) ||
-    (isSignedIn && addressPhoneIncomplete);
-  // Said beside the button, so a waiting Pay is never a mystery.
-  const blockedReason = blocked ? payBlockReason(bag, { isSignedIn, hasContact, phoneIncomplete, addressPhoneIncomplete }) : null;
+  // Said beside the button, so a waiting Pay is never a mystery. Shared with the quote's checkout panel.
+  const { blocked, reason: blockedReason } = bagPayGate({ bag, isSignedIn, contact, addresses, momoReady: payment.momoReady });
+  // One dialog for the bag and the unpaid group: whichever Pay sent the prompt.
+  // After checkout the bag reads empty, so the amount comes from the group it created.
+  const payingGhs = payment.lastGroup?.total_ghs ?? (bag.lines.length > 0 ? bag.total_ghs : (pendingGroup?.total_ghs ?? null));
+  // The handoff overlay covers Pay → Paystack; the prompt dialog follows it for MoMo.
+  const momoDialog = (
+    <>
+      <PaymentHandoffOverlay kind={payment.handoff} totalGhs={payingGhs} />
+      <MomoPromptDialog
+        momo={payment.momo}
+        totalGhs={payingGhs}
+        phone={payment.momoPhone}
+        networkLabel={payment.channelLabel}
+        slow={payment.momoSlow}
+        otpBusy={payment.otpBusy}
+        onCheck={payment.checkMomo}
+        onSubmitOtp={payment.submitMomoOtp}
+        onDismiss={payment.dismissMomo}
+        onSwitchToCard={payment.switchToCard}
+      />
+    </>
+  );
 
   const linesById = useMemo(() => new Map(bag.lines.map((l) => [l.id, l])), [bag.lines]);
   const unboxed = bag.unboxed_line_ids.map((id) => linesById.get(id)).filter((l): l is BagLine => !!l);
@@ -238,15 +249,19 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
               totalGhs={pendingGroup.total_ghs}
               verb="finish"
               busy={payment.busy}
-              disabled={false}
+              disabled={!payment.momoReady}
               onPay={() => payment.payGroup(pendingGroup.id)}
               countdown={null}
+              busyLabel={payment.busyLabel}
             />
+            {momoDialog}
           </>
         ) : (
           <>
             <BagEmpty />
             <BagPasteLinkBar />
+            {/* Checkout empties the bag before the prompt answers, so the dialog must survive that. */}
+            {momoDialog}
           </>
         )}
       </div>
@@ -365,7 +380,9 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
         onPay={payment.payBag}
         countdown={formatLockCountdown(bag.rate_locked_until, now)}
         reason={blockedReason}
+        busyLabel={payment.busyLabel}
       />
+      {momoDialog}
 
       {/*
         Mounted once for the whole bag rather than per line: only one line can be

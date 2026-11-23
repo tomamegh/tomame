@@ -6,6 +6,7 @@ import { formatGhs } from "@/features/marketing/format";
 import type { PaymentChannel } from "@/features/payments/types";
 import type { BagPayment } from "../hooks/useBagPayment";
 import type { PendingGroupSummary } from "../types";
+import { BagMomoField } from "./bag-momo-field";
 
 export interface BagPendingGroupCardProps {
   group: PendingGroupSummary;
@@ -33,7 +34,7 @@ export function BagPendingGroupCard({ group, paymentChannels, payment }: BagPend
         <div className="flex flex-col gap-1">
           <h2 className="font-display text-lg leading-none font-bold">Finish paying for your bag</h2>
           <p className="text-[13px] leading-[1.5] text-tm-text-2">
-            {n} item{n === 1 ? "" : "s"} are waiting on payment. Nothing has been charged yet.
+            {n} item{n === 1 ? " is" : "s are"} waiting on payment. Nothing has been charged yet.
           </p>
         </div>
       </div>
@@ -63,14 +64,16 @@ export function BagPendingGroupCard({ group, paymentChannels, payment }: BagPend
         </div>
       )}
 
+      <BagMomoField payment={payment} />
+
       {/* Below `lg` this button is `BagPayBar`, pinned to the bottom edge. */}
       <button
         type="button"
         onClick={() => payment.payGroup(group.id)}
-        disabled={busy}
+        disabled={busy || !payment.momoReady}
         className="tm-cta-gradient hidden h-[54px] items-center justify-center gap-2 rounded-[14px] text-base leading-none font-bold text-white shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] disabled:opacity-60 lg:flex"
       >
-        {busy ? "Redirecting to Paystack…" : `Pay ${formatGhs(group.total_ghs)}`}
+        {busy ? payment.busyLabel : `Pay ${formatGhs(group.total_ghs)}`}
         <ArrowRight weight="bold" className="size-4" aria-hidden />
       </button>
     </section>

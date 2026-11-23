@@ -36,6 +36,8 @@ interface OrderEmailData {
    * passes none and the card carries the customs line alone.
    */
   pricing?: PricingBreakdownData;
+  /** 123: the window promised at payment, for the payment confirmation. */
+  promise?: { from: string; to: string };
 }
 
 export interface PricingBreakdownData {
@@ -146,6 +148,25 @@ function trackLine(reference: string | undefined): string {
   );
 }
 
+/** "Fri 28 Nov" for a bare `YYYY-MM-DD` (Ghana is UTC all year). */
+function emailDay(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+/** "Fri 28 Nov – Sun 30 Nov", or one day when the window is a single day. */
+export function promiseWindowText(promise: { from: string; to: string }): string {
+  return promise.from === promise.to ? emailDay(promise.from) : `${emailDay(promise.from)} – ${emailDay(promise.to)}`;
+}
+
+/** The first-stage promise on the payment confirmation: the window now, the firm date with the store's tracking. */
+function promiseCallout(promise: { from: string; to: string } | undefined): string {
+  if (!promise) return "";
+  return callout(
+    `<strong>Estimated delivery: ${escapeHtml(promiseWindowText(promise))}</strong><br />That is our usual window from today. As soon as the store ships it, we send you a firm date with the flight it is booked on.`,
+    "green",
+  );
+}
+
 export function orderPaidTemplate(data: OrderEmailData) {
   return renderEmail("Payment confirmed: your Tomame order is being prepared", {
     preheader: `We have your payment for ${data.productName}. Our buyers are on it.`,
@@ -154,6 +175,7 @@ export function orderPaidTemplate(data: OrderEmailData) {
       ${heading("You're all paid up")}
       ${paragraph(`Thank you. Your payment for <strong>${escapeHtml(data.productName)}</strong> is in, and your order is in the queue for our buyers.`)}
       ${steps(JOURNEY, 0)}
+      ${promiseCallout(data.promise)}
       ${orderCard(data, data.pricing ? breakdownRows(data.pricing) : [CUSTOMS_ROW], data.pricing ? ["Total paid", ghs(data.pricing.totalGhs)] : undefined)}
       ${paragraph("Next, we buy it from the store. We will write at every step, so there is nothing you need to do.")}
       ${button(orderUrl(data.orderId), "Track your order")}

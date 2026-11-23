@@ -21,6 +21,8 @@ import {
   verifyTransaction,
   generatePaymentReference,
   verifyWebhookSignature,
+  chargeMobileMoney,
+  submitChargeOtp,
 } from "@/lib/paystack/client";
 import { paymentCallbackSchema } from "@/features/payments/schema";
 
@@ -174,5 +176,55 @@ describe("verifyTransaction", () => {
   it("throws when Paystack is unavailable, so the caller can retry", async () => {
     fetchMock.mockResolvedValue(errorResponse(503));
     await expect(verifyTransaction("TOM_1_ab")).rejects.toThrow(/503/);
+  });
+});
+
+// ── Mobile Money charge (Seamless Roadmap, Initiative 1) ────────────────────
+
+describe("chargeMobileMoney", () => {
+  function jsonResponse(status: number, body: unknown) {
+    return { ok: status < 400, status, json: async () => body } as unknown as Response;
+  }
+
+  it("posts the MoMo charge in GHS with the phone and provider", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { status: true, data: { status: "pay_offline", reference: "TOM_1_ab", display_text: "Approve on your phone" } }),
+    );
+    const result = await chargeMobileMoney({ email: "a@b.com", amount: 80299, reference: "TOM_1_ab", phone: "0551234987", provider: "mtn" });
+
+    const req = onlyRequest();
+    expect(req.url).toBe("https://api.paystack.co/charge");
+    expect(JSON.parse(req.body!)).toEqual({
+      email: "a@b.com",
+      amount: 80299,
+      currency: "GHS",
+      reference: "TOM_1_ab",
+      mobile_money: { phone: "0551234987", provider: "mtn" },
+    });
+    expect(result).toEqual({ status: "pay_offline", reference: "TOM_1_ab", displayText: "Approve on your phone", message: null });
+  });
+
+  it("returns a decline (HTTP 400 with a failed charge) instead of throwing", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(400, { status: false, message: "Charge attempted", data: { status: "failed", reference: "TOM_1_ab", message: "Declined" } }),
+    );
+    const result = await chargeMobileMoney({ email: "a@b.com", amount: 100, reference: "TOM_1_ab", phone: "0241234567", provider: "mtn" });
+    expect(result.status).toBe("failed");
+    expect(result.message).toBe("Declined");
+  });
+
+  it("throws when the answer carries no charge at all (validation error, outage)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(400, { status: false, message: "Please pass provider" }));
+    await expect(
+      chargeMobileMoney({ email: "a@b.com", amount: 100, reference: "TOM_1_ab", phone: "0241234567", provider: "mtn" }),
+    ).rejects.toThrow("Paystack API error: 400");
+  });
+
+  it("submits a network OTP against the same reference", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { status: true, data: { status: "pay_offline", reference: "TOM_1_ab" } }));
+    await submitChargeOtp("TOM_1_ab", "123456");
+    const req = onlyRequest();
+    expect(req.url).toBe("https://api.paystack.co/charge/submit_otp");
+    expect(JSON.parse(req.body!)).toEqual({ otp: "123456", reference: "TOM_1_ab" });
   });
 });

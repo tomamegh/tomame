@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { WHATSAPP_OPT_IN_LABEL } from "@/config/tracking-copy";
 import type { BagPayment } from "../hooks/useBagPayment";
 import type { BagView } from "../types";
+import { BagMomoField } from "./bag-momo-field";
 import { buildBagSummaryRows, formatLockCountdown } from "./format";
 
 export interface BagSummaryCardProps {
@@ -25,6 +26,8 @@ export interface BagSummaryCardProps {
   blocked: boolean;
   /** Why `blocked`, in one sentence (`payBlockReason`). */
   blockedReason?: string | null;
+  /** Show the pay button at every width (the quote's checkout panel has no bottom bar). */
+  payAlways?: boolean;
 }
 
 /**
@@ -38,7 +41,7 @@ export interface BagSummaryCardProps {
  * checkout builds the order group, initialize opens the Paystack transaction —
  * and the browser only ever carries ids between them.
  */
-export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, payment, blocked, blockedReason = null }: BagSummaryCardProps) {
+export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, payment, blocked, blockedReason = null, payAlways = false }: BagSummaryCardProps) {
   const rows = buildBagSummaryRows(view);
   const countdown = formatLockCountdown(view.rate_locked_until, now);
   const { channelId, setChannelId, busy, payBag } = payment;
@@ -136,6 +139,8 @@ export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, pa
         </div>
       )}
 
+      <BagMomoField payment={payment} />
+
       {/* The checkout tick (104). Shared with the 390px bar through `payment`. */}
       <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-[1.4] font-medium text-tm-text-2">
         <input
@@ -154,12 +159,13 @@ export function BagSummaryCard({ view, now, paymentChannels, paymentHoldNote, pa
         disabled={blocked || busy}
         aria-busy={busy}
         className={cn(
-          "tm-cta-gradient hidden h-[54px] items-center justify-center gap-2 rounded-[14px] text-base leading-none font-bold text-white lg:flex",
+          "tm-cta-gradient h-[54px] items-center justify-center gap-2 rounded-[14px] text-base leading-none font-bold text-white",
+          payAlways ? "flex" : "hidden lg:flex",
           "shadow-[0_10px_24px_-10px_rgba(244,63,94,.5)] transition-[filter] hover:brightness-105 disabled:cursor-not-allowed",
         )}
       >
         {busy ? (
-          "Redirecting to Paystack…"
+          payment.busyLabel
         ) : (
           <>
             Pay {formatGhs(view.total_ghs)}

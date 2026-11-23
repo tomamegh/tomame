@@ -12,7 +12,7 @@ import { hashUrl, regionForUrl } from "@/features/extraction/url";
 import { hasRequiredFields } from "@/features/extraction/resolvers/merge";
 import { isSchemaMissingError } from "@/lib/supabase/errors";
 import { extractionPricer, extractionUnderLock, priceLowerOf, resolveLockForOrder } from "@/features/quotes/services/quote-lock.service";
-import { QuoteConstantsMissingError } from "@/features/quotes/services/quote-constants.service";
+import { loadPriceHoldCap, QuoteConstantsMissingError } from "@/features/quotes/services/quote-constants.service";
 import type { Viewer } from "@/features/quotes/types";
 import { withProductDefaults, type ExtractionResult } from "@/features/extraction/types";
 import type { PricingBreakdown } from "@/lib/pricing";
@@ -230,6 +230,8 @@ export async function buildOrderIntake(
           live: liveUnderLock,
           priceAt: extractionPricer(calculator, underLock, input.quantity, overrides),
           onLiveWins: { ratchet: true, actorId: viewer.userId },
+          // The held price the bag showed is the price the order is struck at (121).
+          holdCapGhs: await loadPriceHoldCap().catch(() => 0),
         });
         rateLockId = lock.id;
       }

@@ -10,6 +10,7 @@ import { getBag } from "@/features/bag/services/bag.service";
 import { getLiveBanners } from "@/features/banners/services/banners.service";
 import { isPickupEnabled } from "@/features/bag/services/delivery-settings.service";
 import { getBagPaymentSettings } from "@/features/payments/services/payment-channels.service";
+import { getMomoPrefill } from "@/features/payments/services/momo.service";
 import { readQuoteSessionFromCookies } from "@/lib/quote-session";
 
 export const metadata: Metadata = {
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
  */
 export default async function BagPage() {
   const userPromise = getAuthenticatedUser();
-  const [user, cookieStore, zones, payment, addresses, pendingGroup, pickupEnabled, banners] = await Promise.all([
+  const [user, cookieStore, zones, payment, addresses, pendingGroup, pickupEnabled, banners, momoPrefill] = await Promise.all([
     userPromise,
     cookies(),
     listActiveDeliveryZones(),
@@ -41,6 +42,8 @@ export default async function BagPage() {
     userPromise.then((u) => (u ? findLatestPendingGroupForUser(u.id) : null)),
     isPickupEnabled(),
     getLiveBanners("checkout"),
+    // The MoMo number Pay pre-fills: the remembered one, else the account phone.
+    userPromise.then((u) => (u ? getMomoPrefill(u.id, u.profile.phone ?? null) : null)),
   ]);
   const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
   const bag = await getBag(viewer);
@@ -58,6 +61,7 @@ export default async function BagPage() {
       contact={user ? { first_name: user.profile.first_name, last_name: user.profile.last_name, phone: user.profile.phone } : null}
       pendingGroup={pendingGroup ? { id: pendingGroup.id, item_count: pendingGroup.item_count, total_ghs: pendingGroup.total_ghs } : null}
       renderedAt={new Date().toISOString()}
+      momoPrefill={momoPrefill}
     />
   );
 }

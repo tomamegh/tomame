@@ -11,11 +11,15 @@ import { buyAgainHref, useJourneyPayment } from "../hooks/useJourneyPayment";
 import type { JourneyFilterKey, JourneysViewModel } from "../types";
 import { JourneyCard } from "./journey-card";
 import { JourneyStopRail } from "./journey-stop-rail";
+import { PaidBagCard } from "./paid-bag-card";
+import type { PaidBagConfirmation } from "../services/journeys.service";
 
 export interface JourneysViewProps {
   data: JourneysViewModel;
   /** `?payment=success|failed|error` from a Paystack return, read on the server. */
   paymentOutcome: string | null;
+  /** The bag just paid for, when `?payment=success&group=` names one of the viewer's paid bags. */
+  paidBag?: PaidBagConfirmation | null;
 }
 
 /**
@@ -34,7 +38,7 @@ export interface JourneysViewProps {
  * Delays are the mock's literals: header `tmUp .5s`, rail `.08s`, cards from
  * `.12s` stepping `.06s`.
  */
-export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
+export function JourneysView({ data, paymentOutcome, paidBag = null }: JourneysViewProps) {
   const router = useRouter();
   const payment = useJourneyPayment();
 
@@ -74,6 +78,8 @@ export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
     const timer = setTimeout(() => {
       if (announced.current) return;
       announced.current = true;
+      // A paid bag gets its own card at the top, with the delivery estimate.
+      if (paymentOutcome === "success" && paidBag) return;
       if (paymentOutcome === "success") {
         toast.success({ title: "Payment received. We are on it." });
       } else if (paymentOutcome === "failed") {
@@ -86,7 +92,7 @@ export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
       }
     }, 0);
     return () => clearTimeout(timer);
-  }, [paymentOutcome]);
+  }, [paymentOutcome, paidBag]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -156,6 +162,8 @@ export function JourneysView({ data, paymentOutcome }: JourneysViewProps) {
           })}
         </div>
       </header>
+
+      {paidBag && <PaidBagCard valueGhs={paidBag.valueGhs} numItems={paidBag.numItems} promiseText={paidBag.promiseText} />}
 
       {searching && (
         <input

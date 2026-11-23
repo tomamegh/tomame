@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "@phosphor-icons/react/ssr";
 
@@ -16,6 +16,7 @@ import { storeForUrl } from "@/features/extraction/stores";
 import { priceContextOf, priceContextParts } from "@/features/extraction/price-context";
 import { SimilarProductsRail } from "@/features/catalog/components/similar-products-rail";
 import { useAddToBag } from "@/features/bag/hooks/useAddToBag";
+import { QuoteCheckoutSheet } from "@/features/bag/components/quote-checkout-sheet";
 import { useRequestSourcing } from "@/features/sourcing/hooks/useRequestSourcing";
 import {
   SourcingContactDialog,
@@ -32,7 +33,7 @@ import { AssuranceCards } from "./assurance-cards";
 import { BuyerNoteCard, ProductColourCard, ProductFacts } from "./product-facts";
 import { QuoteActionBar } from "./quote-action-bar";
 import { QuoteBreadcrumb } from "./quote-breadcrumb";
-import { canContinueToPayment, formatStorePillLabel, needsSourcing } from "./format";
+import { canContinueToPayment, formatStorePillLabel, needsSourcing, stockNote } from "./format";
 import { QuoteGallery, QuoteThumbRail } from "./quote-gallery";
 import { QuoteGapFillers } from "./quote-gap-fillers";
 import { QuoteMobileHeader } from "./quote-mobile-header";
@@ -81,6 +82,8 @@ export interface QuoteViewProps {
    * public paste screen instead; a signed-in customer goes Home.
    */
   isAuthenticated: boolean;
+  /** Open the bag's checkout on this screen after "Add to bag" (Seamless Roadmap, Initiative 1). */
+  inlineCheckout?: boolean;
 }
 
 /** The quote for this screen's quantity and chosen store shipping service. */
@@ -113,8 +116,14 @@ export function QuoteView({
   deliveryZone,
   assurances,
   isAuthenticated,
+  inlineCheckout = true,
 }: QuoteViewProps) {
+  const checkout = inlineCheckout;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // `?checkout=1` is where sign-in sends a customer who pressed Pay signed out.
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const checkoutReturn = `/app/orders/review/${extractionId}?checkout=1`;
   const backHref = quoteBackHref(isAuthenticated);
 
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -215,6 +224,17 @@ export function QuoteView({
     const next = `/app/orders/review/${extractionId}`;
     router.push(`/auth/login?next=${encodeURIComponent(next)}`);
   }, [extractionId, router]);
+
+  // Back from sign-in with `?checkout=1`: the line is already in the (adopted)
+  // bag, so open the checkout once the quote has landed. Once only.
+  const wantsCheckout = searchParams.get("checkout") === "1";
+  const checkoutResumed = useRef(false);
+  const quoteLoaded = quote != null;
+  useEffect(() => {
+    if (!wantsCheckout || !checkout || !quoteLoaded || checkoutResumed.current) return;
+    checkoutResumed.current = true;
+    setCheckoutOpen(true);
+  }, [wantsCheckout, checkout, quoteLoaded]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -326,12 +346,18 @@ export function QuoteView({
       {
         onSuccess: (result) => {
           setAddedCount(result.item_count);
+          // The nav badge is server-rendered; refresh the layout so it reads the new count.
+          router.refresh();
+          // Quote, bag and Pay on one screen: the checkout opens right here, and
+          // it says what is in the bag, so no toast lands on top of its title.
+          if (checkout) {
+            setCheckoutOpen(true);
+            return;
+          }
           toast.success({
             title: result.created ? "Added to your bag" : "Quantity updated in your bag",
             description: "Items bought the same week travel together in one box.",
           });
-          // The nav badge is server-rendered; refresh the layout so it reads the new count.
-          router.refresh();
         },
         onError: (error) => {
           toast.error({
@@ -345,7 +371,7 @@ export function QuoteView({
     // below the early returns, so they cannot be listed themselves). Without
     // it a customer who typed a missing price and pressed Add sent the value
     // from an earlier render: the line went into the bag unpriced.
-  }, [addToBag, instructions, quantity, quote, router, gapPriceUsd, gapCountry, shippingCode]);
+  }, [addToBag, instructions, quantity, quote, router, gapPriceUsd, gapCountry, shippingCode, checkout]);
 
   /**
    * "Ask us to source this" — the CTA an unpriceable item gets instead of a
@@ -568,11 +594,13 @@ export function QuoteView({
             freightCheckSeenAt={checkingFreight ? (freightCheckSeenAt ?? receivedAt.getTime()) : null}
             payHold={payHold}
             stockCheck={quote.stock_check ?? null}
+            stockNote={stockNote({ availability: quote.product.availability, fetchedAt: quote.fetched_at, now: receivedAt, stockCheckStatus: quote.stock_check?.status ?? null })}
             extractionId={quote.extraction_cache_id ?? null}
             priceNotes={priceContextParts(priceContextOf(quote), store?.name ?? null)}
             storeName={store?.name ?? null}
             currencySymbol={currencySymbol}
             onContinue={addLineToBag}
+            onPayNow={checkout ? () => setCheckoutOpen(true) : undefined}
             canContinue={canContinue && !!quote.extraction_cache_id}
             continuePending={addingToBag}
             addedCount={addedCount}
@@ -632,6 +660,7 @@ export function QuoteView({
         holdNote={holdNote}
         totalGhs={quote.pricing && quote.pricing.pricing_method !== "needs_review" ? quote.pricing.total_ghs : null}
         onContinue={addLineToBag}
+        onPayNow={checkout ? () => setCheckoutOpen(true) : undefined}
         needsSourcing={sourcingNeeded}
         onAskToSource={askToSource}
         sourcePending={requestingSourcing}
@@ -639,6 +668,10 @@ export function QuoteView({
         watchPending={watchPending}
         onToggleWatch={toggleWatch}
       />
+
+      {checkout && (
+        <QuoteCheckoutSheet open={checkoutOpen} onOpenChange={setCheckoutOpen} returnTo={checkoutReturn} />
+      )}
 
       {contactMounted && (
         <SourcingContactDialog

@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { loginSchema, type LoginSchemaType } from "@/features/auth/schema";
+import { emailCodeRequestSchema, loginSchema, type LoginSchemaType } from "@/features/auth/schema";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useLogin } from "../hooks";
@@ -15,26 +15,50 @@ import {
   FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/form";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import ResetSuccess from "./reset-success";
 import SocialAuthButtons from "./social-auth-button";
-import { postAuthDestination } from "@/lib/auth/post-auth-destination";
+import EmailCodeStep from "./email-code-step";
+import { useRequestEmailCode } from "../hooks";
+import { postAuthDestination, safeInternalPath } from "@/lib/auth/post-auth-destination";
 import { canAccessAdmin, isDriver, isWarehouseOnly } from "@/lib/auth/admin-access";
 import { createClient } from "@/lib/supabase/client";
 
+/**
+ * Sign in. The emailed code is the main way in (Seamless Roadmap, Initiative 1):
+ * the same code signs in an existing account or creates a new one, so a
+ * first-time customer sent here from Pay never has to invent a password. The
+ * password is one tap away for anyone who has one.
+ */
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { mutateAsync, error, isPending } = useLogin();
+  const requestCode = useRequestEmailCode();
   const rawNext = searchParams.get("next");
+  const [mode, setMode] = useState<"code" | "password">("code");
+  const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
 
-  const { control, handleSubmit } = useForm<LoginSchemaType>({
+  const { control, handleSubmit, getValues, setError, clearErrors } = useForm<LoginSchemaType>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
       password: "",
     },
   });
+
+  const onSendCode = async () => {
+    const parsed = emailCodeRequestSchema.safeParse({ email: getValues("email") });
+    if (!parsed.success) {
+      setError("email", { message: parsed.error.issues[0]?.message ?? "Invalid email address" });
+      return;
+    }
+    clearErrors("email");
+    // A refusal is shown from the mutation's `error`.
+    if (await requestCode.mutateAsync(parsed.data.email).then(() => true, () => false)) {
+      setCodeSentTo(parsed.data.email);
+    }
+  };
 
   const onSubmit = async (data: LoginSchemaType) => {
     // A wrong password rejects; the form shows it from the mutation's `error`.
@@ -74,26 +98,56 @@ export default function LoginForm() {
     router.refresh();
   };
 
+  if (codeSentTo) {
+    const next = safeInternalPath(rawNext);
+    return (
+      <EmailCodeStep
+        email={codeSentTo}
+        // `/auth/finish` is where Google's button lands too: the new-sign-up
+        // alert, then the account's home or the safe `next`. A full navigation,
+        // so the server-rendered shell comes back signed in.
+        finishUrl={next ? `/auth/finish?next=${encodeURIComponent(next)}` : "/auth/finish"}
+        onChangeEmail={() => {
+          requestCode.reset();
+          setCodeSentTo(null);
+        }}
+      />
+    );
+  }
+
+  const shownError = mode === "code" ? requestCode.error : error;
+
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="tm-title-1 text-foreground">Welcome back</h1>
-        <p className="mt-2 text-muted-foreground">Sign in to see your quotes, bag and orders.</p>
+        <h1 className="tm-title-1 text-foreground">Sign in</h1>
+        <p className="mt-2 text-muted-foreground">
+          {mode === "code"
+            ? "We'll email you a code. New to Tomame? The same code creates your account."
+            : "Sign in to see your quotes, bag and orders."}
+        </p>
       </div>
 
-      <form id="signin-form">
+      <form
+        id="signin-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (mode === "code") void onSendCode();
+          else void handleSubmit(onSubmit)();
+        }}
+      >
         <Suspense>
           <ResetSuccess />
         </Suspense>
-        {error && (
+        {shownError && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm mb-4">
-            {error.message}
+            {shownError.message}
           </div>
         )}
         <FieldGroup>
           <SocialAuthButtons />
           <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
-            Or continue with
+            Or continue with email
           </FieldSeparator>
           <Controller
             name="email"
@@ -113,7 +167,8 @@ export default function LoginForm() {
                     id="signin-form-email"
                     aria-invalid={fieldState.invalid}
                     placeholder="you@domain.com"
-                    autoComplete="off"
+                    autoComplete="email"
+                    inputMode="email"
                     className="soft-input"
                   />
                   {fieldState.invalid && (
@@ -123,57 +178,77 @@ export default function LoginForm() {
               );
             }}
           />
-          <Controller
-            name="password"
-            control={control}
-            render={({ field, fieldState }) => {
-              return (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel
-                    htmlFor="signin-form-password"
-                    className="text-sm font-medium text-stone-700"
-                  >
-                    Password
-                  </FieldLabel>
-                  <Input
-                    {...field}
-                    id="signin-form-password"
-                    aria-invalid={fieldState.invalid}
-                    autoComplete="off"
-                    type="password"
-                    placeholder="••••••••"
-                    className="soft-input"
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              );
-            }}
-          />
+          {mode === "password" && (
+            <Controller
+              name="password"
+              control={control}
+              render={({ field, fieldState }) => {
+                return (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel
+                      htmlFor="signin-form-password"
+                      className="text-sm font-medium text-stone-700"
+                    >
+                      Password
+                    </FieldLabel>
+                    <Input
+                      {...field}
+                      id="signin-form-password"
+                      aria-invalid={fieldState.invalid}
+                      autoComplete="current-password"
+                      type="password"
+                      placeholder="••••••••"
+                      className="soft-input"
+                      autoFocus
+                    />
+                    {fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                );
+              }}
+            />
+          )}
         </FieldGroup>
 
-        <div className="flex justify-end items-center mt-2 mb-5 w-fit ml-auto">
-          <Link
-            href="/auth/forgot-password"
-            className="text-xs text-rose-500 hover:text-amber-600 transition-colors"
-          >
-            Forgot password?
-          </Link>
-        </div>
+        {mode === "password" ? (
+          <div className="flex justify-end items-center mt-2 mb-5 w-fit ml-auto">
+            <Link
+              href="/auth/forgot-password"
+              className="text-xs text-rose-500 hover:text-amber-600 transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
+        ) : (
+          <div className="mb-5" />
+        )}
 
-        <Button
-          variant="primary"
-          size="lg"
+        {mode === "code" ? (
+          <Button variant="primary" size="lg" type="submit" className="w-full" disabled={requestCode.isPending}>
+            {requestCode.isPending ? "Sending code…" : "Email me a code"}
+          </Button>
+        ) : (
+          <Button variant="primary" size="lg" type="submit" className="w-full" disabled={isPending}>
+            {isPending ? "Signing In..." : "Sign In"}
+          </Button>
+        )}
+
+        <button
           type="button"
-          className="w-full"
-          disabled={isPending}
-          onClick={handleSubmit(onSubmit)}
+          className="mt-4 block w-full text-center text-sm font-medium text-stone-500 hover:text-foreground transition-colors"
+          onClick={() => {
+            requestCode.reset();
+            clearErrors();
+            setMode(mode === "code" ? "password" : "code");
+          }}
         >
-          {isPending ? "Signing In..." : "Sign In"}
-        </Button>
+          {mode === "code" ? "Sign in with a password instead" : "Email me a code instead"}
+        </button>
       </form>
 
+      {/* The code creates accounts, so the separate sign-up only matters to password users. */}
+      {mode === "password" && (
       <p className="text-center text-sm text-stone-400">
         Don&apos;t have an account?{" "}
         <Link
@@ -186,6 +261,7 @@ export default function LoginForm() {
           Create one free
         </Link>
       </p>
+      )}
     </div>
   );
 }

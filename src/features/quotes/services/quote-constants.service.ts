@@ -1,5 +1,6 @@
 import "server-only";
 import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
+import { logger } from "@/lib/logger";
 import type { QuoteConstants } from "../types";
 
 const KEYS = ["rate_lock_hours", "purchase_lead_days_min", "purchase_lead_days_max"] as const;
@@ -25,6 +26,19 @@ export class QuoteConstantsMissingError extends Error {
  * "Rate locked 24h" promise on the Home screen must be the same number the lock
  * is minted with, and a silent fallback would let the two drift.
  */
+/**
+ * `price_hold_cap_ghs` (121): the most a quoted total may rise inside the lock
+ * window and still be charged as quoted. Read apart from the required keys on
+ * purpose: a missing row turns the hold off (0) with a warning rather than
+ * stopping every quote, since the hold is a promise on top of a working price.
+ */
+export async function loadPriceHoldCap(): Promise<number> {
+  const value = (await getPricingConstantsMap())["price_hold_cap_ghs"];
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value;
+  logger.warn("price_hold_cap_ghs missing from pricing_constants; price hold off");
+  return 0;
+}
+
 export async function loadQuoteConstants(): Promise<QuoteConstants> {
   const map = await getPricingConstantsMap();
   const read = (key: (typeof KEYS)[number]): number | null => {

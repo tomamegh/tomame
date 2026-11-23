@@ -18,6 +18,8 @@ export interface BagPayBarProps {
   countdown: string | null;
   /** Why the button is waiting (`payBlockReason`); replaces the countdown line while it does. */
   reason?: string | null;
+  /** What the button says while `busy` ("Sending the prompt…" for MoMo). */
+  busyLabel?: string;
 }
 
 const BUTTON = cn(
@@ -53,6 +55,7 @@ export function BagPayBar({
   onPay,
   countdown,
   reason = null,
+  busyLabel = "Redirecting to Paystack…",
 }: BagPayBarProps) {
   const waiting = disabled && !!reason;
   return (
@@ -77,7 +80,7 @@ export function BagPayBar({
           className={BUTTON}
         >
           {busy ? (
-            "Redirecting to Paystack…"
+            busyLabel
           ) : (
             <>
               {verb === "finish" ? "Finish paying" : "Pay"}{" "}

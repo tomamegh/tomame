@@ -25,7 +25,7 @@ vi.mock("@/db/queries/quote-locks", () => ({
 vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn() }));
 vi.mock("@/features/quotes/services/quote-constants.service", () => {
   class QuoteConstantsMissingError extends Error {}
-  return { QuoteConstantsMissingError, loadQuoteConstants: vi.fn() };
+  return { QuoteConstantsMissingError, loadQuoteConstants: vi.fn(), loadPriceHoldCap: vi.fn(async () => 50) };
 });
 vi.mock("@/features/quotes/services/delivery-eta.service", () => ({ loadDeliveryWindow: vi.fn(async () => null) }));
 vi.mock("@/lib/supabase/errors", () => ({
@@ -72,7 +72,7 @@ function lock(overrides: Partial<QuoteLockRow> = {}): QuoteLockRow {
   return {
     id: "lock-1", user_id: "user-1", session_id: null, extraction_cache_id: CACHE_ID, quantity: 1,
     exchange_rate: 14.49, mid_market_rate: 13.93, fx_rates: { USD: 13.93, GBP: 18.5 }, pricing: breakdown(),
-    locked_at: "2026-09-12T10:00:00Z", expires_at: "2026-09-13T10:00:00Z", consumed_by_order_id: null, consumed_at: null,
+    held_unit_ghs: null, locked_at: "2026-09-12T10:00:00Z", expires_at: "2026-09-13T10:00:00Z", consumed_by_order_id: null, consumed_at: null,
     created_at: "2026-09-12T10:00:00Z", ...overrides,
   };
 }

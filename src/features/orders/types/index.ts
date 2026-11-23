@@ -52,6 +52,10 @@ export interface Order {
   /** 050: the delivery WINDOW the customer is shown. Null until an operator sets one. */
   eta_from?: string | null;
   eta_to?: string | null;
+  /** 123: the window promised at payment (paid day + the region's usual transit). Written once. */
+  promised_from?: string | null;
+  promised_to?: string | null;
+  promised_at?: string | null;
   /**
    * 054: an admin has stopped this order advancing. NOT a status — the parcel is
    * still wherever `status` says it is; this decides whether it may move.

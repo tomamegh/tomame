@@ -176,7 +176,7 @@ export function safeImageSrc(url: string | null): string | null {
 
 // ── Receipt ──────────────────────────────────────────────────────────────────
 
-export type ReceiptRowIcon = "item" | "tax" | "fee" | "shipping" | "freight" | "handling" | "customs" | "rate";
+export type ReceiptRowIcon = "item" | "tax" | "fee" | "shipping" | "freight" | "handling" | "customs" | "hold" | "rate";
 
 export interface ReceiptRow {
   key: ReceiptRowIcon;
@@ -210,6 +210,28 @@ export const RECEIPT_ROW_DELAYS = [
  * A row is omitted rather than guessed when its figure is not a finite number,
  * so a partial breakdown renders a shorter honest receipt instead of "$NaN".
  */
+/**
+ * The held-price line (Seamless Roadmap, Initiative 1). Absorbed: "Price held
+ * for you  − GH₵41.00", so the rows still add up to the quoted total. Over the
+ * cap: the rise is named before Pay, never charged silently.
+ */
+export function priceHoldRow(pricing: PricingBreakdown): ReceiptRow | null {
+  const absorbed = pricing.price_hold_ghs ?? 0;
+  if (absorbed > 0) {
+    return { key: "hold", icon: "hold", label: "Price held for you", value: `− ${formatGhs(absorbed)}` };
+  }
+  const held = pricing.held_total_ghs;
+  if (held != null && pricing.total_ghs > held) {
+    return {
+      key: "hold",
+      icon: "hold",
+      label: `Price rose since your quote (was ${formatGhs(held)})`,
+      value: `+ ${formatGhs(Math.round((pricing.total_ghs - held) * 100) / 100)}`,
+    };
+  }
+  return null;
+}
+
 export function buildReceiptRows(pricing: PricingBreakdown): ReceiptRow[] {
   const rows: ReceiptRow[] = [];
 
@@ -269,6 +291,10 @@ export function buildReceiptRows(pricing: PricingBreakdown): ReceiptRow[] {
   }
   // Display only, on every breakdown: customs sits inside the freight above.
   rows.push({ key: "customs", icon: "customs", label: CUSTOMS_ROW_LABEL, value: CUSTOMS_ROW_VALUE });
+
+  // The held price (121): the rise we absorbed, or, over the cap, what was quoted.
+  const hold = priceHoldRow(pricing);
+  if (hold) rows.push(hold);
 
   // Always USD: `exchange_rate` is the buffered USD→GHS rate the total is
   // struck at, whatever currency the store listed the item in.

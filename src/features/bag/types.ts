@@ -184,6 +184,10 @@ export interface BagView {
   freight_ghs: number;
   /** Fix 7: the part of `freight_ghs` that is the handling fee ($3 per weight-priced line), shown as its own row. */
   handling_ghs?: number;
+  /** 121: Σ the rises Tomame absorbed to hold quoted prices, already off `total_ghs`. */
+  price_hold_ghs?: number;
+  /** 121: Σ the rises over the cap since the quote, already inside `total_ghs` — said before Pay. */
+  price_rose_ghs?: number;
   /** Σ chargeable weight over the boxes, for "1 box, 5.4 lb". */
   boxed_weight_lbs: number;
   total_ghs: number;

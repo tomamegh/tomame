@@ -4,12 +4,14 @@ import Link from "next/link";
 import {
   ArrowRight,
   BookmarkSimple,
+  CheckCircle,
   HandWaving,
   Minus,
   Plus,
   Tag,
   Tote,
   Truck,
+  Warning,
 } from "@phosphor-icons/react/ssr";
 
 import { PriceBreakdownList, PriceBreakdownSheet, type PriceBreakdownRow } from "@/components/price/price-breakdown";
@@ -28,7 +30,7 @@ import { PayHoldNotice } from "@/features/quote-checks/components/pay-hold-notic
 import { ReportPriceLink } from "@/features/quote-checks/components/report-price-dialog";
 import type { PricingBreakdown } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
-import { formatDoorDeliveryLabel, formatEtaRange, formatRateLockDeadline } from "./format";
+import { formatDoorDeliveryLabel, formatEtaRange, formatRateLockDeadline, type AvailabilityNotice } from "./format";
 import { FreightCheckNotice } from "./freight-check-notice";
 
 export interface QuoteReceiptCardProps {
@@ -58,6 +60,8 @@ export interface QuoteReceiptCardProps {
   payHold?: PayHold | null;
   /** The stock check, when the item needs one (A7). */
   stockCheck?: StockCheckView | null;
+  /** "In stock at the store · checked 2 min ago" (`stockNote`); information only, never holds Pay. */
+  stockNote?: AvailabilityNotice | null;
   /** The quote's extraction id, for the stock check and "Report a wrong price". */
   extractionId?: string | null;
   /** Why the store price is what it is, as facts (price-context.ts): a store discount, our earlier read. */
@@ -69,6 +73,8 @@ export interface QuoteReceiptCardProps {
   onContinue: () => void;
   /** Bag count once THIS screen added the line; the CTA then hands off to the bag. */
   addedCount: number | null;
+  /** Opens the checkout panel on this screen; without it the handoff is a link to /app/bag. */
+  onPayNow?: () => void;
   /** False when a gap is unfilled or the last re-price failed. */
   canContinue: boolean;
   /** Nobody has confirmed we can buy this (065): the CTA asks a person instead. */
@@ -104,12 +110,14 @@ export function QuoteReceiptCard({
   freightCheckSeenAt = null,
   payHold = null,
   stockCheck = null,
+  stockNote = null,
   priceNotes = [],
   storeName = null,
   extractionId = null,
   currencySymbol = "$",
   onContinue,
   addedCount,
+  onPayNow,
   canContinue,
   needsSourcing = false,
   onAskToSource,
@@ -166,6 +174,23 @@ export function QuoteReceiptCard({
             <p className="tm-body text-muted-foreground">{unavailableReason ?? "We couldn't read a price for this link yet."}</p>
           )}
         </div>
+      )}
+
+      {stockNote && (
+        <p
+          data-testid="stock-note"
+          className={cn(
+            "flex items-center gap-1.5 text-[13px] leading-none font-semibold",
+            stockNote.tone === "success" ? "text-tm-green-ink dark:text-tm-green" : "text-tm-amber",
+          )}
+        >
+          {stockNote.tone === "success" ? (
+            <CheckCircle weight="fill" className="size-4 shrink-0" aria-hidden />
+          ) : (
+            <Warning weight="fill" className="size-4 shrink-0" aria-hidden />
+          )}
+          {stockNote.label}
+        </p>
       )}
 
       {total && pricing && priceNotes.length > 0 && (
@@ -232,13 +257,21 @@ export function QuoteReceiptCard({
         <div className="hidden flex-col gap-2 lg:flex">
           {addedCount != null ? (
             <>
-              <Button asChild variant="primary" size="lg" className="w-full">
-                <Link href="/app/bag">
+              {onPayNow ? (
+                <Button variant="primary" size="lg" className="w-full" onClick={onPayNow}>
                   <Tote weight="bold" className="size-[18px]" aria-hidden />
-                  View bag · {addedCount}
+                  Pay now · {addedCount} item{addedCount === 1 ? "" : "s"}
                   <ArrowRight weight="bold" className="size-4" aria-hidden />
-                </Link>
-              </Button>
+                </Button>
+              ) : (
+                <Button asChild variant="primary" size="lg" className="w-full">
+                  <Link href="/app/bag">
+                    <Tote weight="bold" className="size-[18px]" aria-hidden />
+                    View bag · {addedCount}
+                    <ArrowRight weight="bold" className="size-4" aria-hidden />
+                  </Link>
+                </Button>
+              )}
               <Button asChild variant="outline" size="touch" className="w-full">
                 <Link href="/app/orders/new">
                   <Plus weight="bold" className="size-4" aria-hidden />
