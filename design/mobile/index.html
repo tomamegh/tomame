@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Tomame iOS Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <aside class="panel panel-left">
+    <div class="panel-brand"><img src="assets/logo-mark.webp" alt="" /><div><b>Tomame for iPhone</b><span>Design prototype · 390 × 844</span></div></div>
+    <p class="panel-note">Clickable. Tap through it like the app. Every screen is also a link.</p>
+    <nav id="screenList" class="screen-list"></nav>
+  </aside>
+
+  <main class="stage">
+    <div class="device" id="device">
+      <div class="statusbar" id="statusbar">
+        <span class="sb-time">9:41</span>
+        <span class="island" id="island"><span class="island-pill"><i class="ph-fill ph-vibrate"></i><span id="islandText">Haptic</span></span></span>
+        <span class="sb-icons"><i class="ph-fill ph-cell-signal-high"></i><i class="ph-bold ph-wifi-high"></i><span class="batt"><span></span></span></span>
+      </div>
+      <div class="views" id="views"></div>
+      <nav class="tabbar" id="tabbar"></nav>
+      <div class="sheet-layer" id="sheetLayer"></div>
+      <div class="toast-layer" id="toastLayer"></div>
+      <div class="banner-layer" id="bannerLayer"></div>
+      <div class="ripples" id="ripples"></div>
+      <div class="home-indicator"></div>
+    </div>
+  </main>
+
+  <aside class="panel panel-right">
+    <h3>Haptics</h3>
+    <p class="panel-note">Each one fires through Capacitor Haptics on the phone. Here the Dynamic Island shows which.</p>
+    <ul class="legend">
+      <li><span class="hdot light"></span><b>Light impact</b> taps, tabs, copy, chips</li>
+      <li><span class="hdot select"></span><b>Selection</b> steppers, options, swipe threshold, carousel</li>
+      <li><span class="hdot medium"></span><b>Medium impact</b> add to bag, remove, pull-to-refresh</li>
+      <li><span class="hdot heavy"></span><b>Heavy impact</b> slide-to-pay lands</li>
+      <li><span class="hdot success"></span><b>Success</b> paid, stage change, price drop</li>
+      <li><span class="hdot warning"></span><b>Warning</b> rate lock ending, box closing</li>
+    </ul>
+    <label class="switch-row"><input type="checkbox" id="pinsToggle" /> Show haptic pins on screen</label>
+    <h3>Simulate</h3>
+    <div class="sim">
+      <button data-sim="stage"><i class="ph ph-airplane-tilt"></i> Next tracking stage</button>
+      <button data-sim="drop"><i class="ph ph-trend-down"></i> Price-drop push</button>
+      <button data-sim="box"><i class="ph ph-package"></i> Box-closing push</button>
+    </div>
+    <h3>Log</h3>
+    <ol id="hlog" class="hlog"></ol>
+  </aside>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
