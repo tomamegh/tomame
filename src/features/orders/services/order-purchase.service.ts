@@ -12,6 +12,7 @@ import { getOrderById, updateOrderStatusAdmin } from "./orders.service";
 import { recordStorePaidPrice } from "@/db/queries/order-store-price";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
+import { firmPlansFor, recordFirmDates } from "@/features/journeys/services/firm-dates.service";
 
 /**
  * "Mark as purchased": the admin has bought the item from the store.
@@ -100,6 +101,12 @@ export async function markOrderPurchased(user: PlatformUser, orderId: string, in
       ],
     }),
   });
+
+  // The purchased email gives the firm door date once tracking is in (Fix 6); keep a record of it.
+  if (parcels.length > 0) {
+    const plans = await firmPlansFor([{ id: orderId, status: "processing" }]).catch(() => null);
+    if (plans) await recordFirmDates(plans, "store_tracking");
+  }
 
   // Recorded after the move, so a refused transition leaves no price behind.
   if (input.store_paid_price != null && input.store_paid_price > 0) {

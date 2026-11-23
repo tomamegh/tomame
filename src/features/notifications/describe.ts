@@ -22,6 +22,8 @@ const join = (...parts: Array<string | null | false | undefined>): string | null
   const kept = parts.filter((p): p is string => !!p);
   return kept.length ? kept.join(" · ") : null;
 };
+const dayLabel = (iso: string): string =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** Same-origin paths only: a JSON field must never send someone off the site. */
@@ -84,9 +86,17 @@ export function describeNotification(event: string, payload: Record<string, unkn
     case "store_tracking_added":
       return {
         title: many ? `The store has shipped ${count} of your orders` : `The store has shipped${orderNo ? ` ${orderNo}` : " your order"}`,
-        detail: "It is on its way to our US hub",
+        detail: str(p.delivery_on) ? `At your door by ${dayLabel(str(p.delivery_on)!)}` : "It is on its way to our US hub",
         href,
       };
+    case "delivery_date_changed": {
+      const on = str(p.delivery_on);
+      return {
+        title: many ? `New delivery date for ${count} of your orders` : `New delivery date${orderNo ? `: ${orderNo}` : ""}`,
+        detail: on ? `${many ? "Their" : "Its"} flight ${p.change === "cancelled" ? "was cancelled" : "moved"}. Now by ${dayLabel(on)}` : null,
+        href,
+      };
+    }
     case "courier_dispatched":
       return { title: p.is_update === true ? "Your rider's details changed" : "A rider has your package", detail: orderNo, href };
     case "paste_priced":

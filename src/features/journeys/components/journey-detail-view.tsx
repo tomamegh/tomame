@@ -95,9 +95,12 @@ export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyD
         floor a zero lower bound, so wide children scroll or wrap instead of
         widening the card. `main` has overflow-x-clip, which HIDES this class of
         bug rather than fixing it, so it must be fixed here.
+        The same holds at `lg`: a bare `1fr` beside the 380px side column let the
+        stage rail and a long title widen the left column past the page, and the
+        side card was clipped at the right edge (TM-00038, 2026-11-23).
       */}
-      <div className="grid items-start gap-6 grid-cols-[minmax(0,1fr)] lg:grid-cols-[1fr_380px]">
-        <div className="flex flex-col gap-5">
+      <div className="grid items-start gap-6 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="flex min-w-0 flex-col gap-5">
           <section className="tm-up flex flex-col gap-[22px] overflow-hidden rounded-[24px] border border-tm-border bg-card px-[22px] py-[26px] [animation-duration:0.5s] lg:px-7">
             {/*
               `basis-60` is the wrap trigger: the badge drops to its own line

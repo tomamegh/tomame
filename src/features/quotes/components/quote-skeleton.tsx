@@ -21,7 +21,7 @@ export function QuoteSkeleton() {
       {/* The 36px header row at 390px; the breadcrumb from `lg` up. */}
       <div className={cn(BLOCK, "h-9 w-full animate-pulse lg:h-8 lg:max-w-[560px]")} />
 
-      <div className="grid items-start gap-3.5 lg:gap-x-[22px] lg:gap-y-5 lg:grid-cols-[72px_1fr_420px]">
+      <div className="grid items-start gap-3.5 lg:gap-x-[22px] lg:gap-y-5 lg:grid-cols-[72px_minmax(0,1fr)_420px]">
         <div className="hidden flex-col gap-2 lg:flex">
           {[0, 1, 2, 3].map((index) => (
             <div

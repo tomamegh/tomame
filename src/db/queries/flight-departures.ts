@@ -87,3 +87,23 @@ export async function setDepartureAwbIfEmpty(id: string, awb: string): Promise<v
   const { error } = await createAdminClient().from("flight_departures").update({ awb, updated_at: new Date().toISOString() }).eq("id", id).is("awb", null);
   if (error) throw new Error(`Failed to record the air waybill: ${error.message}`);
 }
+
+export async function getDepartureById(id: string): Promise<FlightDepartureRow | null> {
+  const { data, error } = await createAdminClient().from("flight_departures").select(COLUMNS).eq("id", id).maybeSingle();
+  if (error) throw new Error(`Failed to load the departure: ${error.message}`);
+  return (data as FlightDepartureRow | null) ?? null;
+}
+
+/** 124: move a departure; returns the departure it now is (a new row when the day changed). Raises `day_taken`, `departure_not_movable`. */
+export async function moveDeparture(id: string, departsAt: string, cutoffAt: string): Promise<string> {
+  const { data, error } = await createAdminClient().rpc("move_flight_departure", { p_id: id, p_departs_at: departsAt, p_cutoff_at: cutoffAt });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+/** 124: cancel a departure; its boxes and packages go to the region's next one, whose id is returned (null when none). */
+export async function cancelDeparture(id: string): Promise<string | null> {
+  const { data, error } = await createAdminClient().rpc("cancel_flight_departure", { p_id: id });
+  if (error) throw new Error(error.message);
+  return (data as string | null) ?? null;
+}

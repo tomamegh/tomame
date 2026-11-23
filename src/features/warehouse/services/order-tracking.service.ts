@@ -1,6 +1,8 @@
 import "server-only";
 
 import { listInboundLinks } from "@/db/queries/inbound-parcels";
+import { planDay } from "@/features/journeys/delivery-plan";
+import { firmPlansFor, recordFirmDates, type FirmPlan } from "@/features/journeys/services/firm-dates.service";
 import { notifyCustomer } from "@/features/notifications/services/customer-notify.service";
 import type { PlatformUser } from "@/features/users/types";
 import { shipmentUpdateTemplate } from "@/lib/email/templates/shipment-update";
@@ -96,10 +98,13 @@ export async function addOrdersStoreTracking(user: PlatformUser, input: AddTrack
     if (!before.has(item.order_id) && item.order_status === "processing" && !item.received) firstTime.push({ item, parcels });
   }
 
+  // Seamless Roadmap, Initiative 2: the firm door date rides on this message, never a second one.
+  const plans = await firmPlansFor(firstTime.map((r) => ({ id: r.item.order_id, status: r.item.order_status }))).catch(() => new Map<string, FirmPlan>());
   for (const group of byCustomer(firstTime)) {
-    await tellCustomer(group, input.share_store_tracking === true, link, now);
+    await tellCustomer(group, input.share_store_tracking === true, link, plans, now);
     result.notified += 1;
   }
+  await recordFirmDates(plans, "store_tracking");
   return result;
 }
 
@@ -109,10 +114,25 @@ function byCustomer(rows: Array<{ item: WarehouseItem; parcels: InboundParcel[] 
   return [...out.values()];
 }
 
-async function tellCustomer(rows: Array<{ item: WarehouseItem; parcels: InboundParcel[] }>, share: boolean, link: string | null, now: Date): Promise<void> {
+async function tellCustomer(
+  rows: Array<{ item: WarehouseItem; parcels: InboundParcel[] }>,
+  share: boolean,
+  link: string | null,
+  plans: ReadonlyMap<string, FirmPlan>,
+  now: Date,
+): Promise<void> {
   const first = rows[0]!.item;
   const what = rows.length === 1 ? `order ${first.order_no}` : `${rows.length} of your orders`;
-  const description = "The store has shipped it to our US hub. We'll tell you when it arrives.";
+  // The latest door date across the orders, on the flight that gives it.
+  const plan = rows
+    .map((r) => plans.get(r.item.order_id))
+    .filter((p): p is FirmPlan => !!p)
+    .sort((a, b) => a.deliveryOn.localeCompare(b.deliveryOn))
+    .at(-1);
+  const by = plan ? planDay(plan.deliveryOn) : null;
+  const description = plan
+    ? `The store has shipped it to our US hub. It is booked on ${plan.flight.carrier} ${plan.flight.origin} → Accra, ${planDay(plan.flight.departsOn)}, so it should be at your door by ${by}.`
+    : "The store has shipped it to our US hub. We'll tell you when it arrives.";
   const shared = share
     ? [
         ...new Map(rows.flatMap((r) => r.parcels).map((p) => [p.id, `${p.carrier_label} ${p.tracking_display}`])).values(),
@@ -125,7 +145,8 @@ async function tellCustomer(rows: Array<{ item: WarehouseItem; parcels: InboundP
     stageTitle: "Shipped by the store",
     description,
     message,
-    expectedOn: null,
+    expectedOn: by,
+    expectedLabel: "At your door by",
     items: rows.map((r) => ({ orderNo: r.item.order_no, productName: r.item.title })),
     contact: null,
     journeyUrl: `${env.app.url}/app/orders/${first.order_id}`,
@@ -139,6 +160,7 @@ async function tellCustomer(rows: Array<{ item: WarehouseItem; parcels: InboundP
       order_count: rows.length,
       stage_title: "Shipped by the store",
       message: description,
+      delivery_on: plan?.deliveryOn ?? null,
       href: `/app/orders/${first.order_id}`,
     },
     template,
@@ -147,7 +169,7 @@ async function tellCustomer(rows: Array<{ item: WarehouseItem; parcels: InboundP
       message: whatsappMessages.shipmentUpdate({
         orderId: first.order_id,
         what,
-        update: `Shipped by the store to our US hub${shared ? ` (${shared})` : ""}`,
+        update: `Shipped by the store to our US hub${shared ? ` (${shared})` : ""}${by ? `. At your door by ${by}` : ""}`,
       }),
       dedupeKey: `${STORE_TRACKING_EVENT}:${rows.map((r) => r.item.order_id).sort().join(",")}`,
     },
