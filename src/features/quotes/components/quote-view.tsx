@@ -346,14 +346,18 @@ export function QuoteView({
       {
         onSuccess: (result) => {
           setAddedCount(result.item_count);
+          // The nav badge is server-rendered; refresh the layout so it reads the new count.
+          router.refresh();
+          // Quote, bag and Pay on one screen: the checkout opens right here, and
+          // it says what is in the bag, so no toast lands on top of its title.
+          if (checkout) {
+            setCheckoutOpen(true);
+            return;
+          }
           toast.success({
             title: result.created ? "Added to your bag" : "Quantity updated in your bag",
             description: "Items bought the same week travel together in one box.",
           });
-          // The nav badge is server-rendered; refresh the layout so it reads the new count.
-          router.refresh();
-          // Quote, bag and Pay on one screen: the checkout opens right here.
-          if (checkout) setCheckoutOpen(true);
         },
         onError: (error) => {
           toast.error({
