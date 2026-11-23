@@ -28,6 +28,14 @@
     "StatusBar": {
       "style": "LIGHT",
       "overlaysWebView": true
+    },
+    "LocalNotifications": {
+      "presentationOptions": [
+        "banner",
+        "list",
+        "sound"
+      ],
+      "iconColor": "#F25B3D"
     }
   }
 }

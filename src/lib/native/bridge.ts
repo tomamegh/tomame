@@ -139,3 +139,58 @@ export function onAppResume(fn: () => void): () => void {
   }
   return () => void remove?.().catch(() => {});
 }
+
+/* ── Local notifications (reminders the phone schedules itself) ─────────────────────── */
+
+export interface PhoneNotification {
+  id: number;
+  title: string;
+  body: string;
+  schedule?: { at: Date; allowWhileIdle?: boolean };
+  extra?: Record<string, string>;
+}
+interface LocalNotificationsPlugin {
+  checkPermissions(): Promise<{ display: string }>;
+  requestPermissions(): Promise<{ display: string }>;
+  schedule(o: { notifications: PhoneNotification[] }): Promise<unknown>;
+  getPending(): Promise<{ notifications: { id: number; extra?: Record<string, string> }[] }>;
+  cancel(o: { notifications: { id: number }[] }): Promise<void>;
+  addListener(
+    ev: "localNotificationActionPerformed",
+    fn: (e: { notification: { extra?: Record<string, string> } }) => void,
+  ): Promise<{ remove: () => Promise<void> }> | { remove: () => Promise<void> };
+}
+
+export const localNotifications = (): LocalNotificationsPlugin | undefined => plugin<LocalNotificationsPlugin>("LocalNotifications");
+
+/** Asks once; answers whether the phone will show Tomame's notifications. */
+export async function ensureNotificationPermission(): Promise<boolean> {
+  const ln = localNotifications();
+  if (!ln) return false;
+  try {
+    const now = await ln.checkPermissions();
+    if (now.display === "granted") return true;
+    if (now.display === "denied") return false;
+    return (await ln.requestPermissions()).display === "granted";
+  } catch {
+    return false;
+  }
+}
+
+/** Calls `fn` with the `href` of any Tomame notification the customer taps. */
+export function onNotificationTap(fn: (href: string) => void): () => void {
+  const ln = localNotifications();
+  if (!ln) return () => {};
+  let remove: (() => Promise<void>) | undefined;
+  try {
+    void Promise.resolve(ln.addListener("localNotificationActionPerformed", (e) => {
+      const href = e.notification.extra?.href;
+      if (href && href.startsWith("/m")) fn(href);
+    }))
+      .then((h) => (remove = h.remove))
+      .catch(() => {});
+  } catch {
+    return () => {};
+  }
+  return () => void remove?.().catch(() => {});
+}

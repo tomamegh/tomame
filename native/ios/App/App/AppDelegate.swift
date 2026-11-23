@@ -1,5 +1,8 @@
 import UIKit
 import Capacitor
+import BackgroundTasks
+import UserNotifications
+import WebKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,30 +10,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        TomameAlerts.shared.register()
+        // Scenes own the window, so the app delegate never sees "entered background" itself.
+        NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
+            TomameAlerts.shared.schedule()
+        }
         return true
-    }
-
-    func applicationWillResignActive(_ application: UIApplication) {
-        // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-        // Use this method to pause ongoing tasks, disable timers, and invalidate graphics rendering callbacks. Games should use this method to pause the game.
-    }
-
-    func applicationDidEnterBackground(_ application: UIApplication) {
-        // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
-        // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
-    }
-
-    func applicationWillEnterForeground(_ application: UIApplication) {
-        // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
-    }
-
-    func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
-    }
-
-    func applicationWillTerminate(_ application: UIApplication) {
-        // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
     }
 
     func application(_ application: UIApplication,
@@ -41,4 +26,109 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         config.delegateClass = SceneDelegate.self
         return config
     }
+}
+
+/// The background check. A free Apple ID cannot receive push, so iOS's background refresh
+/// wakes the app now and then (iOS picks when: minutes to hours apart) to ask Tomame for news
+/// since the last check (`GET /api/app/alerts?since=`) and post it as notifications. The call
+/// carries the web view's own Supabase session cookie, so it is the customer's data and no
+/// one else's; cookies the server refreshes go back into the web view's store.
+/// Tapping one opens `extra.href` through the LocalNotifications plugin (`cap_extra`).
+final class TomameAlerts {
+    static let shared = TomameAlerts()
+    static let taskId = "ca.tomame.ios.refresh"
+    private let sinceKey = "tm.alerts.since"
+
+    func register() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.taskId, using: nil) { task in
+            guard let refresh = task as? BGAppRefreshTask else { return task.setTaskCompleted(success: false) }
+            self.handle(refresh)
+        }
+    }
+
+    func schedule() {
+        let request = BGAppRefreshTaskRequest(identifier: Self.taskId)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
+
+    private func handle(_ task: BGAppRefreshTask) {
+        schedule()
+        let work = Task {
+            let ok = await check()
+            task.setTaskCompleted(success: ok)
+        }
+        task.expirationHandler = { work.cancel() }
+    }
+
+    /// One check. The first ever run only records "now", so a new install never replays history.
+    @discardableResult
+    func check() async -> Bool {
+        let defaults = UserDefaults.standard
+        guard let since = defaults.string(forKey: sinceKey) else {
+            defaults.set(ISO8601DateFormatter().string(from: Date()), forKey: sinceKey)
+            return true
+        }
+        guard let origin = Self.serverOrigin(),
+              var url = URLComponents(url: origin.appendingPathComponent("api/app/alerts"), resolvingAgainstBaseURL: false)
+        else { return false }
+        url.queryItems = [URLQueryItem(name: "since", value: since)]
+        guard let requestURL = url.url else { return false }
+
+        let store = await MainActor.run { WKWebsiteDataStore.default().httpCookieStore }
+        let cookies = await store.allCookies().filter { requestURL.host?.hasSuffix($0.domain.trimmingCharacters(in: CharacterSet(charactersIn: "."))) ?? false }
+        guard !cookies.isEmpty else { return true } // signed out: nothing to ask for
+
+        var request = URLRequest(url: requestURL, timeoutInterval: 20)
+        HTTPCookie.requestHeaderFields(with: cookies).forEach { request.setValue($1, forHTTPHeaderField: $0) }
+        request.setValue("TomameIOS background", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return false }
+            if let fields = http.allHeaderFields as? [String: String] {
+                for cookie in HTTPCookie.cookies(withResponseHeaderFields: fields, for: requestURL) {
+                    await store.setCookie(cookie)
+                }
+            }
+            guard http.statusCode == 200 else { return http.statusCode == 401 }
+            let body = try JSONDecoder().decode(AlertsResponse.self, from: data)
+            for alert in body.data.alerts {
+                await post(alert)
+            }
+            defaults.set(body.data.now, forKey: sinceKey)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func post(_ alert: Alert) async {
+        let content = UNMutableNotificationContent()
+        content.title = alert.title
+        content.body = alert.body
+        content.sound = .default
+        content.userInfo = ["cap_extra": ["href": alert.href, "kind": "alert"]]
+        let request = UNNotificationRequest(identifier: "alert-\(alert.id)", content: content, trigger: nil)
+        try? await UNUserNotificationCenter.current().add(request)
+    }
+
+    /// The host the shell loads, from the bundled capacitor.config.json (`server.url`).
+    static func serverOrigin() -> URL? {
+        guard let file = Bundle.main.url(forResource: "capacitor.config", withExtension: "json"),
+              let data = try? Data(contentsOf: file),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let server = json["server"] as? [String: Any],
+              let raw = server["url"] as? String,
+              let url = URL(string: raw),
+              let scheme = url.scheme, let host = url.host
+        else { return nil }
+        var origin = "\(scheme)://\(host)"
+        if let port = url.port { origin += ":\(port)" }
+        return URL(string: origin)
+    }
+
+    private struct Alert: Decodable { let id: String; let title: String; let body: String; let href: String }
+    private struct AlertsPayload: Decodable { let alerts: [Alert]; let now: String }
+    private struct AlertsResponse: Decodable { let data: AlertsPayload }
 }

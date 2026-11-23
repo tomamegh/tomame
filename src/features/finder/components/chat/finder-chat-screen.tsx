@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, ChatsCircle, ClockCounterClockwise, LinkSimple, NotePencil, Sparkle, WhatsappLogo } from "@phosphor-icons/react";
+import { ArrowUp, ChatsCircle, ClockCounterClockwise, NotePencil, Sparkle, WhatsappLogo } from "@phosphor-icons/react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -288,12 +288,9 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
                 </button>
               </div>
             </div>
-            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 px-3 text-[12px] text-muted-foreground">
-              <span>Prices are landed in Accra: item, US tax, our fee and freight.</span>
-              <span className="inline-flex items-center gap-1">
-                <LinkSimple size={13} weight="bold" aria-hidden />
-                Paste links straight in, up to 10 at once.
-              </span>
+            {/* Kelvin, 2026-11-23: one line only, and it is the one that protects the customer. */}
+            <p className="mt-1.5 px-3 text-[12px] leading-snug text-muted-foreground">
+              Check the item on the store (size, colour, seller) before you buy.
             </p>
           </form>
         </section>

@@ -1,7 +1,8 @@
 "use client";
 
-import { ChatCircleText, LinkSimple } from "@phosphor-icons/react";
+import { CaretDown, ChatCircleText, LinkSimple } from "@phosphor-icons/react";
 import Link from "next/link";
+import { useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -19,9 +20,15 @@ const OUTCOME: Record<PastedLinkSummary["outcome"], { label: string; tone: "gree
   manual: { label: "Buyer pricing it", tone: "muted" },
 };
 
+/** How many of each the list shows before "See all" (Kelvin, 2026-11-23: keep it uncluttered). */
+export const HISTORY_PREVIEW_CHATS = 3;
+export const HISTORY_PREVIEW_LINKS = 2;
+
 /**
  * Everything the viewer asked us for (107), newest first: their chats, then
  * the links they pasted. Each row opens its conversation or its quote.
+ * Compressed by default to the newest few of each, with one tap to see the
+ * rest; the open chat always stays in view.
  */
 export function ChatHistoryList({
   chats,
@@ -35,6 +42,7 @@ export function ChatHistoryList({
   onPick?: () => void;
 }) {
   const routes = useAppRoutes();
+  const [expanded, setExpanded] = useState(false);
   if (chats.length === 0 && pastes.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-tm-border px-4 py-5 text-[13px] leading-relaxed text-muted-foreground">
@@ -42,11 +50,19 @@ export function ChatHistoryList({
       </p>
     );
   }
+  const hidden = Math.max(0, chats.length - HISTORY_PREVIEW_CHATS) + Math.max(0, pastes.length - HISTORY_PREVIEW_LINKS);
+  const activeIndex = chats.findIndex((c) => c.id === activeId);
+  const shownChats = expanded
+    ? chats
+    : activeIndex >= HISTORY_PREVIEW_CHATS
+      ? [...chats.slice(0, HISTORY_PREVIEW_CHATS - 1), chats[activeIndex]!]
+      : chats.slice(0, HISTORY_PREVIEW_CHATS);
+  const shownPastes = expanded ? pastes : pastes.slice(0, HISTORY_PREVIEW_LINKS);
   return (
     <nav aria-label="Your chats and links" className="min-h-0 overflow-y-auto rounded-2xl border border-tm-border bg-card p-1.5">
       {chats.length > 0 && (
         <ul className="flex flex-col gap-0.5">
-          {chats.map((c) => {
+          {shownChats.map((c) => {
             const line = chatItemsLine(c.items);
             return (
               <li key={c.id}>
@@ -76,7 +92,7 @@ export function ChatHistoryList({
             Pasted links
           </h3>
           <ul className="flex flex-col gap-0.5">
-            {pastes.map((p) => {
+            {shownPastes.map((p) => {
               const o = OUTCOME[p.outcome];
               return (
                 <li key={p.id}>
@@ -105,6 +121,17 @@ export function ChatHistoryList({
             })}
           </ul>
         </>
+      )}
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl border-t border-tm-border px-3 py-2.5 text-[13px] font-semibold text-tm-coral-strong hover:bg-muted"
+        >
+          {expanded ? "Show less" : `See all (${hidden} more)`}
+          <CaretDown size={14} weight="bold" className={cn("transition-transform", expanded && "rotate-180")} aria-hidden />
+        </button>
       )}
     </nav>
   );

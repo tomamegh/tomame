@@ -220,7 +220,7 @@ export function timeOfDayFor(now: Date): TimeOfDay {
  * the same reason — its ids came back from the RLS-scoped read above, never
  * from the request.
  */
-async function loadHomeOrders(
+export async function loadHomeOrders(
   client: Awaited<ReturnType<typeof createClient>>,
   userId: string,
 ): Promise<HomeOrder[]> {

@@ -9,6 +9,7 @@ import { BellRinging, House, Package, ShoppingBagOpen, Sparkle } from "@phosphor
 import { cn } from "@/lib/utils";
 import { haptic, onAppResume, setStatusBar } from "@/lib/native/bridge";
 import { bagKeys, fetchBag } from "@/features/bag/hooks/useAddToBag";
+import { NativeNotifications } from "./native-notifications";
 
 /** Which screens hide the tab bar or need their own page background. */
 function chromeFor(pathname: string): { tabs: boolean; className: string } {
@@ -34,6 +35,7 @@ export function MobileShell({ bagCount, children }: { bagCount: number; children
     <div className={cn("tm-m", chrome.className)}>
       {children}
       {chrome.tabs && <TabBar pathname={pathname} initialBagCount={bagCount} />}
+      {chrome.tabs && <NativeNotifications />}
     </div>
   );
 }
