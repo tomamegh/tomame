@@ -81,7 +81,8 @@ export function GoogleIdentityButton({ clientId, fallback }: { clientId: string;
         text: "continue_with",
         shape: "pill",
         logo_alignment: "center",
-        width: Math.min(400, Math.max(200, Math.round(slot.current.getBoundingClientRect().width))),
+        // Google wants a number in px (200-400). The slot can measure 0 mid-layout, so read its row, then a phone-safe default.
+        width: Math.min(400, Math.max(200, Math.round(slot.current.parentElement?.getBoundingClientRect().width || slot.current.getBoundingClientRect().width || 320))),
       });
       setState("ready");
     } catch {
