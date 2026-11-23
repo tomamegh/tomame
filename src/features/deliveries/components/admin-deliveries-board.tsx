@@ -19,6 +19,7 @@ import {
   adminStatusTone,
 } from "@/features/orders/components/admin-transitions";
 import { cn } from "@/lib/utils";
+import { missingWindow, trackingCellOf } from "../delivery-tracking";
 
 /**
  * The delivery pipeline as a table.
@@ -74,61 +75,97 @@ export function AdminDeliveriesBoard({
     );
   }
 
+  // 113 (Fix 12): every dispatched order has a delivery window, or is listed here until it does.
+  const noWindow = deliveries.filter((row) =>
+    missingWindow(row.order, orderEtaDisplay(row.order)),
+  );
+
   return (
-    <AdminCard
-      index={1}
-      flush
-      title="In the pipeline"
-      blurb={
-        truncated
-          ? `Showing the ${deliveries.length} most recent. Narrow the filter to reach older ones.`
-          : `${deliveries.length} ${deliveries.length === 1 ? "delivery" : "deliveries"}.`
-      }
-    >
-      <AdminTableScroller>
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th className={ADMIN_TH} scope="col">
-                Order
-              </th>
-              <th className={ADMIN_TH} scope="col">
-                Customer
-              </th>
-              <th className={ADMIN_TH} scope="col">
-                Stage
-              </th>
-              <th className={ADMIN_TH} scope="col">
-                Carrier &amp; tracking
-              </th>
-              <th className={ADMIN_TH} scope="col">
-                Delivery window
-              </th>
-              <th className={ADMIN_TH} scope="col">
-                Going to
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {deliveries.map((row) => (
-              <DeliveryRow key={row.order.id} row={row} />
+    <>
+      {noWindow.length > 0 ? (
+        <AdminCard
+          index={0}
+          title="Delivery window not set"
+          blurb={`${noWindow.length} in the air with no window for the customer. Set one on each order.`}
+        >
+          <ul className="flex flex-wrap gap-2">
+            {noWindow.map((row) => (
+              <li key={row.order.id}>
+                <Link
+                  href={`/admin/orders/${row.order.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-tm-amber-bg px-3 py-1.5 text-[12.5px] font-semibold text-[#7a4a06] hover:underline"
+                >
+                  <span className="tm-nums">{row.order.order_no}</span>
+                  <span className="font-medium">
+                    · {row.customer_name ?? "Customer not named"}
+                  </span>
+                </Link>
+              </li>
             ))}
-          </tbody>
-        </table>
-      </AdminTableScroller>
-    </AdminCard>
+          </ul>
+        </AdminCard>
+      ) : null}
+      <AdminCard
+        index={1}
+        flush
+        title="In the pipeline"
+        blurb={
+          truncated
+            ? `Showing the ${deliveries.length} most recent. Narrow the filter to reach older ones.`
+            : `${deliveries.length} ${deliveries.length === 1 ? "delivery" : "deliveries"}.`
+        }
+      >
+        <AdminTableScroller>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className={ADMIN_TH} scope="col">
+                  Order
+                </th>
+                <th className={ADMIN_TH} scope="col">
+                  Customer
+                </th>
+                <th className={ADMIN_TH} scope="col">
+                  Stage
+                </th>
+                <th className={ADMIN_TH} scope="col">
+                  Carrier &amp; tracking
+                </th>
+                <th className={ADMIN_TH} scope="col">
+                  Delivery window
+                </th>
+                <th className={ADMIN_TH} scope="col">
+                  Going to
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {deliveries.map((row) => (
+                <DeliveryRow key={row.order.id} row={row} />
+              ))}
+            </tbody>
+          </table>
+        </AdminTableScroller>
+      </AdminCard>
+    </>
   );
 }
 
 function DeliveryRow({ row }: { row: AdminDeliveryRow }) {
   const { order, record } = row;
   const eta = orderEtaDisplay(order);
-  const untracked = order.status === "in_transit" && !order.tracking_number;
+  const tracking = trackingCellOf(
+    { ...order, tracking_url: record?.tracking_url ?? null },
+    row.accra_leg,
+  );
 
   return (
     <tr className={ADMIN_TR}>
       <td className={ADMIN_TD}>
-        <Link href={`/admin/orders/${order.id}`} className="flex flex-col gap-0.5">
+        <Link
+          href={`/admin/orders/${order.id}`}
+          className="flex flex-col gap-0.5"
+        >
           <span className="tm-nums text-[13px] leading-none font-bold text-tm-ink">
             {order.order_no}
           </span>
@@ -153,41 +190,70 @@ function DeliveryRow({ row }: { row: AdminDeliveryRow }) {
         </div>
       </td>
       <td className={ADMIN_TD}>
-        {order.carrier || order.tracking_number ? (
+        {tracking.kind === "tracked" ? (
           <div className="flex flex-col gap-0.5">
             <span className="text-[12.5px] font-semibold text-tm-ink">
-              {order.carrier ?? "Carrier not named"}
+              {tracking.carrier}
             </span>
-            {record?.tracking_url && order.tracking_number ? (
+            {tracking.href ? (
               <a
-                href={record.tracking_url}
+                href={tracking.href}
                 target="_blank"
                 rel="noreferrer noopener"
                 className="tm-nums text-[12px] font-medium text-tm-coral-strong hover:underline"
               >
-                {order.tracking_number}
+                {tracking.number}
               </a>
             ) : (
               <span className="tm-nums text-[12px] font-medium text-tm-text-2">
-                {order.tracking_number ?? "No number"}
+                {tracking.number}
               </span>
             )}
+            {tracking.note ? (
+              <span className="text-[11px] leading-none font-medium text-tm-text-3">
+                {tracking.note}
+              </span>
+            ) : null}
+          </div>
+        ) : tracking.kind === "no_awb" ? (
+          <div className="flex max-w-[28ch] flex-col gap-0.5">
+            <AdminBadge tone="amber">No air waybill</AdminBadge>
+            <span className="text-[11.5px] leading-[1.35] font-medium text-tm-text-2">
+              {tracking.reason}
+            </span>
           </div>
         ) : (
-          <AdminBadge tone={untracked ? "amber" : "muted"}>
-            {untracked ? "Shipped with no tracking" : "Not shipped yet"}
+          <AdminBadge
+            tone={tracking.kind === "untracked_moving" ? "amber" : "muted"}
+          >
+            {tracking.kind === "untracked_moving"
+              ? "Shipped with no tracking"
+              : tracking.kind === "none_recorded"
+                ? "No tracking recorded"
+                : "Not shipped yet"}
           </AdminBadge>
         )}
       </td>
       <td className={ADMIN_TD}>
-        <span className={cn("tm-nums text-[12.5px] font-medium", eta ? "text-tm-ink" : "text-tm-text-3")}>
+        <span
+          className={cn(
+            "tm-nums text-[12.5px] font-medium",
+            eta
+              ? "text-tm-ink"
+              : missingWindow(order, eta)
+                ? "font-semibold text-tm-amber"
+                : "text-tm-text-3",
+          )}
+        >
           {eta ?? "Not set"}
         </span>
       </td>
       <td className={ADMIN_TD}>
         {row.zone_name ? (
           <div className="flex flex-col gap-0.5">
-            <span className="text-[12.5px] font-medium text-tm-ink">{row.zone_name}</span>
+            <span className="text-[12.5px] font-medium text-tm-ink">
+              {row.zone_name}
+            </span>
             <span className="text-[11px] leading-none font-medium text-tm-text-3">
               {row.zone_kind === "pickup" ? "Pickup point" : "To the door"}
             </span>
@@ -195,7 +261,9 @@ function DeliveryRow({ row }: { row: AdminDeliveryRow }) {
         ) : (
           // No zone means no checkout group — the order predates the bag, so
           // nothing recorded where it was going. Said rather than left blank.
-          <span className="text-[12px] font-medium text-tm-text-3">Not recorded</span>
+          <span className="text-[12px] font-medium text-tm-text-3">
+            Not recorded
+          </span>
         )}
       </td>
     </tr>

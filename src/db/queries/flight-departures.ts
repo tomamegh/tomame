@@ -66,3 +66,24 @@ export async function runBoxSchedule(): Promise<Record<string, number>> {
   if (error) throw new Error(`Box schedule failed: ${error.message}`);
   return (data ?? {}) as Record<string, number>;
 }
+
+/** 113: the departure a package leaving the hub today flies on: the first one dated today or later. */
+export async function findShipDeparture(regionCode: string, now: Date): Promise<FlightDepartureRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("flight_departures")
+    .select(COLUMNS)
+    .eq("region_code", regionCode)
+    .in("status", ["scheduled", "closed"])
+    .gte("departs_on", now.toISOString().slice(0, 10))
+    .order("departs_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load the departure: ${error.message}`);
+  return (data as FlightDepartureRow | null) ?? null;
+}
+
+/** 113: record the air waybill on the departure the first time a package flies on it. */
+export async function setDepartureAwbIfEmpty(id: string, awb: string): Promise<void> {
+  const { error } = await createAdminClient().from("flight_departures").update({ awb, updated_at: new Date().toISOString() }).eq("id", id).is("awb", null);
+  if (error) throw new Error(`Failed to record the air waybill: ${error.message}`);
+}

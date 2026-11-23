@@ -84,6 +84,8 @@ export const updateOrderStatusSchema = z
   .object({
     status: z.enum(["pending", "paid", "processing", "in_transit", "delivered", "completed", "cancelled"]),
     tracking_number: z.string().min(1).max(100).optional(),
+    /** 113: why it goes in transit without a Delta Cargo air waybill. */
+    no_tracking_reason: z.string().trim().min(1).max(500).optional(),
     carrier: z.string().min(1).max(100).optional(),
     /** Kept as the midpoint of the window for the deliveries table and the email. */
     estimated_delivery_date: isoDate.optional(),

@@ -54,6 +54,7 @@ import {
 } from "./format";
 import { PackageBox } from "./package-box";
 import { PackageResolvePanel } from "./package-resolve-panel";
+import { awbInputProblem, DELTA_CARGO, DELTA_CARGO_TRACK_URL, normaliseDeltaAwb } from "../inbound/tracking-number";
 import { errorText, warehouseRequest } from "./warehouse-actions";
 import { ItemLine, PackageStatusBadge } from "./warehouse-ui";
 
@@ -582,13 +583,21 @@ function PackageDetailsForm({ pkg }: { pkg: WarehousePackage }) {
       <div className="grid grid-cols-2 gap-2">
         <label className="flex min-w-0 flex-col gap-1.5">
           <span className="text-[12.5px] font-semibold text-tm-ink">Carrier</span>
-          {textInput("carrier", "e.g. DHL")}
+          {textInput("carrier", DELTA_CARGO)}
         </label>
         <label className="flex min-w-0 flex-col gap-1.5">
-          <span className="text-[12.5px] font-semibold text-tm-ink">Waybill / tracking</span>
-          {textInput("tracking_number", "Optional")}
+          <span className="text-[12.5px] font-semibold text-tm-ink">Delta air waybill</span>
+          {textInput("tracking_number", "006-12345675")}
+          {draft.tracking_number.trim() && awbInputProblem(draft.tracking_number) ? (
+            <span className="text-[11.5px] font-medium text-tm-amber">{awbInputProblem(draft.tracking_number)}</span>
+          ) : null}
         </label>
       </div>
+      {pkg.no_tracking_reason ? (
+        <p className="rounded-[12px] bg-tm-amber-bg px-3 py-2 text-[12.5px] font-medium text-[#7a4a06]">
+          Shipped without an air waybill: {pkg.no_tracking_reason}
+        </p>
+      ) : null}
 
       <div className="flex flex-col gap-1.5">
         <span className="text-[12.5px] font-semibold text-tm-ink">Handling marks on the label</span>
@@ -698,13 +707,21 @@ function ShipDialog({
   const router = useRouter();
   const [carrier, setCarrier] = useState(pkg.carrier ?? "");
   const [tracking, setTracking] = useState(pkg.tracking_number ?? "");
+  // 113 (Fix 12): the Accra leg flies Delta Cargo: an air waybill, or a reason there is none.
+  const [noAwb, setNoAwb] = useState(false);
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const orders = pkg.lines.filter((l) => l.item).length;
+  const awbProblem = !noAwb && tracking.trim() ? awbInputProblem(tracking) : null;
+  const awb = !noAwb && tracking.trim() && !awbProblem ? normaliseDeltaAwb(tracking) : null;
+  const ready = noAwb ? reason.trim().length > 0 : !!awb;
 
   useEffect(() => {
     if (open) {
       setCarrier(pkg.carrier ?? "");
       setTracking(pkg.tracking_number ?? "");
+      setNoAwb(false);
+      setReason("");
     }
   }, [open, pkg.carrier, pkg.tracking_number]);
 
@@ -713,8 +730,9 @@ function ShipDialog({
     try {
       const result = await warehouseRequest<ShipResult>(`/api/warehouse/packages/${pkg.id}/actions`, "POST", {
         action: "ship",
-        carrier: carrier.trim() || null,
-        tracking_number: tracking.trim() || null,
+        carrier: noAwb ? carrier.trim() || null : DELTA_CARGO,
+        tracking_number: noAwb ? null : tracking.trim() || null,
+        no_tracking_reason: noAwb ? reason.trim() : null,
       });
       if (result.failed.length > 0) {
         toast.error({
@@ -747,28 +765,60 @@ function ShipDialog({
               : "Marks the package as gone from the hub."}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
+        {!noAwb ? (
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-semibold text-tm-ink">Carrier</span>
-            <input
-              value={carrier}
-              onChange={(e) => setCarrier(e.target.value)}
-              maxLength={80}
-              placeholder="e.g. DHL, Ethiopian Cargo"
-              className="h-10 rounded-[12px] border border-tm-border bg-card px-3 text-[13.5px] font-medium text-tm-ink outline-none placeholder:text-tm-text-3 focus:border-tm-coral/60"
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-semibold text-tm-ink">Waybill / tracking</span>
+            <span className="text-[12.5px] font-semibold text-tm-ink">Delta Cargo air waybill</span>
             <input
               value={tracking}
               onChange={(e) => setTracking(e.target.value)}
-              maxLength={80}
-              placeholder="Internal, not shown to customers"
+              maxLength={40}
+              inputMode="numeric"
+              placeholder="006-12345675"
+              aria-invalid={awbProblem ? true : undefined}
               className="h-10 rounded-[12px] border border-tm-border bg-card px-3 font-mono text-[13.5px] font-medium text-tm-ink outline-none placeholder:font-sans placeholder:text-tm-text-3 focus:border-tm-coral/60"
             />
+            {awbProblem ? (
+              <span className="text-[12px] font-medium text-tm-amber">{awbProblem}</span>
+            ) : awb ? (
+              <span className="text-[12px] font-medium text-tm-text-2">
+                {awb} ·{" "}
+                <a href={DELTA_CARGO_TRACK_URL} target="_blank" rel="noreferrer" className="font-semibold text-tm-coral-strong underline-offset-2 hover:underline">
+                  Track on Delta Cargo
+                </a>
+              </span>
+            ) : (
+              <span className="text-[12px] font-medium text-tm-text-3">006 then 8 digits, from the waybill. Internal, not shown to customers.</span>
+            )}
           </label>
-        </div>
+        ) : (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12.5px] font-semibold text-tm-ink">Why is there no air waybill?</span>
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                maxLength={500}
+                placeholder="e.g. Hand-carried by a staff member"
+                className="h-10 rounded-[12px] border border-tm-border bg-card px-3 text-[13.5px] font-medium text-tm-ink outline-none placeholder:text-tm-text-3 focus:border-tm-coral/60"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12.5px] font-semibold text-tm-ink">Carrier (optional)</span>
+              <input
+                value={carrier}
+                onChange={(e) => setCarrier(e.target.value)}
+                maxLength={80}
+                placeholder="Who is carrying it"
+                className="h-10 rounded-[12px] border border-tm-border bg-card px-3 text-[13.5px] font-medium text-tm-ink outline-none placeholder:text-tm-text-3 focus:border-tm-coral/60"
+              />
+            </label>
+            <span className="text-[12px] font-medium text-tm-text-3">The reason is shown in admin and to the customer.</span>
+          </div>
+        )}
+        <label className="flex items-center gap-2 text-[12.5px] font-medium text-tm-text-2">
+          <input type="checkbox" checked={noAwb} onChange={(e) => setNoAwb(e.target.checked)} className="size-4 accent-tm-coral" />
+          Ship without an air waybill
+        </label>
         {pkg.label_print_count === 0 ? (
           <p className="flex items-center gap-2 rounded-[12px] bg-tm-amber-bg px-3 py-2.5 text-[12.5px] font-medium text-[#7a4a06]">
             <TriangleAlertIcon className="size-4 shrink-0" aria-hidden />
@@ -779,7 +829,7 @@ function ShipDialog({
           <AdminButton variant="quiet" onClick={() => onOpenChange(false)}>
             Not yet
           </AdminButton>
-          <AdminButton variant="primary" busy={busy} onClick={ship}>
+          <AdminButton variant="primary" busy={busy} disabled={!ready} onClick={ship}>
             <PlaneTakeoffIcon className="size-4" aria-hidden />
             Ship it
           </AdminButton>

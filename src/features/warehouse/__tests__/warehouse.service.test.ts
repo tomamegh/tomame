@@ -6,6 +6,10 @@ vi.mock("@/features/shipments/stage-settings.service", async () => {
   const { DEFAULT_STAGE_SETTINGS } = await import("@/features/shipments/stages");
   return { loadStageSettings: vi.fn(async () => DEFAULT_STAGE_SETTINGS) };
 });
+vi.mock("@/db/queries/flight-departures", () => ({
+  findShipDeparture: vi.fn(async () => ({ id: "dep-1", region_code: "USA", carrier: "Delta Cargo", origin: "JFK", destination: "ACC", departs_on: "2099-01-07", departs_at: "2099-01-07T00:00:00Z", cutoff_at: "2099-01-06T00:00:00Z", status: "scheduled", awb: null })),
+  setDepartureAwbIfEmpty: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn() }));
 vi.mock("@/features/orders/services/order-events.service", () => ({ recordOrderEvent: vi.fn() }));
@@ -218,7 +222,7 @@ describe("shipping", () => {
     sealedWith([order({ id: "o-1", status: "paid" }), order({ id: "o-2", order_no: "TM-00002" }), order({ id: "o-3", status: "in_transit" })]);
     vi.mocked(q.updatePackage).mockResolvedValue(pkgRow({ status: "shipped", shipped_at: "now" }) as never);
 
-    const result = await shipWarehousePackage(operator, "p-1", { tracking_number: "AWB-1" });
+    const result = await shipWarehousePackage(operator, "p-1", { tracking_number: "006 1234 5675" });
 
     expect(result.failed).toEqual([]);
     const calls = vi.mocked(advanceOrderFromWarehouse).mock.calls.map((c) => [c[1], c[2]]);
@@ -229,7 +233,7 @@ describe("shipping", () => {
     ]);
     // 086: the waybill stays on the package; the customer's order never carries it.
     expect(vi.mocked(advanceOrderFromWarehouse).mock.calls[1]?.[3]).toBeUndefined();
-    expect(q.updatePackage).toHaveBeenLastCalledWith("p-1", "sealed", expect.objectContaining({ tracking_number: "AWB-1" }));
+    expect(q.updatePackage).toHaveBeenLastCalledWith("p-1", "sealed", expect.objectContaining({ tracking_number: "006-12345675", carrier: "Delta Cargo", departure_id: "dep-1" }));
     expect(q.updatePackage).toHaveBeenCalledWith("p-1", "sealed", expect.objectContaining({ status: "shipped" }));
     expect(logAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({ action: "warehouse_package_shipped", actorRole: "warehouse" }),
@@ -244,7 +248,7 @@ describe("shipping", () => {
     ]);
     vi.mocked(q.updatePackage).mockResolvedValue(pkgRow({ status: "shipped", shipped_at: "now" }) as never);
 
-    await shipWarehousePackage(operator, "p-1", {});
+    await shipWarehousePackage(operator, "p-1", { tracking_number: "00612345675" });
 
     for (const call of vi.mocked(advanceOrderFromWarehouse).mock.calls) {
       expect(call[4]).toMatchObject({ notifyCustomer: false });
@@ -259,7 +263,7 @@ describe("shipping", () => {
   it("emails nobody when an order inside would not move", async () => {
     sealedWith([order({ id: "o-1" }), order({ id: "o-2", order_no: "TM-00002" })]);
     vi.mocked(advanceOrderFromWarehouse).mockResolvedValueOnce({} as never).mockRejectedValueOnce(new APIError(409, "held"));
-    await shipWarehousePackage(operator, "p-1", {});
+    await shipWarehousePackage(operator, "p-1", { tracking_number: "00612345675" });
     expect(notifyShipmentUpdate).not.toHaveBeenCalled();
   });
 
@@ -269,7 +273,7 @@ describe("shipping", () => {
       .mockResolvedValueOnce({} as never)
       .mockRejectedValueOnce(new APIError(409, "This order is on hold"));
 
-    const result = await shipWarehousePackage(operator, "p-1", {});
+    const result = await shipWarehousePackage(operator, "p-1", { tracking_number: "00612345675" });
 
     expect(result.failed).toEqual([{ order_no: "TM-00002", reason: "This order is on hold" }]);
     expect(q.updatePackage).not.toHaveBeenCalled();
@@ -277,7 +281,7 @@ describe("shipping", () => {
 
   it("will not ship a package that is still open", async () => {
     vi.mocked(q.getPackageById).mockResolvedValue(pkgRow() as never);
-    await expect(shipWarehousePackage(operator, "p-1", {})).rejects.toMatchObject({ statusCode: 409 });
+    await expect(shipWarehousePackage(operator, "p-1", { tracking_number: "00612345675" })).rejects.toMatchObject({ statusCode: 409 });
   });
 });
 
@@ -355,13 +359,13 @@ describe("stuck packages (112)", () => {
 
   it("refuses to ship a package whose order is already delivered, naming the ways out, before touching any order", async () => {
     withOrders("sealed", [order({ order_no: "TM-00022", status: "completed" })]);
-    await expect(shipWarehousePackage(operator, "p-1", {})).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/record error/) });
+    await expect(shipWarehousePackage(operator, "p-1", { tracking_number: "00612345675" })).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/record error/) });
     expect(advanceOrderFromWarehouse).not.toHaveBeenCalled();
   });
 
   it("refuses to ship a held package", async () => {
     withOrders("sealed", [order()], { hold_reason: "Box damaged, repacking" });
-    await expect(shipWarehousePackage(operator, "p-1", {})).rejects.toMatchObject({ message: expect.stringMatching(/held/) });
+    await expect(shipWarehousePackage(operator, "p-1", { tracking_number: "00612345675" })).rejects.toMatchObject({ message: expect.stringMatching(/held/) });
   });
 
   it("holds a sealed package with a reason", async () => {
@@ -384,5 +388,34 @@ describe("stuck packages (112)", () => {
 
     withOrders("sealed", [order({ status: "processing" })]);
     await expect(voidWarehousePackage(admin, "p-1", { reason: "record_error", note: "x" })).rejects.toMatchObject({ statusCode: 409 });
+  });
+});
+
+describe("the Accra leg (113, Fix 12)", () => {
+  function sealedWith(orders: ReturnType<typeof order>[]) {
+    vi.mocked(q.getPackageById).mockResolvedValue(pkgRow({ status: "sealed", sealed_at: "2026-09-02" }) as never);
+    vi.mocked(q.listPackageItems).mockResolvedValue(orders.map((o) => line(o.id)) as never);
+    vi.mocked(q.listItemsForOrders).mockResolvedValue(orders.map((o) => line(o.id)) as never);
+    vi.mocked(q.listWarehouseOrders).mockResolvedValue(orders as never);
+  }
+
+  it("will not ship without an air waybill or a reason", async () => {
+    sealedWith([order()]);
+    await expect(shipWarehousePackage(operator, "p-1", {})).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/air waybill/) });
+    expect(advanceOrderFromWarehouse).not.toHaveBeenCalled();
+  });
+
+  it("refuses a pasted link, a doubled number and a bad check digit", async () => {
+    sealedWith([order()]);
+    for (const bad of ["https://a.co/d/0iXDFAe", "0061234567500612345675", "006-12345676"]) {
+      await expect(shipWarehousePackage(operator, "p-1", { tracking_number: bad })).rejects.toMatchObject({ statusCode: 400 });
+    }
+  });
+
+  it("ships without one when a reason is recorded, and keeps the reason", async () => {
+    sealedWith([order()]);
+    vi.mocked(q.updatePackage).mockResolvedValue(pkgRow({ status: "shipped", shipped_at: "now" }) as never);
+    await shipWarehousePackage(operator, "p-1", { no_tracking_reason: "Hand-carried by Kofi" });
+    expect(q.updatePackage).toHaveBeenLastCalledWith("p-1", "sealed", expect.objectContaining({ status: "shipped", no_tracking_reason: "Hand-carried by Kofi" }));
   });
 });

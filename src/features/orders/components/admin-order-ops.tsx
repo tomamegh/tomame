@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import type { Order } from "../types";
 import { orderEtaFields } from "./admin-order-display";
 import { mayEditEtaWindow, transitionsFor, type AdminTransition } from "./admin-transitions";
-import { trackingInputProblem } from "@/features/warehouse/inbound/tracking-number";
+import { awbInputProblem, trackingInputProblem } from "@/features/warehouse/inbound/tracking-number";
 
 /**
  * The controls that move an order: the state machine, and the delivery window.
@@ -122,6 +122,12 @@ function TransitionControl({
   const validTracking = filledTracking.filter((t) => trackingInputProblem(t) == null);
   const skippedTracking = filledTracking.length - validTracking.length;
   const [alsoPurchase, setAlsoPurchase] = useState<string[]>([]);
+  // 113 (Fix 12): in transit is the Delta Cargo leg: an air waybill, or a reason there is none.
+  // Applies to the in-transit move only; nothing here can stop a paid order being marked purchased.
+  const [noTrackingReason, setNoTrackingReason] = useState("");
+  const isInTransit = transition.to === "in_transit";
+  const awbProblem = isInTransit && trackingNumber.trim() ? awbInputProblem(trackingNumber) : null;
+  const awbMissing = isInTransit && !(trackingNumber.trim() && !awbProblem) && !noTrackingReason.trim();
 
   const busy = saving || pending;
 
@@ -167,6 +173,7 @@ function TransitionControl({
       if (transition.carriesTracking) {
         if (carrier.trim()) body.carrier = carrier.trim();
         if (trackingNumber.trim()) body.tracking_number = trackingNumber.trim();
+        else if (isInTransit && noTrackingReason.trim()) body.no_tracking_reason = noTrackingReason.trim();
         if (trackingUrl.trim()) body.tracking_url = trackingUrl.trim();
         if (etaFrom) body.eta_from = etaFrom;
         if (etaTo) body.eta_to = etaTo;
@@ -292,24 +299,39 @@ function TransitionControl({
 
       {transition.carriesTracking ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Carrier" id={`carrier-${order.id}`}>
-            <input
-              id={`carrier-${order.id}`}
-              value={carrier}
-              onChange={(event) => setCarrier(event.target.value)}
-              placeholder="DHL"
-              className={INPUT}
-            />
-          </Field>
-          <Field label="Tracking number" id={`tracking-${order.id}`}>
+          <Field label={isInTransit ? "Delta Cargo air waybill" : "Tracking number"} id={`tracking-${order.id}`}>
             <input
               id={`tracking-${order.id}`}
               value={trackingNumber}
               onChange={(event) => setTrackingNumber(event.target.value)}
-              placeholder="1234567890"
+              placeholder={isInTransit ? "006-12345675" : "1234567890"}
+              aria-invalid={awbProblem ? true : undefined}
               className={cn(INPUT, "tm-nums")}
             />
+            {awbProblem ? <span className="text-[11.5px] font-medium text-tm-amber">{awbProblem}</span> : null}
           </Field>
+          {isInTransit ? (
+            <Field label="No air waybill? Say why" id={`no-awb-${order.id}`}>
+              <input
+                id={`no-awb-${order.id}`}
+                value={noTrackingReason}
+                onChange={(event) => setNoTrackingReason(event.target.value)}
+                disabled={!!trackingNumber.trim()}
+                placeholder="Shown in admin and to the customer"
+                className={INPUT}
+              />
+            </Field>
+          ) : (
+            <Field label="Carrier" id={`carrier-${order.id}`}>
+              <input
+                id={`carrier-${order.id}`}
+                value={carrier}
+                onChange={(event) => setCarrier(event.target.value)}
+                placeholder="DHL"
+                className={INPUT}
+              />
+            </Field>
+          )}
           <Field label="Tracking URL" id={`tracking-url-${order.id}`} className="sm:col-span-2">
             <input
               id={`tracking-url-${order.id}`}
@@ -356,7 +378,7 @@ function TransitionControl({
           <button
             type="button"
             onClick={submit}
-            disabled={busy}
+            disabled={busy || awbMissing}
             aria-busy={busy}
             className={transition.destructive ? BUTTON_DANGER : BUTTON_PRIMARY}
           >

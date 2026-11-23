@@ -48,6 +48,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
           await shipWarehousePackage(user, id, {
             carrier: parsed.data.carrier,
             tracking_number: parsed.data.tracking_number,
+            no_tracking_reason: parsed.data.no_tracking_reason,
           }),
         );
       case "label_printed":

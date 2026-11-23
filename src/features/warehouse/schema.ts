@@ -51,6 +51,8 @@ export const receiveItemSchema = z.object({
 export const shipPackageSchema = z.object({
   carrier: optionalText(80),
   tracking_number: optionalText(80),
+  /** 113: why it ships without a Delta Cargo air waybill. */
+  no_tracking_reason: optionalText(500),
 });
 
 export const packageActionSchema = z.object({
@@ -64,6 +66,8 @@ export const packageActionSchema = z.object({
   /** 112: a manager resolving a package that can never ship. */
   void_reason: z.enum(["record_error", "duplicate"]).optional(),
   note: optionalText(1000),
+  /** 113: shipping without an air waybill needs a reason. */
+  no_tracking_reason: optionalText(500),
 });
 
 export const lookupSchema = z.object({

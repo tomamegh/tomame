@@ -32,6 +32,7 @@ import { stageDedupeKey, whatsappMessages } from "@/lib/whatsapp/templates";
 import { notifyStaff } from "@/features/staff-alerts/notify";
 import { closePackageIfAllDelivered } from "@/features/warehouse/services/package-close.service";
 import { listOrdersByGroup } from "@/db/queries/orders";
+import { awbInputProblem, DELTA_CARGO, normaliseDeltaAwb } from "@/features/warehouse/inbound/tracking-number";
 import { listOrderPlacedRetries, markOrderPlacedDelivery, type DeliveryOutcome } from "@/db/queries/notifications";
 
 /**
@@ -609,6 +610,8 @@ export async function listAllOrders(
  */
 export interface OrderTrackingInput {
   tracking_number?: string;
+  /** 113 (Fix 12): why an order goes in transit without a Delta Cargo air waybill. */
+  no_tracking_reason?: string;
   carrier?: string;
   tracking_url?: string;
   notes?: string;
@@ -633,6 +636,19 @@ export async function updateOrderStatusAdmin(
 ): Promise<Order> {
   if (!canAccessAdmin(user)) {
     throw new APIError(403, "Admin access required");
+  }
+  // 113 (Fix 12): in transit is the Delta Cargo leg to Accra. A valid air
+  // waybill, or a recorded reason there is none: never neither.
+  if (newStatus === "in_transit") {
+    const reason = trackingData?.no_tracking_reason?.trim() || "";
+    const raw = trackingData?.tracking_number?.trim() || "";
+    if (raw) {
+      const problem = awbInputProblem(raw);
+      if (problem) throw new APIError(400, problem);
+      trackingData = { ...trackingData, tracking_number: normaliseDeltaAwb(raw)!, carrier: DELTA_CARGO, no_tracking_reason: undefined };
+    } else if (!reason) {
+      throw new APIError(400, "Enter the Delta Cargo air waybill (006-…), or say why this order ships without one.");
+    }
   }
   return applyOrderStatusChange(client, user, "admin", orderId, newStatus, trackingData, opts);
 }
@@ -748,12 +764,15 @@ async function applyOrderStatusChange(
     eta_from?: string;
     eta_to?: string;
     delivered_at?: string;
+    no_tracking_reason?: string | null;
   } = { status: newStatus };
 
   if (newStatus === "in_transit" && trackingData) {
     if (trackingData.tracking_number)
       updatePayload.tracking_number = trackingData.tracking_number;
     if (trackingData.carrier) updatePayload.carrier = trackingData.carrier;
+    if (trackingData.no_tracking_reason?.trim()) updatePayload.no_tracking_reason = trackingData.no_tracking_reason.trim();
+    else if (trackingData.tracking_number) updatePayload.no_tracking_reason = null;
     if (eta.from) updatePayload.eta_from = eta.from;
     if (eta.to) updatePayload.eta_to = eta.to;
     if (eta.midpoint) updatePayload.estimated_delivery_date = eta.midpoint;

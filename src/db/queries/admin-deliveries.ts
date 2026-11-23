@@ -40,6 +40,16 @@ export interface AdminDeliveryRow {
   /** The zone the group was checked out to, named — not its id. */
   zone_name: string | null;
   zone_kind: "door" | "pickup" | null;
+  /** 113 (Fix 12): the Accra leg, from the package the order flew in: its air waybill, or why there is none. */
+  accra_leg: AccraLeg | null;
+}
+
+export interface AccraLeg {
+  package_reference: string;
+  carrier: string | null;
+  awb: string | null;
+  no_tracking_reason: string | null;
+  shipped: boolean;
 }
 
 export interface AdminDeliveryFilters {
@@ -74,10 +84,11 @@ export async function listAdminDeliveries(
   const orders = (data ?? []) as Order[];
   if (orders.length === 0) return [];
 
-  const [records, names, zones] = await Promise.all([
+  const [records, names, zones, legs] = await Promise.all([
     listDeliveryRecords(orders.map((order) => order.id)),
     listCustomerNames(orders.map((order) => order.user_id)),
     listZonesForOrders(orders),
+    listAccraLegs(orders.map((order) => order.id)),
   ]);
 
   return orders.map((order) => ({
@@ -86,7 +97,46 @@ export async function listAdminDeliveries(
     customer_name: names.get(order.user_id) ?? null,
     zone_name: zones.get(order.id)?.name ?? null,
     zone_kind: zones.get(order.id)?.kind ?? null,
+    accra_leg: legs.get(order.id) ?? null,
   }));
+}
+
+/** The package each order is in, with its air waybill (113). The warehouse ship path keeps it there, not on the order. */
+async function listAccraLegs(orderIds: string[]): Promise<Map<string, AccraLeg>> {
+  const legs = new Map<string, AccraLeg>();
+  if (orderIds.length === 0) return legs;
+  const db = createAdminClient();
+  const { data: items, error } = await db.from("warehouse_package_items").select("order_id, package_id").in("order_id", orderIds);
+  if (error) {
+    logger.warn("delivery package lookup failed", { message: error.message });
+    return legs;
+  }
+  const rows = (items ?? []) as { order_id: string | null; package_id: string }[];
+  const packageIds = [...new Set(rows.map((r) => r.package_id))];
+  if (packageIds.length === 0) return legs;
+  const { data: packages, error: pkgError } = await db
+    .from("warehouse_packages")
+    .select("id, reference, status, carrier, tracking_number, no_tracking_reason")
+    .in("id", packageIds);
+  if (pkgError) {
+    logger.warn("delivery packages failed", { message: pkgError.message });
+    return legs;
+  }
+  const byId = new Map(
+    ((packages ?? []) as { id: string; reference: string; status: string; carrier: string | null; tracking_number: string | null; no_tracking_reason: string | null }[]).map((p) => [p.id, p]),
+  );
+  for (const row of rows) {
+    const pkg = byId.get(row.package_id);
+    if (!row.order_id || !pkg) continue;
+    legs.set(row.order_id, {
+      package_reference: pkg.reference,
+      carrier: pkg.carrier,
+      awb: pkg.tracking_number,
+      no_tracking_reason: pkg.no_tracking_reason,
+      shipped: pkg.status === "shipped",
+    });
+  }
+  return legs;
 }
 
 /** How many orders sit at each stop of the pipeline. Counted in the database. */

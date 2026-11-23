@@ -44,6 +44,8 @@ export interface Order {
   special_instructions: string | null;
   pricing: OrderPricingBreakdown;
   tracking_number: string | null;
+  /** 113: why it went in transit without a Delta Cargo air waybill (admin path). */
+  no_tracking_reason?: string | null;
   carrier: string | null;
   /** The midpoint of the window below; still read by the deliveries table and the status email. */
   estimated_delivery_date: string | null;

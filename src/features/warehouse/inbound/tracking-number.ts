@@ -150,3 +150,61 @@ export function trackingInputProblem(raw: string): string | null {
   if (!normaliseTracking(text)) return "That does not look like a tracking number.";
   return null;
 }
+
+// ── The Accra leg: Delta Cargo air waybills (site brief Fix 12) ─────────────
+
+/** Delta's airline prefix. An air waybill is 006 + 8 digits, the last a mod-7 check digit. */
+export const DELTA_AWB_PREFIX = "006";
+export const DELTA_CARGO = "Delta Cargo";
+/** Delta's public tracking page (the AWB is typed in there). */
+export const DELTA_CARGO_TRACK_URL = "https://www.deltacargo.com/Cargo/trackShipment";
+
+/** `006-12345675`, or null. Accepts the 8-digit serial on its own (the prefix is always 006). */
+export function normaliseDeltaAwb(raw: string): string | null {
+  const digits = raw.replace(/[\s\-./]/g, "");
+  if (!/^\d+$/.test(digits)) return null;
+  const serial = digits.length === 11 && digits.startsWith(DELTA_AWB_PREFIX) ? digits.slice(3) : digits.length === 8 ? digits : null;
+  if (!serial) return null;
+  const body = Number(serial.slice(0, 7));
+  if (body % 7 !== Number(serial[7])) return null;
+  return `${DELTA_AWB_PREFIX}-${serial}`;
+}
+
+/** Why a typed air waybill would be refused, in words staff can act on; null when it is good. */
+export function awbInputProblem(raw: string): string | null {
+  const text = raw.trim();
+  if (!text) return "Enter the Delta Cargo air waybill (006-…).";
+  if (/https?:|www\.|:\/\//i.test(text)) return "That is a link, not an air waybill. Type the 11-digit number from the waybill.";
+  const digits = text.replace(/[\s\-./]/g, "");
+  if (digits.length >= 16 && digits.length % 2 === 0 && digits.slice(0, digits.length / 2) === digits.slice(digits.length / 2)) {
+    return "That looks like the same number pasted twice. Paste it once.";
+  }
+  if (!/^\d+$/.test(digits)) return "A Delta Cargo air waybill is digits only: 006 then 8 digits.";
+  if (digits.length === 11 && !digits.startsWith(DELTA_AWB_PREFIX)) return "Delta Cargo air waybills start with 006.";
+  if (digits.length !== 11 && digits.length !== 8) return "A Delta Cargo air waybill is 006 then 8 digits (11 in all).";
+  if (!normaliseDeltaAwb(text)) return "That number does not check out: the last digit is a check digit. Copy it from the waybill again.";
+  return null;
+}
+
+/** Where staff (and customers, for store tracking) can follow a parcel. Null for a carrier with no public page. */
+export function carrierTrackingUrl(carrier: InboundCarrier | "delta", key: string): string | null {
+  const k = encodeURIComponent(key);
+  switch (carrier) {
+    case "ups":
+      return `https://www.ups.com/track?tracknum=${k}`;
+    case "usps":
+      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${k}`;
+    case "fedex":
+      return `https://www.fedex.com/fedextrack/?trknbr=${k}`;
+    case "dhl":
+      return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${k}`;
+    case "ontrac":
+      return `https://www.ontrac.com/tracking/?number=${k}`;
+    case "royal_mail":
+      return `https://www.royalmail.com/track-your-item#/tracking-results/${k}`;
+    case "delta":
+      return DELTA_CARGO_TRACK_URL;
+    default:
+      return null;
+  }
+}

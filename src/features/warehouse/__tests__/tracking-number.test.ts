@@ -85,3 +85,29 @@ describe("trackingInputProblem: what an admin typed", () => {
     expect(trackingInputProblem("abc")).toMatch(/does not look like/);
   });
 });
+
+describe("Delta Cargo air waybills (113, Fix 12)", () => {
+  it("normalises the 11 digits, or the 8-digit serial, to 006-XXXXXXXX", async () => {
+    const { normaliseDeltaAwb } = await import("../inbound/tracking-number");
+    expect(normaliseDeltaAwb("006-12345675")).toBe("006-12345675");
+    expect(normaliseDeltaAwb("006 1234 5675")).toBe("006-12345675");
+    expect(normaliseDeltaAwb("12345675")).toBe("006-12345675");
+  });
+
+  it("explains every refusal", async () => {
+    const { awbInputProblem } = await import("../inbound/tracking-number");
+    expect(awbInputProblem("https://www.deltacargo.com/x")).toMatch(/link/);
+    expect(awbInputProblem("HTTPSACOD0IXDFAEIHTTPSACOD0IXDFAEI")).toBeTruthy();
+    expect(awbInputProblem("0061234567500612345675")).toMatch(/twice/);
+    expect(awbInputProblem("01612345675")).toMatch(/start with 006/);
+    expect(awbInputProblem("006-12345676")).toMatch(/check digit/);
+    expect(awbInputProblem("006-12345675")).toBeNull();
+  });
+
+  it("links each carrier to its own tracking page", async () => {
+    const { carrierTrackingUrl } = await import("../inbound/tracking-number");
+    expect(carrierTrackingUrl("ups", "1ZE3500B0334960616")).toContain("ups.com");
+    expect(carrierTrackingUrl("delta", "006-12345675")).toContain("deltacargo.com");
+    expect(carrierTrackingUrl("other", "X")).toBeNull();
+  });
+});

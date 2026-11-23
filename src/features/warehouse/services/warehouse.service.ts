@@ -41,6 +41,8 @@ import { notifyStaff } from "@/features/staff-alerts/notify";
 import type { PlatformUser } from "@/features/users/types";
 import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { EMPTY_PACKAGE_AFTER_HOURS } from "../components/format";
+import { awbInputProblem, DELTA_CARGO, normaliseDeltaAwb } from "../inbound/tracking-number";
+import { findShipDeparture, setDepartureAwbIfEmpty } from "@/db/queries/flight-departures";
 import { APIError } from "@/lib/auth/api-helpers";
 import { requireWarehouse, warehouseActorRole } from "@/lib/auth/guards";
 import { logger } from "@/lib/logger";
@@ -265,6 +267,14 @@ export async function updateWarehousePackage(
   }
   const patch = toPatch(input);
   if (Object.keys(patch).length === 0) return getWarehousePackage(user, id);
+  // 113 (Fix 12): the tracking field is the Delta Cargo air waybill; edits pass the same check as shipping.
+  if (typeof patch.tracking_number === "string" && patch.tracking_number.trim()) {
+    const problem = awbInputProblem(patch.tracking_number);
+    if (problem) throw new APIError(400, problem);
+    patch.tracking_number = normaliseDeltaAwb(patch.tracking_number);
+    patch.carrier = DELTA_CARGO;
+    patch.no_tracking_reason = null;
+  }
 
   const row = await updatePackage(id, current.status, patch);
   if (!row) throw new APIError(409, "Someone else just changed this package. Refresh and try again.");
@@ -452,8 +462,22 @@ export async function shipWarehousePackage(
     );
   }
 
-  const carrier = input.carrier?.trim() || pkg.carrier || undefined;
-  const trackingNumber = input.tracking_number?.trim() || pkg.tracking_number || undefined;
+  // 113 (Fix 12): the JFK → Accra leg flies Delta Cargo. A valid air waybill,
+  // or a recorded reason for shipping without one: never neither.
+  const noTrackingReason = input.no_tracking_reason?.trim() || null;
+  const rawAwb = input.tracking_number?.trim() || pkg.tracking_number || "";
+  let awb: string | null = null;
+  if (rawAwb) {
+    const problem = awbInputProblem(rawAwb);
+    if (problem) throw new APIError(400, problem);
+    awb = normaliseDeltaAwb(rawAwb);
+  }
+  if (!awb && !noTrackingReason) {
+    throw new APIError(400, "Enter the Delta Cargo air waybill (006-…), or say why this package ships without one.");
+  }
+  const carrier = awb ? DELTA_CARGO : input.carrier?.trim() || pkg.carrier || undefined;
+  const trackingNumber = awb ?? undefined;
+  const departure = await findShipDeparture("USA", new Date());
   const failed: Array<{ order_no: string; reason: string }> = [];
 
   for (const line of pkg.lines) {
@@ -492,12 +516,17 @@ export async function shipWarehousePackage(
     stage_by: user.id,
     ...(carrier ? { carrier } : {}),
     ...(trackingNumber ? { tracking_number: trackingNumber } : {}),
+    no_tracking_reason: awb ? null : noTrackingReason,
+    departure_id: departure?.id ?? null,
   });
   if (!row) throw new APIError(409, "Someone else just changed this package. Refresh and try again.");
+  if (awb && departure) await setDepartureAwbIfEmpty(departure.id, awb);
   await audit(user, "warehouse_package_shipped", row, {
     order_count: pkg.lines.filter((l) => l.item).length,
     carrier: carrier ?? null,
     tracking_number: trackingNumber ?? null,
+    no_tracking_reason: awb ? null : noTrackingReason,
+    departure_id: departure?.id ?? null,
   });
   await notifyPackageCustomers(pkg, "in_transit");
   // One staff email for the package, not one per order inside it.
@@ -1029,6 +1058,8 @@ export async function hydratePackages(rows: PackageRow[]): Promise<WarehousePack
           ? { reason: row.void_reason, note: row.void_note ?? "", at: row.voided_at ?? row.updated_at, by_name: row.voided_by ? names.get(row.voided_by) ?? null : null }
           : null,
       finished_order_nos: own.flatMap((l) => (l.item && FINISHED_ORDER_STATUSES.has(l.item.order_status) ? [l.item.order_no] : [])),
+      no_tracking_reason: row.no_tracking_reason ?? null,
+      departure_id: row.departure_id ?? null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

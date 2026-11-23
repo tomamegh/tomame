@@ -8,6 +8,10 @@ vi.mock("@/features/shipments/stage-settings.service", async () => {
   const { DEFAULT_STAGE_SETTINGS } = await import("@/features/shipments/stages");
   return { loadStageSettings: vi.fn(async () => DEFAULT_STAGE_SETTINGS) };
 });
+vi.mock("@/db/queries/flight-departures", () => ({
+  findShipDeparture: vi.fn(async () => ({ id: "dep-1", region_code: "USA", carrier: "Delta Cargo", origin: "JFK", destination: "ACC", departs_on: "2099-01-07", departs_at: "2099-01-07T00:00:00Z", cutoff_at: "2099-01-06T00:00:00Z", status: "scheduled", awb: null })),
+  setDepartureAwbIfEmpty: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn() }));
 vi.mock("@/features/orders/services/order-events.service", () => ({ recordOrderEvent: vi.fn() }));

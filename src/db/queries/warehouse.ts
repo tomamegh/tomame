@@ -66,6 +66,9 @@ export interface PackageRow {
   voided_by: string | null;
   void_reason: "record_error" | "duplicate" | null;
   void_note: string | null;
+  /** 113 */
+  no_tracking_reason: string | null;
+  departure_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -123,7 +126,7 @@ export interface BoxRefRow {
 }
 
 const PACKAGE_COLUMNS =
-  "id, package_no, reference, status, service, origin, destination, weight_lbs, length_in, width_in, height_in, carrier, tracking_number, fragile, this_way_up, keep_dry, notes, created_by, sealed_at, sealed_by, shipped_at, shipped_by, label_printed_at, label_print_count, stage, stage_at, stage_by, notice, notice_expected_on, notice_at, hold_reason, held_at, held_by, seal_override_reason, voided_at, voided_by, void_reason, void_note, created_at, updated_at";
+  "id, package_no, reference, status, service, origin, destination, weight_lbs, length_in, width_in, height_in, carrier, tracking_number, fragile, this_way_up, keep_dry, notes, created_by, sealed_at, sealed_by, shipped_at, shipped_by, label_printed_at, label_print_count, stage, stage_at, stage_by, notice, notice_expected_on, notice_at, hold_reason, held_at, held_by, seal_override_reason, voided_at, voided_by, void_reason, void_note, no_tracking_reason, departure_id, created_at, updated_at";
 
 const ITEM_COLUMNS = "id, package_id, order_id, description, quantity, added_by, created_at";
 
@@ -242,6 +245,8 @@ export type PackagePatch = Partial<
     | "voided_by"
     | "void_reason"
     | "void_note"
+    | "no_tracking_reason"
+    | "departure_id"
   >
 >;
 

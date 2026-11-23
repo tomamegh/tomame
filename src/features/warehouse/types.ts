@@ -135,6 +135,10 @@ export interface WarehousePackage {
   void: { reason: PackageVoidReason; note: string; at: string; by_name: string | null } | null;
   /** 112: orders in it that are already delivered, completed or cancelled: it cannot ship as it is. */
   finished_order_nos: string[];
+  /** 113: why it shipped without a Delta Cargo air waybill. */
+  no_tracking_reason: string | null;
+  /** 113: the Delta Cargo departure it flew on. */
+  departure_id: string | null;
   created_at: string;
   updated_at: string;
 }
