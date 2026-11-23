@@ -7,7 +7,7 @@ import { loadPricingCalculator } from "@/features/pricing/services/pricing.servi
 import { quoteTrustFor } from "@/features/quote-checks/services/quote-checks.service";
 import { listGhsRates } from "@/lib/exchange-rates/service";
 import type { ExtractionResult, Quote } from "@/features/extraction/types";
-import type { FxOverride, PricingBreakdown, PricingCalculator } from "@/lib/pricing";
+import { applyPriceHold, heldUnitFor, type FxOverride, type PricingBreakdown, type PricingCalculator } from "@/lib/pricing";
 import {
   adoptSessionLocks,
   consumeActiveLocks,
@@ -18,7 +18,7 @@ import {
   type QuoteLockRow,
 } from "@/db/queries/quote-locks";
 import type { DeliveryWindow, QuoteConstants, Viewer } from "../types";
-import { loadQuoteConstants, QuoteConstantsMissingError } from "./quote-constants.service";
+import { loadPriceHoldCap, loadQuoteConstants, QuoteConstantsMissingError } from "./quote-constants.service";
 import { loadDeliveryWindow, type EtaCountry } from "./delivery-eta.service";
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -126,6 +126,12 @@ export interface PriceLowerOfInput {
    * alone and returns plain live pricing without lock fields.
    */
   onLiveWins: { ratchet: true; actorId: string | null } | { ratchet: false };
+  /**
+   * `price_hold_cap_ghs` (121). When given, the lock's held price is honoured up
+   * to this rise (`applyPriceHold`). Omitted (an admin re-price) holds nothing.
+   */
+  holdCapGhs?: number;
+  now?: Date;
 }
 
 /**
@@ -135,18 +141,23 @@ export interface PriceLowerOfInput {
  */
 export async function priceLowerOf(input: PriceLowerOfInput): Promise<PricingBreakdown> {
   const { lock, live, priceAt, onLiveWins } = input;
+  // FX first (lower of locked and live), then the held price on top of that.
+  const hold = (pricing: PricingBreakdown): PricingBreakdown =>
+    input.holdCapGhs == null
+      ? pricing
+      : applyPriceHold(pricing, { heldUnitGhs: lock.held_unit_ghs, expiresAt: lock.expires_at }, input.holdCapGhs, input.now);
 
   // Fast path: a USD line whose lock is already at today's pair prices identically.
   if (live.item_currency === "USD" && lock.exchange_rate === live.exchange_rate && lock.mid_market_rate === live.mid_market_rate) {
-    return withLock(live, lock);
+    return hold(withLock(live, lock));
   }
 
   const locked = await priceAt(lockFx(lock));
-  if (locked.total_ghs <= live.total_ghs) return withLock(locked, lock);
+  if (locked.total_ghs <= live.total_ghs) return hold(withLock(locked, lock));
 
   if (!onLiveWins.ratchet) return live;
   await ratchetToLive(lock, live, onLiveWins.actorId);
-  return withLock(live, lock);
+  return hold(withLock(live, lock));
 }
 
 /** A pricer over one extraction line, for `priceLowerOf`. Throws when pricing fails. */
@@ -259,6 +270,7 @@ async function priceForViewer(input: ApplyRateLockInput, opts: PriceForViewerOpt
   // Live pricing, the lock lookup, the constants and the ETA are independent;
   // the calculator is loaded once and prices live and locked on the same instance.
   const constantsP: Promise<QuoteConstants | null> = opts.mint ? loadConstants() : Promise.resolve(null);
+  const holdCapP: Promise<number> = wantsLock ? loadHoldCap() : Promise.resolve(0);
   const etaP: Promise<DeliveryWindow | null> =
     opts.eta && extraction.country ? loadEta(extraction.country as EtaCountry, now) : Promise.resolve(null);
   const lockP: Promise<LockLookup | null> = wantsLock
@@ -268,11 +280,12 @@ async function priceForViewer(input: ApplyRateLockInput, opts: PriceForViewerOpt
       )
     : Promise.resolve(null);
 
-  const [live, constants, eta, lookup] = await Promise.all([
+  const [live, constants, eta, lookup, holdCapGhs] = await Promise.all([
     priceExtractionWith(calculator, extraction, quantity, overrides, null),
     constantsP,
     etaP,
     lockP,
+    holdCapP,
   ]);
   if (!live.pricing) return live;
 
@@ -293,9 +306,13 @@ async function priceForViewer(input: ApplyRateLockInput, opts: PriceForViewerOpt
           live: liveUnderLock,
           priceAt: extractionPricer(calculator, underLock, quantity, overrides),
           onLiveWins: { ratchet: true, actorId: viewer.userId },
+          holdCapGhs,
+          now,
         });
       } else if (opts.mint && constants) {
-        pricing = withLock(live.pricing, await mintLock({ viewer, extractionCacheId, quantity, live: live.pricing, constants, now }));
+        // A price the customer typed (gap-filler) is never held: nobody holds a price they named.
+        const holds = overrides?.itemPriceUsd == null;
+        pricing = withLock(live.pricing, await mintLock({ viewer, extractionCacheId, quantity, live: live.pricing, constants, now, holds }));
       }
     } catch (err) {
       rethrowIfLoud(err);
@@ -326,6 +343,17 @@ async function loadConstants(): Promise<QuoteConstants | null> {
     rethrowIfLoud(err);
     logger.error("quote: constants unavailable", { error: err instanceof Error ? err.message : String(err) });
     return null;
+  }
+}
+
+/** The hold cap; a failed read holds nothing rather than stopping the quote. */
+async function loadHoldCap(): Promise<number> {
+  try {
+    return await loadPriceHoldCap();
+  } catch (err) {
+    rethrowIfLoud(err);
+    logger.warn("quote: price hold cap unavailable, holding nothing", { error: err instanceof Error ? err.message : String(err) });
+    return 0;
   }
 }
 
@@ -362,8 +390,10 @@ async function mintLock(input: {
   live: PricingBreakdown;
   constants: QuoteConstants;
   now: Date;
+  /** False when the quote was priced from a customer gap-filler: nothing is held. */
+  holds: boolean;
 }): Promise<QuoteLockRow> {
-  const { viewer, extractionCacheId, quantity, live, constants, now } = input;
+  const { viewer, extractionCacheId, quantity, live, constants, now, holds } = input;
   const expiresAt = new Date(now.getTime() + constants.rate_lock_hours * 60 * 60 * 1000);
   const fxRates = await listGhsRates();
 
@@ -377,6 +407,8 @@ async function mintLock(input: {
     fx_rates: fxRates,
     // Informational only — see QuoteLockRow.pricing.
     pricing: live,
+    // 121: the quoted price per unit, the only figure the hold reads.
+    held_unit_ghs: holds ? heldUnitFor(live) : null,
     locked_at: now.toISOString(),
     expires_at: expiresAt.toISOString(),
   });

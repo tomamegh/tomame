@@ -150,6 +150,14 @@ export interface PricingBreakdown {
   /** Id of the `fixed_freight_items` row behind `fixed_freight_item`. */
   fixed_freight_item_id?: string;
   review_reason?: string;
+  /**
+   * The held price (121, `price-hold.ts`). `price_hold_ghs` is the rise since
+   * the quote that Tomame absorbed — already taken off `total_ghs`, shown as
+   * its own line. `held_total_ghs` is the quoted total; present without
+   * `price_hold_ghs` when the rise was over the cap and the new total stands.
+   */
+  price_hold_ghs?: number;
+  held_total_ghs?: number;
   /** Set when the FX in this breakdown is held by a quote lock. ISO timestamp. */
   rate_locked_until?: string;
   rate_lock_id?: string;

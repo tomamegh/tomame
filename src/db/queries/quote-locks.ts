@@ -22,6 +22,8 @@ export interface QuoteLockRow {
    * source — the item price always comes from the live extraction snapshot.
    */
   pricing: PricingBreakdown;
+  /** 121. Quoted total per unit, store shipping excluded; null when the quote held nothing. */
+  held_unit_ghs: number | null;
   locked_at: string;
   expires_at: string;
   consumed_by_order_id: string | null;
@@ -38,6 +40,7 @@ export interface QuoteLockInsert {
   mid_market_rate: number;
   fx_rates: Record<string, number>;
   pricing: PricingBreakdown;
+  held_unit_ghs: number | null;
   locked_at: string;
   expires_at: string;
 }
@@ -49,7 +52,7 @@ export interface LockRates {
 }
 
 const COLUMNS =
-  "id, user_id, session_id, extraction_cache_id, quantity, exchange_rate, mid_market_rate, fx_rates, pricing, locked_at, expires_at, consumed_by_order_id, consumed_at, created_at";
+  "id, user_id, session_id, extraction_cache_id, quantity, exchange_rate, mid_market_rate, fx_rates, pricing, held_unit_ghs, locked_at, expires_at, consumed_by_order_id, consumed_at, created_at";
 
 // ── Queries (service role — every write to this table is the server's) ──────
 
@@ -196,6 +199,7 @@ function normalizeRow(row: Record<string, unknown>): QuoteLockRow {
     mid_market_rate: Number(row.mid_market_rate),
     fx_rates: normalizeRates(row.fx_rates),
     pricing: row.pricing as PricingBreakdown,
+    held_unit_ghs: row.held_unit_ghs != null ? Number(row.held_unit_ghs) : null,
     locked_at: String(row.locked_at),
     expires_at: String(row.expires_at),
     consumed_by_order_id: row.consumed_by_order_id != null ? String(row.consumed_by_order_id) : null,

@@ -1009,6 +1009,8 @@ export function summarize(cartId: string | null, lines: BagLine[], packed: Packe
     freight_ghs: sum((p) => p.flat_rate_ghs),
     // Fix 7: the handling fee inside freight_ghs, shown as its own row.
     handling_ghs: sum((p) => handlingGhsOf(p)),
+    price_hold_ghs: sum((p) => p.price_hold_ghs ?? 0),
+    price_rose_ghs: sum((p) => (p.price_hold_ghs == null && p.held_total_ghs != null && p.total_ghs > p.held_total_ghs ? p.total_ghs - p.held_total_ghs : 0)),
     boxed_weight_lbs: r2(packed.boxes.reduce((acc, b) => acc + b.weight_lbs, 0)),
     total_ghs: totalGhs,
     total_usd: totalUsd,

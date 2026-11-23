@@ -11,10 +11,11 @@ import type { ExtractionResult } from "@/features/extraction/types";
 import { findActivePayment } from "@/features/payments/services/payments.service";
 import { loadPricingCalculator } from "@/features/pricing/services/pricing.service";
 import { extractionUnderLock } from "@/features/quotes/services/quote-lock.service";
+import { loadPriceHoldCap } from "@/features/quotes/services/quote-constants.service";
 import { getOrderGroupById, updateOrderGroupTotals } from "@/db/queries/order-groups";
 import { listOrdersByGroup, listUnpaidCalculatedOrders, updateUnpaidOrderPricing } from "@/db/queries/orders";
 import { getQuoteLockById } from "@/db/queries/quote-locks";
-import type { FxOverride, PricingBreakdown, PricingCalculator } from "@/lib/pricing";
+import { applyPriceHold, type FxOverride, type PricingBreakdown, type PricingCalculator } from "@/lib/pricing";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Order } from "../types";
@@ -77,6 +78,8 @@ export async function repriceUnpaidOrders(ctx: RepriceContext): Promise<RepriceS
     logger.warn("order re-price skipped: pricing constants incomplete", { missing: calculator.missingConstants });
     return summary;
   }
+  // Read once per run: a missing cap holds nothing (and would surface on the quote too).
+  const holdCapGhs = await loadPriceHoldCap().catch(() => 0);
 
   const groupIds = new Set<string>();
   const singles: Order[] = [];
@@ -91,7 +94,7 @@ export async function repriceUnpaidOrders(ctx: RepriceContext): Promise<RepriceS
       summary.skippedPaymentOpen += 1;
       continue;
     }
-    const outcome = await repriceOrder(calculator, order);
+    const outcome = await repriceOrder(calculator, order, holdCapGhs);
     tally(summary, outcome);
     if (outcome.kind !== "changed") continue;
     // Checked again just before the write: a checkout opened while this order
@@ -107,7 +110,7 @@ export async function repriceUnpaidOrders(ctx: RepriceContext): Promise<RepriceS
   }
 
   for (const groupId of groupIds) {
-    await repriceGroup(admin, calculator, groupId, ctx, summary);
+    await repriceGroup(admin, calculator, groupId, ctx, summary, holdCapGhs);
   }
 
   if (summary.ordersRepriced > 0 || summary.skippedNotReproducible > 0) {
@@ -122,6 +125,7 @@ async function repriceGroup(
   groupId: string,
   ctx: RepriceContext,
   summary: RepriceSummary,
+  holdCapGhs: number,
 ): Promise<void> {
   const group = await getOrderGroupById(groupId);
   if (!group || group.status !== "pending") return;
@@ -136,7 +140,7 @@ async function repriceGroup(
     return;
   }
 
-  const outcomes = await Promise.all(orders.map((o) => repriceOrder(calculator, o)));
+  const outcomes = await Promise.all(orders.map((o) => repriceOrder(calculator, o, holdCapGhs)));
   outcomes.forEach((o) => tally(summary, o));
   // All or nothing: a group struck from a mix of old and new lines would be neither.
   if (outcomes.some((o) => o.kind === "drift" || o.kind === "unpriced")) return;
@@ -186,7 +190,12 @@ async function repriceGroup(
  * kept as the USD figure, a lock's store-shipping rule, and the FX the order
  * was struck at.
  */
-export async function repriceOrder(calculator: PricingCalculator, order: Order): Promise<Outcome> {
+/**
+ * `holdCapGhs` (121): the order keeps the held price its lock promised, while
+ * the lock lasts — an admin freight edit inside the window is absorbed up to the
+ * cap like any other rise. Callers pass the live cap; 0 holds nothing.
+ */
+export async function repriceOrder(calculator: PricingCalculator, order: Order, holdCapGhs: number): Promise<Outcome> {
   const old = order.pricing;
   const snapshot = order.extraction_metadata;
   if (!snapshot?.product || !old || old.pricing_method === "needs_review" || !(old.total_ghs > 0)) return { kind: "unpriced" };
@@ -209,8 +218,9 @@ export async function repriceOrder(calculator: PricingCalculator, order: Order):
   };
   const extraction = lock ? extractionUnderLock(base, lock, overrides) : base;
 
-  const { pricing } = await priceExtractionWith(calculator, extraction, order.quantity, overrides, orderFx(old, lock?.fx_rates ?? null));
-  if (!pricing || pricing.pricing_method === "needs_review") return { kind: "unpriced" };
+  const { pricing: repriced } = await priceExtractionWith(calculator, extraction, order.quantity, overrides, orderFx(old, lock?.fx_rates ?? null));
+  if (!repriced || repriced.pricing_method === "needs_review") return { kind: "unpriced" };
+  const pricing = applyPriceHold(repriced, lock ? { heldUnitGhs: lock.held_unit_ghs, expiresAt: lock.expires_at } : null, holdCapGhs);
   // The customer's money must reproduce exactly; only the admin's knobs may move.
   if (!sameMoney(pricing.subtotal_usd, old.subtotal_usd) || !sameMoney(pricing.store_shipping_usd, old.store_shipping_usd)) {
     logger.info("order re-price: snapshot does not reproduce the order, left as is", {

@@ -21,6 +21,7 @@ vi.mock("../services/quote-constants.service", () => {
   return {
     QuoteConstantsMissingError,
     loadQuoteConstants: vi.fn(async () => ({ rate_lock_hours: 24, purchase_lead_days_min: 1, purchase_lead_days_max: 3 })),
+    loadPriceHoldCap: vi.fn(async () => 50),
   };
 });
 vi.mock("../services/delivery-eta.service", () => ({
@@ -76,7 +77,7 @@ function lock(overrides: Partial<QuoteLockRow> = {}): QuoteLockRow {
   return {
     id: "lock-1", user_id: null, session_id: "sess-1", extraction_cache_id: CACHE_ID, quantity: 1,
     exchange_rate: 15.01, mid_market_rate: 14.43, fx_rates: { USD: 14.43, GBP: 19.4, CNY: 2.02 }, pricing: breakdown(),
-    locked_at: "2026-09-12T10:00:00Z", expires_at: "2026-09-13T10:00:00Z", consumed_by_order_id: null, consumed_at: null,
+    held_unit_ghs: null, locked_at: "2026-09-12T10:00:00Z", expires_at: "2026-09-13T10:00:00Z", consumed_by_order_id: null, consumed_at: null,
     created_at: "2026-09-12T10:00:00Z", ...overrides,
   };
 }
@@ -401,6 +402,30 @@ describe("priceLowerOf — admin mode (no ratchet)", () => {
       onLiveWins: { ratchet: false },
     });
     expect(pricing).toMatchObject({ exchange_rate: 14.49, total_ghs: 4608.59, rate_lock_id: "lock-1", rate_locked_until: "2026-09-13T10:00:00Z" });
+  });
+});
+
+describe("priceLowerOf — held price (121)", () => {
+  const now = new Date("2026-09-12T12:00:00Z");
+
+  it("charges the quoted total when the store's price rose within the cap", async () => {
+    const live = breakdown({ total_ghs: 4800, total_pesewas: 480000 });
+    const pricing = await priceLowerOf({
+      lock: lock({ held_unit_ghs: 4765.01 }),
+      live,
+      priceAt: async () => live,
+      onLiveWins: { ratchet: false },
+      holdCapGhs: 50,
+      now,
+    });
+    expect(pricing).toMatchObject({ total_ghs: 4765.01, total_pesewas: 476501, price_hold_ghs: 34.99, rate_lock_id: "lock-1" });
+  });
+
+  it("holds nothing without a cap (the admin path) or once the lock has expired", async () => {
+    const live = breakdown({ total_ghs: 4800, total_pesewas: 480000 });
+    const base = { live, priceAt: async () => live, onLiveWins: { ratchet: false } as const };
+    expect((await priceLowerOf({ ...base, lock: lock({ held_unit_ghs: 4765.01 }) })).total_ghs).toBe(4800);
+    expect((await priceLowerOf({ ...base, lock: lock({ held_unit_ghs: 4765.01 }), holdCapGhs: 50, now: new Date("2026-09-14T00:00:00Z") })).total_ghs).toBe(4800);
   });
 });
 

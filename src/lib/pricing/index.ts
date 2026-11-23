@@ -1,5 +1,7 @@
 export { PricingCalculator } from "./calculator";
 export { isPayablePricing } from "./payable";
+export { applyPriceHold, withoutPriceHold, heldUnitFor } from "./price-hold";
+export type { PriceHold } from "./price-hold";
 export { taxFloorApplied, taxFloorUsd, taxRowLabel, taxGroupRowLabel } from "./tax-label";
 export type { TaxFacts } from "./tax-label";
 export type { PricingInput, PricingBreakdown, PricingConstants, PricingMethod, PricingRegion, FxOverride } from "./calculator";

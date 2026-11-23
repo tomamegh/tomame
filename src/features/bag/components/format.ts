@@ -146,6 +146,13 @@ export function buildBagSummaryRows(view: BagView): BagSummaryRow[] {
   if (handling > 0) rows.push({ key: "handling", label: HANDLING_ROW_LABEL, value: formatGhs(handling) });
   // Display only: customs sits inside the freight above.
   rows.push({ key: "customs", label: CUSTOMS_ROW_LABEL, value: CUSTOMS_ROW_VALUE, tone: "muted" });
+  // The held price (121): absorbed rises take money off; rises over the cap are named.
+  if ((view.price_hold_ghs ?? 0) > 0) {
+    rows.push({ key: "price_hold", label: "Price held for you", value: `− ${formatGhs(view.price_hold_ghs ?? 0)}`, tone: "saving" });
+  }
+  if ((view.price_rose_ghs ?? 0) > 0) {
+    rows.push({ key: "price_rose", label: "Store price rose since your quote", value: `+ ${formatGhs(view.price_rose_ghs ?? 0)}` });
+  }
   if (view.consolidation_saving_ghs > 0) {
     rows.push({ key: "saving", label: "Consolidation saving", value: `− ${formatGhs(view.consolidation_saving_ghs)}`, tone: "saving" });
   }

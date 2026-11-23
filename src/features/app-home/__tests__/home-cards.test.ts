@@ -47,6 +47,7 @@ vi.mock("@/features/quotes/services/quote-constants.service", () => {
   return {
     QuoteConstantsMissingError,
     loadQuoteConstants: vi.fn(async () => ({ rate_lock_hours: 24, purchase_lead_days_min: 1, purchase_lead_days_max: 3 })),
+    loadPriceHoldCap: vi.fn(async () => 50),
   };
 });
 vi.mock("@/features/quotes/services/quote-lock.service", () => ({

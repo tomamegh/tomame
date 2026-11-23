@@ -20,7 +20,7 @@ vi.mock("@/lib/exchange-rates/service", () => ({ listGhsRates: vi.fn(async () =>
 vi.mock("@/features/extraction/quote.service", () => ({ priceExtractionWith: vi.fn() }));
 vi.mock("@/features/quotes/services/quote-constants.service", () => {
   class QuoteConstantsMissingError extends Error {}
-  return { QuoteConstantsMissingError, loadQuoteConstants: vi.fn() };
+  return { QuoteConstantsMissingError, loadQuoteConstants: vi.fn(), loadPriceHoldCap: vi.fn(async () => 50) };
 });
 vi.mock("@/features/quotes/services/delivery-eta.service", () => ({ loadDeliveryWindow: vi.fn() }));
 vi.mock("@/lib/supabase/errors", () => ({ isSchemaMissingError: () => false }));
@@ -76,7 +76,7 @@ function lock(overrides: Partial<QuoteLockRow> = {}): QuoteLockRow {
     id: "lock-1", user_id: "user-1", session_id: null, extraction_cache_id: null, quantity: 1,
     exchange_rate: 14.49, mid_market_rate: 13.93, fx_rates: { USD: 13.93 }, pricing: breakdown(),
     locked_at: "2026-09-12T10:00:00Z", expires_at: new Date(Date.now() + 3600_000).toISOString(),
-    consumed_by_order_id: "order-9", consumed_at: "2026-09-12T11:00:00Z", created_at: "2026-09-12T10:00:00Z", ...overrides,
+    held_unit_ghs: null, consumed_by_order_id: "order-9", consumed_at: "2026-09-12T11:00:00Z", created_at: "2026-09-12T10:00:00Z", ...overrides,
   };
 }
 

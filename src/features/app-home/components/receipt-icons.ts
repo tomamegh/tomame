@@ -5,6 +5,7 @@ import {
   Bank,
   HandCoins,
   HandHeart,
+  LockSimple,
   Package,
   ShieldCheck,
   Tag,
@@ -28,5 +29,6 @@ export const RECEIPT_ROW_ICONS: Record<ReceiptRowIcon, Icon> = {
   freight: AirplaneTilt,
   handling: HandCoins,
   customs: ShieldCheck,
+  hold: LockSimple,
   rate: ArrowsLeftRight,
 };
