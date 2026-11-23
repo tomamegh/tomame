@@ -3,7 +3,7 @@
   "appName": "Tomame",
   "webDir": "www",
   "server": {
-    "url": "https://dev.tomame.ca/m",
+    "url": "https://tomame.ca/m",
     "cleartext": false,
     "allowNavigation": [
       "checkout.paystack.com",

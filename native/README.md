@@ -18,15 +18,15 @@ The page reaches native features through the `window.Capacitor` global that Capa
 cd native
 npm install
 npm run sim     # http://localhost:3010/m — Simulator only (start the "tomame-mobile" dev server first)
-npm run dev     # https://dev.tomame.ca/m — for your phone once /m is deployed to dev
-npm run prod    # https://tomame.ca/m
+npm run prod    # https://tomame.ca/m — what Kelvin's phone runs (real payments)
+npm run dev     # https://dev.tomame.ca/m — test keys, shared dev data
 ```
 
 Each command rewrites `server.url` in `capacitor.config.json` and runs `cap sync ios`.
 
 ## Install on your iPhone (free Apple ID)
 
-1. `npm run dev`, then `npm run open` (opens Xcode).
+1. `npm run prod`, then `npm run open` (opens Xcode).
 2. In the App target, open Signing & Capabilities and set Team to your Personal Team. If Xcode says the bundle ID `ca.tomame.ios` is taken, change it to something unique.
 3. Plug in the iPhone, pick it as the run destination, and press Run.
 4. The first time only, on the phone, go to Settings → General → VPN & Device Management → your Apple ID → Trust.
