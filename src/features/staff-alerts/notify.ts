@@ -27,7 +27,8 @@ export type StaffAlertTrigger =
   /** 101: a customer is sending (or called off) their own rider to the Accra warehouse. */
   | { kind: "customer_ride"; orderId: string; action: "requested" | "cancelled"; at: string }
   /** 103: a price or stock check needs a person before the customer can pay (or a customer reported a wrong price). */
-  | { kind: "quote_check"; checkId: string };
+  | { kind: "quote_check"; checkId: string }
+  | { kind: "new_signup"; userId: string; method: "google" | "email" };
 
 /** Which toggle a trigger belongs to. */
 export function eventOf(t: StaffAlertTrigger): StaffAlertEvent {
@@ -57,6 +58,8 @@ export function eventOf(t: StaffAlertTrigger): StaffAlertEvent {
       return "customer_message";
     case "quote_check":
       return "quote_check";
+    case "new_signup":
+      return "new_signup";
   }
 }
 
@@ -97,6 +100,8 @@ export function eventKeyOf(t: StaffAlertTrigger): string {
       return `customer_message:ride:${t.orderId}:${t.action}:${t.at}`;
     case "quote_check":
       return `quote_check:${t.checkId}`;
+    case "new_signup":
+      return `new_signup:${t.userId}`;
   }
 }
 
@@ -129,6 +134,8 @@ export function entityOf(t: StaffAlertTrigger): { entity_type: string; entity_id
       return { entity_type: "car_enquiry", entity_id: t.enquiryId };
     case "quote_check":
       return { entity_type: "quote_check", entity_id: t.checkId };
+    case "new_signup":
+      return { entity_type: "user", entity_id: t.userId };
   }
 }
 

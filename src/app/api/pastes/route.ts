@@ -9,6 +9,7 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit, rateLimitSubject } from "@/lib/rate-limit";
+import { VISITOR_SIGN_IN_MESSAGE, visitorTasteLimits } from "@/features/finder/admission";
 import { RATE_LIMIT } from "@/config/security";
 import { toPasteStatus } from "@/features/extraction/services/paste-status";
 
@@ -52,15 +53,26 @@ export async function POST(request: NextRequest) {
     // lock out the rest. A cache hit calls no vendor, so it spends its own,
     // looser bucket instead of the read budget (as /api/products/extract does).
     const subject = rateLimitSubject(request, user?.id);
-    const admit = async (cacheHit: boolean) =>
-      (await checkRateLimit(cacheHit ? `paste:cache:${subject}` : `paste:${subject}`, cacheHit ? RATE_LIMIT.extractionCacheHit : RATE_LIMIT.extraction)).allowed;
+    // A visitor's free taste (shared with the chat and /api/products/extract), then sign in.
+    let tasteUsed = false;
+    const admit = async (cacheHit: boolean) => {
+      if (!user) {
+        for (const taste of visitorTasteLimits(viewer.sessionId, subject)) {
+          if (!(await checkRateLimit(taste.key, taste.config)).allowed) {
+            tasteUsed = true;
+            return false;
+          }
+        }
+      }
+      return (await checkRateLimit(cacheHit ? `paste:cache:${subject}` : `paste:${subject}`, cacheHit ? RATE_LIMIT.extractionCacheHit : RATE_LIMIT.extraction)).allowed;
+    };
 
     let enqueued: Awaited<ReturnType<typeof enqueuePaste>>;
     try {
       enqueued = await enqueuePaste(viewer, parsed.data.product_url, admit);
     } catch (error) {
       if (error instanceof PasteNotAdmittedError) {
-        throw new APIError(429, "You've added a lot of links in a short time. Please wait a few minutes and try again.");
+        throw new APIError(429, tasteUsed ? VISITOR_SIGN_IN_MESSAGE : "You've added a lot of links in a short time. Please wait a few minutes and try again.");
       }
       throw error;
     }

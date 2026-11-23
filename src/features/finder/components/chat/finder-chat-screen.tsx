@@ -221,6 +221,7 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
                           />
                         ) : null;
                       })}
+                      {m.signIn && !signedIn ? <ChatSignInCard chatId={chat?.id ?? null} /> : null}
                     </AssistantTurn>
                   )}
                 </li>
@@ -418,5 +419,29 @@ function WhatsappNumber({ onSave }: { onSave: (phone: string) => Promise<unknown
         Save
       </button>
     </form>
+  );
+}
+
+/**
+ * A visitor's free taste is used: sign in to keep going (2026-11-23). Both
+ * routes bring them back to this chat, which moves to their account on sign-in.
+ */
+function ChatSignInCard({ chatId }: { chatId: string | null }) {
+  const next = encodeURIComponent(chatId ? `/app/find/chat/${chatId}` : "/app/orders/new");
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-tm-coral/30 bg-tm-tint p-4">
+      <p className="text-[14px] leading-snug font-semibold text-foreground">Keep going with a free Tomame account</p>
+      <p className="text-[13px] leading-relaxed text-muted-foreground">
+        Unlimited searches and link prices, your chats saved, and updates on WhatsApp once you order.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Link href={`/auth/signup?next=${next}`} className="tm-cta-gradient inline-flex h-10 items-center rounded-full px-5 text-[13px] font-bold text-white">
+          Create a free account
+        </Link>
+        <Link href={`/auth/login?next=${next}`} className="inline-flex h-10 items-center rounded-full border border-tm-border bg-card px-5 text-[13px] font-semibold text-foreground">
+          Sign in
+        </Link>
+      </div>
+    </div>
   );
 }

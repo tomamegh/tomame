@@ -1,14 +1,23 @@
 import { NextRequest, after } from "next/server";
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
-import { finderChatRateLimit, finderLimitMessage, finderRateLimit } from "@/features/finder/admission";
+import {
+  finderChatDayLimit,
+  finderChatRateLimit,
+  finderLimitMessage,
+  finderRateLimit,
+  VISITOR_SIGN_IN_MESSAGE,
+  visitorTasteLimits,
+} from "@/features/finder/admission";
+import { recordAiUsage } from "@/features/ai-usage/ai-usage.service";
+import { hashIp } from "@/features/ai-usage/hash-ip";
 import { chatMessageSchema } from "@/features/finder/schema";
 import { emailTurnWhenSettled, listChatHistory, sendChatMessage } from "@/features/finder/services/finder-chat.service";
 import { runFinderJob } from "@/features/finder/services/finder-run.service";
 import { runPasteJob } from "@/features/extraction/services/extraction-queue.service";
 import { RATE_LIMIT } from "@/config/security";
 import { APIError, errorResponse, successResponse } from "@/lib/auth/api-helpers";
-import { checkRateLimit, rateLimitSubject } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp, rateLimitSubject } from "@/lib/rate-limit";
 import { readQuoteSession, resolveViewer } from "@/lib/quote-session";
 
 // The reply is immediate; `after()` keeps the invocation alive for the turn's
@@ -34,29 +43,50 @@ export async function POST(request: NextRequest) {
 
     const user = await getAuthenticatedUser();
     const subject = rateLimitSubject(request, user?.id);
+    const ipHash = user ? null : hashIp(getClientIp(request));
+    const sessionId = readQuoteSession(request);
     const chatLimit = finderChatRateLimit(subject, user != null);
-    if (!(await checkRateLimit(chatLimit.key, chatLimit.config)).allowed) {
-      throw new APIError(429, "That's a lot of messages in a short time. Give it a few minutes and try again.");
+    // Per visitor cookie when they have one: a carrier IP is shared by many customers.
+    const dayLimit = finderChatDayLimit(sessionId ? `s:${sessionId}` : subject);
+    if (!(await checkRateLimit(chatLimit.key, chatLimit.config)).allowed || (!user && !(await checkRateLimit(dayLimit.key, dayLimit.config)).allowed)) {
+      await recordAiUsage({ kind: "chat", outcome: "rate_limited", userId: user?.id ?? null, sessionId, ipHash });
+      throw new APIError(429, user ? "That's a lot of messages in a short time. Give it a few minutes and try again." : `That's a lot of messages. ${VISITOR_SIGN_IN_MESSAGE}`);
     }
 
     const { viewer, finalize } = resolveViewer(request, user?.id ?? null);
     const searchLimit = finderRateLimit(subject, user != null);
+    // A visitor's free taste: searches and link reads share one daily bucket, then the chat asks them to sign in.
+    let tasteUsed = false;
+    const taste = async () => {
+      if (user) return true;
+      for (const t of visitorTasteLimits(viewer.sessionId, subject)) {
+        if (!(await checkRateLimit(t.key, t.config)).allowed) {
+          tasteUsed = true;
+          return false;
+        }
+      }
+      return true;
+    };
     const result = await sendChatMessage(
       viewer,
       { chatId: parsed.data.chat_id ?? null, text: parsed.data.text, email: user ? null : parsed.data.email ?? null },
-      async () => (await checkRateLimit(searchLimit.key, searchLimit.config)).allowed,
-      finderLimitMessage(user != null),
+      async () => (await taste()) && (await checkRateLimit(searchLimit.key, searchLimit.config)).allowed,
+      () => (tasteUsed ? { message: VISITOR_SIGN_IN_MESSAGE, signIn: true } : { message: finderLimitMessage(user != null), signIn: false }),
       // Links spend the paste queue's buckets, exactly as POST /api/pastes: a cache hit the looser one.
       async (cacheHit) =>
+        (await taste()) &&
         (await checkRateLimit(cacheHit ? `paste:cache:${subject}` : `paste:${subject}`, cacheHit ? RATE_LIMIT.extractionCacheHit : RATE_LIMIT.extraction)).allowed,
     );
+    const who = { userId: user?.id ?? null, sessionId: viewer.sessionId ?? sessionId, ipHash, refId: result.turn.id };
+    if (result.usage) await recordAiUsage({ ...who, kind: "chat", tokens: result.usage });
+    if (result.signInRequired) await recordAiUsage({ ...who, kind: "chat", outcome: "sign_in_required" });
 
     after(async () => {
       await Promise.all([...result.newRunIds.map((id) => runFinderJob(id)), ...result.newPasteJobs.map((id) => runPasteJob(id, PASTE_JOB_BUDGET_MS))]);
       // Every item may have been an earlier search: the email goes now. The claim keeps it to one.
       await emailTurnWhenSettled(result.turn);
     });
-    return finalize(successResponse({ chatId: result.chat.id, messages: result.messages, readyQuotes: result.readyQuotes }, 201));
+    return finalize(successResponse({ chatId: result.chat.id, messages: result.messages, readyQuotes: result.readyQuotes, signInRequired: result.signInRequired }, 201));
   } catch (error) {
     return errorResponse(error);
   }

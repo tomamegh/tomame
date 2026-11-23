@@ -23,3 +23,22 @@ export function finderLimitMessage(signedIn: boolean): string {
 export function finderChatRateLimit(subject: string, signedIn: boolean): { key: string; config: { windowMs: number; maxRequests: number } } {
   return { key: `finder-chat:${subject}`, config: signedIn ? RATE_LIMIT.finderChatUser : RATE_LIMIT.finderChatVisitor };
 }
+
+/** The chat's answer once a visitor's free taste is used: the next step, never a dead end. */
+export const VISITOR_SIGN_IN_MESSAGE =
+  "You've had today's free looks. Sign in to keep searching and pricing links: it's free, and this chat stays right here.";
+
+/**
+ * A visitor's free taste: searches and link reads share one daily bucket per
+ * visitor (their cookie), and a looser one per IP so clearing cookies does not
+ * reset it while a carrier IP shared by many customers does not wall them all.
+ */
+export function visitorTasteLimits(sessionId: string | null, ipSubject: string): Array<{ key: string; config: { windowMs: number; maxRequests: number } }> {
+  const ip = { key: `taste:${ipSubject}`, config: RATE_LIMIT.visitorTasteIp };
+  return sessionId ? [{ key: `taste:s:${sessionId}`, config: RATE_LIMIT.visitorTaste }, ip] : [{ key: `taste:${ipSubject}`, config: RATE_LIMIT.visitorTaste }];
+}
+
+/** A visitor's daily message cap, beside the hourly one. */
+export function finderChatDayLimit(subject: string): { key: string; config: { windowMs: number; maxRequests: number } } {
+  return { key: `finder-chat-day:${subject}`, config: RATE_LIMIT.finderChatVisitorDay };
+}

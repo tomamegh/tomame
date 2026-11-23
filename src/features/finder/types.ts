@@ -182,6 +182,8 @@ export interface FinderChatMessageView {
   /** 108: the links this turn queued from the customer's message, in the order pasted. */
   pasteIds: string[];
   createdAt: string;
+  /** A visitor's free taste ran out on this turn: the screen offers sign-in under it. */
+  signIn?: boolean;
 }
 
 export interface FinderChatView {

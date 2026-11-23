@@ -556,6 +556,25 @@ export async function buildAlert(t: StaffAlertTrigger, environment: string | nul
           : [],
       };
     }
+    case "new_signup": {
+      const customer = await customerOf(t.userId);
+      const who = customer.name ?? customer.email ?? "A new customer";
+      return {
+        customer,
+        items: [],
+        totalGhs: null,
+        payment: null,
+        adminHref: "/admin/users",
+        adminLabel: "Open users",
+        environment,
+        subject: `${p} New sign-up: ${who}`,
+        eyebrow: "New sign-up",
+        tone: "green",
+        headline: `${who} created a Tomame account`,
+        summary: `Signed up with ${t.method === "google" ? "Google" : "email"}.${customer.email ? ` Their email is ${customer.email}.` : ""}`,
+        facts: [["Signed up with", t.method === "google" ? "Google" : "Email"]],
+      };
+    }
     case "contact_message": {
       const message = await getStaffContactMessage(t.messageId);
       if (!message) throw new Error(`contact message ${t.messageId} not found`);

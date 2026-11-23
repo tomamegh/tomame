@@ -51,6 +51,7 @@ import {
 import { rankCandidates, toFinderQuote, type RankInput } from "../ranking";
 import { isSuspiciouslyLow, outlierReference } from "../price-outlier";
 import { wideSpread } from "../spec-spread";
+import { recordAiUsage } from "@/features/ai-usage/ai-usage.service";
 import { priceContextOf, type PriceContext } from "@/features/extraction/price-context";
 import { QUICK_PICK_TRIES, quickPickOrder, quickPickReason, saysInStock } from "../quick-pick";
 import { dropDetails, isClearlyOverBudget, isNotNew, isRiskyListing, keywordMatches, mergeDrops, postFilterListings, type DropReason, type FinderListing } from "../shortlist";
@@ -689,6 +690,8 @@ export async function runFinderJob(runId: string): Promise<FinderJobOutcome> {
 
   // Outside the try: a message we could not send must never undo the run (see extraction-queue.service).
   if (settled) await sendFinderEmail(settled).catch(() => undefined);
+  // One usage row per settled run (140); a requeued attempt is counted when it settles.
+  if (outcome !== "requeued") await recordAiUsage({ kind: "search", userId: claimed.user_id, sessionId: claimed.session_id, refId: runId, tokens: usage });
   return outcome;
 }
 

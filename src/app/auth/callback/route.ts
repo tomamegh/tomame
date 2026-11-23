@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { alertIfNewSignup } from "@/features/auth/services/signup-alert";
 
 import { createClient } from "@/lib/supabase/server";
 import { canAccessAdmin, isDriver, isWarehouseOnly } from "@/lib/auth/admin-access";
@@ -38,9 +39,10 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data: exchanged, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
+      alertIfNewSignup(exchanged?.user);
       const { data: claimsData } = await supabase.auth.getClaims();
       const destination = postAuthDestination({
         next,

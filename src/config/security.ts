@@ -92,6 +92,19 @@ export const RATE_LIMIT = {
   /** Shopping assistant messages (107): one model call each. Per hour. */
   finderChatUser: { windowMs: 60 * 60 * 1000, maxRequests: 60 },
   finderChatVisitor: { windowMs: 60 * 60 * 1000, maxRequests: 20 },
+  /** A visitor's day of messages to the assistant, beside the hourly cap. */
+  finderChatVisitorDay: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 30 },
+  /**
+   * A visitor's free taste (2026-11-23): searches and link reads together, per
+   * visitor (quote-session cookie) per day. Then the chat asks them to sign in (free) to keep going, so
+   * prices are not a free lookup service for people who buy elsewhere.
+   */
+  visitorTaste: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 3 },
+  /**
+   * The same taste per IP, looser: many customers in Ghana share one carrier
+   * IP, so the IP bucket only catches one person clearing cookies to reset.
+   */
+  visitorTasteIp: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 40 },
   /** Public waitlist signup — 5 requests per hour per IP. */
   waitlist: { windowMs: 60 * 60 * 1000, maxRequests: 5 },
   /**

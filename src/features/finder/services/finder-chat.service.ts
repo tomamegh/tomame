@@ -28,6 +28,7 @@ import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
 
 import { priceContextFacts } from "@/features/extraction/price-context";
+import { VISITOR_SIGN_IN_MESSAGE } from "../admission";
 import { chatTitle, recentHistory, summariseChatRuns } from "../chat";
 import { normaliseFinderQuery, type ParsedFinderSpec } from "../spec";
 import { reduceFinderEvents, selectRankedCandidates } from "../state/reducer";
@@ -64,7 +65,14 @@ export interface SendChatResult {
   readyQuotes: { pasteId: string; extractionCacheId: string }[];
   /** The turn the route checks for its email once those runs settle. */
   turn: FinderChatMessageRow;
+  /** The model's tokens this turn; null when the model was not called (links only). */
+  usage: { input: number; output: number } | null;
+  /** A visitor's free taste ran out this turn: the screen offers sign-in. */
+  signInRequired: boolean;
 }
+
+/** Why a search or link was turned away: the words to say, and whether it is the visitor sign-in wall. */
+export type ChatRefusal = () => { message: string; signIn: boolean };
 
 const toMessageView = (m: FinderChatMessageRow): FinderChatMessageView => ({
   id: m.id,
@@ -73,6 +81,8 @@ const toMessageView = (m: FinderChatMessageRow): FinderChatMessageView => ({
   runIds: m.run_ids,
   pasteIds: m.paste_ids ?? [],
   createdAt: m.created_at,
+  // The sign-in wall's words mark the turn: the screen draws the sign-in card under it.
+  signIn: m.role === "assistant" && m.content.includes(VISITOR_SIGN_IN_MESSAGE),
 });
 
 /** The words of a message with its links taken out: what is left for the assistant to read. */
@@ -190,9 +200,10 @@ export async function sendChatMessage(
   viewer: RequestViewer,
   input: SendChatInput,
   admitSearch: () => Promise<boolean>,
-  limitMessage: string,
+  limitMessage: string | ChatRefusal,
   admitPaste: PasteAdmit = async () => true,
 ): Promise<SendChatResult> {
+  const refusal: ChatRefusal = typeof limitMessage === "string" ? () => ({ message: limitMessage, signIn: false }) : limitMessage;
   if (!viewer.userId && !viewer.sessionId) throw new APIError(400, "We could not tell whose chat this is. Reload and try again.");
   const text = input.text.replace(/\s+/g, " ").trim();
   const links = linksInText(text).slice(0, PASTE_BATCH_MAX);
@@ -216,10 +227,13 @@ export async function sendChatMessage(
 
   // Links alone need no model: they are read and priced as pasted links always were.
   // Words beside them (or no links at all) are the assistant's to answer.
-  let reply = links.length ? linksReply(pasted.pasteIds.length, pasted.limited, pasted.failed) : "";
+  const linksWalled = pasted.limited > 0 && refusal().signIn;
+  let reply = links.length ? linksReply(pasted.pasteIds.length, linksWalled ? 0 : pasted.limited, pasted.failed) : "";
   let started: { runIds: string[]; fresh: string[]; limited: number } = { runIds: [], fresh: [], limited: 0 };
   const usage = { input: 0, output: 0 };
+  let modelCalled = false;
   if (!links.length || words.length >= 3) {
+    modelCalled = true;
     const earlier = await listFinderChatMessages(chat.id);
     const history = recentHistory(earlier.map((m) => ({ role: m.role, content: m.id === userMessage.id && links.length ? `${words} (and ${links.length === 1 ? "a link, which you are reading" : `${links.length} links, which you are reading`})` : m.content })));
     const runIds = [...new Set(earlier.flatMap((m) => m.run_ids))];
@@ -236,7 +250,9 @@ export async function sendChatMessage(
     reply = [reply, plan.reply].filter(Boolean).join(" ");
   }
 
-  if (started.limited > 0) reply = `${reply} ${limitMessage}`.trim();
+  const refused = refusal();
+  const signInRequired = refused.signIn && (linksWalled || started.limited > 0);
+  if (started.limited > 0 || linksWalled) reply = `${reply.replace(refused.message, "").trim()} ${refused.message}`.trim();
   const assistant = await insertFinderChatMessage({
     chatId: chat.id,
     role: "assistant",
@@ -247,7 +263,16 @@ export async function sendChatMessage(
   await touchFinderChat(chat.id);
   logger.info("finder chat: turn", { chatId: chat.id, searches: started.runIds.length, fresh: started.fresh.length, limited: started.limited, links: pasted.pasteIds.length, tokens: usage });
 
-  return { chat, messages: [toMessageView(userMessage), toMessageView(assistant)], newRunIds: started.fresh, newPasteJobs: pasted.jobs, readyQuotes: pasted.ready, turn: assistant };
+  return {
+    chat,
+    messages: [toMessageView(userMessage), toMessageView(assistant)],
+    newRunIds: started.fresh,
+    newPasteJobs: pasted.jobs,
+    readyQuotes: pasted.ready,
+    turn: assistant,
+    usage: modelCalled ? usage : null,
+    signInRequired,
+  };
 }
 
 /** The fallback when the assistant is unavailable: the message as one search the run reads itself. */

@@ -85,8 +85,11 @@ describe("POST /api/products/extract — rate limiting", () => {
     const res = await POST(request("5.5.5.5") as never);
 
     expect(res.status).toBe(200);
-    expect(checkRateLimit).toHaveBeenCalledTimes(1);
-    const [key, config] = vi.mocked(checkRateLimit).mock.calls[0]!;
+    // A visitor first spends their free taste (2026-11-23), then the cache bucket.
+    const calls = vi.mocked(checkRateLimit).mock.calls.map((c) => c[0]);
+    expect(calls.filter((k) => k.startsWith("taste:")).length).toBeGreaterThan(0);
+    expect(calls.at(-1)).toBe("extraction:cache:5.5.5.5");
+    const [key, config] = vi.mocked(checkRateLimit).mock.calls.at(-1)!;
     expect(key).toBe("extraction:cache:5.5.5.5");
     // Looser than the vendor bucket, same window — derived from RATE_LIMIT.extraction,
     // not a brand new constant.

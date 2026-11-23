@@ -24,6 +24,7 @@ export const STAFF_ALERT_EVENTS = [
   "sourcing_requested",
   "customer_message",
   "quote_check",
+  "new_signup",
 ] as const;
 export type StaffAlertEvent = (typeof STAFF_ALERT_EVENTS)[number];
 
@@ -36,6 +37,7 @@ export const STAFF_EVENT_LABELS: Record<StaffAlertEvent, { label: string; detail
   car_order: { label: "Car orders", detail: "A car checkout started, cancelled or released" },
   sourcing_requested: { label: "Sourcing requested", detail: "A customer asked a buyer to find or price an item" },
   customer_message: { label: "Customer messages", detail: "Parcel photo replies, the contact form and car enquiries" },
+  new_signup: { label: "New sign-ups", detail: "Someone created a Tomame account, with Google or email" },
   quote_check: { label: "Price and stock checks", detail: "A quote cannot be paid until staff confirm its price or stock, or a customer reported a wrong price" },
 };
 
