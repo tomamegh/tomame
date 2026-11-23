@@ -161,6 +161,8 @@ export interface BagView {
   boxes: BagBox[];
   /** Lines that could not be boxed (no price or no region). */
   unboxed_line_ids: string[];
+  /** Lines heavier than a box: oversize freight, shipped on their own (Fix 11). */
+  oversize_line_ids?: string[];
   /** Σ box savings, already subtracted from `total_ghs`. */
   consolidation_saving_ghs: number;
   /** `consolidation_saving_pct`, for the label. */

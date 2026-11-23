@@ -30,7 +30,10 @@ export async function POST(request: NextRequest, { params }: Ctx) {
 
     switch (parsed.data.action) {
       case "seal":
-        return successResponse({ package: await sealWarehousePackage(user, id, parsed.data.override_reason), failed: [] });
+        return successResponse({ package: await sealWarehousePackage(user, id, parsed.data.override_reason, {
+            estimateReason: parsed.data.weight_estimate_reason,
+            capacityReason: parsed.data.capacity_override_reason,
+          }), failed: [] });
       case "hold":
         return successResponse({ package: await holdWarehousePackage(user, id, parsed.data.hold_reason ?? ""), failed: [] });
       case "release":

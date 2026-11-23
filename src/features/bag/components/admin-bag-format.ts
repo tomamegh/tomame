@@ -7,6 +7,7 @@ import {
   type BoxConstants,
   type PackableLine,
 } from "@/features/bag/services/box-packing";
+import { capacityFill } from "@/features/warehouse/weights";
 
 /**
  * Pure shaping for the admin's bag and box screens.
@@ -117,27 +118,55 @@ export function bagOwnerLabel(bag: AdminBagRow): string {
 export interface BoxFill {
   /** Chargeable weight packed, in lb — quantities and the minimum already applied. */
   chargeableLbs: number;
-  /** 0–100, clamped. A box can be over capacity; the meter cannot. */
+  /** The true percentage, uncapped (Fix 11): 141.2 lb in a 9 lb box is 1569%. */
   fillPct: number;
   headroomLbs: number;
-  /** Items whose listing gave no weight. They were counted at 0 lb. */
+  /** How far past the capacity it is; 0 when it fits. */
+  overLbs: number;
+  over: boolean;
+  /** Items with no weight at all. They were counted at 0 lb. */
   unweighedCount: number;
+  /** Items weighed on the hub's scale (confirmed). */
+  weighedCount: number;
+  /** Items whose weight is only the listing's (an estimate). */
+  estimateCount: number;
+  /** Items heavier than the box on their own: oversize freight that should not be in it. */
+  oversizeRefs: string[];
   /** Items that have been paid for, and items still sitting in an open bag. */
   committedCount: number;
   provisionalCount: number;
 }
 
+export type BoxItemWeightSource = "scale" | "listed" | "none";
+
+/**
+ * One item's chargeable weight and where it came from. The hub's scale wins
+ * (confirmed: the reading covers every unit, floored at the minimum per unit);
+ * else the listing through the packer's own `chargeableWeightLbs` (estimate).
+ */
+export function boxItemWeight(
+  item: AdminBoxItem,
+  constants: BoxConstants,
+): { lbs: number | null; source: BoxItemWeightSource } {
+  const scale = item.scale_weight_lbs ?? null;
+  if (scale != null && scale > 0) {
+    return { lbs: round2(Math.max(scale, constants.minimum_chargeable_weight_lbs * item.quantity)), source: "scale" };
+  }
+  const listed = chargeableWeightLbs(toPackableLine(item), constants);
+  return listed == null ? { lbs: null, source: "none" } : { lbs: listed, source: "listed" };
+}
+
 /**
  * How full a box is.
  *
- * The per-item weight comes from `chargeableWeightLbs` in `box-packing.ts` —
- * the same function the customer's bag meter is drawn from, so the admin and the
- * customer cannot be told two different numbers about one box. This function
- * only adds them up and expresses the result against the box's own capacity.
+ * Each item's weight comes from `boxItemWeight`: the hub's scale when the parcel
+ * was weighed, else the packer's own `chargeableWeightLbs`, so the admin and the
+ * customer are told the same estimate. Fill is the true figure (Fix 11): an
+ * over-capacity box says how far over, never "100% · 0 lb spare".
  *
- * An item with no known weight contributes 0 and is counted separately, exactly
- * as the packer does: a box that looks 40% full with four unweighed items in it
- * is not 40% full, and the screen has to be able to say so.
+ * An item with no known weight contributes 0 and is counted separately: a box
+ * that looks 40% full with four unweighed items in it is not 40% full, and the
+ * screen has to be able to say so.
  */
 export function describeBoxFill(
   box: ConsolidationBoxRow,
@@ -146,21 +175,36 @@ export function describeBoxFill(
 ): BoxFill {
   let chargeableLbs = 0;
   let unweighedCount = 0;
+  let weighedCount = 0;
+  let estimateCount = 0;
+  const oversizeRefs: string[] = [];
+  const capacity = box.capacity_lbs;
 
   for (const item of items) {
-    const weight = chargeableWeightLbs(toPackableLine(item), constants);
-    if (weight == null) unweighedCount += 1;
-    else chargeableLbs += weight;
+    const weight = boxItemWeight(item, constants);
+    if (weight.lbs == null) {
+      unweighedCount += 1;
+      continue;
+    }
+    chargeableLbs += weight.lbs;
+    if (weight.source === "scale") weighedCount += 1;
+    else estimateCount += 1;
+    if (capacity > 0 && weight.lbs > capacity) oversizeRefs.push(item.reference ?? shortTitle(item.title) ?? "An item");
   }
 
   chargeableLbs = round2(chargeableLbs);
-  const capacity = box.capacity_lbs;
+  const fill = capacityFill(chargeableLbs, capacity);
 
   return {
     chargeableLbs,
-    fillPct: capacity > 0 ? Math.min(100, Math.round((chargeableLbs / capacity) * 100)) : 0,
-    headroomLbs: round2(Math.max(0, capacity - chargeableLbs)),
+    fillPct: fill.pct ?? 0,
+    headroomLbs: fill.spareLbs,
+    overLbs: fill.overLbs,
+    over: fill.over,
     unweighedCount,
+    weighedCount,
+    estimateCount,
+    oversizeRefs,
     committedCount: items.filter((item) => item.kind === "order").length,
     provisionalCount: items.filter((item) => item.kind === "bag_line").length,
   };
@@ -178,7 +222,7 @@ export function itemChargeableLbs(
   item: AdminBoxItem,
   constants: BoxConstants,
 ): number | null {
-  return chargeableWeightLbs(toPackableLine(item), constants);
+  return boxItemWeight(item, constants).lbs;
 }
 
 /**
@@ -227,4 +271,10 @@ export function isPastCutoff(box: ConsolidationBoxRow, now: Date): boolean {
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function shortTitle(title: string | null): string | null {
+  if (!title) return null;
+  const t = title.trim();
+  return t.length > 40 ? `${t.slice(0, 38).trimEnd()}…` : t;
 }

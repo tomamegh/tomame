@@ -151,6 +151,8 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
   // contradiction the customer has to resolve themselves.
   const stillReading = unboxed.filter((l) => l.pending != null);
   const unpriced = unboxed.filter((l) => l.pending == null);
+  // Fix 11: heavier than a box, so it ships on its own rather than in one.
+  const oversize = (bag.oversize_line_ids ?? []).map((id) => linesById.get(id)).filter((l): l is BagLine => !!l);
 
   const refreshChrome = useCallback(() => router.refresh(), [router]);
   const onDescribeIt = useCallback((line: BagLine) => setDescribing(line), []);
@@ -293,6 +295,21 @@ export function BagView({ initialBag, zones, addresses, paymentChannels, payment
             label="Waiting on a price"
             lines={unpriced}
             delay={0.08 + (bag.boxes.length + (stillReading.length ? 1 : 0)) * 0.06}
+            now={now}
+            busyLineId={busyLineId}
+            onQuantity={onQuantity}
+            onWatchInstead={onWatchInstead}
+            onRemove={onRemove}
+            onDescribeIt={onDescribeIt}
+            notifies={isSignedIn}
+          />
+        )}
+
+        {oversize.length > 0 && (
+          <UnboxedGroup
+            label="Oversize: ships on its own"
+            lines={oversize}
+            delay={0.08 + (bag.boxes.length + (stillReading.length ? 1 : 0) + (unpriced.length ? 1 : 0)) * 0.06}
             now={now}
             busyLineId={busyLineId}
             onQuantity={onQuantity}

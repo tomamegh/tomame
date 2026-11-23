@@ -17,7 +17,9 @@ import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 
 import type { WarehouseItem, WarehousePackage } from "../types";
+import { addItemsWeightProblem, capacityLine, itemWeight, weightNote } from "../weights";
 import { groupByRecipient, matchesQuery, pluralise, recipientPlace } from "./format";
+import { loadOf } from "./package-weight-panel";
 import { errorText, warehouseRequest } from "./warehouse-actions";
 import { ItemFlags, ItemThumb, StageBadge } from "./warehouse-ui";
 
@@ -46,6 +48,7 @@ export function AddItemsDialog({
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [busy, setBusy] = useState(false);
+  const [capacityReason, setCapacityReason] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -108,12 +111,22 @@ export function AddItemsDialog({
     return item && packageCustomers.size > 0 && !packageCustomers.has(item.customer_key);
   });
 
+  // 114 (Fix 11): what the box weighs with the selection in, and whether that needs a reason.
+  const load = loadOf(pkg);
+  const pickedItems = (items ?? []).filter((i) => picked.has(i.order_id));
+  const weightProblem =
+    tab === "shelf" && pickedItems.length > 0
+      ? addItemsWeightProblem(load, pickedItems.map((item) => ({ quantity: item.quantity, description: null, item })))
+      : null;
+  const afterLbs = load.contentsLbs + pickedItems.reduce((acc, i) => acc + (itemWeight(i).lbs ?? 0), 0);
+  const afterLine = tab === "shelf" && pickedItems.length > 0 ? capacityLine(afterLbs, pkg.capacity_lbs) : null;
+
   const submit = async () => {
     setBusy(true);
     try {
       const body =
         tab === "shelf"
-          ? { order_ids: [...picked] }
+          ? { order_ids: [...picked], ...(weightProblem ? { capacity_override_reason: capacityReason.trim() } : {}) }
           : { lines: [{ description: description.trim(), quantity: Number(quantity) || 1 }] };
       await warehouseRequest(`/api/warehouse/packages/${pkg.id}/items`, "POST", body);
       toast.success({
@@ -131,7 +144,8 @@ export function AddItemsDialog({
     }
   };
 
-  const canSubmit = tab === "shelf" ? picked.size > 0 : description.trim().length > 0;
+  const canSubmit =
+    tab === "shelf" ? picked.size > 0 && (!weightProblem || capacityReason.trim().length > 2) : description.trim().length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -231,6 +245,7 @@ export function AddItemsDialog({
                               <span className="font-mono text-tm-text-2">{item.order_no}</span> · Qty {item.quantity}
                             </span>
                             <ItemFlags item={item} />
+                            <ShelfWeight item={item} capacityLbs={pkg.capacity_lbs} />
                           </span>
                           <StageBadge stage={item.stage} />
                         </button>
@@ -269,13 +284,26 @@ export function AddItemsDialog({
           </div>
         )}
 
+        {weightProblem ? (
+          <div className="flex flex-col gap-2 border-t border-tm-hairline bg-tm-amber-bg/60 px-5 py-3">
+            <p className="text-[12.5px] font-semibold text-[#7a4a06]">{weightProblem}</p>
+            <input
+              value={capacityReason}
+              onChange={(e) => setCapacityReason(e.target.value)}
+              maxLength={500}
+              placeholder="Reason to pack it anyway (recorded on the package)"
+              aria-label="Reason to pack over the box capacity"
+              className="h-10 rounded-[12px] border border-tm-border bg-card px-3 text-[13px] font-medium text-tm-ink outline-none placeholder:text-tm-text-3 focus:border-tm-coral/60"
+            />
+          </div>
+        ) : null}
         <div className="flex items-center justify-between gap-3 border-t border-tm-hairline bg-tm-paper/60 px-5 py-3.5">
           <span className={cn("text-[12.5px] font-medium", mixing ? "text-[#7a4a06]" : "text-tm-text-3")}>
             {tab === "shelf"
               ? mixing
                 ? "Mixing customers: this becomes a consolidated carton."
                 : picked.size
-                  ? pluralise(picked.size, "item") + " selected"
+                  ? pluralise(picked.size, "item") + " selected" + (afterLine ? ` · ${afterLine}` : "")
                   : "Nothing selected"
               : ""}
           </span>
@@ -285,5 +313,14 @@ export function AddItemsDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** 114: the item's weight as the bench will count it: weighed, listed, unknown or oversize. */
+function ShelfWeight({ item, capacityLbs }: { item: WarehouseItem; capacityLbs: number | null }) {
+  const note = weightNote(item, capacityLbs);
+  if (note.tone === "estimate" || note.tone === "confirmed") return null;
+  return (
+    <span className={cn("text-[11.5px] font-semibold", note.tone === "over" ? "text-tm-coral-strong" : "text-tm-amber")}>{note.text}</span>
   );
 }

@@ -43,6 +43,8 @@ import { canAccessAdmin } from "@/lib/auth/admin-access";
 import { EMPTY_PACKAGE_AFTER_HOURS } from "../components/format";
 import { awbInputProblem, DELTA_CARGO, normaliseDeltaAwb } from "../inbound/tracking-number";
 import { findShipDeparture, setDepartureAwbIfEmpty } from "@/db/queries/flight-departures";
+import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
+import { addItemsWeightProblem, packageLoad, sealWeightProblem, type LoadLine, type SealOverrides } from "../weights";
 import { APIError } from "@/lib/auth/api-helpers";
 import { requireWarehouse, warehouseActorRole } from "@/lib/auth/guards";
 import { logger } from "@/lib/logger";
@@ -238,10 +240,18 @@ export async function createWarehousePackage(
   input: CreatePackageInput,
 ): Promise<WarehousePackage> {
   requireWarehouse(user);
-  const { order_ids = [], lines = [], ...details } = input;
+  const { order_ids = [], lines = [], capacity_override_reason, ...details } = input;
   if (order_ids.length > 0) await assertPackable(order_ids);
+  const capacityReason = capacity_override_reason?.trim() || null;
+  if (order_ids.length > 0 && (details.service ?? "air") === "air") {
+    await assertFits({ weight_lbs: null, lines: [] }, order_ids, capacityReason);
+  }
 
-  const row = await insertPackage({ ...toPatch(details), created_by: user.id });
+  const row = await insertPackage({
+    ...toPatch(details),
+    created_by: user.id,
+    ...(capacityReason ? { capacity_override_reason: capacityReason } : {}),
+  });
   await audit(user, "warehouse_package_created", row, { reference: row.reference });
 
   if (order_ids.length > 0 || lines.length > 0) {
@@ -300,7 +310,16 @@ export async function addWarehousePackageItems(
   }
   const orderIds = input.order_ids ?? [];
   if (orderIds.length > 0) await assertPackable(orderIds);
+  const capacityReason = input.capacity_override_reason?.trim() || null;
+  if (orderIds.length > 0 && pkg.service === "air") {
+    const current = await getWarehousePackage(user, id);
+    await assertFits(current, orderIds, capacityReason);
+  }
   await addLines(user, pkg, orderIds, input.lines ?? []);
+  if (capacityReason && capacityReason !== pkg.capacity_override_reason) {
+    await updatePackage(id, "packing", { capacity_override_reason: capacityReason });
+    await audit(user, "warehouse_package_capacity_override", pkg, { reason: capacityReason, order_ids: orderIds });
+  }
   return getWarehousePackage(user, id);
 }
 
@@ -331,7 +350,12 @@ export async function removeWarehousePackageItem(
  * could never ship. It seals only with an explicit `override_reason`, which is
  * recorded on the package and in the audit log.
  */
-export async function sealWarehousePackage(user: PlatformUser, id: string, overrideReason?: string | null): Promise<WarehousePackage> {
+export async function sealWarehousePackage(
+  user: PlatformUser,
+  id: string,
+  overrideReason?: string | null,
+  weightOverrides: SealOverrides = {},
+): Promise<WarehousePackage> {
   requireWarehouse(user);
   const pkg = await getWarehousePackage(user, id);
   if (pkg.status !== "packing") throw new APIError(409, "This package is already sealed.");
@@ -346,16 +370,29 @@ export async function sealWarehousePackage(user: PlatformUser, id: string, overr
       `${pkg.finished_order_nos.join(", ")} ${pkg.finished_order_nos.length === 1 ? "is" : "are"} already delivered or closed. Take ${pkg.finished_order_nos.length === 1 ? "it" : "them"} out, or seal with a reason.`,
     );
   }
+  // 114 (Fix 11): a confirmed weight or an estimate with a reason; no unknown weights; capacity held.
+  const load = packageLoad(pkg, pkg.capacity_lbs);
+  const estimateReason = weightOverrides.estimateReason?.trim() || null;
+  const capacityReason = weightOverrides.capacityReason?.trim() || pkg.capacity_override_reason || null;
+  const weightProblem = sealWeightProblem(load, { estimateReason, capacityReason });
+  if (weightProblem) throw new APIError(409, weightProblem);
+  const overCapacity = load.oversizeMixed.length > 0 || (load.fill.over && !load.oversize);
 
   const row = await updatePackage(id, "packing", {
     status: "sealed",
     sealed_at: new Date().toISOString(),
     sealed_by: user.id,
     seal_override_reason: pkg.finished_order_nos.length > 0 ? reason : null,
+    weight_estimate_reason: load.confirmed ? null : estimateReason,
+    capacity_override_reason: overCapacity ? capacityReason : null,
   });
   if (!row) throw new APIError(409, "Someone else just changed this package. Refresh and try again.");
   await audit(user, "warehouse_package_sealed", row, {
     unit_count: pkg.unit_count,
+    weight_lbs: load.lbs,
+    weight_confirmed: load.confirmed,
+    ...(load.confirmed ? {} : { weight_estimate_reason: estimateReason }),
+    ...(overCapacity ? { capacity_override_reason: capacityReason, capacity_lbs: load.capacityLbs } : {}),
     ...(pkg.finished_order_nos.length > 0 ? { override_reason: reason, finished_orders: pkg.finished_order_nos } : {}),
   });
   return getWarehousePackage(user, id);
@@ -826,6 +863,29 @@ async function assertPackable(orderIds: string[]): Promise<void> {
   }
 }
 
+/**
+ * 114 (Fix 11): orders going into an air package must fit its box capacity, and
+ * an oversize item ships on its own, unless a reason is given.
+ */
+async function assertFits(
+  current: { weight_lbs: number | null; lines: readonly LoadLine[]; capacity_lbs?: number | null },
+  orderIds: string[],
+  capacityReason: string | null,
+): Promise<void> {
+  const capacity = current.capacity_lbs !== undefined ? current.capacity_lbs : await boxCapacityLbs();
+  if (capacity == null) return;
+  const items = await hydrateItems(await listWarehouseOrders({ ids: [...new Set(orderIds)] }));
+  const incoming: LoadLine[] = items.map((item) => ({ quantity: item.quantity, description: null, item }));
+  const problem = addItemsWeightProblem(packageLoad(current, capacity), incoming, capacityReason);
+  if (problem) throw new APIError(409, problem);
+}
+
+/** The box capacity air packages are held to; null when unset. */
+async function boxCapacityLbs(): Promise<number | null> {
+  const value = (await getPricingConstantsMap()).box_capacity_lbs;
+  return typeof value === "number" && value > 0 ? value : null;
+}
+
 async function addLines(
   user: PlatformUser,
   pkg: PackageRow,
@@ -991,7 +1051,7 @@ export async function hydratePackages(rows: PackageRow[]): Promise<WarehousePack
       rows.flatMap((r) => [r.created_by, r.sealed_by, r.shipped_by, r.stage_by]).filter((x): x is string => !!x),
     ),
   ];
-  const names = await getProfileNames(staffIds);
+  const [names, capacity] = await Promise.all([getProfileNames(staffIds), boxCapacityLbs()]);
 
   const linesByPackage = new Map<string, PackageItemRow[]>();
   for (const line of lines) {
@@ -1066,6 +1126,9 @@ export async function hydratePackages(rows: PackageRow[]): Promise<WarehousePack
       finished_order_nos: own.flatMap((l) => (l.item && FINISHED_ORDER_STATUSES.has(l.item.order_status) ? [l.item.order_no] : [])),
       no_tracking_reason: row.no_tracking_reason ?? null,
       departure_id: row.departure_id ?? null,
+      capacity_lbs: row.service === "air" ? capacity : null,
+      weight_estimate_reason: row.weight_estimate_reason ?? null,
+      capacity_override_reason: row.capacity_override_reason ?? null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

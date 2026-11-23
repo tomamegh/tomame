@@ -1,5 +1,6 @@
 import "server-only";
 import { listDeparturesByIds, type FlightDepartureRow } from "./flight-departures";
+import { listHubArrivals } from "./warehouse";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
@@ -35,6 +36,8 @@ export interface AdminBoxItem {
    * one. Null means the packing plan counted this item at 0 lb and said so.
    */
   weight_lbs: number | null;
+  /** 114 (Fix 11): the hub's scale reading for the whole parcel, once weighed. Null = not weighed. */
+  scale_weight_lbs: number | null;
   /** The stored breakdown — the freight the saving is computed over. */
   pricing: PricingBreakdown | null;
   /** The order's status, for an item that has been paid for. */
@@ -122,6 +125,7 @@ async function listBoxContents(boxIds: string[]): Promise<Map<string, AdminBoxIt
 
   if (orders.error) throw new Error(`Failed to load box contents: ${orders.error.message}`);
   if (lines.error) throw new Error(`Failed to load box contents: ${lines.error.message}`);
+  const arrivals = await listHubArrivals(((orders.data ?? []) as Record<string, unknown>[]).map((raw) => String(raw.id)));
 
   for (const raw of (orders.data ?? []) as Record<string, unknown>[]) {
     push(byBox, String(raw.consolidation_box_id), {
@@ -132,6 +136,7 @@ async function listBoxContents(boxIds: string[]): Promise<Map<string, AdminBoxIt
       product_url: (raw.product_url as string | null) ?? null,
       quantity: Number(raw.quantity ?? 1),
       weight_lbs: orderWeightLbs(raw),
+      scale_weight_lbs: arrivals.get(String(raw.id))?.weight_lbs ?? null,
       pricing: (raw.pricing as PricingBreakdown | null) ?? null,
       order_status: (raw.status as string | null) ?? null,
     });
@@ -158,6 +163,7 @@ async function listBoxContents(boxIds: string[]): Promise<Map<string, AdminBoxIt
       product_url: product?.product_url ?? null,
       quantity: Number(raw.quantity ?? 1),
       weight_lbs: pricing?.weight_lbs ?? product?.weight_lbs ?? null,
+      scale_weight_lbs: null,
       pricing,
       order_status: null,
     });

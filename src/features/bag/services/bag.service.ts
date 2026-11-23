@@ -144,6 +144,7 @@ export async function previewBatch(viewer: Viewer, extractionIds: readonly strin
   const view = summarize(null, lines, {
     boxes: [],
     unboxed_line_ids: plan.unboxed_line_ids,
+    oversize_line_ids: plan.oversize_line_ids,
     consolidation_saving_ghs: plan.consolidation_saving_ghs,
     consolidation_saving_pct: constants.consolidation_saving_pct,
   });
@@ -673,6 +674,7 @@ export async function loadBoxConstants(): Promise<BoxConstants> {
 interface Packed {
   boxes: BagBox[];
   unboxed_line_ids: string[];
+  oversize_line_ids: string[];
   consolidation_saving_ghs: number;
   consolidation_saving_pct: number;
 }
@@ -715,12 +717,12 @@ async function packIntoBoxes(rows: CartItemRow[], lines: BagLine[]): Promise<Pac
       if (item && item.consolidation_box_id !== row.id) await updateCartItem(item.id, { consolidation_box_id: row.id });
     }
   }
-  for (const lineId of plan.unboxed_line_ids) {
+  for (const lineId of [...plan.unboxed_line_ids, ...plan.oversize_line_ids]) {
     const item = rows.find((r) => r.id === lineId);
     if (item?.consolidation_box_id) await updateCartItem(item.id, { consolidation_box_id: null });
   }
 
-  return { boxes, unboxed_line_ids: plan.unboxed_line_ids, consolidation_saving_ghs: plan.consolidation_saving_ghs, consolidation_saving_pct: constants.consolidation_saving_pct };
+  return { boxes, unboxed_line_ids: plan.unboxed_line_ids, oversize_line_ids: plan.oversize_line_ids, consolidation_saving_ghs: plan.consolidation_saving_ghs, consolidation_saving_pct: constants.consolidation_saving_pct };
 }
 
 /**
@@ -871,7 +873,7 @@ function toLine(row: LineSource, snapshot: Snapshot, priced: Priced): BagLine {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-const NO_BOXES: Packed = { boxes: [], unboxed_line_ids: [], consolidation_saving_ghs: 0, consolidation_saving_pct: 0 };
+const NO_BOXES: Packed = { boxes: [], unboxed_line_ids: [], oversize_line_ids: [], consolidation_saving_ghs: 0, consolidation_saving_pct: 0 };
 
 export function summarize(cartId: string | null, lines: BagLine[], packed: Packed = NO_BOXES, delivery: BagDelivery | null = null): BagView {
   const priced = lines.map((l) => l.pricing).filter((p): p is NonNullable<BagLine["pricing"]> => p != null);
@@ -890,6 +892,7 @@ export function summarize(cartId: string | null, lines: BagLine[], packed: Packe
     lines,
     boxes: packed.boxes,
     unboxed_line_ids: packed.unboxed_line_ids,
+    oversize_line_ids: packed.oversize_line_ids,
     consolidation_saving_ghs: packed.consolidation_saving_ghs,
     consolidation_saving_pct: packed.consolidation_saving_pct,
     item_count: lines.reduce((acc, l) => acc + l.quantity, 0),

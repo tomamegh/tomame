@@ -17,7 +17,7 @@ import {
   boxStatusTone,
   describeBoxFill,
   isPastCutoff,
-  itemChargeableLbs,
+  boxItemWeight,
 } from "./admin-bag-format";
 import { CloseBoxButton } from "./admin-box-actions";
 import { departureLine } from "./box-departure";
@@ -124,8 +124,13 @@ function BoxCard({
             <span className="tm-nums text-[13px] font-semibold text-tm-ink">
               {fill.chargeableLbs} of {box.capacity_lbs} lb
             </span>
-            <span className="tm-nums text-[12.5px] font-medium text-tm-text-3">
-              {fill.headroomLbs} lb spare
+            <span
+              className={cn(
+                "tm-nums text-[12.5px]",
+                fill.over ? "font-semibold text-tm-coral-strong" : "font-medium text-tm-text-3",
+              )}
+            >
+              {fill.over ? `${fill.overLbs} lb over · ${fill.fillPct}%` : `${fill.headroomLbs} lb spare · ${fill.fillPct}%`}
             </span>
           </div>
           <div
@@ -133,17 +138,36 @@ function BoxCard({
             role="meter"
             aria-valuenow={fill.fillPct}
             aria-valuemin={0}
-            aria-valuemax={100}
+            aria-valuemax={Math.max(100, fill.fillPct)}
             aria-label={`${box.label ?? regionName} fill`}
           >
             <div
               className={cn(
                 "h-full rounded-full transition-[width]",
-                fill.fillPct >= 100 ? "bg-tm-amber" : "bg-tm-coral",
+                fill.over ? "bg-tm-coral-strong" : fill.fillPct >= 90 ? "bg-tm-amber" : "bg-tm-coral",
               )}
-              style={{ width: `${fill.fillPct}%` }}
+              style={{ width: `${Math.min(100, fill.fillPct)}%` }}
             />
           </div>
+          {fill.oversizeRefs.length > 0 ? (
+            <p className="text-[12px] leading-[1.5] font-semibold text-tm-coral-strong">
+              {fill.oversizeRefs.join(", ")} {fill.oversizeRefs.length === 1 ? "is" : "are"} heavier than a {box.capacity_lbs} lb box:
+              oversize freight that ships on its own, not in this box.
+            </p>
+          ) : fill.over ? (
+            <p className="text-[12px] leading-[1.5] font-semibold text-tm-coral-strong">
+              Over capacity by {fill.overLbs} lb. Split it before it closes.
+            </p>
+          ) : null}
+          {box.items.length > 0 ? (
+            <p className="text-[12px] leading-[1.5] font-medium text-tm-text-3">
+              {fill.weighedCount === box.items.length
+                ? "Every item weighed at the hub."
+                : `${fill.weighedCount} of ${box.items.length} weighed at the hub${
+                    fill.estimateCount > 0 ? ` · ${fill.estimateCount} on the listed weight (estimate)` : ""
+                  }.`}
+            </p>
+          ) : null}
           {fill.unweighedCount > 0 ? (
             <p className="text-[12px] leading-[1.5] font-medium text-tm-amber">
               {fill.unweighedCount} {fill.unweighedCount === 1 ? "item has" : "items have"} no
@@ -192,7 +216,7 @@ function BoxCard({
 function BoxItemRow({ item, constants }: { item: AdminBoxItem; constants: BoxConstants }) {
   // From the packer, so this line and the meter above it are computed by the
   // same function rather than by two spellings of the same arithmetic.
-  const weight = itemChargeableLbs(item, constants);
+  const { lbs: weight, source } = boxItemWeight(item, constants);
 
   const body = (
     <>
@@ -207,8 +231,11 @@ function BoxItemRow({ item, constants }: { item: AdminBoxItem; constants: BoxCon
       <div className="flex shrink-0 items-center gap-2.5">
         <span className="tm-nums text-[12px] font-medium text-tm-text-2">× {item.quantity}</span>
         <span className="tm-nums text-[12.5px] font-semibold text-tm-ink">
-          {weight != null ? `${weight} lb` : "no weight"}
+          {weight != null ? `${source === "listed" ? "~" : ""}${weight} lb` : "no weight"}
         </span>
+        {weight != null ? (
+          <span className="text-[11.5px] font-medium text-tm-text-3">{source === "scale" ? "weighed" : "listed"}</span>
+        ) : null}
         {item.order_status ? (
           <AdminBadge tone={adminStatusTone(item.order_status)}>
             {adminStatusLabel(item.order_status)}

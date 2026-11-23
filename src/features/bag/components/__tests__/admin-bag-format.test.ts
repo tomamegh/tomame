@@ -155,6 +155,7 @@ function item(overrides: Partial<AdminBoxItem> = {}): AdminBoxItem {
     product_url: null,
     quantity: 1,
     weight_lbs: 10,
+    scale_weight_lbs: null,
     pricing: null,
     order_status: "paid",
     ...overrides,
@@ -207,11 +208,29 @@ describe("describeBoxFill", () => {
     expect(fill.provisionalCount).toBe(1);
   });
 
-  it("clamps the meter at 100 for an over-packed box but keeps the true weight", () => {
+  it("shows an over-packed box as over capacity, not 100% · 0 lb spare (Fix 11)", () => {
     const fill = describeBoxFill(box({ capacity_lbs: 10 }), [item({ weight_lbs: 40 })], CONSTANTS);
-    expect(fill.fillPct).toBe(100);
+    expect(fill.fillPct).toBe(400);
     expect(fill.chargeableLbs).toBe(40);
     expect(fill.headroomLbs).toBe(0);
+    expect(fill.over).toBe(true);
+    expect(fill.overLbs).toBe(30);
+    expect(fill.oversizeRefs).toEqual(["TM-00001"]);
+  });
+
+  it("re-checks the TV: 141.2 lb in a 9 lb box is 1569% and 132.2 lb over", () => {
+    const fill = describeBoxFill(box({ capacity_lbs: 9 }), [item({ weight_lbs: 141.2 })], CONSTANTS);
+    expect(fill).toMatchObject({ fillPct: 1569, overLbs: 132.2, headroomLbs: 0, over: true });
+  });
+
+  it("counts the hub's scale as confirmed and the listing as an estimate", () => {
+    const fill = describeBoxFill(
+      box(),
+      [item({ id: "a", weight_lbs: 2, scale_weight_lbs: 3.5 }), item({ id: "b", weight_lbs: 2 }), item({ id: "c", weight_lbs: null })],
+      CONSTANTS,
+    );
+    expect(fill).toMatchObject({ weighedCount: 1, estimateCount: 1, unweighedCount: 1 });
+    expect(fill.chargeableLbs).toBe(5.5);
   });
 
   it("reports an empty box as empty rather than dividing by a missing capacity", () => {

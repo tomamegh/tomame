@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 // The service is server-only; stub its dependencies so its pure `normaliseCode`
 // can be compared with the guide's client-side copy.
 vi.mock("server-only", () => ({}));
+vi.mock("@/db/queries/pricing-constants", () => ({ getPricingConstantsMap: vi.fn(async () => ({ box_capacity_lbs: 9 })) }));
 vi.mock("@/features/shipments/shipment-notify.service", () => ({ notifyShipmentUpdate: vi.fn() }));
 vi.mock("@/features/shipments/stage-settings.service", async () => {
   const { DEFAULT_STAGE_SETTINGS } = await import("@/features/shipments/stages");

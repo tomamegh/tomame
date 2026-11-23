@@ -7,8 +7,10 @@ import type { PricingBreakdown } from "@/lib/pricing";
  *
  * Rules (approved 2026-09-13, docs/phase-4-handoff.md §1):
  * - A box holds `box_capacity_lbs` of CHARGEABLE weight; lines pack greedily in
- *   bag order; a line heavier than a box gets one of its own. Capacity has no
- *   pricing meaning — freight stays per line.
+ *   bag order. Capacity has no pricing meaning — freight stays per line.
+ * - A line heavier than a box on its own is oversize freight (site brief
+ *   Fix 11): it goes in no box at all and ships by itself. It used to open a
+ *   box of its own, a 141.2 lb TV reading "100% · 0 lb spare" in a 9 lb box.
  * - The saving is `consolidation_saving_pct × Σ freight` of a box, only when the
  *   box holds two or more lines. Freight here excludes handling, tax, the
  *   service fee and the item price.
@@ -59,6 +61,8 @@ export interface PackingPlan {
   boxes: PackedBox[];
   /** Lines that could not be boxed: no pricing or no region. They still count in the bag. */
   unboxed_line_ids: string[];
+  /** Lines heavier than a box: oversize freight, shipped on their own (Fix 11). */
+  oversize_line_ids: string[];
   consolidation_saving_ghs: number;
 }
 
@@ -99,6 +103,7 @@ export function packLines(
 ): PackingPlan {
   const boxes: PackedBox[] = [];
   const unboxed: string[] = [];
+  const oversize: string[] = [];
   const capacity = constants.box_capacity_lbs;
 
   for (const line of lines) {
@@ -107,11 +112,15 @@ export function packLines(
       continue;
     }
     const weight = chargeableWeightLbs(line, constants);
+    if (weight != null && weight > capacity) {
+      oversize.push(line.id);
+      continue;
+    }
     const w = weight ?? 0;
     const freight = lineFreightExHandlingGhs(line.pricing);
 
-    // First open box in the region with room; a line that cannot fit anywhere
-    // (heavier than a box, or every box full) opens a new one.
+    // First open box in the region with room; a line that cannot fit in any
+    // (every box full) opens a new one.
     let box = boxes.find(
       (b) =>
         b.region_code === line.region_code &&
@@ -160,6 +169,7 @@ export function packLines(
   return {
     boxes,
     unboxed_line_ids: unboxed,
+    oversize_line_ids: oversize,
     consolidation_saving_ghs: r2(
       boxes.reduce((acc, b) => acc + b.saving_ghs, 0),
     ),

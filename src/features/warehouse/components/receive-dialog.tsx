@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/lib/sonner";
+import { cn } from "@/lib/utils";
 
 import type { WarehouseItem } from "../types";
 import { formatLbs, sanitiseDecimal } from "./format";
@@ -41,6 +42,8 @@ export function ReceiveDialog({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const reweigh = !!item.received;
+  const typed = weight.trim() ? Number(weight) : null;
+  const hint = weightHint(typed, item);
 
   useEffect(() => {
     if (open) {
@@ -117,8 +120,8 @@ export function ReceiveDialog({
               />
               <span className="pointer-events-none absolute right-4 text-[15px] font-bold text-tm-text-3">lb</span>
             </span>
-            <span id="weight-hint" className="text-[12px] font-medium text-tm-text-3">
-              Optional, but it is what the box is charged on. Leave blank to weigh later.
+            <span id="weight-hint" className={cn("text-[12px] font-medium", hint.warn ? "text-tm-amber" : "text-tm-text-3")}>
+              {hint.text}
             </span>
           </label>
 
@@ -160,4 +163,21 @@ export function ReceiveDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * 114 (site brief Fix 11): the scale reading is the confirmed weight; without
+ * one the item counts at its listed weight (an estimate), and an item with no
+ * listed weight cannot be sealed in a package until it is weighed.
+ */
+function weightHint(typed: number | null, item: WarehouseItem): { text: string; warn: boolean } {
+  const listed = item.listed_weight_lbs && item.listed_weight_lbs > 0 ? item.listed_weight_lbs * Math.max(1, item.quantity) : null;
+  if (typed !== null && Number.isFinite(typed) && typed > 0) {
+    if (listed && Math.abs(typed - listed) / listed > 0.5) {
+      return { text: `Confirmed weight. The listing said ${formatLbs(listed)}: check the scale reading and the parcel.`, warn: true };
+    }
+    return { text: "This becomes the confirmed weight the box is charged on.", warn: false };
+  }
+  if (listed) return { text: `Until it is weighed it counts at the listed ${formatLbs(listed)}, an estimate. Weigh it now if you can.`, warn: false };
+  return { text: "No listed weight: it cannot be sealed in a package until it is weighed. Weigh it now.", warn: true };
 }

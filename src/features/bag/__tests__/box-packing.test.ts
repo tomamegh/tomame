@@ -65,11 +65,11 @@ describe("packLines", () => {
     expect(plan.consolidation_saving_ghs).toBe(0);
   });
 
-  it("overflow opens Box 2; an oversize line gets its own box", () => {
+  it("overflow opens Box 2; an oversize line goes in no box (Fix 11)", () => {
     const plan = packLines([weightLine("a", 5), weightLine("b", 5), weightLine("c", 21.8)], C);
-    expect(plan.boxes.map((b) => [b.index, b.line_ids, b.weight_lbs])).toEqual([[1, ["a"], 5], [2, ["b"], 5], [3, ["c"], 21.8]]);
-    expect(plan.boxes[2]!.fill_pct).toBe(100);
-    expect(plan.boxes[2]!.headroom_lbs).toBe(0);
+    expect(plan.boxes.map((b) => [b.index, b.line_ids, b.weight_lbs])).toEqual([[1, ["a"], 5], [2, ["b"], 5]]);
+    expect(plan.oversize_line_ids).toEqual(["c"]);
+    expect(plan.unboxed_line_ids).toEqual([]);
   });
 
   it("flat-rate lines join the box and their flat freight joins the saving", () => {

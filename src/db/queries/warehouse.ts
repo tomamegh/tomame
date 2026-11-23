@@ -62,6 +62,10 @@ export interface PackageRow {
   held_at: string | null;
   held_by: string | null;
   seal_override_reason: string | null;
+  /** 114: sealed on the estimate, and why. */
+  weight_estimate_reason: string | null;
+  /** 114: over the box capacity (or oversize with others), and why. */
+  capacity_override_reason: string | null;
   voided_at: string | null;
   voided_by: string | null;
   void_reason: "record_error" | "duplicate" | null;
@@ -126,7 +130,7 @@ export interface BoxRefRow {
 }
 
 const PACKAGE_COLUMNS =
-  "id, package_no, reference, status, service, origin, destination, weight_lbs, length_in, width_in, height_in, carrier, tracking_number, fragile, this_way_up, keep_dry, notes, created_by, sealed_at, sealed_by, shipped_at, shipped_by, label_printed_at, label_print_count, stage, stage_at, stage_by, notice, notice_expected_on, notice_at, hold_reason, held_at, held_by, seal_override_reason, voided_at, voided_by, void_reason, void_note, no_tracking_reason, departure_id, created_at, updated_at";
+  "id, package_no, reference, status, service, origin, destination, weight_lbs, length_in, width_in, height_in, carrier, tracking_number, fragile, this_way_up, keep_dry, notes, created_by, sealed_at, sealed_by, shipped_at, shipped_by, label_printed_at, label_print_count, stage, stage_at, stage_by, notice, notice_expected_on, notice_at, hold_reason, held_at, held_by, seal_override_reason, weight_estimate_reason, capacity_override_reason, voided_at, voided_by, void_reason, void_note, no_tracking_reason, departure_id, created_at, updated_at";
 
 const ITEM_COLUMNS = "id, package_id, order_id, description, quantity, added_by, created_at";
 
@@ -241,6 +245,8 @@ export type PackagePatch = Partial<
     | "held_at"
     | "held_by"
     | "seal_override_reason"
+    | "weight_estimate_reason"
+    | "capacity_override_reason"
     | "voided_at"
     | "voided_by"
     | "void_reason"

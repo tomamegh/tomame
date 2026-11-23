@@ -141,6 +141,12 @@ export interface WarehousePackage {
   no_tracking_reason: string | null;
   /** 113: the Delta Cargo departure it flew on. */
   departure_id: string | null;
+  /** 114: the box capacity an air package is held to (pricing_constants.box_capacity_lbs); null for sea. */
+  capacity_lbs: number | null;
+  /** 114: sealed on the estimate instead of a scale reading, and why. */
+  weight_estimate_reason: string | null;
+  /** 114: over the box capacity, or an oversize item with others, and why. */
+  capacity_override_reason: string | null;
   created_at: string;
   updated_at: string;
 }

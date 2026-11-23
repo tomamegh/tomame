@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/db/queries/pricing-constants", () => ({ getPricingConstantsMap: vi.fn(async () => ({ box_capacity_lbs: 9 })) }));
 vi.mock("@/features/shipments/shipment-notify.service", () => ({ notifyShipmentUpdate: vi.fn() }));
 vi.mock("@/features/shipments/stage-settings.service", async () => {
   const { DEFAULT_STAGE_SETTINGS } = await import("@/features/shipments/stages");
@@ -52,6 +53,7 @@ import type { PlatformUser } from "@/features/users/types";
 import { APIError } from "@/lib/auth/api-helpers";
 
 import {
+  addWarehousePackageItems,
   createWarehousePackage,
   holdWarehousePackage,
   lookupWarehouseCode,
@@ -347,7 +349,7 @@ describe("stuck packages (112)", () => {
   }
 
   it("will not seal a package holding a delivered order without a reason, and records the reason when given", async () => {
-    withOrders("packing", [order({ order_no: "TM-00022", status: "completed" })]);
+    withOrders("packing", [order({ order_no: "TM-00022", status: "completed" })], { weight_lbs: 0.7 });
     await expect(sealWarehousePackage(operator, "p-1")).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/TM-00022/) });
     expect(q.updatePackage).not.toHaveBeenCalled();
 
@@ -417,5 +419,52 @@ describe("the Accra leg (113, Fix 12)", () => {
     vi.mocked(q.updatePackage).mockResolvedValue(pkgRow({ status: "shipped", shipped_at: "now" }) as never);
     await shipWarehousePackage(operator, "p-1", { no_tracking_reason: "Hand-carried by Kofi" });
     expect(q.updatePackage).toHaveBeenLastCalledWith("p-1", "sealed", expect.objectContaining({ status: "shipped", no_tracking_reason: "Hand-carried by Kofi" }));
+  });
+});
+
+describe("weights and capacity (114, Fix 11)", () => {
+  function packing(orders: ReturnType<typeof order>[], extra: Record<string, unknown> = {}) {
+    vi.mocked(q.getPackageById).mockResolvedValue(pkgRow({ status: "packing", sealed_at: null, ...extra }) as never);
+    vi.mocked(q.listPackageItems).mockResolvedValue(orders.map((o) => line(o.id)) as never);
+    vi.mocked(q.listItemsForOrders).mockResolvedValue([] as never);
+    vi.mocked(q.listWarehouseOrders).mockResolvedValue(orders as never);
+    vi.mocked(q.updatePackage).mockResolvedValue(pkgRow({ status: "sealed", sealed_at: "now" }) as never);
+  }
+
+  it("blocks a seal with no confirmed weight and no override, and records the estimate reason", async () => {
+    vi.mocked(q.listHubArrivals).mockResolvedValue(new Map());
+    packing([order({ id: "o-est" })]);
+    await expect(sealWarehousePackage(operator, "p-1")).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/Weigh the package/) });
+    expect(q.updatePackage).not.toHaveBeenCalled();
+
+    await sealWarehousePackage(operator, "p-1", null, { estimateReason: "Scale is being repaired" });
+    expect(q.updatePackage).toHaveBeenCalledWith(
+      "p-1",
+      "packing",
+      expect.objectContaining({ status: "sealed", weight_estimate_reason: "Scale is being repaired", capacity_override_reason: null }),
+    );
+  });
+
+  it("will not seal with a 0 lb item, reason or not", async () => {
+    packing([order({ id: "o-51", order_no: "TM-00051", pricing: { total_ghs: 1 } })], { weight_lbs: 2 });
+    await expect(sealWarehousePackage(operator, "p-1", null, { estimateReason: "x", capacityReason: "y" })).rejects.toMatchObject({
+      message: expect.stringMatching(/TM-00051 has no weight/),
+    });
+  });
+
+  it("will not put a 141.2 lb TV in a package with other items without a reason", async () => {
+    const small = order({ id: "o-1", order_no: "TM-00001" });
+    const tv = order({ id: "o-tv", order_no: "TM-00040", pricing: { weight_lbs: 141.2, total_ghs: 1 } });
+    vi.mocked(q.getPackageById).mockResolvedValue(pkgRow() as never);
+    vi.mocked(q.listPackageItems).mockResolvedValue([line("o-1")] as never);
+    vi.mocked(q.listItemsForOrders).mockResolvedValue([] as never);
+    vi.mocked(q.listWarehouseOrders).mockImplementation((async (f: { ids?: string[] }) =>
+      [small, tv].filter((o) => f.ids?.includes(o.id))) as never);
+
+    await expect(addWarehousePackageItems(operator, "p-1", { order_ids: ["o-tv"] })).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringMatching(/TM-00040 is over a 9 lb box/),
+    });
+    expect(q.insertPackageItems).not.toHaveBeenCalled();
   });
 });

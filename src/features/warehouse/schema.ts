@@ -31,12 +31,16 @@ const customLine = z.object({
 export const createPackageSchema = packageDetailsSchema.extend({
   order_ids: z.array(z.uuid()).max(100).optional(),
   lines: z.array(customLine).max(50).optional(),
+  /** 114: pack past the box capacity, or an oversize item with others. */
+  capacity_override_reason: optionalText(500),
 });
 
 export const addPackageItemsSchema = z
   .object({
     order_ids: z.array(z.uuid()).max(100).optional(),
     lines: z.array(customLine).max(50).optional(),
+    /** 114: pack past the box capacity, or an oversize item with others. */
+    capacity_override_reason: optionalText(500),
   })
   .refine((v) => (v.order_ids?.length ?? 0) + (v.lines?.length ?? 0) > 0, {
     message: "Choose at least one item",
@@ -61,6 +65,10 @@ export const packageActionSchema = z.object({
   tracking_number: optionalText(80),
   /** 112: seal although an order in it is already delivered or closed. */
   override_reason: optionalText(500),
+  /** 114: seal on the estimated weight, without a scale reading. */
+  weight_estimate_reason: optionalText(500),
+  /** 114: seal past the box capacity. */
+  capacity_override_reason: optionalText(500),
   /** 112: why a sealed package is held. */
   hold_reason: optionalText(500),
   /** 112: a manager resolving a package that can never ship. */

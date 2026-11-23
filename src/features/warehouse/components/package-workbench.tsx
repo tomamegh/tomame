@@ -44,9 +44,7 @@ import { PackageJourneyPanel } from "./package-journey-panel";
 import {
   PACKAGE_META,
   formatDateTime,
-  formatLbs,
   formatRelative,
-  packageWeight,
   pluralise,
   recipientLines,
   sanitiseDecimal,
@@ -54,6 +52,7 @@ import {
 } from "./format";
 import { PackageBox } from "./package-box";
 import { PackageResolvePanel } from "./package-resolve-panel";
+import { hardWeightBlocker, LineWeightNote, loadOf, PackageWeightPanel, packageWeightText, SealWeightDialog, sealNeeds } from "./package-weight-panel";
 import { awbInputProblem, DELTA_CARGO, DELTA_CARGO_TRACK_URL, normaliseDeltaAwb } from "../inbound/tracking-number";
 import { errorText, warehouseRequest } from "./warehouse-actions";
 import { ItemLine, PackageStatusBadge } from "./warehouse-ui";
@@ -95,8 +94,10 @@ export function PackageWorkbench({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
-  const blocker = sealBlocker(pkg);
-  const weight = packageWeight(pkg);
+  // 114 (Fix 11): an item with no weight blocks the seal outright.
+  const blocker = sealBlocker(pkg) ?? hardWeightBlocker(pkg);
+  const load = loadOf(pkg);
+  const [sealingWithReason, setSealingWithReason] = useState(false);
 
   // Arriving from a scan: say so once, so the operator knows it resolved.
   useEffect(() => {
@@ -104,6 +105,14 @@ export function PackageWorkbench({
   }, []);
 
   const act = async (action: "seal" | "reopen") => {
+    // 114: an estimate or an over-capacity package seals only with a reason.
+    if (action === "seal") {
+      const needs = sealNeeds(pkg);
+      if (needs.estimate || needs.capacity) {
+        setSealingWithReason(true);
+        return;
+      }
+    }
     setBusy(action);
     try {
       await warehouseRequest<ShipResult>(`/api/warehouse/packages/${pkg.id}/actions`, "POST", { action });
@@ -196,8 +205,7 @@ export function PackageWorkbench({
                     {pkg.reference}
                   </h1>
                   <p className="text-[13.5px] font-medium text-tm-text-2">
-                    {pluralise(pkg.unit_count, "item")} · {formatLbs(weight.value)}
-                    {weight.estimated ? " estimated" : ""} · {pkg.service === "air" ? "Air" : "Sea"} freight, {pkg.origin} → {pkg.destination}
+                    {pluralise(pkg.unit_count, "item")} · {packageWeightText(load)} · {pkg.service === "air" ? "Air" : "Sea"} freight, {pkg.origin} → {pkg.destination}
                   </p>
                 </div>
 
@@ -253,6 +261,7 @@ export function PackageWorkbench({
                     </>
                   ) : null}
                 </div>
+                {pkg.status !== "shipped" && pkg.status !== "voided" ? <PackageWeightPanel pkg={pkg} /> : null}
                 <PackageResolvePanel pkg={pkg} isManager={isManager} />
                 {blocker && pkg.status === "packing" ? (
                   <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-tm-text-3">
@@ -336,15 +345,18 @@ export function PackageWorkbench({
                     className="px-4 py-3 sm:px-5"
                   >
                     {line.item ? (
-                      <ItemLine
-                        item={line.item}
-                        quantity={line.quantity}
-                        trailing={
-                          pkg.status === "packing" ? (
-                            <RemoveButton busy={removing === line.id} onClick={() => remove(line.id)} />
-                          ) : null
-                        }
-                      />
+                      <>
+                        <ItemLine
+                          item={line.item}
+                          quantity={line.quantity}
+                          trailing={
+                            pkg.status === "packing" ? (
+                              <RemoveButton busy={removing === line.id} onClick={() => remove(line.id)} />
+                            ) : null
+                          }
+                        />
+                        {pkg.status !== "shipped" ? <LineWeightNote item={line.item} capacityLbs={pkg.capacity_lbs} /> : null}
+                      </>
                     ) : (
                       <div className="flex items-center gap-3">
                         <span className="flex size-[52px] shrink-0 items-center justify-center rounded-[14px] border border-dashed border-tm-border text-[11px] font-bold text-tm-text-3">
@@ -384,6 +396,7 @@ export function PackageWorkbench({
 
       {adding ? <AddItemsDialog pkg={pkg} open={adding} onOpenChange={setAdding} /> : null}
       <ShipDialog pkg={pkg} open={shipping} onOpenChange={setShipping} />
+      {sealingWithReason ? <SealWeightDialog pkg={pkg} open={sealingWithReason} onOpenChange={setSealingWithReason} /> : null}
       <AdminConfirm
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
@@ -524,19 +537,9 @@ function PackageDetailsForm({ pkg }: { pkg: WarehousePackage }) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-[12.5px] font-semibold text-tm-ink">Weight (lb)</span>
-        <div className="flex items-center gap-2">
-          {numberField("weight_lbs", pkg.estimated_weight_lbs ? `~${pkg.estimated_weight_lbs}` : "0.0")}
-          {!draft.weight_lbs && pkg.estimated_weight_lbs && !shipped ? (
-            <button
-              type="button"
-              onClick={() => set("weight_lbs", String(pkg.estimated_weight_lbs))}
-              className="h-10 shrink-0 rounded-[12px] bg-tm-paper px-3 text-[12px] font-semibold text-tm-text-2 hover:text-tm-ink"
-            >
-              Use estimate
-            </button>
-          ) : null}
-        </div>
+        <span className="text-[12.5px] font-semibold text-tm-ink">Weight on the scale (lb)</span>
+        {/* 114 (Fix 11): only a scale reading goes here; an estimate is sealed with a reason instead. */}
+        {numberField("weight_lbs", pkg.estimated_weight_lbs ? `~${pkg.estimated_weight_lbs} estimated` : "0.0")}
       </div>
 
       <div className="flex flex-col gap-1.5">
