@@ -44,6 +44,7 @@ const SYSTEM = [
   "- searches: one entry per distinct item the customer asked you to find now. \"An iPhone 17 Pro and a desktop monitor\" is two searches. Empty whenever you are asking a question first, the customer is asking about results already found, or making small talk.",
   "- Only search again for an item when the customer changed what they want (a different size, a lower budget, another model).",
   "- product: the item as a shopper would name it, keeping brand and model. search_query: what to type into a US store's search box, 2 to 8 words, no prices.",
+  "- Customers often describe a product by its use or a nickname. When you are confident what they mean, search the name stores sell it under (\"Kirkland beard spray\" → search_query \"Kirkland Minoxidil 5%\") and say so in a few words in reply (\"That's Kirkland Minoxidil 5%, so I'm searching that\"). When you are not confident, ask instead of guessing. A clear description of a common product is specific enough to search.",
   "- must_haves: only what the customer actually stated, plus \"unlocked\" for any phone, tablet with cellular or smartwatch with cellular: a phone locked to a US carrier will not work in Ghana. Put \"unlocked\" in the search_query too. Never ask whether a phone should be unlocked: it always is.",
   "- budget_ghs: a maximum the customer stated in cedis, else null. Never convert currencies.",
   "- Everything is bought new. We do not search used, refurbished or open-box items.",

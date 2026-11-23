@@ -193,8 +193,18 @@ export const ShortlistOutputSchema = z.object({
       }),
     )
     .describe("Every other listing id, with the main reason it is not the requested item."),
+  likely_meant: z
+    .object({
+      ids: z.array(z.string()).describe("Listings that are almost certainly what the shopper means, best first."),
+      product: z.string().describe("That product's real name as stores sell it, e.g. 'Kirkland Minoxidil 5% for men'."),
+      reason: z.string().describe("One short sentence for the shopper on why this is what they mean."),
+    })
+    .nullable()
+    .describe("Only when matches is empty: listings the shopper almost certainly means though the words differ. Null otherwise."),
 });
 export type ShortlistOutput = z.infer<typeof ShortlistOutputSchema>;
+/** Parsing side: an answer without `likely_meant` (older prompt, a stub) still reads. */
+const ShortlistInputSchema = ShortlistOutputSchema.extend({ likely_meant: ShortlistOutputSchema.shape.likely_meant.optional() });
 
 /**
  * Model output → the listings it picked, in its order, with the drop reasons it
@@ -204,8 +214,8 @@ export type ShortlistOutput = z.infer<typeof ShortlistOutputSchema>;
 export function applyShortlistOutput(
   raw: unknown,
   listings: readonly FinderListing[],
-): { matches: FinderListing[]; dropped: Partial<Record<DropReason, number>> } | null {
-  const parsed = ShortlistOutputSchema.safeParse(raw);
+): ShortlistResult | null {
+  const parsed = ShortlistInputSchema.safeParse(raw);
   if (!parsed.success) return null;
   const byId = new Map(listings.map((l) => [l.id, l]));
   const seen = new Set<string>();
@@ -223,7 +233,29 @@ export function applyShortlistOutput(
     count(dropped, r.reason);
   }
   for (const l of listings) if (!seen.has(l.id)) count(dropped, "wrong_item");
-  return { matches, dropped };
+  return { matches, dropped, likely: matches.length === 0 ? likelyMeantOf(parsed.data.likely_meant, byId) : null };
+}
+
+/** What the shopper almost certainly means when no listing is literally it (Kelvin, 2026-11-23: "Kirkland beard spray"). */
+export interface LikelyMeant {
+  listings: FinderListing[];
+  product: string;
+  reason: string;
+}
+
+export interface ShortlistResult {
+  matches: FinderListing[];
+  dropped: Partial<Record<DropReason, number>>;
+  likely?: LikelyMeant | null;
+}
+
+function likelyMeantOf(raw: ShortlistOutput["likely_meant"] | undefined, byId: Map<string, FinderListing>): LikelyMeant | null {
+  if (!raw) return null;
+  const product = raw.product.replace(/\s+/g, " ").trim().slice(0, 120);
+  const reason = raw.reason.replace(/\s+/g, " ").trim().slice(0, 240);
+  const listings = [...new Set(raw.ids)].map((id) => byId.get(id)).filter((l): l is FinderListing => l != null);
+  if (listings.length === 0 || product.length < 2 || reason.length < 2) return null;
+  return { listings, product, reason };
 }
 
 /** Sum two drop tallies. */

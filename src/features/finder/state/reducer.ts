@@ -181,6 +181,9 @@ export function finderReducer(state: FinderState, event: FinderEvent): FinderSta
         narration: `Ready now: ${event.candidate.title} at ${event.candidate.store.name}. Still looking for a better price.`,
       };
 
+    case "reinterpreted":
+      return { ...state, reinterpreted: { product: event.product, reason: event.reason } };
+
     case "result_ready": {
       const candidates = state.candidates.map((c) => ({ ...c, why: event.why[c.id] ?? c.why }));
       return {

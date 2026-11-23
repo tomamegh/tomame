@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CaretDown, CheckCircle, Info, MagnifyingGlass, WhatsappLogo } from "@phosphor-icons/react";
+import { ArrowRight, CaretDown, CheckCircle, Info, MagnifyingGlass, Sparkle, WhatsappLogo } from "@phosphor-icons/react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -125,6 +125,15 @@ export function ChatRunCard({ run, buyerWhatsappNumber, onAddToBag, onHandoff }:
 
         {state.phase === "result" && (
           <div className="flex flex-col gap-3">
+            {state.reinterpreted && (
+              <p className="flex items-start gap-2 rounded-xl bg-tm-tint px-3 py-2.5 text-[13px] leading-snug text-foreground">
+                <Sparkle size={16} weight="duotone" className="mt-px shrink-0 text-tm-coral" aria-hidden />
+                <span>
+                  <span className="font-semibold">We found {state.reinterpreted.product} instead. </span>
+                  {state.reinterpreted.reason}
+                </span>
+              </p>
+            )}
             {state.specNote && (
               <p className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2.5 text-[13px] leading-snug text-foreground">
                 <Info size={16} weight="duotone" className="mt-px shrink-0 text-muted-foreground" aria-hidden />

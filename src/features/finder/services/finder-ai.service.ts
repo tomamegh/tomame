@@ -7,7 +7,7 @@ import { FINDER } from "@/config/finder";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
-import { applyShortlistOutput, ShortlistOutputSchema, type DropReason, type FinderListing } from "../shortlist";
+import { applyShortlistOutput, ShortlistOutputSchema, type FinderListing, type ShortlistResult } from "../shortlist";
 import { parseSpecNote, SpecNoteOutputSchema, type SpreadOption } from "../spec-spread";
 import { FinderSpecOutputSchema, parseSpecOutput, type ParsedFinderSpec } from "../spec";
 
@@ -38,7 +38,7 @@ const UNDERSTAND_SYSTEM = [
   "You turn a Ghanaian shopper's request into a search spec for US stores (Amazon, Walmart, eBay).",
   "The shopper writes in their own words; prices they mention are in Ghana cedis (GH₵, GHS, cedis).",
   "product: the item as a shopper would name it, keeping brand and model.",
-  "search_query: what to type into a US store's search box to find exactly that item, without prices or budget words.",
+  "search_query: what to type into a US store's search box to find exactly that item, without prices or budget words. Use the name stores sell it under: when the shopper names a product by its use or a nickname (\"Kirkland beard spray\"), search its real name (\"Kirkland Minoxidil 5%\") and keep the shopper's words in product.",
   "must_haves: only attributes the shopper actually stated (size, colour, storage, edition, model). Do not add your own.",
   "budget_ghs: the maximum they stated in cedis, else null. Never convert currencies.",
   "is_product_request is false for greetings, questions, services, or anything that is not a physical product.",
@@ -84,6 +84,7 @@ const SHORTLIST_SYSTEM = [
   "Phones, tablets and watches locked to a US carrier (Verizon, AT&T, T-Mobile, Cricket, Boost...) are not matches unless the title says unlocked or the shopper named that carrier: a locked phone will not work in Ghana.",
   "Variants that the shopper did not constrain (colour when no colour was asked) are matches.",
   "Answer with listing ids only. Put the closest matches first.",
+  "likely_meant: only when NO listing is a match. Shoppers often name a product by its use, a nickname or a description instead of its real name (\"Kirkland beard spray\" is Kirkland Minoxidil 5%; \"the PlayStation with no disc\" is the PS5 Digital Edition). If some listings are almost certainly what they mean, give their ids, the product's real name, and one short reason in plain words. A pack size the product is normally sold in (a 6-month supply) is fine here. Never use it for a merely similar product, a different brand, or a guess; when unsure, null.",
 ].join("\n");
 
 /** Listings → the exact matches by id, with the model's reason for each rejection. Null on any failure. */
@@ -91,7 +92,7 @@ export async function shortlistListings(
   spec: ParsedFinderSpec,
   listings: readonly FinderListing[],
   usage?: TokenUsage,
-): Promise<{ matches: FinderListing[]; dropped: Partial<Record<DropReason, number>> } | null> {
+): Promise<ShortlistResult | null> {
   const anthropic = getClient();
   if (!anthropic || listings.length === 0) return null;
   const t0 = Date.now();

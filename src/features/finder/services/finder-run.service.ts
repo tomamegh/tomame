@@ -477,7 +477,10 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   const forModel = mergeListings(inBudget.filter((l) => l.source === "live"), inBudget.filter((l) => l.source === "catalogue"), FINDER.maxListingsForShortlist);
 
   const picked = forModel.length > 0 ? await withTimeout(shortlistListings(spec, forModel, usage), FINDER.shortlistTimeoutMs + 2_000, null) : null;
-  const matches = picked?.matches ?? keywordMatches(spec, forModel);
+  // Nothing is literally the request, but the model is sure what the shopper means: offer that, and say so.
+  const likely = picked && picked.matches.length === 0 ? (picked.likely ?? null) : null;
+  const matches = likely ? likely.listings : (picked?.matches ?? keywordMatches(spec, forModel));
+  if (likely) narrator.emit({ type: "reinterpreted", product: likely.product, reason: likely.reason });
   const modelDrops: Partial<Record<DropReason, number>> = picked?.dropped ?? { wrong_item: forModel.length - matches.length };
   const dropped = mergeDrops(filtered.dropped, overBudget.length ? { over_budget: overBudget.length } : {}, modelDrops, {
     wrong_item: Math.max(0, inBudget.length - forModel.length),
@@ -509,7 +512,12 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
     }
   };
   announce(top);
-  narrator.emit({ type: "step_done", step: "shortlist", summary: shortlistSummary(matches.length, listings.length), details: dropDetails(dropped) });
+  narrator.emit({
+    type: "step_done",
+    step: "shortlist",
+    summary: likely ? `Nothing is called "${spec.product}"; found ${likely.product}` : shortlistSummary(matches.length, listings.length),
+    details: dropDetails(dropped),
+  });
   await writer.save();
   if (top.length === 0) return handoff(noMatch("no_exact"));
 

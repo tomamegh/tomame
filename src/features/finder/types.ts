@@ -83,6 +83,8 @@ export type FinderEvent =
    * `candidates` until the result, which ranks it with the rest.
    */
   | { type: "quick_pick"; at: number; candidate: FinderCandidate; quote: FinderQuote; priceContext?: PriceContext | null; extractionCacheId: string; reason: string }
+  /** No listing is literally the request; these are what the shopper almost certainly means. */
+  | { type: "reinterpreted"; at: number; product: string; reason: string }
   | { type: "result_ready"; at: number; bestId: string; alternativeIds: string[]; why: Record<string, string>; specNote?: string }
   | { type: "nothing_found"; at: number; message: string; whatsappText: string };
 
@@ -141,6 +143,8 @@ export interface FinderState {
   /** The fast answer, shown while the run works; null until one lands. */
   quickPick: (FinderCandidateState & { reason: string }) | null;
   nothingFound: { message: string; whatsappText: string } | null;
+  /** The product found instead of the words asked for, and why (Kirkland beard spray → Minoxidil 5%). */
+  reinterpreted?: { product: string; reason: string } | null;
   /** Why the options differ so much in price, by spec (spec-spread.ts); null when they are close. */
   specNote?: string | null;
   /** The latest line of narration, for the screen reader live region. */

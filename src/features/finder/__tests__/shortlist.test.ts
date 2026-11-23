@@ -127,6 +127,26 @@ describe("applyShortlistOutput (the model's half)", () => {
     expect(out?.dropped).toEqual({ accessory: 1, wrong_item: 1 });
   });
 
+  it("offers what the shopper almost certainly means when nothing is literally it (Kirkland beard spray)", () => {
+    const out = applyShortlistOutput(
+      {
+        matches: [],
+        rejected: [{ id: "a", reason: "wrong_item" }],
+        likely_meant: { ids: ["c", "zzz", "b"], product: "Kirkland Minoxidil 5% for men", reason: "Kirkland's beard growth product is Minoxidil 5%." },
+      },
+      listings,
+    );
+    expect(out?.matches).toEqual([]);
+    expect(out?.likely?.listings.map((l) => l.id)).toEqual(["c", "b"]);
+    expect(out?.likely?.product).toBe("Kirkland Minoxidil 5% for men");
+  });
+
+  it("ignores likely_meant when there are exact matches, or when its ids are unknown", () => {
+    const meant = { ids: ["b"], product: "Something else", reason: "A guess." };
+    expect(applyShortlistOutput({ matches: ["a"], rejected: [], likely_meant: meant }, listings)?.likely).toBeNull();
+    expect(applyShortlistOutput({ matches: [], rejected: [], likely_meant: { ...meant, ids: ["zzz"] } }, listings)?.likely).toBeNull();
+  });
+
   it("returns null for malformed output", () => {
     expect(applyShortlistOutput({ matches: "a" }, listings)).toBeNull();
     expect(applyShortlistOutput({ matches: ["a"], rejected: [{ id: "b", reason: "cheap" }] }, listings)).toBeNull();
