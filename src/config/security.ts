@@ -1,6 +1,10 @@
 export const RATE_LIMIT = {
   /** Auth endpoints (signup, login, forgot-password) */
   auth: { windowMs: 15 * 60 * 1000, maxRequests: 10 },
+  /** Email sign-in codes sent to one address (the per-IP cap is `auth`). */
+  emailCodeSend: { windowMs: 15 * 60 * 1000, maxRequests: 5 },
+  /** Code guesses against one address. */
+  emailCodeVerify: { windowMs: 15 * 60 * 1000, maxRequests: 8 },
   /** General authenticated endpoints */
   general: { windowMs: 15 * 60 * 1000, maxRequests: 60 },
   /**

@@ -29,6 +29,21 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+/** Email-code sign-in (Seamless Roadmap): ask for a code, then enter it. */
+export const emailCodeRequestSchema = z.object({
+  email,
+});
+
+// Digits only; spaces and dashes a mail client or keyboard adds are dropped.
+// Supabase's code length is a project setting (6 locally, 8 hosted).
+export const emailCodeVerifySchema = z.object({
+  email,
+  code: z
+    .string("Enter the code from the email")
+    .transform((v) => v.replace(/[\s-]/g, ""))
+    .pipe(z.string().regex(/^\d{6,10}$/, "Enter the code from the email")),
+});
+
 export const forgotPasswordSchema = z.object({
   email,
 });
@@ -69,3 +84,5 @@ export type ForgotPasswordSchema = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordSchema = z.infer<typeof resetPasswordSchema>;
 export type ResetPasswordFormSchema = z.infer<typeof resetPasswordFormSchema>;
 export type ChangePasswordSchema = z.infer<typeof changePasswordSchema>;
+export type EmailCodeRequestSchema = z.infer<typeof emailCodeRequestSchema>;
+export type EmailCodeVerifySchema = z.input<typeof emailCodeVerifySchema>;
