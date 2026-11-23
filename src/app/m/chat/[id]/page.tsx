@@ -18,7 +18,7 @@ export default async function MobileChatPage({ params }: { params: Promise<{ id:
   if (!view) notFound();
   return (
     <ChatFrame>
-      <FinderChatScreen key={view.id} initial={view} history={history} pastes={pastes} signedIn={user != null} />
+      <FinderChatScreen key={view.id} initial={view} history={history} pastes={pastes} signedIn={user != null} variant="app" />
     </ChatFrame>
   );
 }

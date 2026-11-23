@@ -36,6 +36,11 @@
         "sound"
       ],
       "iconColor": "#F25B3D"
+    },
+    "Keyboard": {
+      "resize": "native",
+      "resizeOnFullScreen": true,
+      "style": "LIGHT"
     }
   }
 }

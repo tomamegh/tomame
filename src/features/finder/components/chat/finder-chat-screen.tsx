@@ -36,6 +36,13 @@ interface FinderChatScreenProps {
   /** `?watch=`: a pasted link opened from history, with the viewer's pastes to find it in. */
   watch?: { id: string; pastes: PasteStatus[] } | null;
   signedIn: boolean;
+  /**
+   * "app": the iPhone app (/m). The screen fills the space between the status bar and the
+   * tab bar and does not move: only the conversation scrolls, the box is pinned under it,
+   * the empty state is one line and a row of suggestions, and the history sits behind its
+   * button (Kelvin, 2026-11-23: the box must not be crowded out). The website is unchanged.
+   */
+  variant?: "web" | "app";
 }
 
 const SUGGESTIONS = [
@@ -51,7 +58,8 @@ const SUGGESTIONS = [
  * sit under the reply that started them. The assistant never sets a price:
  * every figure is on a card the finder priced.
  */
-export function FinderChatScreen({ initial, history, pastes, defaultText = "", header, watch = null, signedIn }: FinderChatScreenProps) {
+export function FinderChatScreen({ initial, history, pastes, defaultText = "", header, watch = null, signedIn, variant = "web" }: FinderChatScreenProps) {
+  const app = variant === "app";
   const routes = useAppRoutes();
   const router = useRouter();
   const chat = useChatView(initial, initial?.id ?? null);
@@ -144,18 +152,25 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-8">
-        <aside className="hidden lg:block">
+      <div
+        className={
+          app
+            ? "flex h-full min-h-0 w-full flex-col"
+            : "mx-auto grid w-full max-w-[1180px] grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-8"
+        }
+      >
+        <aside className={app ? "hidden" : "hidden lg:block"}>
           <div className="sticky top-6 flex max-h-[calc(100dvh-7rem)] flex-col gap-3">
             <NewChatButton />
             <ChatHistoryList chats={chats} pastes={pastes} activeId={chat?.id ?? null} />
           </div>
         </aside>
 
-        <section className="flex min-h-[calc(100dvh-14rem)] min-w-0 flex-col">
+        <section className={app ? "flex min-h-0 min-w-0 flex-1 flex-col" : "flex min-h-[calc(100dvh-14rem)] min-w-0 flex-col"}>
           {header && <div className="mb-5">{header}</div>}
           {/* Phones: history behind a button, so the thread keeps the screen. */}
-          <div className={cn("mb-4 flex items-center justify-between gap-3 lg:hidden", empty && "hidden")}>
+          <div className={cn("mb-4 flex items-center justify-between gap-3 lg:hidden", empty && !app && "hidden", app && "mb-2 shrink-0")}>
+            {app && <h1 className="font-display text-[24px] leading-none font-bold tracking-[-0.02em]">Buy for me</h1>}
             <button
               type="button"
               onClick={() => setShowHistory((v) => !v)}
@@ -163,9 +178,9 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
               className="inline-flex h-9 items-center gap-1.5 rounded-full border border-tm-border bg-card px-3 text-[13px] font-semibold"
             >
               <ClockCounterClockwise size={16} aria-hidden />
-              Your chats and links
+              {app ? "Chats" : "Your chats and links"}
             </button>
-            <NewChatButton compact />
+            {app ? <span className="-ml-1"><NewChatButton compact /></span> : <NewChatButton compact />}
           </div>
           <AnimatePresence initial={false}>
             {showHistory && (
@@ -173,20 +188,23 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mb-4 overflow-hidden lg:hidden"
+                className={cn("mb-4 overflow-hidden lg:hidden", app && "mb-2 max-h-[55%] shrink-0 overflow-y-auto overscroll-contain")}
               >
                 <ChatHistoryList chats={chats} pastes={pastes} activeId={chat?.id ?? null} onPick={() => setShowHistory(false)} />
               </motion.div>
             )}
           </AnimatePresence>
 
+          <div className={app ? "-mx-3.5 min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-3.5 pb-3" : "contents"}>
           {watch && (
             <div className="mb-6">
               <WatchedPaste initialPastes={watch.pastes} id={watch.id} onDescribe={(paste) => setDescribing(paste)} />
             </div>
           )}
 
-          {empty ? (
+          {empty && app ? (
+            <AppEmptyState onPick={(s) => void submit(s)} disabled={send.isPending} />
+          ) : empty ? (
             <>
               <EmptyState onPick={(s) => void submit(s)} disabled={send.isPending} />
               {/* Phones have no sidebar: the chats sit in the open under the suggestions. */}
@@ -258,9 +276,13 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
           />
 
           <div ref={endRef} />
+          </div>
           <form
             onSubmit={onSubmit}
-            className={cn("z-10 -mx-1 rounded-[26px] bg-tm-paper/80 px-1 pb-1 backdrop-blur", signedIn ? "tm-chat-dock" : "tm-chat-dock-visitor")}
+            className={cn(
+              "z-10 -mx-1 rounded-[26px] bg-tm-paper/80 px-1 pb-1 backdrop-blur",
+              app ? "shrink-0 pt-1" : signedIn ? "tm-chat-dock" : "tm-chat-dock-visitor",
+            )}
           >
             <div className="tm-ask-ring rounded-[24px] p-[1.5px]">
               <div className="flex items-end gap-2 rounded-[22.5px] bg-card p-2 pl-4">
@@ -275,8 +297,8 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={onKeyDown}
                   maxLength={1000}
-                  placeholder={empty ? "Paste a link, or say what you want" : "Ask a follow-up, paste a link, or ask for something else"}
-                  className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent py-2 text-[15px] leading-6 outline-none placeholder:text-muted-foreground"
+                  placeholder={empty ? "Paste a link, or say what you want" : app ? "Ask a follow-up or paste a link" : "Ask a follow-up, paste a link, or ask for something else"}
+                  className={cn("max-h-40 min-h-[40px] flex-1 resize-none bg-transparent py-2 leading-6 outline-none placeholder:text-muted-foreground", app ? "max-h-28 text-[16px]" : "text-[16px] sm:text-[15px]")}
                 />
                 <button
                   type="submit"
@@ -289,7 +311,7 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
               </div>
             </div>
             {/* Kelvin, 2026-11-23: one line only, and it is the one that protects the customer. */}
-            <p className="mt-1.5 px-3 text-[12px] leading-snug text-muted-foreground">
+            <p className={cn("mt-1.5 px-3 leading-snug text-muted-foreground", app ? "truncate text-[11.5px]" : "text-[12px]")}>
               Check the item on the store (size, colour, seller) before you buy.
             </p>
           </form>
@@ -344,6 +366,37 @@ function AssistantTurn({ text, typing = false, children }: { text?: string; typi
         {children}
       </div>
     </motion.div>
+  );
+}
+
+/** The app's empty chat: one line and a row of suggestions, so the box below is what you see. */
+function AppEmptyState({ onPick, disabled }: { onPick: (text: string) => void; disabled: boolean }) {
+  return (
+    <div className="flex h-full flex-col justify-end gap-4 pb-2">
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[image:var(--tm-gradient-cta)] text-white">
+          <Sparkle size={18} weight="fill" aria-hidden />
+        </span>
+        <p className="pt-1 text-[16px] leading-snug">
+          <span className="font-semibold">What should we buy for you?</span>{" "}
+          <span className="text-muted-foreground">Paste a link or say what you want. Prices land in cedis.</span>
+        </p>
+      </div>
+      <ul className="-mx-3.5 flex gap-2 overflow-x-auto px-3.5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {SUGGESTIONS.map((s) => (
+          <li key={s} className="shrink-0">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onPick(s)}
+              className="max-w-[240px] truncate rounded-full border border-tm-border bg-card px-3.5 py-2 text-[13.5px] font-medium disabled:opacity-50"
+            >
+              {s}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

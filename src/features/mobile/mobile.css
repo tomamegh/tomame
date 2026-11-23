@@ -49,10 +49,14 @@
 }
 .tm-m.no-tabs { padding-bottom: calc(var(--m-bottom) + 24px); }
 .tm-m *, .tm-m *::before, .tm-m *::after { box-sizing: border-box; }
-.tm-m button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
-.tm-m a { color: inherit; text-decoration: none; }
-.tm-m img { display: block; }
-.tm-m h1, .tm-m h2, .tm-m h3, .tm-m p { margin: 0; }
+/* Element resets sit in Tailwind's base layer: unlayered rules beat every layered one, so here
+ * they would override the utilities of the shared web components shown inside the app (the chat). */
+@layer base {
+  .tm-m :where(button) { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
+  .tm-m :where(a) { color: inherit; text-decoration: none; }
+  .tm-m :where(img) { display: block; }
+  .tm-m :where(h1, h2, h3, p) { margin: 0; }
+}
 .tm-m .nums { font-variant-numeric: tabular-nums; }
 .tm-m .up { animation: m-up 0.6s var(--m-ease) both; }
 .tm-m .up:nth-child(2) { animation-delay: 0.04s; } .tm-m .up:nth-child(3) { animation-delay: 0.08s; }
@@ -455,3 +459,16 @@
 .tm-m .foot-bar .icon-btn { background: rgba(255, 255, 255, 0.1); color: #fff; box-shadow: none; }
 .tm-m .paybar { background: #fff; color: var(--m-ink); box-shadow: var(--m-shadow-lg), inset 0 0 0 1px var(--m-border); }
 .tm-m .paybar small { color: var(--m-text-3); }
+
+/* ── The app never drifts (Kelvin, 2026-11-23) ───────────────────────────────
+ * No sideways pan, no rubber-band of the whole page, and no field small enough for iOS to zoom
+ * into. Buy for me is locked to the screen: only the conversation scrolls, the box is pinned.
+ */
+html:has(.tm-m), body:has(.tm-m) { overflow-x: hidden; overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+.tm-m textarea, .tm-m input:not([type="checkbox"]):not([type="radio"]), .tm-m select { font-size: 16px; }
+html:has(.tm-m.chat-lock), body:has(.tm-m.chat-lock) { height: 100%; overflow: hidden; }
+.tm-m.chat-lock { position: fixed; inset: 0; height: 100dvh; min-height: 0; overflow: hidden; padding-bottom: var(--m-tabh); display: flex; flex-direction: column; }
+.tm-m.chat-lock > .chat-frame { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 10px 14px 8px; }
+/* Typing: the tab bar steps aside so the box sits right on the keyboard. */
+.tm-m:has(textarea:focus, input:not([type="checkbox"]):not([type="radio"]):focus) .tabbar { display: none; }
+.tm-m.chat-lock:has(textarea:focus) { padding-bottom: 0; }

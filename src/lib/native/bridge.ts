@@ -194,3 +194,12 @@ export function onNotificationTap(fn: (href: string) => void): () => void {
   }
   return () => void remove?.().catch(() => {});
 }
+
+interface KeyboardPlugin {
+  setAccessoryBarVisible(o: { isVisible: boolean }): Promise<void>;
+}
+
+/** The app's keyboard: no up/down/done bar above it (the chat box has its own send). */
+export function tidyKeyboard(): void {
+  void plugin<KeyboardPlugin>("Keyboard")?.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
+}

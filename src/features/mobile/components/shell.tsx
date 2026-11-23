@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BellRinging, House, Package, ShoppingBagOpen, Sparkle } from "@phosphor-icons/react";
 
 import { cn } from "@/lib/utils";
-import { haptic, onAppResume, setStatusBar } from "@/lib/native/bridge";
+import { haptic, onAppResume, setStatusBar, tidyKeyboard } from "@/lib/native/bridge";
 import { bagKeys, fetchBag } from "@/features/bag/hooks/useAddToBag";
 import { NativeNotifications } from "./native-notifications";
 
@@ -17,6 +17,7 @@ function chromeFor(pathname: string): { tabs: boolean; className: string } {
   if (pathname.startsWith("/m/paid")) return { tabs: false, className: "no-tabs paid-bg" };
   if (pathname.startsWith("/m/product/")) return { tabs: false, className: "no-tabs" };
   if (pathname === "/m/bag") return { tabs: true, className: "has-paybar" };
+  if (pathname === "/m/chat" || pathname.startsWith("/m/chat/")) return { tabs: true, className: "chat-lock" };
   return { tabs: true, className: "" };
 }
 
@@ -29,7 +30,10 @@ export function MobileShell({ bagCount, children }: { bagCount: number; children
   const pathname = usePathname() ?? "/m";
   const chrome = chromeFor(pathname);
 
-  useEffect(() => setStatusBar("dark-text"), []);
+  useEffect(() => {
+    setStatusBar("dark-text");
+    tidyKeyboard();
+  }, []);
 
   return (
     <div className={cn("tm-m", chrome.className)}>

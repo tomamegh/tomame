@@ -5,20 +5,14 @@ import type { ReactNode } from "react";
 import { AppRoutesProvider } from "@/lib/native/app-routes";
 
 /**
- * Buy for me inside the app: the website's own chat (same calls, same cards), with its links
- * pointed at `/m` screens and its padding set for the phone's tab bar.
+ * Buy for me inside the app: the website's own chat (same calls, same cards) in its "app"
+ * variant, with its links pointed at `/m` screens. The frame fills the locked screen
+ * (`.tm-m.chat-lock` in mobile.css): only the conversation scrolls.
  */
-export function ChatFrame({ children, title = true }: { children: ReactNode; title?: boolean }) {
+export function ChatFrame({ children }: { children: ReactNode }) {
   return (
     <AppRoutesProvider routes="mobile">
-      {title ? (
-        <div className="lt" style={{ paddingBottom: 6 }}>
-          <div><h1>Buy for me</h1><p>Your buyer for US &amp; UK stores</p></div>
-        </div>
-      ) : (
-        <div style={{ height: 12 }} />
-      )}
-      <div style={{ padding: "0 14px" }}>{children}</div>
+      <div className="chat-frame">{children}</div>
     </AppRoutesProvider>
   );
 }

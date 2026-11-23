@@ -12,8 +12,8 @@ export default async function MobileNewChatPage() {
   const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
   const [history, pastes] = await Promise.all([listChatHistory(viewer, 30), listPastedLinks(viewer)]);
   return (
-    <ChatFrame title={false}>
-      <FinderChatScreen initial={null} history={history} pastes={pastes} signedIn={user != null} />
+    <ChatFrame>
+      <FinderChatScreen initial={null} history={history} pastes={pastes} signedIn={user != null} variant="app" />
     </ChatFrame>
   );
 }

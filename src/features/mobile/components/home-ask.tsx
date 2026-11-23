@@ -1,32 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUp, ClipboardText, LinkSimple } from "@phosphor-icons/react";
 import { toast } from "@/lib/sonner";
 
-import { haptic, isNative, readClipboard } from "@/lib/native/bridge";
+import { haptic } from "@/lib/native/bridge";
 import { firstUrl, shortLink } from "../format";
 import { sendToBuyForMe } from "../send";
 
 /**
  * The big ask box on Home. Words or a link go to Buy for me as a new chat turn, exactly as the
  * website's chat sends them (`POST /api/finder/chat`); a single priced link opens its product.
- * Inside the app a link sitting on the clipboard is offered as a one-tap chip.
+ * The Paste button fills the box; a pasted link is also offered as a one-tap "Price it".
+ * The clipboard is never read on its own: iOS would stop the app with a paste alert.
  */
 export function HomeAsk() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [text, setText] = useState("");
+  // A link the customer pasted with the Paste button, offered as a one-tap price.
   const [clip, setClip] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isNative()) return;
-    void readClipboard().then((value) => {
-      const url = firstUrl(value);
-      if (url) setClip(url);
-    });
-  }, []);
 
   const submit = (value: string) => {
     const v = value.trim();
@@ -72,8 +66,12 @@ export function HomeAsk() {
             className="mini"
             onClick={async () => {
               haptic("light");
-              const v = (await readClipboard()) ?? (await navigator.clipboard?.readText().catch(() => "")) ?? "";
-              if (v) setText(v);
+              // WebKit's own paste bubble, not the native clipboard read: iOS answers a
+              // programmatic read with a blocking "would like to paste" alert every time.
+              const v = (await navigator.clipboard?.readText().catch(() => "")) ?? "";
+              if (!v) return;
+              setText(v);
+              setClip(firstUrl(v) && !v.replace(firstUrl(v)!, "").trim() ? firstUrl(v) : null);
             }}
           >
             <LinkSimple size={16} weight="bold" />
