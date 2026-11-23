@@ -54,6 +54,11 @@ function isBagRoute(pathname: string): boolean {
   return normalised === "/app/bag" || normalised.startsWith("/app/bag/");
 }
 
+/** `/app` itself: the signed-in Home, the tour's first stop. */
+function isHomeRoute(pathname: string): boolean {
+  return stripTrailingSlash(pathname) === "/app";
+}
+
 /** The tour only ever runs inside the signed-in app shell. */
 function isAppRoute(pathname: string): boolean {
   const normalised = stripTrailingSlash(pathname);
@@ -80,6 +85,10 @@ export function shouldShowOnboardingTour(viewer: OnboardingTourViewer): boolean 
   if (!viewer.pathname) return false;
   if (!isAppRoute(viewer.pathname)) return false;
   if (isBagRoute(viewer.pathname)) return false;
+  // Only Home starts it (2026-11-23): the tour's first stop is Home, so starting
+  // anywhere else pulled a customer off their chat, quote or order mid-task,
+  // e.g. right after signing in to keep going from Buy for me.
+  if (!isHomeRoute(viewer.pathname)) return false;
   if (viewer.hasPaymentReturnParam) return false;
   if (viewer.onboardingCompletedAt) return false;
   if (viewer.onboardingDismissedAt) return false;

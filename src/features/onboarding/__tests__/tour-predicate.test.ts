@@ -89,9 +89,9 @@ describe("shouldShowOnboardingTour", () => {
     expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app/bag/checkout" }))).toBe(false);
   });
 
-  it("does not treat a merely-similar path as the bag route", () => {
-    // "/app/bagpipes" is not /app/bag and must not be excluded by a loose prefix check.
-    expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app/bagpipes" }))).toBe(true);
+  it("starts only on Home, so a merely-similar path does not start it either", () => {
+    expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app/bagpipes" }))).toBe(false);
+    expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app" }))).toBe(true);
   });
 
   it("never fires on a checkout return (?payment= present)", () => {
@@ -102,18 +102,21 @@ describe("shouldShowOnboardingTour", () => {
     ).toBe(false);
   });
 
-  it("fires on /app/orders when there is no payment param", () => {
+  it("does not start on /app/orders even without a payment param: only Home starts it", () => {
     expect(
       shouldShowOnboardingTour(
         baseViewer({ pathname: "/app/orders", hasPaymentReturnParam: false }),
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("fires on other /app/* routes, not just the literal /app root", () => {
-    expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app/watches" }))).toBe(true);
-    expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app/account" }))).toBe(true);
-    expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app/orders/new" }))).toBe(true);
+    // Only Home starts it: anywhere else the customer is mid-task (2026-11-23).
+    expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app/watches" }))).toBe(false);
+    expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app/account" }))).toBe(false);
+    expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app/orders/new" }))).toBe(false);
+    expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app/find/chat/c85873bd-5a11-4e67-a189-f19588a048fd" }))).toBe(false);
+    expect(shouldShowOnboardingTour(baseViewer({ pathname: "/app/orders/review/3e49c960-15a4-4db4-a268-4be4a6c6336e" }))).toBe(false);
   });
 
   it("never fires outside the signed-in app shell", () => {
