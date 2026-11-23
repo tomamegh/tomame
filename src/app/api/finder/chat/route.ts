@@ -2,6 +2,7 @@ import { NextRequest, after } from "next/server";
 
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import {
+  extractionDayLimit,
   finderChatDayLimit,
   finderChatRateLimit,
   finderLimitMessage,
@@ -47,8 +48,8 @@ export async function POST(request: NextRequest) {
     const sessionId = readQuoteSession(request);
     const chatLimit = finderChatRateLimit(subject, user != null);
     // Per visitor cookie when they have one: a carrier IP is shared by many customers.
-    const dayLimit = finderChatDayLimit(sessionId ? `s:${sessionId}` : subject);
-    if (!(await checkRateLimit(chatLimit.key, chatLimit.config)).allowed || (!user && !(await checkRateLimit(dayLimit.key, dayLimit.config)).allowed)) {
+    const dayLimit = finderChatDayLimit(user ? subject : sessionId ? `s:${sessionId}` : subject, user != null);
+    if (!(await checkRateLimit(chatLimit.key, chatLimit.config)).allowed || !(await checkRateLimit(dayLimit.key, dayLimit.config)).allowed) {
       await recordAiUsage({ kind: "chat", outcome: "rate_limited", userId: user?.id ?? null, sessionId, ipHash });
       throw new APIError(429, user ? "That's a lot of messages in a short time. Give it a few minutes and try again." : `That's a lot of messages. ${VISITOR_SIGN_IN_MESSAGE}`);
     }
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
       // Links spend the paste queue's buckets, exactly as POST /api/pastes: a cache hit the looser one.
       async (cacheHit) =>
         (await taste()) &&
+        (cacheHit || !user || (await checkRateLimit(extractionDayLimit(subject).key, extractionDayLimit(subject).config)).allowed) &&
         (await checkRateLimit(cacheHit ? `paste:cache:${subject}` : `paste:${subject}`, cacheHit ? RATE_LIMIT.extractionCacheHit : RATE_LIMIT.extraction)).allowed,
     );
     const who = { userId: user?.id ?? null, sessionId: viewer.sessionId ?? sessionId, ipHash, refId: result.turn.id };

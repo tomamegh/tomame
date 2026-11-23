@@ -38,7 +38,12 @@ export function visitorTasteLimits(sessionId: string | null, ipSubject: string):
   return sessionId ? [{ key: `taste:s:${sessionId}`, config: RATE_LIMIT.visitorTaste }, ip] : [{ key: `taste:${ipSubject}`, config: RATE_LIMIT.visitorTaste }];
 }
 
-/** A visitor's daily message cap, beside the hourly one. */
-export function finderChatDayLimit(subject: string): { key: string; config: { windowMs: number; maxRequests: number } } {
-  return { key: `finder-chat-day:${subject}`, config: RATE_LIMIT.finderChatVisitorDay };
+/** The daily message cap, beside the hourly one: tighter for a visitor. */
+export function finderChatDayLimit(subject: string, signedIn = false): { key: string; config: { windowMs: number; maxRequests: number } } {
+  return { key: `finder-chat-day:${subject}`, config: signedIn ? RATE_LIMIT.finderChatUserDay : RATE_LIMIT.finderChatVisitorDay };
+}
+
+/** A signed-in customer's daily fresh link reads (a visitor's are their free taste). */
+export function extractionDayLimit(subject: string): { key: string; config: { windowMs: number; maxRequests: number } } {
+  return { key: `reads-day:${subject}`, config: RATE_LIMIT.extractionUserDay };
 }

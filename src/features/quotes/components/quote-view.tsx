@@ -570,6 +570,7 @@ export function QuoteView({
             stockCheck={quote.stock_check ?? null}
             extractionId={quote.extraction_cache_id ?? null}
             priceNotes={priceContextParts(priceContextOf(quote), store?.name ?? null)}
+            storeName={store?.name ?? null}
             currencySymbol={currencySymbol}
             onContinue={addLineToBag}
             canContinue={canContinue && !!quote.extraction_cache_id}

@@ -7,7 +7,7 @@ import { getCachedExtractionByHash } from "@/db/queries/extraction-cache";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
-import { VISITOR_SIGN_IN_MESSAGE, visitorTasteLimits } from "@/features/finder/admission";
+import { extractionDayLimit, VISITOR_SIGN_IN_MESSAGE, visitorTasteLimits } from "@/features/finder/admission";
 import { RATE_LIMIT } from "@/config/security";
 
 // Chain budget is 25 s, 60 s for SHEIN (stores.ts budgetMs). Headroom for enrichment + pricing.
@@ -77,6 +77,8 @@ export async function POST(request: NextRequest) {
       }
     }
     if (!cached) {
+      const day = extractionDayLimit(`user:${user?.id}`);
+      if (user && !(await checkRateLimit(day.key, day.config)).allowed) throw new APIError(429, "You've priced a lot of links today. Try again tomorrow, or ask a buyer.");
       if (!(await checkRateLimit(`extraction:${ip}`, RATE_LIMIT.extraction)).allowed) {
         throw new APIError(429, "Too many requests. Please wait a few minutes and try again.");
       }

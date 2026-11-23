@@ -7,7 +7,7 @@ import { useId, useState } from "react";
 import { NumberRoll } from "@/components/motion/number-roll";
 import { Button } from "@/components/ui/button";
 import { fadeIn, popIn, PRESS, riseIn, SPRING } from "@/lib/motion/presets";
-import { priceContextParts } from "@/features/extraction/price-context";
+import { priceContextParts, storePriceDisclaimer } from "@/features/extraction/price-context";
 import { cn } from "@/lib/utils";
 
 import { formatGhs, formatUsd } from "../format";
@@ -122,7 +122,7 @@ export function FinderResultCard({ candidate, featured = false, onAddToBag }: Fi
                 className={cn("font-display font-extrabold leading-tight", featured ? "text-[34px] @md:text-[40px]" : "text-[26px]")}
               />
               <span className="text-[13px] text-muted-foreground">
-                About {formatUsd(quote.totalUsd)}. Nothing more to pay on delivery.
+                About {formatUsd(quote.totalUsd)}. Nothing more to pay on delivery. {storePriceDisclaimer(candidate.store.name)}
               </span>
             </motion.div>
           ) : (

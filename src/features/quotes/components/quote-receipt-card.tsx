@@ -23,6 +23,7 @@ import type { PayHold } from "@/features/extraction/pay-gate";
 import type { StoreShippingOption } from "@/features/extraction/store-shipping";
 import type { StockCheckView } from "@/features/extraction/types";
 import { formatGhs, formatGhsCompact, formatUsd } from "@/features/marketing/format";
+import { storePriceDisclaimer } from "@/features/extraction/price-context";
 import { PayHoldNotice } from "@/features/quote-checks/components/pay-hold-notice";
 import { ReportPriceLink } from "@/features/quote-checks/components/report-price-dialog";
 import type { PricingBreakdown } from "@/lib/pricing";
@@ -61,6 +62,8 @@ export interface QuoteReceiptCardProps {
   extractionId?: string | null;
   /** Why the store price is what it is, as facts (price-context.ts): a store discount, our earlier read. */
   priceNotes?: string[];
+  /** "Amazon": named in the check-the-store line under the price. */
+  storeName?: string | null;
   /** "$" or "£", the listing currency, for the price report form. */
   currencySymbol?: string;
   onContinue: () => void;
@@ -102,6 +105,7 @@ export function QuoteReceiptCard({
   payHold = null,
   stockCheck = null,
   priceNotes = [],
+  storeName = null,
   extractionId = null,
   currencySymbol = "$",
   onContinue,
@@ -163,6 +167,10 @@ export function QuoteReceiptCard({
           )}
         </div>
       )}
+
+      {total && pricing ? (
+        <p className="-mt-2 text-[12px] leading-snug text-muted-foreground">{storePriceDisclaimer(storeName)}</p>
+      ) : null}
 
       {total && pricing && priceNotes.length > 0 && (
         <p className="flex items-start gap-2 rounded-xl bg-tm-green/10 px-3 py-2 text-[13px] leading-snug font-medium text-tm-green">

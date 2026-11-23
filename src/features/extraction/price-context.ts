@@ -146,3 +146,12 @@ export function shoppingSeasonNote(now = new Date()): string | null {
   const day = (d: Date) => new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(d);
   return `It is Black Friday season: Black Friday is ${day(blackFriday)} ${year} and Cyber Monday is ${day(cyberMonday)}. US stores run deals through that week and can end them without notice.`;
 }
+
+/**
+ * Under every store price we show (Kelvin, 2026-11-23): the price is the
+ * store's when we read it, and stores change prices.
+ */
+export function storePriceDisclaimer(storeName: string | null, several = false): string {
+  if (several) return "Store prices change. Check each price on the store's page before you pay.";
+  return `Store prices change. Check the price on ${storeName ?? "the store's page"} before you pay.`;
+}

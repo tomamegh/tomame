@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { carryPriceHistory, priceContextFacts, priceContextOf, priceContextParts, shoppingSeasonNote } from "../price-context";
+import { carryPriceHistory, priceContextFacts, priceContextOf, priceContextParts, shoppingSeasonNote, storePriceDisclaimer } from "../price-context";
 import type { ExtractionResult } from "../types";
 
 const NOW = Date.parse("2026-11-22T20:20:00Z");
@@ -96,5 +96,13 @@ describe("shoppingSeasonNote", () => {
   it("is silent out of season", () => {
     expect(shoppingSeasonNote(new Date("2026-10-01T00:00:00Z"))).toBeNull();
     expect(shoppingSeasonNote(new Date("2026-12-10T00:00:00Z"))).toBeNull();
+  });
+});
+
+describe("storePriceDisclaimer", () => {
+  it("names the store, or speaks of each store for a batch", () => {
+    expect(storePriceDisclaimer("eBay")).toBe("Store prices change. Check the price on eBay before you pay.");
+    expect(storePriceDisclaimer(null)).toContain("the store's page");
+    expect(storePriceDisclaimer("Amazon", true)).toBe("Store prices change. Check each price on the store's page before you pay.");
   });
 });

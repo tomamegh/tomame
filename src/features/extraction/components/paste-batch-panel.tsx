@@ -18,7 +18,7 @@ import { PayHoldNotice } from "@/features/quote-checks/components/pay-hold-notic
 import { riseIn, SPRING } from "@/lib/motion/presets";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
-import { priceContextParts } from "../price-context";
+import { priceContextParts, storePriceDisclaimer } from "../price-context";
 import { useCreatePaste, usePasteBatchPreview } from "../hooks/usePastes";
 import type { PasteBatchLine } from "../services/paste-batch";
 import type { PasteStatus } from "../services/paste-status";
@@ -195,6 +195,9 @@ export function PasteBatchPanel({ pastes, onDescribe, onDone }: PasteBatchPanelP
               ) : (
                 <p className="tm-caption text-muted-foreground">Prices appear here as each link is read.</p>
               )}
+              {preview.data && preview.data.lines.some((l) => l.total_ghs != null) ? (
+                <p className="text-[12px] leading-snug text-muted-foreground">{storePriceDisclaimer(rows[0]?.line?.store ?? null, many)}</p>
+              ) : null}
               {stillReading > 0 && (
                 <p className="tm-caption text-muted-foreground">
                   {stillReading === 1 ? "1 link is" : `${stillReading} links are`} still reading. You can leave this page; the reads carry on.

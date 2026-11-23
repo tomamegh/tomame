@@ -9,7 +9,7 @@ import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { resolveViewer } from "@/lib/quote-session";
 import { APIError, successResponse, errorResponse } from "@/lib/auth/api-helpers";
 import { checkRateLimit, rateLimitSubject } from "@/lib/rate-limit";
-import { VISITOR_SIGN_IN_MESSAGE, visitorTasteLimits } from "@/features/finder/admission";
+import { extractionDayLimit, VISITOR_SIGN_IN_MESSAGE, visitorTasteLimits } from "@/features/finder/admission";
 import { RATE_LIMIT } from "@/config/security";
 import { toPasteStatus } from "@/features/extraction/services/paste-status";
 
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+      if (user && !cacheHit && !(await checkRateLimit(extractionDayLimit(subject).key, extractionDayLimit(subject).config)).allowed) return false;
       return (await checkRateLimit(cacheHit ? `paste:cache:${subject}` : `paste:${subject}`, cacheHit ? RATE_LIMIT.extractionCacheHit : RATE_LIMIT.extraction)).allowed;
     };
 

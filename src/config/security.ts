@@ -94,6 +94,10 @@ export const RATE_LIMIT = {
   finderChatVisitor: { windowMs: 60 * 60 * 1000, maxRequests: 20 },
   /** A visitor's day of messages to the assistant, beside the hourly cap. */
   finderChatVisitorDay: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 30 },
+  /** A signed-in customer's day of messages, beside the hourly 60: no shopper sends 300. */
+  finderChatUserDay: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 300 },
+  /** A signed-in customer's fresh link reads (each a vendor call) per day; cached reads are not counted. */
+  extractionUserDay: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 150 },
   /**
    * A visitor's free taste (2026-11-23): searches and link reads together, per
    * visitor (quote-session cookie) per day. Then the chat asks them to sign in (free) to keep going, so
