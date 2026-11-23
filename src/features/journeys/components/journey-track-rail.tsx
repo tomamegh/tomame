@@ -21,7 +21,7 @@ export interface JourneyTrackRailProps {
  * `tmFill 1.4s .3s cubic-bezier(.16,1,.3,1)` and the five dots pop on
  * `tmPop .5s` at `.3s .5s .7s 1s 1.2s`.
  */
-const STOP_DELAYS = ["0.3s", "0.5s", "0.7s", "1s", "1.2s"] as const;
+const STOP_DELAYS = ["0.3s", "0.5s", "0.7s", "0.9s", "1.1s", "1.3s"] as const;
 
 export function JourneyTrackRail({ track, eta }: JourneyTrackRailProps) {
   return (
@@ -40,7 +40,7 @@ export function JourneyTrackRail({ track, eta }: JourneyTrackRailProps) {
         style={{ width: `calc((100% - 2rem) * ${track.percent / 100})` }}
       />
 
-      <ol className="relative grid grid-cols-5">
+      <ol className="relative grid grid-cols-6">
         {track.stops.map((stop, index) => {
           const Glyph = stopIcon(stop.key);
           const isFinal = stop.key === "your_door";

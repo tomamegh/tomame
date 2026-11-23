@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/db/queries/delivery-plans", () => ({ loadDeliveryPlanFacts: vi.fn(async () => ({ storeTracking: new Map(), hubArrivedAt: new Map(), shippedOn: new Map(), departures: [] })) }));
 vi.mock("@/features/auth/services/auth.service", () => ({ getAuthenticatedUser: vi.fn(async () => null) }));
 vi.mock("@/db/queries/public-tracking", () => ({
   getTrackingOrderByNo: vi.fn(async () => null),

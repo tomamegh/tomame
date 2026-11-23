@@ -13,6 +13,7 @@ import type { Order } from "../types";
 import { orderEtaFields } from "./admin-order-display";
 import { mayEditEtaWindow, transitionsFor, type AdminTransition } from "./admin-transitions";
 import { awbInputProblem, trackingInputProblem } from "@/features/warehouse/inbound/tracking-number";
+import { CANCEL_REASON_KEYS, CANCEL_REASONS, type CancelReason } from "@/config/cancel-reasons";
 
 /**
  * The controls that move an order: the state machine, and the delivery window.
@@ -125,6 +126,9 @@ function TransitionControl({
   // 113 (Fix 12): in transit is the Delta Cargo leg: an air waybill, or a reason there is none.
   // Applies to the in-transit move only; nothing here can stop a paid order being marked purchased.
   const [noTrackingReason, setNoTrackingReason] = useState("");
+  // Fix 6: a cancellation names its reason; the customer sees it on /track.
+  const isCancel = transition.to === "cancelled";
+  const [cancelReason, setCancelReason] = useState<CancelReason | "">("");
   const isInTransit = transition.to === "in_transit";
   const awbProblem = isInTransit && trackingNumber.trim() ? awbInputProblem(trackingNumber) : null;
   const awbMissing = isInTransit && !(trackingNumber.trim() && !awbProblem) && !noTrackingReason.trim();
@@ -170,6 +174,7 @@ function TransitionControl({
         startTransition(() => router.refresh());
         return;
       }
+      if (isCancel && cancelReason) body.cancel_reason = cancelReason;
       if (transition.carriesTracking) {
         if (carrier.trim()) body.carrier = carrier.trim();
         if (trackingNumber.trim()) body.tracking_number = trackingNumber.trim();
@@ -297,6 +302,24 @@ function TransitionControl({
         </fieldset>
       ) : null}
 
+      {isCancel ? (
+        <Field label="Why is it being cancelled? (the customer sees this)" id={`cancel-reason-${order.id}`}>
+          <select
+            id={`cancel-reason-${order.id}`}
+            value={cancelReason}
+            onChange={(event) => setCancelReason(event.target.value as CancelReason | "")}
+            className={INPUT}
+          >
+            <option value="">Choose a reason…</option>
+            {CANCEL_REASON_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {CANCEL_REASONS[key]}
+              </option>
+            ))}
+          </select>
+        </Field>
+      ) : null}
+
       {transition.carriesTracking ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={isInTransit ? "Delta Cargo air waybill" : "Tracking number"} id={`tracking-${order.id}`}>
@@ -378,7 +401,7 @@ function TransitionControl({
           <button
             type="button"
             onClick={submit}
-            disabled={busy || awbMissing}
+            disabled={busy || awbMissing || (isCancel && !cancelReason)}
             aria-busy={busy}
             className={transition.destructive ? BUTTON_DANGER : BUTTON_PRIMARY}
           >

@@ -9,6 +9,8 @@ import {
   peekRateLimitCount,
 } from "@/db/queries/public-tracking";
 import { orderEta, storeNameFor } from "@/features/journeys/order-facts";
+import { loadDeliveryPlanFacts } from "@/db/queries/delivery-plans";
+import { deliveryPlanFor } from "@/features/journeys/delivery-plan";
 import type { OrderPricingBreakdown } from "@/features/orders/types";
 import { logger } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -65,7 +67,23 @@ export async function lookupPublicTracking(input: {
     if (verify?.kind === "mismatch" || verify?.kind === "no_phone_on_file") return TRACKING_NOT_FOUND;
   }
 
-  const events = await listTrackingEvents(order.id);
+  const [events, planFacts] = await Promise.all([
+    listTrackingEvents(order.id),
+    loadDeliveryPlanFacts([order.id]).catch((error: unknown) => {
+      logger.warn("track: delivery plan facts failed", { error: error instanceof Error ? error.message : String(error) });
+      return null;
+    }),
+  ]);
+  const plan = planFacts
+    ? deliveryPlanFor({
+        status: order.status,
+        storeTracking: planFacts.storeTracking.get(order.id) ?? null,
+        hubArrivedAt: planFacts.hubArrivedAt.get(order.id) ?? null,
+        shippedOn: planFacts.shippedOn.get(order.id) ?? null,
+        departures: planFacts.departures,
+        estimate: { from: order.est_from, to: order.est_to },
+      })
+    : null;
 
   return shapePublicTracking(
     {
@@ -79,6 +97,7 @@ export async function lookupPublicTracking(input: {
       }),
       store: order.product_url ? storeNameFor(order.product_url, order.platform) : null,
       events,
+      plan,
     },
     level,
     { ownerHref: isOwner ? `/app/orders/${order.id}` : null, verify },

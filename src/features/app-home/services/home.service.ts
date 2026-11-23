@@ -1,4 +1,6 @@
 import "server-only";
+import { loadDeliveryPlanFacts } from "@/db/queries/delivery-plans";
+import { deliveryPlanFor } from "@/features/journeys/delivery-plan";
 
 import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
@@ -229,15 +231,32 @@ async function loadHomeOrders(
   const ids = rows.map((row) => row.id);
   // The rider hint (075) is ONE batched read beside the events, not one per
   // card; a failure costs the hint and nothing else.
-  const [events, couriers] = await Promise.all([
+  const [events, couriers, planFacts] = await Promise.all([
     degrade(
       mapCustomerOrderEvents(createAdminClient(), ids),
       new Map<string, OrderEventRow[]>(),
       "order events",
     ),
     degrade(listOwnedOrderCouriers(userId, ids), new Map<string, OrderCourier>(), "order couriers"),
+    degrade(loadDeliveryPlanFacts(ids), null, "delivery plans"),
   ]);
-  return buildHomeOrders(rows, events, couriers);
+  const orders = buildHomeOrders(rows, events, couriers);
+  if (!planFacts) return orders;
+  // Fix 6: once the store's tracking is in, the card shows the firm door date, not the forecast.
+  return orders.map((order) => {
+    const row = rows.find((r) => r.id === order.id);
+    if (!row) return order;
+    const plan = deliveryPlanFor({
+      status: row.status,
+      storeTracking: planFacts.storeTracking.get(row.id) ?? null,
+        hubArrivedAt: planFacts.hubArrivedAt.get(row.id) ?? null,
+      shippedOn: planFacts.shippedOn.get(row.id) ?? null,
+      departures: planFacts.departures,
+      estimate: null,
+    });
+    if (plan?.kind !== "firm" || order.eta?.source === "confirmed") return order;
+    return { ...order, eta: { from: plan.deliveryOn, to: plan.deliveryOn, source: "confirmed" as const } };
+  });
 }
 
 /**

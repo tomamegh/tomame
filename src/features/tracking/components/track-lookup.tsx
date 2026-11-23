@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, CalendarCheck, LockKey, MagnifyingGlass, SpinnerGap, WhatsappLogo } from "@phosphor-icons/react/ssr";
+import { ArrowRight, CalendarCheck, LockKey, MagnifyingGlass, Prohibit, SpinnerGap, WhatsappLogo } from "@phosphor-icons/react/ssr";
 
 import { TRACK_NOT_FOUND_MESSAGE, TRACK_WHATSAPP_CTA, orderSupportMessage, waMeHref } from "@/config/tracking-copy";
 
 import type { OrderEventRow } from "@/db/queries/order-events";
+import { describePlan } from "@/features/journeys/delivery-plan";
 import { JourneyTrackRail } from "@/features/journeys/components/journey-track-rail";
 import { JourneyUpdatesCard } from "@/features/journeys/components/journey-updates-card";
 import { stageIcon, tonePalette } from "@/features/journeys/components/stage-visuals";
-import { formatEtaWindow } from "@/features/journeys/format";
+import { formatEtaWindow, formatShortDay } from "@/features/journeys/format";
 import { apiFetch, ApiFetchError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
@@ -137,9 +138,9 @@ export function TrackLookup({ initialQuery, whatsappNumber = null }: TrackLookup
       {result && result.found ? (
         <section className="tm-up flex min-w-0 flex-col gap-[22px] overflow-hidden rounded-[24px] border border-tm-border bg-card px-[22px] py-[26px] [animation-duration:0.5s] lg:px-7">
           <Header result={result} />
-          {/* The track scrolls rather than crushing five stops into a phone. */}
+          {/* The track scrolls rather than crushing six stops into a phone. */}
           <div ref={trackScroller} className="-mx-[22px] min-w-0 overflow-x-auto px-[22px] lg:mx-0 lg:px-0">
-            <div className="min-w-[560px]">
+            <div className="min-w-[640px]">
               <JourneyTrackRail track={result.track} eta={result.eta} />
             </div>
           </div>
@@ -264,16 +265,37 @@ function Header({ result }: { result: Exclude<PublicTrackingResult, { found: fal
 }
 
 function Facts({ result }: { result: Exclude<PublicTrackingResult, { found: false }> }) {
-  const etaText = formatEtaWindow(result.eta);
+  // Fix 6: a cancelled order says when and why, never a bare "Cancelled".
+  const cancellation = result.track.cancellation;
+  if (cancellation) {
+    return (
+      <div className="flex gap-3 border-t border-[#F5EEE9] pt-[18px]">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-tm-pill-bg">
+          <Prohibit weight="duotone" className="size-5 text-tm-coral" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs leading-none font-medium text-tm-text-3">
+            Cancelled{cancellation.at ? ` · ${formatShortDay(cancellation.at)}` : ""}
+          </p>
+          <p className="mt-1 text-[13px] leading-[1.4] font-semibold break-words">{cancellation.reason}</p>
+        </div>
+      </div>
+    );
+  }
+  // Fix 6: the usual range until the store's tracking is in, then the firm flight and door date.
+  const plan = result.plan ? describePlan(result.plan) : null;
+  const confirmed = result.eta?.source === "confirmed" ? formatEtaWindow(result.eta) : null;
+  const etaText = confirmed ?? plan?.line ?? formatEtaWindow(result.eta);
   if (!etaText) return null;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-3 border-t border-[#F5EEE9] pt-[18px] sm:grid-cols-2">
+    <div className="flex flex-col gap-2 border-t border-[#F5EEE9] pt-[18px]">
       <Tile
         icon={<CalendarCheck weight="duotone" className="size-5 text-tm-coral" aria-hidden />}
-        label={result.eta?.source === "confirmed" ? "At your door" : "Estimated arrival"}
+        label={confirmed ? "At your door" : (plan?.label ?? "Estimated arrival")}
       >
         {etaText}
       </Tile>
+      {plan?.detail ? <p className="max-w-[60ch] text-[12.5px] leading-[1.5] font-medium text-tm-text-2">{plan.detail}</p> : null}
     </div>
   );
 }

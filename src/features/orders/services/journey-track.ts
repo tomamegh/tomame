@@ -51,7 +51,8 @@ export interface TrackInput {
 
 // ── Outputs ─────────────────────────────────────────────────────────────────
 
-export type TrackStopKey = "paid" | "purchased" | "hub" | "in_the_air" | "your_door";
+/** Fix 6: the order-tracking brief's six stages. */
+export type TrackStopKey = "paid" | "purchased" | "hub" | "in_the_air" | "in_accra" | "your_door";
 
 /**
  * `done` — behind the parcel. `now` — where it is. `up` — still ahead.
@@ -89,6 +90,8 @@ export interface JourneyTrack {
   isComplete: boolean;
   /** Whether an `order_events` row of kind `hub_received` exists — the "US hub" test. */
   reachedHub: boolean;
+  /** Fix 6: when and why a cancelled order stopped; the stops it reached stay lit. Null otherwise. */
+  cancellation: { at: string | null; reason: string } | null;
 }
 
 // ── The ladder ──────────────────────────────────────────────────────────────
@@ -103,31 +106,25 @@ const STOP_LABELS: Record<TrackStopKey, string> = {
   purchased: CUSTOMER_STAGE_NAMES.purchased,
   hub: CUSTOMER_STAGE_NAMES.hub_received,
   in_the_air: CUSTOMER_STAGE_NAMES.departed,
+  in_accra: CUSTOMER_STAGE_NAMES.ghana_warehouse,
   your_door: CUSTOMER_STAGE_NAMES.out_for_delivery,
 };
 
-const STOP_ORDER: readonly TrackStopKey[] = [
-  "paid",
-  "purchased",
-  "hub",
-  "in_the_air",
-  "your_door",
-];
+/** Fix 6: the six stages of the order-tracking brief. */
+const STOP_ORDER: readonly TrackStopKey[] = ["paid", "purchased", "hub", "in_the_air", "in_accra", "your_door"];
+const LAST = STOP_ORDER.length - 1;
 
 /**
- * How far the STATUS alone carries a parcel.
- *
- * `in_transit` maps to 3 and not 2: the hub is skipped, because a status can
- * never prove a hub arrival. -1 means "not started" (`pending`): nothing on the
- * track is lit and the whole rail is empty rather than one-fifth full.
+ * How far the STATUS alone carries a parcel. `in_transit` is the flight: a
+ * status can never prove a hub arrival. -1 means "not started" (`pending`).
  */
 const STATUS_INDEX: Record<string, number> = {
   pending: -1,
   paid: 0,
   processing: 1,
   in_transit: 3,
-  delivered: 4,
-  completed: 4,
+  delivered: LAST,
+  completed: LAST,
 };
 
 /** Which stop an event vouches for, when it vouches for one at all. */
@@ -136,12 +133,11 @@ const EVENT_INDEX: Partial<Record<OrderEventKind, number>> = {
   purchased: 1,
   hub_received: 2,
   departed: 3,
-  arrived_country: 3,
-  // 098: still on the way, not yet at the door.
-  ghana_warehouse: 3,
-  ready_for_pickup: 3,
-  out_for_delivery: 3,
-  delivered: 4,
+  arrived_country: 4,
+  ghana_warehouse: 4,
+  ready_for_pickup: 5,
+  out_for_delivery: 5,
+  delivered: 5,
 };
 
 /** The event whose timestamp and wording each stop prints, most specific first. */
@@ -149,9 +145,25 @@ const STOP_EVENTS: Record<TrackStopKey, readonly OrderEventKind[]> = {
   paid: ["payment_received"],
   purchased: ["purchased"],
   hub: ["hub_received"],
-  in_the_air: ["departed", "arrived_country"],
+  in_the_air: ["departed"],
+  in_accra: ["ghana_warehouse", "arrived_country"],
   your_door: ["delivered", "out_for_delivery", "ready_for_pickup"],
 };
+
+/**
+ * The customer's reason for a cancelled order, from its `cancelled` event title.
+ * Admin cancels are written "Cancelled: <reason>"; the unpaid sweep writes
+ * "Closed: not paid in time". A bare "Order cancelled" (before Fix 6) gets a
+ * plain sentence rather than nothing.
+ */
+export function cancellationReason(title: string | null | undefined): string {
+  const t = (title ?? "").trim();
+  if (/not paid in time/i.test(t)) return "Not paid in time, so the order was closed and nothing was charged.";
+  if (/^you cancelled/i.test(t)) return "You cancelled it before paying.";
+  const m = /^cancelled:\s*(.+)$/i.exec(t);
+  if (m?.[1]) return m[1].trim();
+  return "Cancelled by Tomame. Message us on WhatsApp if you would like to know more.";
+}
 
 // ── Derivation ──────────────────────────────────────────────────────────────
 
@@ -166,14 +178,15 @@ export function deriveJourneyTrack(input: TrackInput): JourneyTrack {
   // The furthest point anything can vouch for. An event can push the parcel
   // AHEAD of its status (a hub arrival logged while the order is still
   // `processing`) but never behind it — a status is an operator's deliberate act.
-  let reached = STATUS_INDEX[input.status] ?? -1;
+  // A cancelled order keeps the stops its events prove it reached (Fix 6).
+  let reached = isCancelled ? -1 : (STATUS_INDEX[input.status] ?? -1);
   for (const event of events) {
     const index = EVENT_INDEX[event.kind];
     if (index !== undefined && index > reached) reached = index;
   }
-  if (isCancelled) reached = -1;
 
   const isComplete = input.status === "delivered" || input.status === "completed";
+  const cancelledEvent = isCancelled ? latestEventFor(events, ["cancelled"]) : null;
 
   const stops = STOP_ORDER.map((key, index) => {
     const event = latestEventFor(events, STOP_EVENTS[key]);
@@ -194,10 +207,11 @@ export function deriveJourneyTrack(input: TrackInput): JourneyTrack {
 
   return {
     stops,
-    percent: percentFor(reached, isCancelled),
+    percent: percentFor(reached),
     isCancelled,
     isComplete,
     reachedHub: events.some((event) => event.kind === "hub_received"),
+    cancellation: isCancelled ? { at: cancelledEvent?.occurred_at ?? null, reason: cancellationReason(cancelledEvent?.title) } : null,
   };
 }
 
@@ -212,7 +226,7 @@ function stateFor(
   isComplete: boolean,
   isCancelled: boolean,
 ): TrackStopState {
-  if (isCancelled) return "up";
+  if (isCancelled) return index <= reached ? "done" : "up";
   if (index < reached) return "done";
   if (index === reached) return isComplete ? "done" : "now";
   return "up";
@@ -224,9 +238,9 @@ function stateFor(
  * nothing: an empty rail is the honest picture of an unpaid order, and the
  * mock's 5% sliver would suggest work has started.
  */
-function percentFor(reached: number, isCancelled: boolean): number {
-  if (isCancelled || reached < 0) return 0;
-  return Math.round((Math.min(reached, 4) / 4) * 100);
+function percentFor(reached: number): number {
+  if (reached < 0) return 0;
+  return Math.round((Math.min(reached, LAST) / LAST) * 100);
 }
 
 /** Newest matching event wins: a parcel can pass through two hubs. */

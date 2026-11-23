@@ -21,6 +21,7 @@ import { JourneyDeliveryCodeCard } from "./journey-delivery-code-card";
 import { JourneyOwnRideCard } from "./journey-own-ride-card";
 import { JourneyProgressCard } from "./journey-progress-card";
 import { JourneyTrackRail } from "./journey-track-rail";
+import { describePlan } from "../delivery-plan";
 import { JourneyUpdatesCard } from "./journey-updates-card";
 import { stageIcon, tonePalette } from "./stage-visuals";
 
@@ -58,6 +59,7 @@ export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyD
   const tone = tonePalette(journey.tone);
   const Glyph = stageIcon(journey.status);
   const etaText = formatEtaWindow(journey.eta);
+  const plan = journey.plan ? describePlan(journey.plan) : null;
 
   // Announced once per mount; see `JourneysView` for why it is deferred a tick.
   const announced = useRef(false);
@@ -143,7 +145,7 @@ export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyD
               zeroed, so without it the 560px below leaks out of this card.
             */}
             <div className="-mx-[22px] min-w-0 overflow-x-auto px-[22px] lg:mx-0 lg:px-0">
-              <div className="min-w-[560px]">
+              <div className="min-w-[640px]">
                 <JourneyTrackRail track={journey.track} eta={journey.eta} />
               </div>
             </div>
@@ -171,14 +173,23 @@ export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyD
                 </Tile>
               )}
 
-              {etaText && (
+              {journey.track.cancellation ? (
+                <Tile icon={<CalendarCheck weight="duotone" className="size-5 text-tm-coral" aria-hidden />} label="Why it was cancelled">
+                  {journey.track.cancellation.reason}
+                </Tile>
+              ) : plan && journey.eta?.source !== "confirmed" ? (
+                <Tile icon={<CalendarCheck weight="duotone" className="size-5 text-tm-coral" aria-hidden />} label={plan.label}>
+                  {plan.line}
+                  {plan.detail ? <span className="mt-1 block text-[12px] leading-[1.45] font-medium text-tm-text-2">{plan.detail}</span> : null}
+                </Tile>
+              ) : etaText ? (
                 <Tile
                   icon={<CalendarCheck weight="duotone" className="size-5 text-tm-coral" aria-hidden />}
                   label={journey.eta?.source === "confirmed" ? "At your door" : "Estimated arrival"}
                 >
                   {etaText}
                 </Tile>
-              )}
+              ) : null}
 
               {journey.deliverTo && (
                 <Tile icon={<HouseLine weight="duotone" className="size-5 text-tm-coral" aria-hidden />} label="Deliver to">

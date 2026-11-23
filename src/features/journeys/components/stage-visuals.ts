@@ -4,6 +4,7 @@ import {
   Clock,
   CreditCard,
   HouseLine,
+  MapPinLine,
   Prohibit,
   Storefront,
   Warehouse,
@@ -56,7 +57,7 @@ export function stageIcon(status: string): StageIcon {
   }
 }
 
-/** The five stops of the track, in the mock's iconography. */
+/** The six stops of the track (Fix 6), in the mock's iconography. */
 export function stopIcon(key: TrackStopKey): StageIcon {
   switch (key) {
     case "paid":
@@ -67,6 +68,8 @@ export function stopIcon(key: TrackStopKey): StageIcon {
       return Warehouse;
     case "in_the_air":
       return AirplaneTilt;
+    case "in_accra":
+      return MapPinLine;
     case "your_door":
       return HouseLine;
   }

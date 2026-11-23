@@ -1,4 +1,6 @@
 import "server-only";
+import { loadDeliveryPlanFacts } from "@/db/queries/delivery-plans";
+import { deliveryPlanFor } from "../delivery-plan";
 
 import { listOrderEvents } from "@/db/queries/order-events";
 import { listVisibleOrderPhotos } from "@/features/order-photos/services/order-photos.service";
@@ -72,6 +74,18 @@ export async function getJourneyDetail(
 
   const stage = journeyStageFor(order.status);
   const eta = etaOf(order);
+  // Fix 6: the delivery promise, worked from the store tracking, the flown departure and the schedule.
+  const planFacts = await loadDeliveryPlanFacts([order.id]).catch(() => null);
+  const plan = planFacts
+    ? deliveryPlanFor({
+        status: order.status,
+        storeTracking: planFacts.storeTracking.get(order.id) ?? null,
+        hubArrivedAt: planFacts.hubArrivedAt.get(order.id) ?? null,
+        shippedOn: planFacts.shippedOn.get(order.id) ?? null,
+        departures: planFacts.departures,
+        estimate: { from: order.pricing?.delivery_eta_from ?? null, to: order.pricing?.delivery_eta_to ?? null },
+      })
+    : null;
   const ride =
     order.status === "in_transit"
       ? await getCustomerRideView(user, order.id, {
@@ -121,6 +135,7 @@ export async function getJourneyDetail(
       deliveredAt: order.delivered_at,
     }),
     eta,
+    plan,
     deliverTo,
     updates: events,
     photos,

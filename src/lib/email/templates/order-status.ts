@@ -28,6 +28,8 @@ interface OrderEmailData {
    * default customers see Tomame's number alone.
    */
   storeTracking?: Array<{ carrier: string; number: string }>;
+  /** Fix 6: the firm delivery promise once the store's tracking is in ("By Tue 2 Dec", "booked on Delta Cargo…"). */
+  delivery?: { line: string; detail: string | null };
   /**
    * The order's own breakdown, for the payment confirmation. Only for an order
    * paid on its own: a bag's first order is not the bag, so a grouped order
@@ -172,8 +174,9 @@ export function orderProcessingTemplate(data: OrderEmailData) {
       ${paragraph(`We have purchased <strong>${escapeHtml(data.productName)}</strong> from the store. It is now on its way to our hub, and once it heads for Ghana we will write again.`)}
       ${steps(JOURNEY, 1)}
       ${orderCard(data, storeRows)}
+      ${data.delivery ? paragraph(`<strong>At your door: ${escapeHtml(data.delivery.line)}</strong>${data.delivery.detail ? `. ${escapeHtml(data.delivery.detail)}` : ""}`) : ""}
       ${store.length > 0 ? muted("The store tracking is for the trip to our hub only. Your Tomame number above is the one to track the whole journey with.") : ""}
-      ${muted("Stores usually take 2 to 5 working days to deliver to our hub.")}
+      ${data.delivery ? "" : muted("Stores usually take 2 to 5 working days to deliver to our hub. We give you a firm delivery date as soon as the store sends its tracking.")}
       ${button(orderUrl(data.orderId), "Track your order")}
     `,
     reason: ORDER_REASON,

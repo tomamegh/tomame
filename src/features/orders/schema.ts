@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { CANCEL_REASON_KEYS } from "@/config/cancel-reasons";
 import { webLinkSchema } from "@/lib/validators/link";
 import { MAX_STORE_SHIPPING_PER_UNIT } from "@/features/extraction/store-shipping";
 
@@ -84,6 +85,8 @@ export const updateOrderStatusSchema = z
   .object({
     status: z.enum(["pending", "paid", "processing", "in_transit", "delivered", "completed", "cancelled"]),
     tracking_number: z.string().min(1).max(100).optional(),
+    /** Fix 6: why an admin cancelled it; required for `cancelled`, shown to the customer. */
+    cancel_reason: z.enum(CANCEL_REASON_KEYS).optional(),
     /** 113: why it goes in transit without a Delta Cargo air waybill. */
     no_tracking_reason: z.string().trim().min(1).max(500).optional(),
     carrier: z.string().min(1).max(100).optional(),

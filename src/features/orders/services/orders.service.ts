@@ -32,6 +32,9 @@ import { stageDedupeKey, whatsappMessages } from "@/lib/whatsapp/templates";
 import { notifyStaff } from "@/features/staff-alerts/notify";
 import { closePackageIfAllDelivered } from "@/features/warehouse/services/package-close.service";
 import { listOrdersByGroup } from "@/db/queries/orders";
+import { loadDeliveryPlanFacts } from "@/db/queries/delivery-plans";
+import { deliveryPlanFor, describePlan } from "@/features/journeys/delivery-plan";
+import { CANCEL_REASONS, type CancelReason } from "@/config/cancel-reasons";
 import { awbInputProblem, DELTA_CARGO, normaliseDeltaAwb } from "@/features/warehouse/inbound/tracking-number";
 import { listOrderPlacedRetries, markOrderPlacedDelivery, type DeliveryOutcome } from "@/db/queries/notifications";
 
@@ -320,7 +323,8 @@ export async function sendOrderStatusEmail(
         });
         break;
       case "processing":
-        template = orderProcessingTemplate(emailData);
+        // Fix 6: once the store's tracking is in, the purchased email carries the firm flight and door date.
+        template = orderProcessingTemplate({ ...emailData, delivery: (await firmDeliveryFor(order)) ?? undefined });
         break;
       case "in_transit":
         template = orderShippedTemplate(emailData);
@@ -351,6 +355,26 @@ export async function sendOrderStatusEmail(
     });
   } finally {
     if (newStatus === "paid" && outcome) await recordOrderPlaced(userId, order, outcome);
+  }
+}
+
+/** Fix 6: the firm promise for an order with store tracking, as the email words it; null otherwise. Never throws. */
+async function firmDeliveryFor(order: Order): Promise<{ line: string; detail: string | null } | null> {
+  try {
+    const facts = await loadDeliveryPlanFacts([order.id]);
+    const plan = deliveryPlanFor({
+      status: "processing",
+      storeTracking: facts.storeTracking.get(order.id) ?? null,
+      hubArrivedAt: facts.hubArrivedAt.get(order.id) ?? null,
+      shippedOn: facts.shippedOn.get(order.id) ?? null,
+      departures: facts.departures,
+      estimate: null,
+    });
+    if (plan?.kind !== "firm") return null;
+    const described = describePlan(plan);
+    return { line: described.line.replace(/^By /, "by "), detail: described.detail };
+  } catch {
+    return null;
   }
 }
 
@@ -610,6 +634,8 @@ export async function listAllOrders(
  */
 export interface OrderTrackingInput {
   tracking_number?: string;
+  /** Fix 6: why an admin cancelled it (one of CANCEL_REASONS). */
+  cancel_reason?: CancelReason;
   /** 113 (Fix 12): why an order goes in transit without a Delta Cargo air waybill. */
   no_tracking_reason?: string;
   carrier?: string;
@@ -639,6 +665,10 @@ export async function updateOrderStatusAdmin(
   }
   // 113 (Fix 12): in transit is the Delta Cargo leg to Accra. A valid air
   // waybill, or a recorded reason there is none: never neither.
+  // Fix 6: a cancellation says why, in words the customer sees on /track.
+  if (newStatus === "cancelled" && !trackingData?.cancel_reason) {
+    throw new APIError(400, "Choose why the order is being cancelled. The customer sees the reason.");
+  }
   if (newStatus === "in_transit") {
     const reason = trackingData?.no_tracking_reason?.trim() || "";
     const raw = trackingData?.tracking_number?.trim() || "";
@@ -828,7 +858,10 @@ async function applyOrderStatusChange(
       order_id: orderId,
       order_group_id: order.order_group_id ?? null,
       kind: narrative.kind,
-      title: narrative.title,
+      title:
+        newStatus === "cancelled" && trackingData?.cancel_reason
+          ? `Cancelled: ${CANCEL_REASONS[trackingData.cancel_reason]}`
+          : narrative.title,
       // Customers only ever see Tomame's own number (order_no); the carrier and
       // its tracking number stay with the warehouse and admins.
       detail: null,

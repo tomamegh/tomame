@@ -1,3 +1,4 @@
+import type { DeliveryPlan } from "../delivery-plan";
 import type { ShipmentProgress } from "@/features/shipments/stages";
 import type { CustomerRideView } from "@/features/order-delivery/customer-ride";
 import type { OrderEventRow } from "@/db/queries/order-events";
@@ -134,6 +135,8 @@ export interface JourneyDetailViewModel {
   paidAt: string | null;
   track: JourneyTrack;
   eta: JourneyEta | null;
+  /** Fix 6: the usual range until store tracking exists, then the firm Delta flight and door date. */
+  plan: DeliveryPlan | null;
   deliverTo: JourneyDeliverTo | null;
   /** Customer-visible `order_events`, newest first. Empty until something happens. */
   updates: OrderEventRow[];

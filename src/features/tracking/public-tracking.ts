@@ -32,6 +32,7 @@
  * <name>") is never read for this page.
  */
 
+import type { DeliveryPlan } from "@/features/journeys/delivery-plan";
 import type { OrderEventKind } from "@/db/queries/order-events";
 import { journeyStageFor, type JourneyTone } from "@/features/orders/services/journey-stage";
 import { customerStageName } from "@/features/shipments/stages";
@@ -132,6 +133,8 @@ interface PublicTrackingBase {
   tone: JourneyTone;
   track: JourneyTrack;
   eta: JourneyEta | null;
+  /** Fix 6: the delivery promise: the usual range until store tracking exists, then the firm Delta flight and door date. */
+  plan: DeliveryPlan | null;
 }
 
 /**
@@ -184,6 +187,7 @@ export interface ShapeInput {
   eta: JourneyEta | null;
   store: string | null;
   events: readonly PublicTrackingUpdate[];
+  plan?: DeliveryPlan | null;
 }
 
 /**
@@ -229,6 +233,7 @@ export function shapePublicTracking(
             stops: track.stops.map((s) => ({ ...s, at: null, note: null })),
           },
     eta: input.eta ? { from: input.eta.from, to: input.eta.to, source: input.eta.source } : null,
+    plan: input.plan ?? null,
   };
 
   if (level === "coarse") return { ...base, detail: "coarse", verify: extras.verify ?? null };

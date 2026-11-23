@@ -12,7 +12,7 @@ export interface OrderJourneyTrackProps {
 }
 
 /** The mock's pop cadence for the five dots, shared with the order detail's rail. */
-const STOP_DELAYS = ["0.3s", "0.45s", "0.6s", "0.75s", "0.9s"] as const;
+const STOP_DELAYS = ["0.3s", "0.45s", "0.6s", "0.75s", "0.9s", "1.05s"] as const;
 
 /**
  * One order's five-stop journey, compact enough for a Home card.
@@ -32,18 +32,19 @@ export function OrderJourneyTrack({ track, eta, className }: OrderJourneyTrackPr
     <div className={cn("relative", className)}>
       <span
         aria-hidden
-        className="absolute top-[10px] right-[10%] left-[10%] h-0.5 rounded-sm bg-[#EFE4DC] sm:top-[11px]"
+        className="absolute top-[10px] right-[8.333%] left-[8.333%] h-0.5 rounded-sm bg-[#EFE4DC] sm:top-[11px]"
       />
       <span
         aria-hidden
         className={cn(
-          "tm-fill absolute top-[10px] left-[10%] h-0.5 rounded-sm [animation-delay:0.3s] [animation-duration:1.2s] sm:top-[11px]",
+          "tm-fill absolute top-[10px] left-[8.333%] h-0.5 rounded-sm [animation-delay:0.3s] [animation-duration:1.2s] sm:top-[11px]",
           track.isCancelled ? "bg-[#C9BDB5]" : "bg-tm-green",
         )}
-        style={{ width: `${(track.percent / 100) * 80}%` }}
+        // Six columns: the first and last dots sit at 1/12 in from each edge (Fix 6).
+        style={{ width: `${(track.percent / 100) * 83.333}%` }}
       />
 
-      <ol aria-label="Order journey" className="relative grid grid-cols-5">
+      <ol aria-label="Order journey" className="relative grid grid-cols-6">
         {track.stops.map((stop, index) => {
           const Glyph = stopIcon(stop.key);
           const sub = subLine(stop, eta);
