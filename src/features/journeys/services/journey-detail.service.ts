@@ -181,7 +181,8 @@ export function deliverToOf(snapshot: Record<string, unknown> | null): JourneyDe
 
   if (read("kind") === "pickup") {
     const zone = read("zone_name");
-    return zone ? { label: `Pickup · ${zone}`, kind: "pickup", lines: [] } : null;
+    // An admin's zone name may already say "Pickup at our Weija hub".
+    return zone ? { label: /^pickup\b/i.test(zone) ? zone : `Pickup · ${zone}`, kind: "pickup", lines: [] } : null;
   }
 
   const label = read("label");
