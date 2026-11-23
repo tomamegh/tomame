@@ -304,8 +304,9 @@ variable "optional_third_party_secrets" {
       "EBAY_ENV",
       "EBAY_VERIFY_TOKEN",
       "NEXT_PUBLIC_META_PIXEL_ID",
+      "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
     ])) == 0
-    error_message = "optional_third_party_secrets accepts only SCRAPERAPI_API_KEY, RAINFOREST_API_KEY, APIFY_API_TOKEN, FREECURRENCY_API_KEY, OXYLABS_USERNAME, OXYLABS_PASSWORD, ZYTE_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, EBAY_VERIFY_TOKEN and NEXT_PUBLIC_META_PIXEL_ID. Anything else the app cannot run without belongs in third_party_secrets."
+    error_message = "optional_third_party_secrets accepts only SCRAPERAPI_API_KEY, RAINFOREST_API_KEY, APIFY_API_TOKEN, FREECURRENCY_API_KEY, OXYLABS_USERNAME, OXYLABS_PASSWORD, ZYTE_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, EBAY_VERIFY_TOKEN, NEXT_PUBLIC_META_PIXEL_ID and NEXT_PUBLIC_GOOGLE_CLIENT_ID. Anything else the app cannot run without belongs in third_party_secrets."
   }
 }
 
