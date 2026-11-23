@@ -168,16 +168,14 @@ export function QuoteReceiptCard({
         </div>
       )}
 
-      {total && pricing ? (
-        <p className="-mt-2 text-[12px] leading-snug text-muted-foreground">{storePriceDisclaimer(storeName)}</p>
-      ) : null}
-
       {total && pricing && priceNotes.length > 0 && (
         <p className="flex items-start gap-2 rounded-xl bg-tm-green/10 px-3 py-2 text-[13px] leading-snug font-medium text-tm-green">
           <Tag weight="duotone" className="mt-px size-4 shrink-0" aria-hidden />
           <span>{priceNotes.join(". ")}.</span>
         </p>
       )}
+
+      {total && pricing ? <p className="-mt-2 text-[12px] leading-snug text-muted-foreground">{storePriceDisclaimer(storeName)}</p> : null}
 
       {rows.length > 0 && (
         <>
