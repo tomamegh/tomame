@@ -124,4 +124,26 @@ describe("toFinderQuote", () => {
     const q = toFinderQuote({ ...breakdown, store_shipping_usd: 0, store_shipping_ghs: 0 });
     expect(q.rows.some((r) => r.key === "store_shipping")).toBe(false);
   });
+
+  it("names a cheaper listing honestly and gives the per-month value when pack sizes differ (Kirkland)", () => {
+    const r = rankCandidates(
+      [
+        c("six", "priced", 455.28, { title: "Kirkland Minoxidil 5% Extra Strength Men 6 Month Supply", storeName: "eBay" }),
+        c("one", "priced", 340.31, { title: "KIRKLAND Signature 5% Minoxidil - 1 Month Supply", storeName: "Amazon" }),
+      ],
+      null,
+    );
+    expect(r.bestId).toBe("one");
+    expect(r.why.one).toContain("is GH₵114.97 more.");
+    expect(r.why.one).toContain("This is a 1-month supply: about GH₵340.31 a month.");
+    expect(r.why.six).toContain("This is a 6-month supply: about GH₵75.88 a month.");
+    expect(Object.values(r.why).join(" ")).not.toContain("GH₵-");
+  });
+
+  it("never says a negative 'more' when the next listing is cheaper but held for a seller check", () => {
+    const r = rankCandidates([c("b", "priced", 455.28), c("s", "stock_check", 340.31)], null);
+    expect(r.bestId).toBe("b");
+    expect(r.why.b).toContain("GH₵114.97 less, but its price is far below other new listings");
+    expect(r.why.b).not.toContain("GH₵-");
+  });
 });

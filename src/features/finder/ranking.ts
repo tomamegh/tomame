@@ -1,3 +1,4 @@
+import { packPhrase, packSizeOf } from "./pack-size";
 import { CUSTOMS_ROW_LABEL, FREIGHT_ROW_LABEL, feeRowLabel } from "@/config/price-story";
 import type { PricingBreakdown } from "@/lib/pricing/calculator";
 import { taxRowLabel } from "@/lib/pricing/tax-label";
@@ -123,7 +124,16 @@ function bestWhy(best: RankInput, eligible: readonly RankInput[], ordered: reado
   else parts.push(`The only exact match we could price in full${within ? ", and within your budget" : ""}.`);
   if (budgetGhs != null && q.totalGhs > budgetGhs) parts.push(`It is ${formatGhs(q.totalGhs - budgetGhs)} over your budget; nothing we found was under it.`);
   const next = ordered.find((c) => c.quote != null && c.state !== "confirming");
-  if (next?.quote) parts.push(`${shortName(next.title)} on ${next.storeName} is ${formatGhs(next.quote.totalGhs - q.totalGhs)} more.`);
+  if (next?.quote) {
+    const gap = next.quote.totalGhs - q.totalGhs;
+    const who = `${shortName(next.title)} on ${next.storeName}`;
+    if (gap >= 0.005) parts.push(`${who} is ${formatGhs(gap)} more.`);
+    else if (gap <= -0.005) parts.push(`${who} is ${formatGhs(-gap)} less, but its price is far below other new listings, so check that seller first.`);
+    else parts.push(`${who} costs the same.`);
+  }
+  const packs = new Set([best, ...ordered].filter((c) => c.quote).map((c) => packSizeOf(c.title).units));
+  const unitLine = packs.size > 1 ? perUnitLine(best) : null;
+  if (unitLine) parts.push(unitLine);
   const ship = shippingOf(q);
   if (ship > 0) parts.push(`Includes ${formatGhs(ship)} store shipping to our US hub.`);
   return parts.join(" ");
@@ -140,6 +150,20 @@ function altWhy(c: RankInput, best: RankInput | null): string | null {
   const fb = freightOf(best.quote);
   if (Math.abs(fa - fb) >= 0.005) parts.push(`Freight is ${formatGhs(fa)} here against ${formatGhs(fb)}.`);
   else if (Math.abs(gap) >= 0.005) parts.push("Same freight, so the difference is the store price.");
+  if (packSizeOf(c.title).units !== packSizeOf(best.title).units) {
+    const line = perUnitLine(c);
+    if (line) parts.push(line);
+  }
   if (c.state === "stock_check") parts.push("Much cheaper than other new listings: check the seller before you buy.");
   return parts.join(" ");
+}
+
+/** "This is a 6-month supply: about GH₵75.88 a month." Null for a single item. */
+function perUnitLine(c: RankInput): string | null {
+  if (!c.quote) return null;
+  const pack = packSizeOf(c.title);
+  const phrase = packPhrase(c.title);
+  if (!phrase) return null;
+  const each = formatGhs(c.quote.totalGhs / pack.units);
+  return pack.kind === "month" ? `This is ${phrase}: about ${each} a month.` : `This is ${phrase}: about ${each} each.`;
 }

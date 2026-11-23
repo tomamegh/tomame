@@ -51,6 +51,7 @@ import {
 import { rankCandidates, toFinderQuote, type RankInput } from "../ranking";
 import { isSuspiciouslyLow, outlierReference } from "../price-outlier";
 import { wideSpread } from "../spec-spread";
+import { perUnit } from "../pack-size";
 import { recordAiUsage } from "@/features/ai-usage/ai-usage.service";
 import { priceContextOf, type PriceContext } from "@/features/extraction/price-context";
 import { QUICK_PICK_TRIES, quickPickOrder, quickPickReason, saysInStock } from "../quick-pick";
@@ -567,7 +568,8 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
   await writer.save();
   const calculator = await loadPricingCalculator();
   // The typical price of the exact matches: a new item far below it is checked, not crowned.
-  const reference = outlierReference(matches.map((m) => m.priceUsd ?? 0));
+  // Per unit: a 1-month supply is not "far below" 6-month packs (pack-size.ts).
+  const reference = outlierReference(matches.map((m) => (m.priceUsd ? perUnit(m.priceUsd, m.title) : 0)));
   const priced: PricedCandidate[] = [];
   const qualityDrops: string[] = [];
   const settled = await Promise.all(readable.map(async (e) => ({ e, result: await settleFreight(e.extraction!, e.cacheId!, msLeft()) })));
@@ -597,7 +599,7 @@ async function runPipeline(run: FinderRunRow, narrator: FinderNarrator, writer: 
     }
     const judged = l.priceUsd ?? (snapshot.product.currency === "USD" ? snapshot.product.price : null);
     // Far below other new listings: shown but never picked as best. It no longer holds payment.
-    const stockCheck = isSuspiciouslyLow(judged, reference);
+    const stockCheck = isSuspiciouslyLow(judged == null ? null : perUnit(judged, readTitle), reference);
     priced.push({ listing: l, cacheId: e.cacheId, quote, state: stockCheck ? "stock_check" : "priced" });
     narrator.emit({ type: "candidate_priced", candidateId: l.id, quote, priceContext: priceContextOf(snapshot), stockCheck, extractionCacheId: e.cacheId! });
   }
