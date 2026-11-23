@@ -30,7 +30,7 @@ export function BagMomoField({ payment }: { payment: BagPayment }) {
         aria-describedby="bag-momo-hint"
         onChange={(event) => payment.setMomoPhone(event.target.value)}
         className={cn(
-          "tm-nums h-[46px] rounded-xl border-tm-border bg-card px-3.5 text-[15px] shadow-none",
+          "tm-nums h-[46px] rounded-xl border-tm-border bg-card px-3.5 text-[16px] shadow-none",
           "focus-visible:ring-2 focus-visible:ring-tm-coral/20 aria-invalid:border-tm-amber",
         )}
       />

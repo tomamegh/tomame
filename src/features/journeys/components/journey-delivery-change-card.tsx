@@ -269,7 +269,7 @@ export function JourneyDeliveryChangeCard({
               autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="h-11 w-full rounded-[12px] border border-tm-border bg-card px-3 text-[14px] text-tm-ink outline-none focus:border-tm-coral/60"
+              className="h-11 w-full rounded-[12px] border border-tm-border bg-card px-3 text-[16px] text-tm-ink outline-none focus:border-tm-coral/60"
             />
           </label>
           <p className="text-[12px] leading-[1.45] text-tm-text-2">It is saved on your {currentAddress.label} address too.</p>
