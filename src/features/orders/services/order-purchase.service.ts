@@ -112,3 +112,42 @@ async function recordStorePrice(user: PlatformUser, order: Order, price: number,
     },
   });
 }
+
+export interface PurchaseManyInput {
+  store_tracking?: PurchaseInput["store_tracking"];
+  share_store_tracking?: boolean;
+  /** Per order, optional: what the store charged per item. */
+  store_paid_prices?: Record<string, number>;
+  store_paid_currency?: string;
+}
+
+export interface PurchaseManyResult {
+  purchased: Order[];
+  /** Orders that could not move, each with the reason, so the screen names them. */
+  refused: Array<{ order_id: string; reason: string }>;
+}
+
+/**
+ * Several orders of one checkout bought in one store order. Each goes through
+ * `markOrderPurchased` on its own (state check, audit, customer email), so one
+ * order on hold or already moved is refused alone and the rest still go. The
+ * same tracking on each order links them all to one expected parcel at the hub.
+ */
+export async function markOrdersPurchased(user: PlatformUser, orderIds: readonly string[], input: PurchaseManyInput): Promise<PurchaseManyResult> {
+  const purchased: Order[] = [];
+  const refused: PurchaseManyResult["refused"] = [];
+  for (const orderId of [...new Set(orderIds)]) {
+    try {
+      const { order } = await markOrderPurchased(user, orderId, {
+        store_tracking: input.store_tracking,
+        share_store_tracking: input.share_store_tracking,
+        store_paid_price: input.store_paid_prices?.[orderId],
+        store_paid_currency: input.store_paid_currency,
+      });
+      purchased.push(order);
+    } catch (error) {
+      refused.push({ order_id: orderId, reason: error instanceof Error ? error.message : "Could not move this order" });
+    }
+  }
+  return { purchased, refused };
+}

@@ -130,6 +130,21 @@ export const updateOrderStatusSchema = z
     path: ["eta_to"],
   });
 
+/**
+ * "Mark as purchased" for several orders of one checkout at once: the buyer
+ * placed one store order for the whole bag. The tracking (when there is any)
+ * goes on every order, so one parcel at the hub finds them all. Each order's
+ * store price is optional and its own.
+ */
+export const purchaseOrdersSchema = z.object({
+  order_ids: z.array(z.uuid()).min(1, "Pick at least one order").max(20, "Twenty orders at most at once"),
+  store_tracking: updateOrderStatusSchema.shape.store_tracking,
+  share_store_tracking: z.boolean().optional(),
+  store_paid_prices: z.record(z.uuid(), z.coerce.number().positive().max(999_999)).optional(),
+  store_paid_currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, "Use a 3-letter currency code").optional(),
+});
+export type PurchaseOrdersSchemaType = z.infer<typeof purchaseOrdersSchema>;
+
 export type CreateOrderSchemaType = z.infer<typeof createOrderSchema>;
 export type ReviewOrderSchemaType = z.infer<typeof reviewOrderSchema>;
 export type UpdateOrderSchemaType = z.infer<typeof updateOrderStatusSchema>;

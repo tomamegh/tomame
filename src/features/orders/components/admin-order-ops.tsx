@@ -34,14 +34,23 @@ import { trackingInputProblem } from "@/features/warehouse/inbound/tracking-numb
  * could disagree with what was actually stored.
  */
 
+/** Another paid order from the same checkout, offered for "mark these purchased too". */
+export interface PurchasableSibling {
+  id: string;
+  order_no: string | null;
+  title: string | null;
+}
+
 export interface AdminOrderOpsProps {
   order: Order;
+  /** Paid, not held, same checkout: bought in the same store order more often than not. */
+  purchasableSiblings?: PurchasableSibling[];
   /** A successful payment exists. Withholds cancellation — see `TransitionContext`. */
   hasSuccessfulPayment: boolean;
   index?: number;
 }
 
-export function AdminOrderOps({ order, hasSuccessfulPayment, index = 0 }: AdminOrderOpsProps) {
+export function AdminOrderOps({ order, hasSuccessfulPayment, purchasableSiblings = [], index = 0 }: AdminOrderOpsProps) {
   const transitions = transitionsFor(order.status, {
     hasSuccessfulPayment,
     needsReview: order.needs_review,
@@ -61,7 +70,7 @@ export function AdminOrderOps({ order, hasSuccessfulPayment, index = 0 }: AdminO
       <div className="flex flex-col gap-5">
         {order.status === "processing" ? <ContinueAtWarehouse orderId={order.id} /> : null}
         {transitions.map((transition) => (
-          <TransitionControl key={transition.to} order={order} transition={transition} />
+          <TransitionControl key={transition.to} order={order} transition={transition} siblings={purchasableSiblings} />
         ))}
         {transitions.length === 0 ? (
           <p className="text-[13px] leading-[1.5] font-medium text-tm-text-2">
@@ -81,9 +90,11 @@ export function AdminOrderOps({ order, hasSuccessfulPayment, index = 0 }: AdminO
 function TransitionControl({
   order,
   transition,
+  siblings,
 }: {
   order: Order;
   transition: AdminTransition;
+  siblings: PurchasableSibling[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -101,11 +112,16 @@ function TransitionControl({
   const [storeOrderRef, setStoreOrderRef] = useState("");
   const [shareTracking, setShareTracking] = useState(false);
   const filledTracking = storeTracking.map((t) => t.trim()).filter(Boolean);
-  // 103 (A0b): what the store charged per item — the ground truth quotes are measured against.
+  // 103 (A0b): what the store charged per item. Optional: it measures our quotes,
+  // it must never stop a purchase being recorded (it did, silently, 20-23 Nov).
   const [storePaid, setStorePaid] = useState("");
   const [storePaidCurrency, setStorePaidCurrency] = useState(order.origin_country === "UK" ? "GBP" : "USD");
-  const storePaidValid = Number(storePaid) > 0;
-  const trackingInvalid = filledTracking.some((t) => trackingInputProblem(t) != null);
+  const storePaidNumber = Number(storePaid);
+  const quotedPrice = order.extraction_metadata?.product?.price ?? null;
+  // A number that does not look like tracking is left out and named, never a reason to refuse the purchase.
+  const validTracking = filledTracking.filter((t) => trackingInputProblem(t) == null);
+  const skippedTracking = filledTracking.length - validTracking.length;
+  const [alsoPurchase, setAlsoPurchase] = useState<string[]>([]);
 
   const busy = saving || pending;
 
@@ -115,16 +131,38 @@ function TransitionControl({
       // Only the shipping transition carries tracking; sending these fields on
       // any other one would be noise the service is documented to ignore.
       const body: Record<string, unknown> = { status: transition.to };
-      if (isPurchase && filledTracking.length > 0) {
-        body.store_tracking = filledTracking.map((tracking_number) => ({
-          tracking_number,
-          store_order_ref: storeOrderRef.trim() || null,
-        }));
+      const storeTrackingBody = validTracking.map((tracking_number) => ({ tracking_number, store_order_ref: storeOrderRef.trim() || null }));
+      if (isPurchase && storeTrackingBody.length > 0) {
+        body.store_tracking = storeTrackingBody;
         body.share_store_tracking = shareTracking;
       }
-      if (isPurchase) {
-        body.store_paid_price = Number(storePaid);
+      if (isPurchase && storePaidNumber > 0) {
+        body.store_paid_price = storePaidNumber;
         body.store_paid_currency = storePaidCurrency;
+      }
+      const skippedNote = skippedTracking > 0 ? ` ${skippedTracking === 1 ? "One tracking number" : `${skippedTracking} tracking numbers`} did not look right and was left out: add it under Store tracking.` : "";
+
+      // The whole checkout in one store order: one request moves them all.
+      if (isPurchase && alsoPurchase.length > 0) {
+        const res = await apiFetch<{ data: { purchased: string[]; refused: Array<{ order_id: string; reason: string }> } }>("/api/admin/orders/purchase", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            order_ids: [order.id, ...alsoPurchase],
+            ...(storeTrackingBody.length > 0 ? { store_tracking: storeTrackingBody, share_store_tracking: shareTracking } : {}),
+            ...(storePaidNumber > 0 ? { store_paid_prices: { [order.id]: storePaidNumber }, store_paid_currency: storePaidCurrency } : {}),
+          }),
+        });
+        const { purchased, refused } = res.data;
+        const names = new Map([[order.id, order.order_no ?? "this order"], ...siblings.map((s) => [s.id, s.order_no ?? "an order"] as const)]);
+        toast.success({
+          title: `${purchased.length} order${purchased.length === 1 ? "" : "s"} marked purchased`,
+          description:
+            (refused.length > 0 ? `Not moved: ${refused.map((r) => `${names.get(r.order_id) ?? "an order"} (${r.reason})`).join("; ")}.` : "Each customer has been emailed.") + skippedNote,
+        });
+        setAlsoPurchase([]);
+        startTransition(() => router.refresh());
+        return;
       }
       if (transition.carriesTracking) {
         if (carrier.trim()) body.carrier = carrier.trim();
@@ -145,9 +183,9 @@ function TransitionControl({
           ? {
               title: "Marked as purchased",
               description:
-                filledTracking.length > 0
-                  ? `The hub now expects ${filledTracking.length === 1 ? "this parcel" : `${filledTracking.length} parcels`}. Continue at the warehouse from here.`
-                  : "The customer has been emailed. Add the store tracking when you have it.",
+                (validTracking.length > 0
+                  ? `The hub now expects ${validTracking.length === 1 ? "this parcel" : `${validTracking.length} parcels`}. Continue at the warehouse from here.`
+                  : "The customer has been emailed. Add the store tracking when you have it.") + skippedNote,
             }
           : { title: "Order moved", description: transition.blurb },
       );
@@ -188,15 +226,22 @@ function TransitionControl({
 
       {isPurchase ? (
         <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-          <Field label="Store charged, per item (before tax and shipping)" id={`store-paid-${order.id}`}>
-            <input
-              id={`store-paid-${order.id}`}
-              inputMode="decimal"
-              value={storePaid}
-              onChange={(event) => setStorePaid(event.target.value)}
-              placeholder={order.extraction_metadata?.product?.price != null ? `Quoted ${order.extraction_metadata.product.price}` : "0.00"}
-              className={cn(INPUT, "tm-nums")}
-            />
+          <Field label="Store charged, per item, before tax and shipping (optional)" id={`store-paid-${order.id}`}>
+            <div className="flex items-center gap-2">
+              <input
+                id={`store-paid-${order.id}`}
+                inputMode="decimal"
+                value={storePaid}
+                onChange={(event) => setStorePaid(event.target.value)}
+                placeholder={quotedPrice != null ? `Quoted ${quotedPrice}` : "0.00"}
+                className={cn(INPUT, "tm-nums")}
+              />
+              {quotedPrice != null && storePaid.trim() === "" ? (
+                <button type="button" onClick={() => setStorePaid(String(quotedPrice))} className={cn(BUTTON_QUIET, "shrink-0 whitespace-nowrap")}>
+                  Same as quoted
+                </button>
+              ) : null}
+            </div>
           </Field>
           <Field label="Currency" id={`store-paid-currency-${order.id}`}>
             <select
@@ -211,6 +256,38 @@ function TransitionControl({
             </select>
           </Field>
         </div>
+      ) : null}
+
+      {isPurchase && siblings.length > 0 ? (
+        <fieldset className="flex flex-col gap-2 rounded-[12px] border border-tm-hairline bg-white/60 p-3">
+          <legend className="px-1 text-[12px] leading-none font-semibold text-tm-text-2">
+            Bought in the same store order? Mark these from the same checkout too
+          </legend>
+          {siblings.map((s) => (
+            <label key={s.id} className="flex items-start gap-2.5">
+              <input
+                type="checkbox"
+                checked={alsoPurchase.includes(s.id)}
+                onChange={(event) => setAlsoPurchase((prev) => (event.target.checked ? [...prev, s.id] : prev.filter((id) => id !== s.id)))}
+                className="mt-0.5 size-4 accent-tm-coral"
+              />
+              <span className="min-w-0 text-[13px] leading-tight font-medium text-tm-ink">
+                <span className="tm-nums font-semibold">{s.order_no ?? "Order"}</span>
+                {s.title ? <span className="text-tm-text-2"> · {s.title}</span> : null}
+              </span>
+            </label>
+          ))}
+          <button
+            type="button"
+            onClick={() => setAlsoPurchase(alsoPurchase.length === siblings.length ? [] : siblings.map((s) => s.id))}
+            className="w-fit text-[12.5px] font-semibold text-tm-coral-strong hover:underline"
+          >
+            {alsoPurchase.length === siblings.length ? "Untick all" : `Tick all ${siblings.length}`}
+          </button>
+          <p className="text-[12px] leading-[1.45] font-medium text-tm-text-3">
+            The tracking above goes on each ticked order, and each customer gets their own email. The store price is recorded for this order only.
+          </p>
+        </fieldset>
       ) : null}
 
       {transition.carriesTracking ? (
@@ -279,11 +356,17 @@ function TransitionControl({
           <button
             type="button"
             onClick={submit}
-            disabled={busy || (isPurchase && (!storePaidValid || trackingInvalid))}
+            disabled={busy}
             aria-busy={busy}
             className={transition.destructive ? BUTTON_DANGER : BUTTON_PRIMARY}
           >
-            {busy ? "Saving…" : transition.destructive ? "Yes, cancel it" : transition.label}
+            {busy
+              ? "Saving…"
+              : transition.destructive
+                ? "Yes, cancel it"
+                : isPurchase && alsoPurchase.length > 0
+                  ? `Mark ${alsoPurchase.length + 1} orders purchased`
+                  : transition.label}
           </button>
         )}
         {confirming ? (

@@ -153,6 +153,13 @@ export default async function AdminOrderDetailPage({
       <AdminOrderOps
         order={order}
         hasSuccessfulPayment={payment?.status === "success"}
+        purchasableSiblings={
+          order.status === "paid"
+            ? siblings
+                .filter((s) => s.status === "paid" && !s.held_at && !s.needs_review)
+                .map((s) => ({ id: s.id, order_no: s.order_no ?? null, title: s.extraction_metadata?.product?.title?.slice(0, 70) ?? null }))
+            : []
+        }
         index={order.needs_review ? 1 : 0}
       />
 

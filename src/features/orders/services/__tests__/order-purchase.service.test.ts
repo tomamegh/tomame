@@ -12,9 +12,9 @@ import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { registerInboundTracking } from "@/features/warehouse/services/inbound.service";
 import type { InboundParcel } from "@/features/warehouse/types";
 import type { PlatformUser } from "@/features/users/types";
-import { updateOrderStatusSchema } from "../../schema";
+import { purchaseOrdersSchema, updateOrderStatusSchema } from "../../schema";
 import type { Order } from "../../types";
-import { markOrderPurchased } from "../order-purchase.service";
+import { markOrderPurchased, markOrdersPurchased } from "../order-purchase.service";
 import { getOrderById, updateOrderStatusAdmin } from "../orders.service";
 
 const admin = { id: "admin-1", email: "a@tomame.test", profile: { role: "admin" } } as unknown as PlatformUser;
@@ -98,5 +98,36 @@ describe("updateOrderStatusSchema — store tracking", () => {
     expect(updateOrderStatusSchema.safeParse({ status: "processing", store_tracking: [{ tracking_number: "1Z999AA101" }], share_store_tracking: true }).success).toBe(true);
     expect(updateOrderStatusSchema.safeParse({ status: "in_transit", store_tracking: [{ tracking_number: "1Z999AA101" }] }).success).toBe(false);
     expect(updateOrderStatusSchema.safeParse({ status: "processing", store_tracking: Array(6).fill({ tracking_number: "1Z999AA101" }) }).success).toBe(false);
+  });
+});
+
+describe("markOrdersPurchased — one store order for the whole checkout", () => {
+  it("moves each order, puts the same tracking on each, and records a price only where given", async () => {
+    vi.mocked(getOrderById).mockImplementation(async (_c, id) => order({ id }));
+    vi.mocked(updateOrderStatusAdmin).mockImplementation(async (_c, _u, id) => order({ id, status: "processing" }));
+    const result = await markOrdersPurchased(admin, ["o1", "o2", "o2"], {
+      store_tracking: [{ tracking_number: "1Z999AA10123456784" }],
+      store_paid_prices: { o1: 11.24 },
+      store_paid_currency: "USD",
+    });
+    expect(result.purchased.map((o) => o.id)).toEqual(["o1", "o2"]);
+    expect(result.refused).toEqual([]);
+    expect(registerInboundTracking).toHaveBeenCalledTimes(2);
+    expect(recordStorePaidPrice).toHaveBeenCalledTimes(1);
+    expect(recordStorePaidPrice).toHaveBeenCalledWith(expect.objectContaining({ orderId: "o1", price: 11.24 }));
+  });
+
+  it("refuses an order on hold by itself and still moves the rest", async () => {
+    vi.mocked(getOrderById).mockImplementation(async (_c, id) => (id === "o2" ? order({ id, held_at: "2026-11-23T10:00:00Z", hold_reason: "Address check" }) : order({ id })));
+    vi.mocked(updateOrderStatusAdmin).mockImplementation(async (_c, _u, id) => order({ id, status: "processing" }));
+    const result = await markOrdersPurchased(admin, ["o1", "o2", "o3"], {});
+    expect(result.purchased.map((o) => o.id)).toEqual(["o1", "o3"]);
+    expect(result.refused).toEqual([{ order_id: "o2", reason: expect.stringContaining("Address check") }]);
+  });
+
+  it("needs no tracking and no prices on the wire", () => {
+    const ok = purchaseOrdersSchema.safeParse({ order_ids: ["78ff6e0e-3aa5-4c76-b9e5-0854d853bf9a"] });
+    expect(ok.success).toBe(true);
+    expect(purchaseOrdersSchema.safeParse({ order_ids: [] }).success).toBe(false);
   });
 });
