@@ -123,8 +123,11 @@ const UNPROMPTABLE_PREFIXES = [
   "/admin",
   "/app/bag",
   "/app/orders/review",
+  // The iPhone app (native/) is already installed.
+  "/m/",
 ];
 
 export function isPromptableRoute(pathname: string): boolean {
+  if (pathname === "/m") return false;
   return !UNPROMPTABLE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }

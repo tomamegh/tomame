@@ -554,11 +554,11 @@
   function renderTabs(m) {
     const hidden = m.chrome === "none";
     tabbar.classList.toggle("hidden", hidden);
-    const tabs = [["home", "house", "Home"], ["watch", "bookmark-simple", "Watch"], ["chat", "sparkle", "Buy for me"], ["orders", "package", "Orders"], ["bag", "handbag", "Bag"]];
+    const tabs = [["home", "house", "Home"], ["watch", "bell-ringing", "Watch"], ["chat", "sparkle", "Buy for me"], ["orders", "package", "Orders"], ["bag", "shopping-bag-open", "Bag"]];
     tabbar.innerHTML = tabs.map(([id, ic, l]) => {
       const on = m.tab === id;
       if (id === "chat") return `<button class="tab tab-ai ${on ? "on" : ""}" data-tab="chat" data-nopin ${H("light")}><span class="orb"><i class="ph-fill ph-sparkle"></i></span><span class="lbl">${l}</span></button>`;
-      return `<button class="tab ${on ? "on" : ""}" data-tab="${id}" data-nopin ${H("select")}><i class="${on ? "ph-fill" : "ph"} ph-${ic}"></i>${l}${id === "bag" && bagCount() ? `<span class="badge nums" id="bagBadge">${bagCount()}</span>` : ""}</button>`;
+      return `<button class="tab ${on ? "on" : ""}" data-tab="${id}" data-nopin ${H("select")}><i class="${on ? "ph-duotone" : "ph"} ph-${ic}"></i>${l}${id === "bag" && bagCount() ? `<span class="badge nums" id="bagBadge">${bagCount()}</span>` : ""}</button>`;
     }).join("");
     tabbar.dataset.hg = "select:tabs · select";
     if (S.pins) pinsFor(tabbar);

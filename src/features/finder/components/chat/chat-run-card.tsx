@@ -14,6 +14,7 @@ import type { FinderCandidateState, FinderRunView } from "../../types";
 import { FinderCandidateCard } from "../finder-candidate-card";
 import { FinderResultCard } from "../finder-result-card";
 import { Shimmer } from "../shimmer";
+import { useAppRoutes } from "@/lib/native/app-routes";
 
 interface ChatRunCardProps {
   run: FinderRunView;
@@ -28,6 +29,7 @@ interface ChatRunCardProps {
  * options folded away. Every figure is the run's own, from the calculator.
  */
 export function ChatRunCard({ run, buyerWhatsappNumber, onAddToBag, onHandoff }: ChatRunCardProps) {
+  const routes = useAppRoutes();
   const state = useMemo(() => reduceFinderEvents(run.events), [run.events]);
   const product = state.spec?.product ?? run.query;
   const working = run.status === "pending" || run.status === "running";
@@ -73,7 +75,7 @@ export function ChatRunCard({ run, buyerWhatsappNumber, onAddToBag, onHandoff }:
             </div>
           </div>
           <Link
-            href={`/app/find/${run.id}`}
+            href={routes.run(run.id)}
             className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[12.5px] font-semibold text-tm-coral-strong hover:bg-tm-tint"
           >
             {working ? "Watch" : "Details"}

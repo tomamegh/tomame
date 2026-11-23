@@ -711,3 +711,16 @@ body.shot .device { width: 390px; height: 844px; border-radius: 0; box-shadow: n
 .box-card > .hpin { top: 6px; right: 8px; }
 .hold > .hpin { top: -24px; right: 0; }
 .code-card { overflow: visible; }
+
+/* Bottom bars are solid ink, not translucent white (Kelvin, 2026-11-23). */
+.tabbar { background: var(--ink); border-top: 0; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 -8px 24px -12px rgba(43, 36, 34, 0.45); }
+.tab { color: rgba(255, 255, 255, 0.55); }
+.tab.on { color: #ffb39f; }
+.tab-ai .orb { box-shadow: 0 10px 24px -8px rgba(244, 63, 94, 0.65), 0 0 0 4px var(--ink); }
+.tab-ai, .tab-ai.on { color: rgba(255, 255, 255, 0.85); }
+.tab .badge { box-shadow: 0 0 0 2px var(--ink); }
+.home-indicator { background: #fff; }
+.paybar { background: #fff; color: var(--ink); box-shadow: var(--shadow-lg), inset 0 0 0 1px var(--border); }
+.paybar small { color: var(--text-3); }
+.sheet-foot { background: var(--ink); border-top: 0; }
+.sheet-foot .icon-btn { background: rgba(255, 255, 255, 0.1); color: #fff; box-shadow: none; }

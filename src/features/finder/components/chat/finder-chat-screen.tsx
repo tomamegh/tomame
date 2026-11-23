@@ -21,6 +21,7 @@ import type { FinderCandidateState, FinderChatMessageView, FinderChatSummary, Fi
 import { WatchedPaste } from "./ask-mode";
 import { ChatHistoryList } from "./chat-history-list";
 import { ChatRunCard } from "./chat-run-card";
+import { useAppRoutes } from "@/lib/native/app-routes";
 
 interface FinderChatScreenProps {
   /** The open chat, server-read; null on a new chat. */
@@ -51,6 +52,7 @@ const SUGGESTIONS = [
  * every figure is on a card the finder priced.
  */
 export function FinderChatScreen({ initial, history, pastes, defaultText = "", header, watch = null, signedIn }: FinderChatScreenProps) {
+  const routes = useAppRoutes();
   const router = useRouter();
   const chat = useChatView(initial, initial?.id ?? null);
   const send = useSendChat();
@@ -98,7 +100,7 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
     try {
       const res = await send.mutateAsync({ chatId: chat?.id ?? null, text: value });
       // A new chat opens its own page; the typed message stays on screen until it does.
-      if (!chat) return router.replace(`/app/find/chat/${res.chatId}`);
+      if (!chat) return router.replace(routes.chat(res.chatId));
       await chat.refetch();
       setPending(null);
     } catch (error) {
@@ -301,9 +303,10 @@ export function FinderChatScreen({ initial, history, pastes, defaultText = "", h
 }
 
 function NewChatButton({ compact = false }: { compact?: boolean }) {
+  const routes = useAppRoutes();
   return (
     <Link
-      href="/app/orders/new"
+      href={routes.newChat}
       className={cn(
         "inline-flex items-center gap-2 rounded-full font-semibold transition-colors",
         compact ? "h-9 border border-tm-border bg-card px-3 text-[13px]" : "h-11 justify-center bg-tm-ink px-4 text-[14px] text-white hover:opacity-90",
@@ -427,7 +430,8 @@ function WhatsappNumber({ onSave }: { onSave: (phone: string) => Promise<unknown
  * routes bring them back to this chat, which moves to their account on sign-in.
  */
 function ChatSignInCard({ chatId }: { chatId: string | null }) {
-  const next = encodeURIComponent(chatId ? `/app/find/chat/${chatId}` : "/app/orders/new");
+  const routes = useAppRoutes();
+  const next = encodeURIComponent(chatId ? routes.chat(chatId) : routes.newChat);
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-tm-coral/30 bg-tm-tint p-4">
       <p className="text-[14px] leading-snug font-semibold text-foreground">Keep going with a free Tomame account</p>

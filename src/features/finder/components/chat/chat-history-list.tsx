@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 import { chatItemsLine, chatWhen } from "../../chat-format";
 import type { FinderChatSummary, PastedLinkSummary } from "../../types";
+import { useAppRoutes } from "@/lib/native/app-routes";
 
 const OUTCOME: Record<PastedLinkSummary["outcome"], { label: string; tone: "green" | "amber" | "muted" }> = {
   reading: { label: "Reading", tone: "muted" },
@@ -33,6 +34,7 @@ export function ChatHistoryList({
   activeId: string | null;
   onPick?: () => void;
 }) {
+  const routes = useAppRoutes();
   if (chats.length === 0 && pastes.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-tm-border px-4 py-5 text-[13px] leading-relaxed text-muted-foreground">
@@ -49,7 +51,7 @@ export function ChatHistoryList({
             return (
               <li key={c.id}>
                 <Link
-                  href={`/app/find/chat/${c.id}`}
+                  href={routes.chat(c.id)}
                   onClick={onPick}
                   aria-current={c.id === activeId ? "page" : undefined}
                   className={cn("flex gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted", c.id === activeId && "bg-tm-tint hover:bg-tm-tint")}
