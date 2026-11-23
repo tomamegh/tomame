@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { KIND_EVENT_PREFIXES, type NotificationKind } from "@/features/notifications/notification-kind";
 
 /**
  * Admin-side reads of `notifications` (019, extended by 041) — the record of
@@ -47,12 +48,14 @@ export interface AdminNotificationRow {
   seen_at: string | null;
   error_code: string | null;
   error_reason: string | null;
+  /** Fix 8 (118): an admin marked this failed/pending send reviewed. */
+  reviewed_at?: string | null;
   /** Owner's name, or null when the profile row has been removed. */
   recipient: { id: string; first_name: string | null; last_name: string | null } | null;
 }
 
 const COLUMNS =
-  "id, user_id, channel, event, payload, status, created_at, sent_at, read_at, attempts, delivery_status, delivered_at, seen_at, error_code, error_reason";
+  "id, user_id, channel, event, payload, status, created_at, sent_at, read_at, attempts, delivery_status, delivered_at, seen_at, error_code, error_reason, reviewed_at";
 
 type NotificationQueryRow = Omit<AdminNotificationRow, "recipient"> & {
   profiles: { id: string; first_name: string | null; last_name: string | null } | null;
@@ -60,6 +63,10 @@ type NotificationQueryRow = Omit<AdminNotificationRow, "recipient"> & {
 
 export interface AdminNotificationFilters {
   status?: AdminNotificationStatus;
+  /** Fix 8: orders, quotes or account (notification-kind.ts). */
+  kind?: NotificationKind;
+  /** Fix 8: only failed/pending rows nobody has reviewed. */
+  attention?: boolean;
   channel?: AdminNotificationChannel;
   event?: string;
   userId?: string;
@@ -87,6 +94,8 @@ export async function listNotificationsForAdmin(
   if (filters.channel) query = query.eq("channel", filters.channel);
   if (filters.event) query = query.eq("event", filters.event);
   if (filters.userId) query = query.eq("user_id", filters.userId);
+  query = withKind(query, filters.kind);
+  if (filters.attention) query = query.in("status", ["pending", "failed"]).is("reviewed_at", null);
 
   const { data, error } = await query;
   if (error) throw new Error(`Failed to load notifications: ${error.message}`);
@@ -105,6 +114,8 @@ export interface AdminNotificationCounts {
   failedLast24h: number;
   /** Fix 13: pending email rows older than a day. */
   pendingOverDay: number;
+  /** Fix 8: failed + pending rows no admin has reviewed. What the bell's badge counts. */
+  attention: number;
 }
 
 /**
@@ -132,7 +143,7 @@ export async function getAdminNotificationCounts(
     return n ?? 0;
   };
 
-  const [total, pending, sent, failed, failedLast24h, pendingOverDay] = await Promise.all([
+  const [total, pending, sent, failed, failedLast24h, pendingOverDay, attention] = await Promise.all([
     count((c) => c.from("notifications").select("id", { count: "exact", head: true }), "notifications"),
     count((c) => c.from("notifications").select("id", { count: "exact", head: true }).eq("status", "pending"), "pending notifications"),
     count((c) => c.from("notifications").select("id", { count: "exact", head: true }).eq("status", "sent"), "sent notifications"),
@@ -140,9 +151,10 @@ export async function getAdminNotificationCounts(
     count((c) => c.from("notifications").select("id", { count: "exact", head: true }).eq("status", "failed").gt("created_at", dayAgo), "recent failed notifications"),
     // Fix 13: pending email rows over a day old, offered for a recorded decision.
     count((c) => c.from("notifications").select("id", { count: "exact", head: true }).eq("status", "pending").eq("channel", "email").lt("created_at", dayAgo), "stale pending notifications"),
+    count((c) => c.from("notifications").select("id", { count: "exact", head: true }).in("status", ["pending", "failed"]).is("reviewed_at", null), "notifications needing attention"),
   ]);
 
-  return { total, pending, sent, failed, failedLast24h, pendingOverDay };
+  return { total, pending, sent, failed, failedLast24h, pendingOverDay, attention };
 }
 
 /**
@@ -165,4 +177,32 @@ export async function listRecentNotificationEvents(
 
   if (error) throw new Error(`Failed to load notification events: ${error.message}`);
   return (data ?? []) as unknown as { event: string; status: AdminNotificationStatus }[];
+}
+
+/** Fix 8: narrow a query to one kind of event. Account is everything that is neither orders nor quotes. */
+function withKind<Q extends { or: (filter: string) => Q; not: (column: string, op: string, value: string) => Q }>(query: Q, kind?: NotificationKind): Q {
+  if (!kind) return query;
+  if (kind === "account") {
+    let q = query;
+    for (const prefix of [...KIND_EVENT_PREFIXES.orders, ...KIND_EVENT_PREFIXES.quotes]) q = q.not("event", "like", `${prefix}%`);
+    return q;
+  }
+  return query.or(KIND_EVENT_PREFIXES[kind].map((prefix) => `event.like.${prefix}*`).join(","));
+}
+
+/**
+ * Fix 8: mark failed/pending rows reviewed by an admin, all of them or the
+ * given ids, optionally only one kind. Returns the ids marked.
+ */
+export async function markNotificationsReviewed(input: { adminId: string; ids?: readonly string[]; kind?: NotificationKind }): Promise<string[]> {
+  let query = createAdminClient()
+    .from("notifications")
+    .update({ reviewed_at: new Date().toISOString(), reviewed_by: input.adminId })
+    .in("status", ["pending", "failed"])
+    .is("reviewed_at", null);
+  if (input.ids) query = query.in("id", [...input.ids]);
+  query = withKind(query, input.kind);
+  const { data, error } = await query.select("id");
+  if (error) throw new Error(`Failed to mark notifications reviewed: ${error.message}`);
+  return ((data ?? []) as { id: string }[]).map((r) => r.id);
 }

@@ -1,6 +1,8 @@
 import "server-only";
 
 import { settleStalePendingNotifications } from "@/db/queries/notifications";
+import { markNotificationsReviewed } from "@/db/queries/admin-notifications";
+import type { NotificationKind } from "../notification-kind";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
 
@@ -34,4 +36,24 @@ export async function settleOldPendingNotifications(adminId: string, disposition
     });
   }
   return { settled: ids.length };
+}
+
+/**
+ * Fix 8: an admin marks failed and pending sends reviewed, so "needs
+ * attention" counts only what nobody has looked at. Nothing is sent or
+ * cancelled; the decision and the row ids go to the audit log.
+ */
+export async function reviewNotifications(adminId: string, input: { ids?: string[]; kind?: NotificationKind }): Promise<{ reviewed: number }> {
+  const ids = await markNotificationsReviewed({ adminId, ids: input.ids, kind: input.kind });
+  if (ids.length > 0) {
+    await logAuditEvent({
+      actorId: adminId,
+      actorRole: AUDIT_ACTOR_ROLES.ADMIN,
+      action: "notifications_reviewed",
+      entityType: AUDIT_ENTITY_TYPES.NOTIFICATION,
+      entityId: ids.length === 1 ? ids[0]! : null,
+      metadata: { count: ids.length, kind: input.kind ?? "all", ids },
+    });
+  }
+  return { reviewed: ids.length };
 }

@@ -11,6 +11,7 @@ import {
   type AdminNotificationChannel,
   type AdminNotificationStatus,
 } from "@/db/queries/admin-notifications";
+import { isNotificationKind } from "@/features/notifications/notification-kind";
 
 /**
  * The admin delivery log, for the header bell.
@@ -54,9 +55,13 @@ export async function GET(request: NextRequest) {
     const event = searchParams.get("event") ?? undefined;
     const userId = searchParams.get("userId") ?? undefined;
     const limit = parseLimit(searchParams.get("limit"));
+    // Fix 8: kind (orders, quotes, account) and attention (failed/pending nobody reviewed).
+    const kindParam = searchParams.get("kind");
+    const kind = isNotificationKind(kindParam) ? kindParam : undefined;
+    const attention = searchParams.get("attention") === "1";
 
     const [notifications, counts] = await Promise.all([
-      listNotificationsForAdmin({ status, channel, event, userId }, limit),
+      listNotificationsForAdmin({ status, channel, event, userId, kind, attention }, limit),
       getAdminNotificationCounts(),
     ]);
 

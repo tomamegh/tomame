@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { ReviewRowButton } from "./review-controls";
+
 import {
   ADMIN_TD,
   ADMIN_TH,
@@ -96,6 +98,14 @@ export function AdminNotificationsTable({
                 <td className={ADMIN_TD}>
                   <div className="flex flex-col items-start gap-1">
                     <AdminBadge tone={badge.tone}>{badge.label}</AdminBadge>
+                    {/* Fix 8 (118): failed/pending rows an admin has looked at stop counting as needing attention. */}
+                    {row.status !== "sent" ? (
+                      row.reviewed_at ? (
+                        <span className="text-[11px] leading-none font-medium text-tm-text-3">Reviewed</span>
+                      ) : (
+                        <ReviewRowButton id={row.id} />
+                      )
+                    ) : null}
                     {stuck ? (
                       <span className="text-[11px] leading-none font-semibold text-tm-amber">
                         {stuck}

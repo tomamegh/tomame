@@ -16,14 +16,21 @@ import { useStartFinder } from "../hooks/useFinder";
 const EXAMPLE_ASKS = ["PS5 Pro", "AirPods Pro 2 under GH₵3,000", "Nike Air Force 1, size 10", "iPhone 17 Pro Max 256GB", "Oraimo earbuds"];
 const SUGGESTIONS = ["PS5 Pro", "AirPods Pro 2", "Stanley 40oz tumbler", "Kindle Paperwhite"];
 
-/** The empty box's example, typed and erased one character at a time. Static under reduced motion. */
+/**
+ * The empty box's example, typed and erased one character at a time. Static under reduced motion.
+ * Fix 8: it starts empty and types in, so a page or a reload never opens on a whole phrase
+ * that reads like a search the customer left behind ("PS5 Pro" seemed to follow them around).
+ */
 function useTypedExample(phrases: readonly string[], active: boolean): string {
-  const [text, setText] = useState(phrases[0] ?? "");
+  const [text, setText] = useState("");
   useEffect(() => {
     if (!active || phrases.length === 0) return;
-    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setText(phrases[0] ?? "");
+      return;
+    }
     let i = 0;
-    let n = phrases[0]!.length;
+    let n = 0;
     let deleting = false;
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
@@ -43,7 +50,7 @@ function useTypedExample(phrases: readonly string[], active: boolean): string {
       setText(phrases[i]!.slice(0, n));
       timer = setTimeout(tick, deleting ? 22 : 55);
     };
-    timer = setTimeout(tick, 1700);
+    timer = setTimeout(tick, 600);
     return () => clearTimeout(timer);
   }, [phrases, active]);
   return text;
@@ -92,7 +99,7 @@ export function AskBar({ pasteHref, stores = [], inputId, formId, footer, classN
   const room = PASTE_BATCH_MAX - added.length;
 
   const [phrases] = useState(() => {
-    const linkLines = stores.slice(0, 3).map((s) => `Or paste a link from ${s}`);
+    const linkLines = stores.slice(0, 3).map((s) => `pasting a link from ${s}`);
     return EXAMPLE_ASKS.flatMap((ask, i) => (linkLines[i] ? [ask, linkLines[i]!] : [ask]));
   });
   const example = useTypedExample(phrases, typed.length === 0 && added.length === 0);
@@ -217,7 +224,9 @@ export function AskBar({ pasteHref, stores = [], inputId, formId, footer, classN
                       <span className="truncate">Paste the next link, or type what you want</span>
                     ) : (
                       <>
-                        <span className="truncate">{example}</span>
+                        {/* Fix 8: marked as a suggestion, so it never reads as text in the box. */}
+                        <span className="mr-1.5 shrink-0 text-tm-text-3/70">Try</span>
+                        <span className="truncate italic">{example}</span>
                         <span className="tm-ask-caret" />
                       </>
                     )}

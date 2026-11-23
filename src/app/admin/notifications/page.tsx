@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { SettlePendingPanel } from "@/features/notifications/components/settle-pending-panel";
+import { ReviewAllPanel } from "@/features/notifications/components/review-controls";
+import { NOTIFICATION_KINDS, isNotificationKind } from "@/features/notifications/notification-kind";
 
 import {
   AdminCard,
@@ -77,6 +79,10 @@ export default async function AdminNotificationsPage({
   const status = parseStatus(first(params.status));
   const channel = parseChannel(first(params.channel));
   const event = first(params.event);
+  // Fix 8: a kind filter (orders, quotes, account) and the "needs attention" view.
+  const kindParam = first(params.kind);
+  const kind = isNotificationKind(kindParam) ? kindParam : undefined;
+  const attention = first(params.attention) === "1";
 
   // One instant for the whole render, so every "2 h ago" on the page is
   // measured from the same moment.
@@ -84,14 +90,22 @@ export default async function AdminNotificationsPage({
 
   const [counts, rows, eventSample, staff] = await Promise.all([
     getAdminNotificationCounts(now),
-    listNotificationsForAdmin({ status, channel, event }, ROW_LIMIT),
+    listNotificationsForAdmin({ status, channel, event, kind, attention }, ROW_LIMIT),
     listRecentNotificationEvents(EVENT_SAMPLE),
     getStaffAlertSettingsView(),
   ]);
 
   const breakdown = summariseEvents(eventSample);
   const whatsappLive = isWhatsAppConfigured();
-  const filtered = status != null || channel != null || event != null;
+  const filtered = status != null || channel != null || event != null || kind != null || attention;
+  const kindHref = (key: string) => {
+    const q = new URLSearchParams();
+    if (status) q.set("status", status);
+    if (attention) q.set("attention", "1");
+    if (key !== "all") q.set("kind", key);
+    const qs = q.toString();
+    return qs ? `/admin/notifications?${qs}` : "/admin/notifications";
+  };
 
   return (
     <AdminPage
@@ -136,6 +150,36 @@ export default async function AdminNotificationsPage({
       ) : null}
 
       <SettlePendingPanel count={counts.pendingOverDay} />
+      <ReviewAllPanel count={counts.attention} kind={kind} kindLabel={kind ? NOTIFICATION_KINDS.find((k) => k.key === kind)?.label : undefined} />
+
+      <nav aria-label="Filter notifications by kind" className="flex flex-wrap items-center gap-1.5">
+        {NOTIFICATION_KINDS.map((k) => {
+          const active = (kind ?? "all") === k.key;
+          return (
+            <Link
+              key={k.key}
+              href={kindHref(k.key)}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-[12px] leading-none font-semibold transition-colors",
+                active ? "border-tm-coral/40 bg-tm-pill-bg text-tm-coral-strong" : "border-tm-border bg-card text-tm-text-2 hover:bg-tm-paper",
+              )}
+            >
+              {k.label}
+            </Link>
+          );
+        })}
+        <Link
+          href={attention ? "/admin/notifications" : "/admin/notifications?attention=1"}
+          aria-current={attention ? "page" : undefined}
+          className={cn(
+            "rounded-full border px-3 py-1.5 text-[12px] leading-none font-semibold transition-colors",
+            attention ? "border-tm-coral/40 bg-tm-pill-bg text-tm-coral-strong" : "border-tm-border bg-card text-tm-text-2 hover:bg-tm-paper",
+          )}
+        >
+          Needs attention · {formatCount(counts.attention)}
+        </Link>
+      </nav>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <AdminStat

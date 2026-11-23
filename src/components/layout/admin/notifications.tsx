@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BellIcon, MailIcon, MessageCircleIcon } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -67,7 +67,7 @@ interface AdminNotificationFeedRow {
 interface AdminNotificationFeed {
   notifications: AdminNotificationFeedRow[];
   count: number;
-  counts: { pending: number; sent: number; failed: number; total: number; failedLast24h: number };
+  counts: { pending: number; sent: number; failed: number; total: number; failedLast24h: number; attention?: number };
 }
 
 function useAdminNotificationFeed(enabled: boolean) {
@@ -91,7 +91,18 @@ function AdminNotifications() {
   const { data, isPending, error } = useAdminNotificationFeed(true);
 
   const rows = data?.notifications ?? [];
-  const needsAttention = (data?.counts.failed ?? 0) + (data?.counts.pending ?? 0);
+  // Fix 8: failed + pending nobody has reviewed (118); "Mark all reviewed" brings it down.
+  const needsAttention = data?.counts.attention ?? (data?.counts.failed ?? 0) + (data?.counts.pending ?? 0);
+  const queryClient = useQueryClient();
+  const review = useMutation({
+    mutationFn: () =>
+      apiFetch<ApiSuccessResponse<{ reviewed: number }>>("/api/admin/notifications/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications", "admin"] }),
+  });
   // One instant per render pass, so two rows cannot disagree about "now".
   const now = new Date();
 
@@ -127,9 +138,19 @@ function AdminNotifications() {
             Delivery log
           </h2>
           {needsAttention > 0 ? (
-            <AdminBadge tone="coral">{needsAttention} to look at</AdminBadge>
+            <span className="flex items-center gap-2">
+              <AdminBadge tone="coral">{needsAttention} to look at</AdminBadge>
+              <button
+                type="button"
+                onClick={() => review.mutate()}
+                disabled={review.isPending}
+                className="text-[12px] leading-none font-semibold text-tm-coral-strong underline-offset-2 hover:underline disabled:opacity-50"
+              >
+                {review.isPending ? "Marking…" : "Mark all reviewed"}
+              </button>
+            </span>
           ) : (
-            <AdminBadge tone="green">All delivered</AdminBadge>
+            <AdminBadge tone="green">Nothing to look at</AdminBadge>
           )}
         </header>
 

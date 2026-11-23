@@ -11,10 +11,12 @@ import {
 } from "@/components/ui/popover";
 import {
   useMarkAllNotificationsRead,
+  useMarkNotificationRead,
   useNotifications,
   useUnreadNotificationCount,
 } from "@/features/notifications/hooks/useNotifications";
 import { cn } from "@/lib/utils";
+import { NOTIFICATION_KINDS, notificationKind, type NotificationKind } from "@/features/notifications/notification-kind";
 import { notificationsLabel } from "./links";
 import { FOCUS_RING, NAV_ICON_BUTTON } from "./styles";
 
@@ -47,9 +49,16 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
   const { data: liveUnread } = useUnreadNotificationCount({ enabled: open });
   const { data, isPending } = useNotifications({ enabled: open });
   const markAllRead = useMarkAllNotificationsRead();
+  const markRead = useMarkNotificationRead();
+  // Fix 8: a simple filter, and opening one marks it read.
+  const [kind, setKind] = useState<NotificationKind | "all">("all");
 
   const unread = liveUnread ?? initialUnreadCount;
-  const notifications = data?.notifications ?? [];
+  const all = data?.notifications ?? [];
+  const notifications = kind === "all" ? all : all.filter((n) => notificationKind(n.event) === kind);
+  const markOpened = (id: string, readAt: string | null) => {
+    if (readAt === null) markRead.mutate({ id });
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -88,6 +97,24 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
             </button>
           )}
         </div>
+        <div role="tablist" aria-label="Filter notifications" className="flex gap-1 border-b border-tm-hairline px-3 py-2">
+          {NOTIFICATION_KINDS.map((k) => (
+            <button
+              key={k.key}
+              type="button"
+              role="tab"
+              aria-selected={kind === k.key}
+              onClick={() => setKind(k.key)}
+              className={cn(
+                "rounded-full px-2.5 py-1 text-[12px] leading-none font-semibold transition-colors",
+                kind === k.key ? "bg-tm-pill-bg text-tm-coral-strong" : "text-tm-text-2 hover:bg-tm-paper",
+                FOCUS_RING,
+              )}
+            >
+              {k.label}
+            </button>
+          ))}
+        </div>
 
         {/*
           `overscroll-contain`, not the default `auto`. The list is the one
@@ -106,7 +133,7 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
 
           {!isPending && notifications.length === 0 && (
             <li className="px-4 py-6 text-sm text-tm-text-3">
-              Nothing yet. We&rsquo;ll tell you when a parcel moves.
+              {kind === "all" ? <>Nothing yet. We&rsquo;ll tell you when a parcel moves.</> : "Nothing of this kind."}
             </li>
           )}
 
@@ -130,7 +157,10 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
                       return href ? (
                         <Link
                           href={href}
-                          onClick={() => setOpen(false)}
+                          onClick={() => {
+                            markOpened(notification.id, notification.read_at);
+                            setOpen(false);
+                          }}
                           className={cn("rounded-sm hover:underline", FOCUS_RING)}
                         >
                           {title}
@@ -140,8 +170,17 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
                       );
                     })()}
                   </p>
-                  <p className="tm-nums mt-0.5 text-[11px] text-tm-text-3">
+                  <p className="tm-nums mt-0.5 flex items-center gap-2 text-[11px] text-tm-text-3">
                     {formatWhen(notification.created_at)}
+                    {notification.read_at === null ? (
+                      <button
+                        type="button"
+                        onClick={() => markOpened(notification.id, notification.read_at)}
+                        className={cn("rounded-sm font-semibold text-tm-coral hover:text-tm-coral-strong", FOCUS_RING)}
+                      >
+                        Mark read
+                      </button>
+                    ) : null}
                   </p>
                 </div>
               </div>
@@ -166,6 +205,7 @@ function notificationTitle(event: string, payload: Record<string, unknown>): str
   const many = typeof payload.order_count === "number" && payload.order_count > 1;
   const known: Record<string, string> = {
     order_placed: "Order placed",
+    order_placed_admin: orderNo ? `New order ${orderNo} (staff copy)` : "New order (staff copy)",
     price_drop: "A price you're watching dropped",
     paste_priced: host ? `Your ${host} link is priced` : "Your link is priced",
     paste_unreadable: host ? `We couldn't read your ${host} link` : "We couldn't read your link",
