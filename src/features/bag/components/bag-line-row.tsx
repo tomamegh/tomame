@@ -138,6 +138,12 @@ export function BagLineRow({
               <span className="min-w-0">{line.price_notes.join(" · ")}</span>
             </span>
           )}
+          {/* 115 (Fix 14): its quote had passed 24 hours, so it was re-quoted at today's rate. */}
+          {!wait && line.pricing && line.requoted_from_ghs != null && (
+            <span className="text-[12px] leading-[1.35] font-medium text-tm-text-3">
+              Re-quoted at today&apos;s rate · was {formatGhs(line.requoted_from_ghs)}
+            </span>
+          )}
           {line.special_instructions && (
             <span className="truncate text-[12px] leading-none text-tm-text-3">
               Note: {line.special_instructions}

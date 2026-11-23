@@ -8,6 +8,7 @@ import {
   type PackableLine,
 } from "@/features/bag/services/box-packing";
 import { capacityFill } from "@/features/warehouse/weights";
+import { quoteAgeDays } from "@/features/bag/quote-clock";
 
 /**
  * Pure shaping for the admin's bag and box screens.
@@ -38,8 +39,12 @@ export const BAG_STALE_AFTER_HOURS = 48;
 export interface AdminBagTotals {
   /** Bags in the listed status that hold at least one line. */
   count: number;
-  /** Bags with at least one line that cannot be checked out yet. */
+  /** Bags with at least one line someone has to act on (failed, unpriced, gone, still reading). */
   blocked: number;
+  /** Bags with nothing in the way: no line to act on, quotes current, details in. */
+  ready: number;
+  /** How many bags carry each reason (Fix 14); a bag can carry several. */
+  reasons: Record<BagReasonKey, number>;
   /** Bags whose last activity is older than `BAG_STALE_AFTER_HOURS`. */
   stale: number;
   /** Σ of every bag's snapshot value. A snapshot, never a live quote. */
@@ -57,9 +62,18 @@ export interface AdminBagTotals {
 export function summariseBags(bags: readonly AdminBagRow[], now: Date): AdminBagTotals {
   const staleBefore = now.getTime() - BAG_STALE_AFTER_HOURS * 3_600_000;
 
+  const reasons: Record<BagReasonKey, number> = { needs_price: 0, stuck: 0, reading: 0, expired: 0, details: 0, anonymous: 0 };
+  let ready = 0;
+  for (const bag of bags) {
+    const list = bagReasons(bag, now);
+    if (isBagReady(list)) ready += 1;
+    for (const reason of list) reasons[reason.key] += 1;
+  }
   return {
     count: bags.length,
     blocked: bags.filter((bag) => bag.blocked_line_count > 0).length,
+    ready,
+    reasons,
     stale: bags.filter((bag) => isStale(bag.updated_at, staleBefore)).length,
     snapshotValueGhs: round2(bags.reduce((sum, bag) => sum + bag.snapshot_value_ghs, 0)),
     itemCount: bags.reduce((sum, bag) => sum + bag.item_count, 0),
@@ -91,7 +105,147 @@ const LINE_STATE_COPY: Record<AdminBagLineState, { label: string; tone: AdminTon
   reading: { label: "Reading the link", tone: "neutral" },
   failed: { label: "Extraction failed", tone: "coral" },
   expired: { label: "Quote expired", tone: "amber" },
+  gone: { label: "Listing gone", tone: "coral" },
 };
+
+// ── Why a bag is not ready (site brief Fix 14) ──────────────────────────────
+
+/** A line still reading after this long is stuck, not busy. */
+export const READING_STUCK_AFTER_MINUTES = 30;
+
+export type BagReasonKey = "needs_price" | "stuck" | "reading" | "expired" | "details" | "anonymous";
+
+export interface BagReason {
+  key: BagReasonKey;
+  /** What is in the way, in the admin's words. */
+  label: string;
+  /** What to do about it. */
+  action: string;
+  tone: AdminTone;
+  /** Where the action happens, when it is somewhere else in the admin. */
+  href?: string;
+  /** The Re-quote button clears it. */
+  requote?: boolean;
+  /**
+   * Stops the bag being Ready to pay. Missing details and a visitor not signed
+   * in do not: the customer fills those in at checkout, so they are notes.
+   */
+  blocking: boolean;
+}
+
+/** Ready to pay: nothing blocking (a note about checkout details may remain). */
+export function isBagReady(reasons: readonly BagReason[]): boolean {
+  return !reasons.some((reason) => reason.blocking);
+}
+
+/** Tile and filter copy for each reason, most urgent first. */
+export const BAG_REASON_LABEL: Record<BagReasonKey, string> = {
+  needs_price: "Need a price by hand",
+  stuck: "Stuck reading",
+  reading: "Still reading",
+  expired: "Quote expired",
+  details: "Missing details",
+  anonymous: "Not signed in",
+};
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Every reason a bag is not "Ready to pay", most urgent first, each with its
+ * next action. No blocking reason is Ready to pay. Never a bare "Blocked":
+ * - a link that failed, a listing with no price, or one no longer on file needs
+ *   a person to price it (the paste queue);
+ * - a link still being read finishes on its own, unless it has been at it for
+ *   READING_STUCK_AFTER_MINUTES;
+ * - a quote past its 24 hours is re-quoted at today's rate (the Re-quote
+ *   button); the customer's own bag does the same when they open it;
+ * - a signed-in customer with no delivery or no phone fills them in at
+ *   checkout; a visitor signs in there.
+ */
+export function bagReasons(bag: AdminBagRow, now: Date): BagReason[] {
+  const reasons: BagReason[] = [];
+  const count = (state: AdminBagLineState) => bag.lines.filter((line) => line.state === state).length;
+
+  const failed = count("failed");
+  const unpriced = count("unpriced");
+  const gone = count("gone");
+  if (failed + unpriced + gone > 0) {
+    const parts = [
+      failed ? `${plural(failed, "link")} could not be read` : null,
+      unpriced ? `${plural(unpriced, "listing")} had no price` : null,
+      gone ? `${plural(gone, "listing")} no longer on file` : null,
+    ].filter(Boolean);
+    reasons.push({
+      key: "needs_price",
+      label: parts.join(" · "),
+      action: gone && !failed && !unpriced ? "Ask the customer to paste the link again" : "Price it by hand from the paste queue",
+      tone: "coral",
+      href: gone && !failed && !unpriced ? undefined : "/admin/pastes",
+      blocking: true,
+    });
+  }
+
+  const reading = bag.lines.filter((line) => line.state === "reading");
+  if (reading.length > 0) {
+    const stuckBefore = now.getTime() - READING_STUCK_AFTER_MINUTES * 60_000;
+    const stuck = reading.filter((line) => Date.parse(line.created_at) < stuckBefore).length;
+    reasons.push(
+      stuck > 0
+        ? { key: "stuck", label: `Reading ${plural(stuck, "link")} for over ${READING_STUCK_AFTER_MINUTES} minutes`, action: "Check it in the paste queue", tone: "amber", href: "/admin/pastes", blocking: true }
+        : { key: "reading", label: `Still reading ${plural(reading.length, "link")}`, action: "Nothing to do: it finishes on its own", tone: "neutral", blocking: true },
+    );
+  }
+
+  if (bag.expired_line_count > 0) {
+    const oldest = bag.lines
+      .filter((line) => line.state === "expired")
+      .map((line) => quoteAgeDays(line.quoted_at ?? line.created_at, now))
+      .reduce<number | null>((max, d) => (d == null ? max : max == null ? d : Math.max(max, d)), null);
+    reasons.push({
+      key: "expired",
+      label: `Quote expired${oldest != null && oldest > 0 ? ` · quoted ${plural(oldest, "day")} ago` : ""}`,
+      action: "Re-quote at today's rate",
+      tone: "amber",
+      requote: true,
+      blocking: true,
+    });
+  }
+
+  if (bag.owner.kind === "anonymous") {
+    reasons.push({ key: "anonymous", label: "Not signed in", action: "They sign in at checkout; no way to contact them yet", tone: "muted", blocking: false });
+  } else {
+    const missing = [!bag.delivery_chosen ? "delivery" : null, !bag.owner.phone ? "phone number" : null].filter(Boolean);
+    if (missing.length > 0) {
+      reasons.push({
+        key: "details",
+        label: `No ${missing.join(" or ")} yet`,
+        action: "They add it at checkout; nudge them if the bag is sitting",
+        tone: "muted",
+        href: bag.owner.user_id ? `/admin/users/${bag.owner.user_id}` : undefined,
+        blocking: false,
+      });
+    }
+  }
+
+  return reasons;
+}
+
+// ── Sitting bags: who to chase (Fix 14) ─────────────────────────────────────
+
+export type SittingBucket = "2-3 days" | "4-7 days" | "1-2 weeks" | "over 2 weeks";
+
+export function sittingBucket(bag: AdminBagRow, now: Date): SittingBucket {
+  const days = (now.getTime() - Date.parse(bag.updated_at)) / 86_400_000;
+  if (days < 4) return "2-3 days";
+  if (days < 8) return "4-7 days";
+  if (days < 15) return "1-2 weeks";
+  return "over 2 weeks";
+}
+
+/** Sitting bags, oldest first: the follow-up list. */
+export function sittingBags(bags: readonly AdminBagRow[], now: Date): AdminBagRow[] {
+  return bags.filter((bag) => isBagStale(bag, now)).sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at));
+}
 
 export function bagLineStateCopy(state: AdminBagLineState): { label: string; tone: AdminTone } {
   return LINE_STATE_COPY[state];

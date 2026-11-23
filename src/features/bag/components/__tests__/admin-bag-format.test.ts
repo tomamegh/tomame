@@ -7,6 +7,10 @@ import type { PricingBreakdown } from "@/lib/pricing";
 import {
   BAG_STALE_AFTER_HOURS,
   bagOwnerLabel,
+  bagReasons,
+  isBagReady,
+  sittingBags,
+  sittingBucket,
   describeBoxFill,
   isBagStale,
   isPastCutoff,
@@ -20,12 +24,14 @@ function bag(overrides: Partial<AdminBagRow> = {}): AdminBagRow {
   return {
     id: "cart-1",
     status: "open",
-    owner: { kind: "customer", user_id: "u1", name: "Ama Owusu", email: null, session_id: null },
+    owner: { kind: "customer", user_id: "u1", name: "Ama Owusu", email: null, phone: "+233241234567", session_id: null },
     line_count: 1,
     item_count: 1,
     snapshot_value_ghs: 100,
     priced_line_count: 1,
     blocked_line_count: 0,
+    expired_line_count: 0,
+    delivery_chosen: true,
     created_at: NOW.toISOString(),
     updated_at: NOW.toISOString(),
     lines: [],
@@ -49,7 +55,7 @@ describe("summariseBags", () => {
       NOW,
     );
 
-    expect(totals).toEqual({
+    expect(totals).toMatchObject({
       count: 3,
       blocked: 1,
       stale: 1,
@@ -59,7 +65,7 @@ describe("summariseBags", () => {
   });
 
   it("answers zeroes for an empty list rather than throwing", () => {
-    expect(summariseBags([], NOW)).toEqual({
+    expect(summariseBags([], NOW)).toMatchObject({
       count: 0,
       blocked: 0,
       stale: 0,
@@ -91,12 +97,12 @@ describe("bagOwnerLabel", () => {
     expect(bagOwnerLabel(bag())).toBe("Ama Owusu");
     expect(
       bagOwnerLabel(
-        bag({ owner: { kind: "customer", user_id: "u1", name: null, email: "a@b.com", session_id: null } }),
+        bag({ owner: { kind: "customer", user_id: "u1", name: null, email: "a@b.com", phone: null, session_id: null } }),
       ),
     ).toBe("a@b.com");
     expect(
       bagOwnerLabel(
-        bag({ owner: { kind: "customer", user_id: "u1", name: null, email: null, session_id: null } }),
+        bag({ owner: { kind: "customer", user_id: "u1", name: null, email: null, phone: null, session_id: null } }),
       ),
     ).toBe("Customer");
   });
@@ -109,6 +115,7 @@ describe("bagOwnerLabel", () => {
           user_id: null,
           name: null,
           email: null,
+          phone: null,
           session_id: "sess_abcdef123456",
         },
       }),
@@ -250,5 +257,78 @@ describe("isPastCutoff", () => {
     expect(
       isPastCutoff(box({ cutoff_at: new Date(NOW.getTime() - HOUR).toISOString() }), NOW),
     ).toBe(true);
+  });
+});
+
+describe("bagReasons (Fix 14)", () => {
+  const line = (state: AdminBagRow["lines"][number]["state"], over: Partial<AdminBagRow["lines"][number]> = {}) => ({
+    id: `l-${state}`,
+    title: "Thing",
+    product_url: null,
+    quantity: 1,
+    snapshot_total_ghs: 100,
+    state,
+    quoted_at: NOW.toISOString(),
+    created_at: NOW.toISOString(),
+    ...over,
+  });
+
+  it("is empty for a bag that can be paid: Ready to pay", () => {
+    expect(bagReasons(bag({ lines: [line("priced")] }), NOW)).toEqual([]);
+  });
+
+  it("never says only Blocked: each reason carries its next action", () => {
+    const threeDaysAgo = new Date(NOW.getTime() - 3 * 24 * HOUR).toISOString();
+    const reasons = bagReasons(
+      bag({
+        lines: [line("failed"), line("unpriced"), line("expired", { quoted_at: threeDaysAgo }), line("reading")],
+        blocked_line_count: 3,
+        expired_line_count: 1,
+        delivery_chosen: false,
+      }),
+      NOW,
+    );
+    expect(reasons.map((r) => r.key)).toEqual(["needs_price", "reading", "expired", "details"]);
+    expect(reasons[0]).toMatchObject({ label: "1 link could not be read · 1 listing had no price", href: "/admin/pastes" });
+    expect(reasons[2]).toMatchObject({ label: "Quote expired · quoted 3 days ago", action: "Re-quote at today's rate", requote: true });
+    expect(reasons[3]!.label).toBe("No delivery yet");
+    for (const reason of reasons) expect(reason.action.length).toBeGreaterThan(5);
+  });
+
+  it("calls a link read for over 30 minutes stuck, and a visitor not signed in", () => {
+    const old = new Date(NOW.getTime() - 2 * HOUR).toISOString();
+    const reasons = bagReasons(
+      bag({ owner: { kind: "anonymous", user_id: null, name: null, email: null, phone: null, session_id: "abc123" }, lines: [line("reading", { created_at: old })], blocked_line_count: 1 }),
+      NOW,
+    );
+    expect(reasons.map((r) => r.key)).toEqual(["stuck", "anonymous"]);
+  });
+
+  it("asks a signed-in customer with no phone for one, and a listing no longer on file to be pasted again", () => {
+    const reasons = bagReasons(bag({ owner: { kind: "customer", user_id: "u1", name: "Ama", email: null, phone: null, session_id: null }, lines: [line("gone")], blocked_line_count: 1 }), NOW);
+    expect(reasons[0]).toMatchObject({ key: "needs_price", action: "Ask the customer to paste the link again" });
+    expect(reasons[1]).toMatchObject({ key: "details", label: "No phone number yet" });
+  });
+
+  it("keeps a re-quoted bag Ready to pay when only checkout details are missing", () => {
+    const reasons = bagReasons(bag({ delivery_chosen: false, lines: [line("priced")] }), NOW);
+    expect(reasons.map((r) => r.key)).toEqual(["details"]);
+    expect(isBagReady(reasons)).toBe(true);
+    expect(isBagReady(bagReasons(bag({ lines: [line("expired")], expired_line_count: 1 }), NOW))).toBe(false);
+  });
+
+  it("counts Ready to pay and each reason across bags", () => {
+    const totals = summariseBags([bag({ id: "a", lines: [line("priced")] }), bag({ id: "b", lines: [line("expired")], expired_line_count: 1 })], NOW);
+    expect(totals.ready).toBe(1);
+    expect(totals.reasons.expired).toBe(1);
+  });
+});
+
+describe("sitting bags (Fix 14)", () => {
+  it("lists bags untouched for over 48 hours, oldest first, in age buckets", () => {
+    const ago = (days: number) => new Date(NOW.getTime() - days * 24 * HOUR).toISOString();
+    const list = sittingBags([bag({ id: "fresh" }), bag({ id: "five", updated_at: ago(5) }), bag({ id: "three", updated_at: ago(3) }), bag({ id: "twenty", updated_at: ago(20) })], NOW);
+    expect(list.map((b) => b.id)).toEqual(["twenty", "five", "three"]);
+    expect(list.map((b) => sittingBucket(b, NOW))).toEqual(["over 2 weeks", "4-7 days", "2-3 days"]);
   });
 });

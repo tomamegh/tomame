@@ -79,6 +79,12 @@ export interface BagLine {
   /** Non-null when a buyer is (or was) answering this line by hand. */
   sourcing: BagLineSourcing | null;
   /**
+   * 115 (Fix 14): the line's quote had passed its 24 hours and was re-quoted at
+   * today's rate on this read; this is the old total, shown as "was GH₵X".
+   * Null when nothing moved.
+   */
+  requoted_from_ghs?: number | null;
+  /**
    * True while the line's freight weight is being checked in the background.
    * It is unpriced meanwhile (`pricing_unavailable_reason` says why), so it
    * cannot be paid for, and the bag polls until the check clears.

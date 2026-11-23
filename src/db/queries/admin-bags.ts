@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getQuoteFacts } from "@/db/queries/extraction-cache";
 import { logger } from "@/lib/logger";
 import type { CartItemRow, CartRow, CartStatus } from "@/db/queries/carts";
+import { quoteExpired } from "@/features/bag/quote-clock";
 
 /**
  * Bag reads for the admin console (migration 048).
@@ -36,9 +37,11 @@ import type { CartItemRow, CartRow, CartStatus } from "@/db/queries/carts";
  * to a bag before its price exists, and it then names an `extraction_request`
  * rather than a cache row. `unpriced` is the line that HAS a product but whose
  * listing carried no price — a readable page is not a quote. `expired` is a
- * cache row that has aged out from under a bag that has been sitting too long.
+ * stored quote past its 24 hours (115, `cart_items.quoted_at`): recoverable by
+ * re-quoting at today's rate (Fix 14). `gone` is a line whose listing is no
+ * longer on file at all: the link has to be pasted again.
  */
-export type AdminBagLineState = "priced" | "unpriced" | "reading" | "failed" | "expired";
+export type AdminBagLineState = "priced" | "unpriced" | "reading" | "failed" | "expired" | "gone";
 
 export interface AdminBagLine {
   id: string;
@@ -52,6 +55,8 @@ export interface AdminBagLine {
    */
   snapshot_total_ghs: number | null;
   state: AdminBagLineState;
+  /** 115: when the stored total was struck. */
+  quoted_at: string | null;
   created_at: string;
 }
 
@@ -61,6 +66,8 @@ export interface AdminBagOwner {
   user_id: string | null;
   name: string | null;
   email: string | null;
+  /** From the profile, for a follow-up (Fix 14). */
+  phone: string | null;
   session_id: string | null;
 }
 
@@ -75,8 +82,12 @@ export interface AdminBagRow {
   snapshot_value_ghs: number;
   /** Lines carrying a stored total; the rest contribute nothing to the value above. */
   priced_line_count: number;
-  /** Lines still being read, failed, expired or unpriced — the bag cannot check out. */
+  /** Lines still being read, failed, unpriced or gone: the bag cannot check out until someone acts. */
   blocked_line_count: number;
+  /** Lines whose quote has passed its 24 hours: a re-quote at today's rate clears them (Fix 14). */
+  expired_line_count: number;
+  /** A delivery (zone, pickup or address) has been chosen on the bag. */
+  delivery_chosen: boolean;
   created_at: string;
   updated_at: string;
   lines: AdminBagLine[];
@@ -86,6 +97,8 @@ export interface AdminBagFilters {
   /** Defaults to `open` — the only status that is a live signal rather than history. */
   status?: CartStatus;
   limit?: number;
+  /** Fetch every signed-in owner's email (one auth call each), for the follow-up view. */
+  withContacts?: boolean;
 }
 
 export const ADMIN_BAGS_PAGE_SIZE = 60;
@@ -123,12 +136,13 @@ export async function listAdminBags(filters: AdminBagFilters = {}): Promise<Admi
   // owners, and what the extractor has made of each line's paste.
   const lines = await listLinesForCarts(carts.map((cart) => cart.id));
   const [owners, facts] = await Promise.all([
-    resolveOwners(carts),
+    resolveOwners(carts, filters.withContacts === true),
     describeLineProducts(lines),
   ]);
+  const now = new Date();
 
   return carts
-    .map((cart) => buildBagRow(cart, lines.get(cart.id) ?? [], owners, facts))
+    .map((cart) => buildBagRow(cart, lines.get(cart.id) ?? [], owners, facts, now))
     .filter((bag) => bag.line_count > 0);
 }
 
@@ -137,10 +151,11 @@ export async function listAdminBags(filters: AdminBagFilters = {}): Promise<Admi
 function buildBagRow(
   cart: CartRow,
   lines: CartItemRow[],
-  owners: Map<string, { name: string | null; email: string | null }>,
+  owners: Map<string, { name: string | null; email: string | null; phone: string | null }>,
   facts: Map<string, LineProduct>,
+  now: Date,
 ): AdminBagRow {
-  const described = lines.map((line) => describeLine(line, facts));
+  const described = lines.map((line) => describeLine(line, facts, now));
   const priced = described.filter((line) => line.snapshot_total_ghs != null);
 
   const ownerProfile = cart.user_id ? owners.get(cart.user_id) : undefined;
@@ -153,6 +168,7 @@ function buildBagRow(
       user_id: cart.user_id,
       name: ownerProfile?.name ?? null,
       email: ownerProfile?.email ?? null,
+      phone: ownerProfile?.phone ?? null,
       session_id: cart.session_id,
     },
     line_count: described.length,
@@ -161,14 +177,16 @@ function buildBagRow(
       Math.round(priced.reduce((sum, line) => sum + (line.snapshot_total_ghs ?? 0), 0) * 100) /
       100,
     priced_line_count: priced.length,
-    blocked_line_count: described.filter((line) => line.state !== "priced").length,
+    blocked_line_count: described.filter((line) => line.state !== "priced" && line.state !== "expired").length,
+    expired_line_count: described.filter((line) => line.state === "expired").length,
+    delivery_chosen: !!(cart.delivery_zone_id || cart.delivery_address_id),
     created_at: cart.created_at,
     updated_at: cart.updated_at,
     lines: described,
   };
 }
 
-function describeLine(line: CartItemRow, facts: Map<string, LineProduct>): AdminBagLine {
+function describeLine(line: CartItemRow, facts: Map<string, LineProduct>, now: Date): AdminBagLine {
   const product = line.extraction_cache_id ? facts.get(line.extraction_cache_id) : undefined;
   const request = line.extraction_request_id
     ? facts.get(`request:${line.extraction_request_id}`)
@@ -181,7 +199,8 @@ function describeLine(line: CartItemRow, facts: Map<string, LineProduct>): Admin
     product_url: known?.product_url ?? null,
     quantity: line.quantity,
     snapshot_total_ghs: line.pricing?.total_ghs ?? null,
-    state: resolveLineState(line, product, request),
+    state: resolveLineState(line, product, request, now),
+    quoted_at: line.quoted_at ?? null,
     created_at: line.created_at,
   };
 }
@@ -191,24 +210,26 @@ function describeLine(line: CartItemRow, facts: Map<string, LineProduct>): Admin
  *
  * A line with no cache row at all is still in the paste queue, so its state is
  * the JOB's — `reading` while it runs, `failed` when the extractor gave up. Once
- * it has a cache row, the questions are the ones `getQuoteFacts` answers, and in
- * its order: is the row still usable, and does it carry a price. We do not treat
- * "the line has a stored breakdown" as proof of anything — a bag that sat through
- * a cache expiry has stored totals for products that can no longer be quoted.
+ * it has a cache row: a row that is gone cannot be priced at all; a usable row
+ * with no price is unpriced. Otherwise the customer's bag prices the line from
+ * the snapshot at today's rate (even after the shared cache row expires), so
+ * what is left is the line's own quote clock (115): a stored total older than
+ * 24 hours has expired and is re-quoted, which is not a block (Fix 14).
  */
 function resolveLineState(
   line: CartItemRow,
   product: LineProduct | undefined,
   request: LineProduct | undefined,
+  now: Date,
 ): AdminBagLineState {
   if (!line.extraction_cache_id) {
     if (request?.job_status === "failed") return "failed";
     return "reading";
   }
-  if (!product) return "expired";
-  if (!product.usable) return "expired";
-  if (!product.priced) return "unpriced";
-  return line.pricing ? "priced" : "unpriced";
+  if (!product?.exists) return "gone";
+  if (product.usable && !product.priced) return "unpriced";
+  if (!line.pricing) return "expired";
+  return quoteExpired(line.quoted_at, now) ? "expired" : "priced";
 }
 
 // ── Reads ───────────────────────────────────────────────────────────────────
@@ -221,7 +242,7 @@ async function listLinesForCarts(cartIds: string[]): Promise<Map<string, CartIte
   const { data, error } = await db
     .from("cart_items")
     .select(
-      "id, cart_id, extraction_cache_id, extraction_request_id, quantity, special_instructions, gap_price_usd, gap_origin_country, pricing, quote_lock_id, consolidation_box_id, created_at, updated_at",
+      "id, cart_id, extraction_cache_id, extraction_request_id, quantity, special_instructions, gap_price_usd, gap_origin_country, pricing, quoted_at, quote_lock_id, consolidation_box_id, created_at, updated_at",
     )
     .in("cart_id", cartIds)
     .order("created_at", { ascending: true });
@@ -246,6 +267,8 @@ interface LineProduct {
   product_url: string | null;
   usable: boolean;
   priced: boolean;
+  /** The cache row is still on file (usable or not). */
+  exists?: boolean;
   /** Only for a line still named by its paste: the extraction job's own status. */
   job_status?: string;
 }
@@ -302,6 +325,7 @@ async function describeLineProducts(
       product_url: urls.get(id) ?? null,
       usable: fact?.usable ?? false,
       priced: fact?.priced ?? false,
+      exists: urls.has(id) || fact != null,
     });
   }
 
@@ -328,15 +352,16 @@ async function describeLineProducts(
 /** Names and emails for the signed-in owners on the page, in two queries rather than 2N. */
 async function resolveOwners(
   carts: readonly CartRow[],
-): Promise<Map<string, { name: string | null; email: string | null }>> {
-  const owners = new Map<string, { name: string | null; email: string | null }>();
+  withContacts = false,
+): Promise<Map<string, { name: string | null; email: string | null; phone: string | null }>> {
+  const owners = new Map<string, { name: string | null; email: string | null; phone: string | null }>();
   const userIds = [...new Set(carts.map((cart) => cart.user_id).filter((id): id is string => !!id))];
   if (userIds.length === 0) return owners;
 
   const db = createAdminClient();
   const { data, error } = await db
     .from("profiles")
-    .select("id, first_name, last_name")
+    .select("id, first_name, last_name, phone")
     .in("id", userIds);
 
   if (error) {
@@ -348,12 +373,13 @@ async function resolveOwners(
     id: string;
     first_name: string | null;
     last_name: string | null;
+    phone: string | null;
   }[]) {
     const name = [row.first_name, row.last_name]
       .filter((part): part is string => !!part?.trim())
       .join(" ")
       .trim();
-    owners.set(row.id, { name: name || null, email: null });
+    owners.set(row.id, { name: name || null, email: null, phone: row.phone?.trim() || null });
   }
 
   // Emails live in `auth.users` and cost ONE CALL EACH — there is no bulk read
@@ -361,11 +387,13 @@ async function resolveOwners(
   // name, which is the only case where the screen has nothing else to call them.
   // Fetching all of them would mean sixty auth round trips to render a list
   // whose owner column would have looked identical.
-  const nameless = userIds.filter((id) => !owners.get(id)?.name);
+  // The follow-up view (Fix 14) asks for everyone's email: it is how staff chase a bag.
+  const nameless = withContacts ? userIds : userIds.filter((id) => !owners.get(id)?.name);
   await Promise.all(
     nameless.map(async (id) => {
       const { data: auth } = await db.auth.admin.getUserById(id);
-      owners.set(id, { name: null, email: auth?.user?.email ?? null });
+      const known = owners.get(id);
+      owners.set(id, { name: known?.name ?? null, email: auth?.user?.email ?? null, phone: known?.phone ?? null });
     }),
   );
 

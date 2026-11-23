@@ -4,10 +4,12 @@ import { AdminPage, AdminStat } from "@/components/layout/admin/admin-page";
 import { listAdminBags, type AdminBagFilters } from "@/db/queries/admin-bags";
 import type { CartStatus } from "@/db/queries/carts";
 import {
+  BAG_REASON_LABEL,
   BAG_STALE_AFTER_HOURS,
   summariseBags,
+  type BagReasonKey,
 } from "@/features/bag/components/admin-bag-format";
-import { AdminBagsBoard } from "@/features/bag/components/admin-bags-board";
+import { AdminBagsBoard, AdminBagsFootnote, SittingBagsBoard } from "@/features/bag/components/admin-bags-board";
 import {
   AdminFilterPills,
   type AdminFilterPill,
@@ -31,10 +33,10 @@ export const metadata: Metadata = { title: "Bags · Admin" };
  *   read) re-prices every line on every call under the viewer's rate lock, which
  *   is far too expensive for a list and would also mean an admin page moving the
  *   FX rate cache around. The card says which figure it is showing.
- * - **Blocked means a person is stuck.** A line still being read, one the
- *   extractor gave up on, one whose listing carried no price, or one whose quote
- *   has expired — each of those stops a bag being paid for, and each is amber
- *   because it is waiting on someone.
+ * - **Never a bare "Blocked" (site brief Fix 14).** Every bag says what is in
+ *   its way and what to do: a link to price by hand, one still being read, a
+ *   quote past its 24 hours (re-quoted here in one click), or details the
+ *   customer adds at checkout. `?view=sitting` is the follow-up list.
  */
 export default async function AdminBagsPage({
   searchParams,
@@ -43,19 +45,24 @@ export default async function AdminBagsPage({
 }) {
   const params = await searchParams;
   const status = resolveStatus(params.status);
+  const sitting = (Array.isArray(params.view) ? params.view[0] : params.view) === "sitting";
 
-  const bags = await listAdminBags({ status } satisfies AdminBagFilters);
+  const bags = await listAdminBags({ status: sitting ? "open" : status, withContacts: sitting } satisfies AdminBagFilters);
   // One clock for the whole render: rows computed against `Date.now()`
   // individually can straddle a minute boundary and disagree with the tile above
   // them about how many bags are stale.
   const now = new Date();
   const totals = summariseBags(bags, now);
 
-  const pills: AdminFilterPill[] = STATUSES.map((option) => ({
-    label: option.label,
-    href: option.value === "open" ? "/admin/bags" : `/admin/bags?status=${option.value}`,
-    active: status === option.value,
-  }));
+  const pills: AdminFilterPill[] = [
+    ...STATUSES.map((option) => ({
+      label: option.label,
+      href: option.value === "open" ? "/admin/bags" : `/admin/bags?status=${option.value}`,
+      active: !sitting && status === option.value,
+    })),
+    { label: `Sitting: follow up (${totals.stale})`, href: "/admin/bags?view=sitting", active: sitting },
+  ];
+  const reasonKeys = (Object.keys(BAG_REASON_LABEL) as BagReasonKey[]).filter((key) => totals.reasons[key] > 0);
 
   return (
     <AdminPage
@@ -74,19 +81,19 @@ export default async function AdminBagsPage({
           index={1}
           label="Snapshot value"
           value={formatGhs(totals.snapshotValueGhs)}
-          detail="Priced at add-to-bag time, not re-quoted"
+          detail="Stored when each line was last quoted, not live"
           tone="neutral"
         />
         <AdminStat
           index={2}
-          label="Blocked"
-          value={String(totals.blocked)}
+          label="Ready to pay"
+          value={`${totals.ready} of ${totals.count}`}
           detail={
-            totals.blocked > 0
-              ? "Holding a line that cannot be paid for"
-              : "Every bag could check out today"
+            totals.ready === totals.count
+              ? "Every bag could check out today"
+              : `${totals.reasons.expired} with an expired quote: re-quote them in one click`
           }
-          tone={totals.blocked > 0 ? "amber" : "green"}
+          tone={totals.ready === totals.count ? "green" : "amber"}
         />
         <AdminStat
           index={3}
@@ -97,9 +104,21 @@ export default async function AdminBagsPage({
         />
       </div>
 
+      {reasonKeys.length > 0 ? (
+        <p className="flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] font-medium text-tm-text-2">
+          <span className="font-semibold text-tm-ink">Why not ready:</span>
+          {reasonKeys.map((key) => (
+            <span key={key}>
+              {BAG_REASON_LABEL[key]} <span className="tm-nums font-semibold text-tm-ink">{totals.reasons[key]}</span>
+            </span>
+          ))}
+        </p>
+      ) : null}
+
       <AdminFilterPills pills={pills} label="Filter bags by state" />
 
-      <AdminBagsBoard bags={bags} now={now} emptyBody={EMPTY_BODY[status]} />
+      {sitting ? <SittingBagsBoard bags={bags} now={now} /> : <AdminBagsBoard bags={bags} now={now} emptyBody={EMPTY_BODY[status]} />}
+      <AdminBagsFootnote />
     </AdminPage>
   );
 }

@@ -45,6 +45,8 @@ export interface CartItemRow {
   store_shipping_code: string | null;
   /** Add-to-bag-time breakdown. Informational; every render re-prices. */
   pricing: PricingBreakdown | null;
+  /** 115: when `pricing` was struck. Older than 24 hours = the quote has expired (Fix 14). */
+  quoted_at?: string | null;
   quote_lock_id: string | null;
   consolidation_box_id: string | null;
   created_at: string;
@@ -66,7 +68,7 @@ export interface CartItemInsert {
 
 const CART_COLUMNS = "id, user_id, session_id, status, delivery_zone_id, delivery_address_id, order_group_id, created_at, updated_at";
 const ITEM_COLUMNS =
-  "id, cart_id, extraction_cache_id, extraction_request_id, quantity, special_instructions, gap_price_usd, gap_origin_country, sourced_price_usd, store_shipping_code, pricing, quote_lock_id, consolidation_box_id, created_at, updated_at";
+  "id, cart_id, extraction_cache_id, extraction_request_id, quantity, special_instructions, gap_price_usd, gap_origin_country, sourced_price_usd, store_shipping_code, pricing, quoted_at, quote_lock_id, consolidation_box_id, created_at, updated_at";
 
 // ── Carts (service role — every write is the server's) ──────────────────────
 
@@ -83,6 +85,13 @@ export async function findOpenCart(viewer: Viewer): Promise<CartRow | null> {
   else return null;
 
   const { data, error } = await query.maybeSingle();
+  if (error) throw new Error(`Failed to load cart: ${error.message}`);
+  return data ? normalizeCart(data) : null;
+}
+
+/** One cart by id, any status (the admin's re-quote, Fix 14). */
+export async function getCartById(cartId: string): Promise<CartRow | null> {
+  const { data, error } = await createAdminClient().from("carts").select(CART_COLUMNS).eq("id", cartId).maybeSingle();
   if (error) throw new Error(`Failed to load cart: ${error.message}`);
   return data ? normalizeCart(data) : null;
 }
@@ -183,7 +192,7 @@ export async function insertCartItem(input: CartItemInsert): Promise<CartItemRow
 
 export async function updateCartItem(
   id: string,
-  patch: Partial<Pick<CartItemRow, "quantity" | "special_instructions" | "gap_price_usd" | "gap_origin_country" | "sourced_price_usd" | "store_shipping_code" | "pricing" | "quote_lock_id" | "consolidation_box_id" | "extraction_cache_id">>,
+  patch: Partial<Pick<CartItemRow, "quantity" | "special_instructions" | "gap_price_usd" | "gap_origin_country" | "sourced_price_usd" | "store_shipping_code" | "pricing" | "quoted_at" | "quote_lock_id" | "consolidation_box_id" | "extraction_cache_id">>,
 ): Promise<CartItemRow | null> {
   const client = createAdminClient();
   const { data, error } = await client
@@ -276,6 +285,7 @@ function normalizeItem(row: Record<string, unknown>): CartItemRow {
     sourced_price_usd: row.sourced_price_usd == null ? null : Number(row.sourced_price_usd),
     store_shipping_code: (row.store_shipping_code as string | null) ?? null,
     pricing: (row.pricing as PricingBreakdown | null) ?? null,
+    quoted_at: (row.quoted_at as string | null) ?? null,
     quote_lock_id: (row.quote_lock_id as string | null) ?? null,
     consolidation_box_id: (row.consolidation_box_id as string | null) ?? null,
     created_at: String(row.created_at),

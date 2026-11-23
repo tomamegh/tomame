@@ -27,6 +27,7 @@ import { isPickupEnabled } from "./delivery-settings.service";
 import { listActiveDeliveryZones, type DeliveryZoneRow } from "@/db/queries/delivery-zones";
 import type { DeliveryAddress } from "@/features/addresses/types";
 import { packLines, type BoxConstants, type PackedBox } from "./box-packing";
+import { quoteExpired } from "../quote-clock";
 import { listNextDepartures, type FlightDepartureRow } from "@/db/queries/flight-departures";
 import type { ExtractionResult } from "@/features/extraction/types";
 import type { Viewer } from "@/features/quotes/types";
@@ -189,7 +190,7 @@ export async function addToBag(viewer: Viewer, input: AddToBagInput): Promise<Ad
   const priced = await priceSnapshot(viewer, snapshot.result, input.extraction_cache_id!, quantity, gapPrice, gapCountry, sourcedPrice, shippingCode);
 
   const row = existing
-    ? await updateLineRow(existing.id, { quantity, special_instructions: note, gap_price_usd: gapPrice, gap_origin_country: gapCountry, store_shipping_code: shippingCode, pricing: priced.pricing, quote_lock_id: priced.pricing?.rate_lock_id ?? existing.quote_lock_id })
+    ? await updateLineRow(existing.id, { quantity, special_instructions: note, gap_price_usd: gapPrice, gap_origin_country: gapCountry, store_shipping_code: shippingCode, pricing: priced.pricing, quoted_at: new Date().toISOString(), quote_lock_id: priced.pricing?.rate_lock_id ?? existing.quote_lock_id })
     : await insertCartItem({
         cart_id: cart.id,
         extraction_cache_id: input.extraction_cache_id!,
@@ -291,7 +292,7 @@ export async function updateBagLine(viewer: Viewer, lineId: string, input: Updat
   const note = input.special_instructions === undefined ? row.special_instructions : input.special_instructions;
   const shippingCode = input.store_shipping_code === undefined ? row.store_shipping_code : input.store_shipping_code;
   const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, quantity, row.gap_price_usd, row.gap_origin_country, row.sourced_price_usd, shippingCode);
-  const updated = await updateLineRow(row.id, { quantity, special_instructions: note, store_shipping_code: shippingCode, pricing: priced.pricing, quote_lock_id: priced.pricing?.rate_lock_id ?? row.quote_lock_id });
+  const updated = await updateLineRow(row.id, { quantity, special_instructions: note, store_shipping_code: shippingCode, pricing: priced.pricing, quoted_at: new Date().toISOString(), quote_lock_id: priced.pricing?.rate_lock_id ?? row.quote_lock_id });
   await touchCart(row.cart_id);
   return toLine(updated, snapshot, priced);
 }
@@ -539,7 +540,110 @@ async function priceLine(viewer: Viewer, row: CartItemRow, checks: Map<string, Q
   const needed = checksNeeded({ extraction: snapshot.result, checks: lineChecks });
   if (needed.price || needed.stock) await ensureQuoteChecks(viewer, row.extraction_cache_id, snapshot.productUrl, snapshot.result);
   const fresh = needed.price || needed.stock ? (await checksByExtraction([row.extraction_cache_id])).get(row.extraction_cache_id) ?? [] : lineChecks;
-  return toLine(row, snapshot, { ...priced, payHold: payHoldOf({ extraction: snapshot.result, checks: fresh }) });
+  const line = toLine(row, snapshot, { ...priced, payHold: payHoldOf({ extraction: snapshot.result, checks: fresh }) });
+  line.requoted_from_ghs = await restampExpiredQuote(row, priced);
+  return line;
+}
+
+/**
+ * 115 (site brief Fix 14): the customer's bag re-prices every line at today's
+ * rate on every read, so opening it IS a re-quote. When the stored quote has
+ * passed its 24 hours (or the line was never stored with a price), the fresh
+ * breakdown is written back with a new `quoted_at`, so Admin Bags stops calling
+ * it expired. Returns the old total when it moved, for "was GH₵X" on the line.
+ * A failed write never fails the read.
+ */
+async function restampExpiredQuote(row: CartItemRow, priced: Priced): Promise<number | null> {
+  if (!priced.pricing) return null;
+  if (row.pricing && !quoteExpired(row.quoted_at)) return null;
+  const before = row.pricing?.total_ghs ?? null;
+  try {
+    await updateCartItem(row.id, {
+      pricing: priced.pricing,
+      quoted_at: new Date().toISOString(),
+      quote_lock_id: priced.pricing.rate_lock_id ?? row.quote_lock_id,
+    });
+  } catch (error) {
+    logger.warn("bag: storing a re-quote failed", { lineId: row.id, error: error instanceof Error ? error.message : String(error) });
+    return null;
+  }
+  return before != null && Math.abs(before - priced.pricing.total_ghs) >= 0.01 ? before : null;
+}
+
+// ── Re-quote (Fix 14) ───────────────────────────────────────────────────────
+
+export interface RequoteLine {
+  id: string;
+  title: string | null;
+  quantity: number;
+  /** The stored breakdown's total before the re-quote; null when the line never had one. */
+  snapshot_total_ghs: number | null;
+  /** Today's total; null when the line cannot be priced now (`reason` says why). */
+  new_total_ghs: number | null;
+  diff_ghs: number | null;
+  reason: string | null;
+}
+
+export interface RequoteResult {
+  cart_id: string;
+  lines: RequoteLine[];
+  snapshot_total_ghs: number;
+  new_total_ghs: number;
+  diff_ghs: number;
+  /** Lines that still have no price after the re-quote. */
+  unpriced_count: number;
+  applied: boolean;
+}
+
+/**
+ * Re-price every line of one bag at today's rate, exactly as the customer's own
+ * bag does (their rate lock, their gap-fillers and options), and compare with
+ * the stored snapshot. With `apply`, the new breakdowns are stored and each
+ * line's quote clock restarts, which returns an expired bag to Ready to pay.
+ * Nothing is sent to the customer either way.
+ */
+export async function requoteCart(cart: CartRow, apply: boolean): Promise<RequoteResult> {
+  const viewer: Viewer = { userId: cart.user_id, sessionId: cart.user_id ? null : cart.session_id };
+  const rows = await listCartItems(cart.id);
+  const now = new Date().toISOString();
+  const lines: RequoteLine[] = [];
+  for (const row of rows) {
+    const before = row.pricing?.total_ghs ?? null;
+    if (!row.extraction_cache_id) {
+      lines.push({ id: row.id, title: null, quantity: row.quantity, snapshot_total_ghs: before, new_total_ghs: null, diff_ghs: null, reason: "Still reading the link" });
+      continue;
+    }
+    const snapshot = await getExtractionSnapshot(row.extraction_cache_id);
+    if (!snapshot) {
+      lines.push({ id: row.id, title: null, quantity: row.quantity, snapshot_total_ghs: before, new_total_ghs: null, diff_ghs: null, reason: "The listing is no longer on file: the link has to be pasted again" });
+      continue;
+    }
+    const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, row.quantity, row.gap_price_usd, row.gap_origin_country, row.sourced_price_usd, row.store_shipping_code);
+    const after = priced.pricing?.total_ghs ?? null;
+    if (apply && priced.pricing) {
+      await updateCartItem(row.id, { pricing: priced.pricing, quoted_at: now, quote_lock_id: priced.pricing.rate_lock_id ?? row.quote_lock_id });
+    }
+    lines.push({
+      id: row.id,
+      title: snapshot.result.product?.title ?? null,
+      quantity: row.quantity,
+      snapshot_total_ghs: before,
+      new_total_ghs: after,
+      diff_ghs: before != null && after != null ? r2(after - before) : null,
+      reason: priced.pricing ? null : priced.reason,
+    });
+  }
+  const snapshotTotal = r2(lines.reduce((acc, l) => acc + (l.new_total_ghs != null ? (l.snapshot_total_ghs ?? 0) : 0), 0));
+  const newTotal = r2(lines.reduce((acc, l) => acc + (l.new_total_ghs ?? 0), 0));
+  return {
+    cart_id: cart.id,
+    lines,
+    snapshot_total_ghs: snapshotTotal,
+    new_total_ghs: newTotal,
+    diff_ghs: r2(newTotal - snapshotTotal),
+    unpriced_count: lines.filter((l) => l.new_total_ghs == null).length,
+    applied: apply,
+  };
 }
 
 /**
@@ -867,6 +971,7 @@ function toLine(row: LineSource, snapshot: Snapshot, priced: Priced): BagLine {
     sourcing: null,
     freight_checking: priced.freightChecking === true,
     pay_hold: priced.payHold ?? null,
+    requoted_from_ghs: null,
     price_notes: priced.pricing && snapshot ? priceContextParts(priceContextOf(snapshot.result), findStore(snapshot.productUrl)?.name ?? null) : [],
   };
 }
