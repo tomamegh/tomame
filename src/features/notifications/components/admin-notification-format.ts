@@ -49,6 +49,7 @@ const EVENT_LABELS: Record<string, string> = {
   shipment_delay: "Shipment delay",
   store_tracking_added: "Store shipped it",
   delivery_date_changed: "New delivery date",
+  delivery_details_changed: "Delivery changed",
   courier_dispatched: "Rider sent",
   order_paid: "Payment confirmed",
   order_processing: "Buying the item",

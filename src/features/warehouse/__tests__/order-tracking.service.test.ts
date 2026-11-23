@@ -130,7 +130,7 @@ describe("addOrdersStoreTracking", () => {
     vi.mocked(listWarehouseItemsByIds).mockResolvedValue([item("a"), item("b")]);
     const plan = (deliveryOn: string, departsOn: string): FirmPlan => ({
       kind: "firm",
-      flight: { carrier: "Delta Cargo", origin: "JFK", destination: "ACC", departsOn },
+      flight: { carrier: "Delta Cargo", origin: "JFK", destination: "ACC", departsOn, cutoffAt: `${departsOn}T00:00:00Z` },
       deliveryOn,
       basis: "expected_hub_arrival",
     });

@@ -97,6 +97,10 @@ export function describeNotification(event: string, payload: Record<string, unkn
         href,
       };
     }
+    case "delivery_details_changed": {
+      const to = str(p.deliver_to);
+      return { title: `Delivery changed${orderNo && !many ? `: ${orderNo}` : ""}`, detail: to ? `It now goes to ${to}` : null, href };
+    }
     case "courier_dispatched":
       return { title: p.is_update === true ? "Your rider's details changed" : "A rider has your package", detail: orderNo, href };
     case "paste_priced":

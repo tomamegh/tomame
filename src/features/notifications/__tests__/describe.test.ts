@@ -42,6 +42,13 @@ describe("describeNotification", () => {
     expect(describeNotification("store_tracking_added", { order_count: 1, order_no: "TM-1" }).detail).toBe("It is on its way to our US hub");
   });
 
+  it("confirms a delivery the customer changed", () => {
+    expect(describeNotification("delivery_details_changed", { order_count: 1, order_no: "TM-1", deliver_to: "Pickup · Weija hub" })).toMatchObject({
+      title: "Delivery changed: TM-1",
+      detail: "It now goes to Pickup · Weija hub",
+    });
+  });
+
   it("humanises an unknown event rather than printing the slug", () => {
     expect(describeNotification("welcome_back_admin", {}).title).toBe("Welcome back");
   });

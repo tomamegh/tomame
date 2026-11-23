@@ -145,3 +145,20 @@ function normalizeRow(row: Record<string, unknown>): OrderGroupRow {
     updated_at: String(row.updated_at),
   };
 }
+
+/** Initiative 5: a paid checkout's new delivery, written only while the group is still `paid`. Returns the row, or null when it was not. */
+export async function updatePaidGroupDelivery(
+  id: string,
+  patch: Pick<OrderGroupRow, "delivery_address" | "delivery_address_id" | "delivery_zone_id">,
+): Promise<OrderGroupRow | null> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("order_groups")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("status", "paid")
+    .select(COLUMNS)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to change the delivery: ${error.message}`);
+  return data ? normalizeRow(data) : null;
+}

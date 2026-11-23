@@ -45,7 +45,7 @@ const departure = (over: Partial<FlightDepartureRow> = {}): FlightDepartureRow =
 
 const plan = (departsOn: string, deliveryOn: string): FirmPlan => ({
   kind: "firm",
-  flight: { carrier: "Delta Cargo", origin: "JFK", destination: "ACC", departsOn },
+  flight: { carrier: "Delta Cargo", origin: "JFK", destination: "ACC", departsOn, cutoffAt: `${departsOn}T00:00:00Z` },
   deliveryOn,
   basis: "hub_arrival",
 });

@@ -1,4 +1,5 @@
 import "server-only";
+import { deliverySnapshotOf } from "../delivery-snapshot";
 import { isContactPhone } from "@/features/addresses/phone";
 import { APIError } from "@/lib/auth/api-helpers";
 import { logger } from "@/lib/logger";
@@ -234,15 +235,14 @@ function isHttpUrl(value: string): boolean {
 /** What "Deliver to" said at checkout — frozen, so a later address-book edit cannot move it. */
 async function deliverySnapshot(bag: BagView): Promise<Record<string, unknown>> {
   const delivery = bag.delivery!;
-  if (delivery.kind === "pickup" || !delivery.address_id) {
-    return { kind: "pickup", zone_id: delivery.zone_id, zone_name: delivery.zone_name, fee_ghs: delivery.fee_ghs };
-  }
+  const zone = { id: delivery.zone_id, name: delivery.zone_name, fee_ghs: delivery.fee_ghs };
+  if (delivery.kind === "pickup" || !delivery.address_id) return deliverySnapshotOf({ kind: "pickup", zone });
   const address = await getDeliveryAddressById(delivery.address_id);
   // Fix 5: the courier calls this number; an incomplete one is refused before anything is written.
   if (address && !isContactPhone(address.phone)) {
     throw new APIError(409, "The delivery address's phone number looks incomplete. Edit the address and try again.");
   }
-  return { ...(address ?? { id: delivery.address_id, label: delivery.label }), kind: "door", zone_id: delivery.zone_id, zone_name: delivery.zone_name, fee_ghs: delivery.fee_ghs };
+  return deliverySnapshotOf({ kind: "door", address: address ?? { id: delivery.address_id, label: delivery.label }, zone });
 }
 
 /**

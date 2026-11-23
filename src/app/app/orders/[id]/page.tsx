@@ -9,6 +9,10 @@ import { getJourneyDetail } from "@/features/journeys/services/journey-detail.se
 import { APIError } from "@/lib/auth/api-helpers";
 import { MetaPurchase } from "@/components/analytics/meta-purchase";
 import { orderTotalGhs } from "@/features/journeys/order-facts";
+import { JourneyDeliveryChangeCard } from "@/features/journeys/components/journey-delivery-change-card";
+import { getDeliveryChangeView } from "@/features/order-delivery/services/delivery-change.service";
+import { listDeliveryAddresses } from "@/db/queries/delivery-addresses";
+import { logger } from "@/lib/logger";
 
 export const metadata: Metadata = {
   title: "Order",
@@ -44,10 +48,18 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
   try {
     // In parallel: the courier read is scoped to the viewer's own orders and
     // answers null for anything else, so it cannot leak ahead of the 404.
-    const [journey, courier] = await Promise.all([
+    const [journey, courier, deliveryChange] = await Promise.all([
       getJourneyDetail(user, id),
       getCourierForViewer(user.id, id),
+      // Initiative 5. A failure costs the card, not the page.
+      getDeliveryChangeView(user, id).catch((error: unknown) => {
+        logger.warn("order page: delivery change unavailable", { orderId: id, error: String(error) });
+        return null;
+      }),
     ]);
+    // Shown while the order is still on its way to the hub; once it has left, the rider card takes over.
+    const showChange = deliveryChange && (journey.status === "paid" || journey.status === "processing");
+    const addresses = showChange ? await listDeliveryAddresses(user.id).catch(() => []) : [];
     // A legacy single-order checkout returns here. `paidAt` comes from the
     // order's own `payment_received` event, so the URL alone reports nothing.
     const paidTotal =
@@ -60,6 +72,17 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
           journey={journey}
           paymentOutcome={payment ?? null}
           courier={<CourierCard courier={courier} orderStatus={journey.status} />}
+          deliveryChange={
+            showChange ? (
+              <JourneyDeliveryChangeCard
+                orderId={journey.id}
+                view={deliveryChange}
+                deliverTo={journey.deliverTo}
+                addresses={addresses}
+                whatsappHref={journey.whatsappHref}
+              />
+            ) : null
+          }
         />
         {paidTotal != null ? (
           <MetaPurchase

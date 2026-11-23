@@ -40,7 +40,7 @@ export type DeliveryPlan =
   | { kind: "estimate"; range: string; from: string | null; to: string | null; explanation: string }
   | {
       kind: "firm";
-      flight: { carrier: string; origin: string; destination: string; departsOn: string };
+      flight: { carrier: string; origin: string; destination: string; departsOn: string; cutoffAt: string };
       deliveryOn: string;
       /** What the flight was worked out from. */
       basis: "flown" | "hub_arrival" | "expected_hub_arrival";
@@ -77,7 +77,7 @@ export function deliveryPlanFor(input: DeliveryPlanInput): DeliveryPlan | null {
 function firm(d: PlanDeparture, basis: "flown" | "hub_arrival" | "expected_hub_arrival"): DeliveryPlan {
   return {
     kind: "firm",
-    flight: { carrier: d.carrier, origin: d.origin, destination: d.destination, departsOn: d.departs_on },
+    flight: { carrier: d.carrier, origin: d.origin, destination: d.destination, departsOn: d.departs_on, cutoffAt: d.cutoff_at },
     deliveryOn: addDays(d.departs_on, ACCRA_DAYS_AFTER_FLIGHT),
     basis,
   };

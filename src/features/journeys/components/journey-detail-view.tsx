@@ -35,6 +35,8 @@ export interface JourneyDetailViewProps {
    * does not grow a second copy of the courier rules.
    */
   courier?: React.ReactNode;
+  /** Initiative 5: change where it goes before the flight, rendered by the page. */
+  deliveryChange?: React.ReactNode;
 }
 
 /**
@@ -54,7 +56,7 @@ export interface JourneyDetailViewProps {
  * Delays are the mock's literals: back link `tmIn .4s`, main card `tmUp .5s`,
  * rail `.08s`, Updates `.1s`, What you paid `.16s`.
  */
-export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyDetailViewProps) {
+export function JourneyDetailView({ journey, paymentOutcome, courier, deliveryChange }: JourneyDetailViewProps) {
   const payment = useJourneyPayment();
   const tone = tonePalette(journey.tone);
   const Glyph = stageIcon(journey.status);
@@ -206,6 +208,8 @@ export function JourneyDetailView({ journey, paymentOutcome, courier }: JourneyD
             The rider comes straight after the track: when someone is on a
             motorbike with the parcel, the number to call is the whole page.
           */}
+          {deliveryChange}
+
           {/* 102: right under the track, where it is found at the door. */}
           {journey.deliveryCode && <JourneyDeliveryCodeCard code={journey.deliveryCode} />}
 
