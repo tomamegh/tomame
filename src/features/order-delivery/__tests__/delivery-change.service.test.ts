@@ -5,7 +5,8 @@ vi.mock("@/lib/env", () => ({ env: { app: { url: "https://tomame.test" } } }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({})) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => ({})) }));
 vi.mock("@/features/orders/services/orders.service", () => ({ getOrder: vi.fn() }));
-vi.mock("@/db/queries/order-groups", () => ({ getOrderGroupById: vi.fn(), updatePaidGroupDelivery: vi.fn() }));
+vi.mock("@/db/queries/order-groups", () => ({ getOrderGroupById: vi.fn(), updatePaidGroupDelivery: vi.fn(), setPaidGroupWindowPref: vi.fn() }));
+vi.mock("@/db/queries/site-settings", () => ({ getSiteSettingsMap: vi.fn(async () => ({})) }));
 vi.mock("@/db/queries/orders", () => ({ listOrdersByGroup: vi.fn() }));
 vi.mock("@/db/queries/delivery-zones", () => ({ listActiveDeliveryZones: vi.fn() }));
 vi.mock("@/db/queries/delivery-addresses", () => ({ getDeliveryAddressById: vi.fn() }));
@@ -20,7 +21,7 @@ vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn
 
 import { getDeliveryAddressById } from "@/db/queries/delivery-addresses";
 import { listActiveDeliveryZones } from "@/db/queries/delivery-zones";
-import { getOrderGroupById, updatePaidGroupDelivery, type OrderGroupRow } from "@/db/queries/order-groups";
+import { getOrderGroupById, setPaidGroupWindowPref, updatePaidGroupDelivery, type OrderGroupRow } from "@/db/queries/order-groups";
 import { listOrdersByGroup } from "@/db/queries/orders";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { firmPlansFor } from "@/features/journeys/services/firm-dates.service";
@@ -28,7 +29,7 @@ import { notifyCustomer } from "@/features/notifications/services/customer-notif
 import { getOrder } from "@/features/orders/services/orders.service";
 import type { PlatformUser } from "@/features/users/types";
 
-import { changeOrderDelivery, getDeliveryChangeView } from "../services/delivery-change.service";
+import { changeOrderDelivery, getDeliveryChangeView, setDeliveryWindowPref } from "../services/delivery-change.service";
 
 const ID = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
 const user = { id: "u1" } as PlatformUser;
@@ -51,6 +52,7 @@ const group = (over: Partial<OrderGroupRow> = {}): OrderGroupRow =>
     delivery_zone_id: ID(1),
     delivery_address: { kind: "door", id: ID(8), label: "Home", city: "Accra", phone: "+233244123456", zone_id: ID(1), zone_name: "Greater Accra", fee_ghs: 0 },
     updated_at: "2026-11-24T12:00:00Z",
+    delivery_window_pref: null,
     ...over,
   }) as OrderGroupRow;
 
@@ -141,5 +143,35 @@ describe("getDeliveryChangeView", () => {
   it("is null for an order with no checkout", async () => {
     vi.mocked(getOrder).mockResolvedValue({ id: "o1", order_group_id: null } as never);
     expect(await getDeliveryChangeView(user, "o1", NOW)).toBeNull();
+  });
+});
+
+describe("setDeliveryWindowPref", () => {
+  beforeEach(() => {
+    vi.mocked(setPaidGroupWindowPref).mockImplementation(async (_id, key) => group({ delivery_window_pref: key }));
+  });
+
+  it("saves an offered slot, audits it and confirms once", async () => {
+    const out = await setDeliveryWindowPref(user, "o1", "afternoon", NOW);
+    expect(out).toEqual({ changed: true, windowPref: "afternoon" });
+    expect(setPaidGroupWindowPref).toHaveBeenCalledWith("g1", "afternoon");
+    expect(logAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "order_group_delivery_window_chosen" }));
+    const call = vi.mocked(notifyCustomer).mock.calls[0]![0];
+    expect(call.payload).toMatchObject({ window: "Afternoon, 12–3pm" });
+    expect(call.template.subject).toBe("Delivery window: 2 of your orders");
+    expect(JSON.stringify(call.whatsapp.message)).toContain("Preferred delivery window: Afternoon, 12–3pm");
+  });
+
+  it("refuses a slot that is not offered, and says nothing for the same one", async () => {
+    await expect(setDeliveryWindowPref(user, "o1", "midnight", NOW)).rejects.toMatchObject({ statusCode: 400 });
+    vi.mocked(getOrderGroupById).mockResolvedValue(group({ delivery_window_pref: "morning" }));
+    expect(await setDeliveryWindowPref(user, "o1", "morning", NOW)).toEqual({ changed: false, windowPref: "morning" });
+    expect(setPaidGroupWindowPref).not.toHaveBeenCalled();
+    expect(notifyCustomer).not.toHaveBeenCalled();
+  });
+
+  it("follows the same lock as the address", async () => {
+    vi.mocked(listOrdersByGroup).mockResolvedValue([{ id: "o1", status: "in_transit", order_no: "TM-1", product_name: "Kettle" }] as never);
+    await expect(setDeliveryWindowPref(user, "o1", "evening", NOW)).rejects.toMatchObject({ statusCode: 409 });
   });
 });

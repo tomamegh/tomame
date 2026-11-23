@@ -1,5 +1,6 @@
 import { MapPinLine, Moped, Phone } from "@phosphor-icons/react/ssr";
 
+import { windowText } from "../delivery-windows";
 import { formatGhanaPhone } from "../schema";
 import type { OrderCourier } from "../types";
 import { providerName } from "./courier-format";
@@ -51,8 +52,13 @@ export function CourierCard({
           <h2 id={`courier-${courier.orderId}`} className="font-display text-lg leading-tight font-bold break-words">
             {courier.name ? `${courier.name} has your package` : "A rider has your package"}
           </h2>
+          {courier.window ? (
+            <p className="text-[15px] leading-[1.4] font-semibold text-tm-ink" data-testid="courier-window">
+              Arriving {windowText(courier.window.start, courier.window.end)}
+            </p>
+          ) : null}
           <p className="text-[13px] leading-[1.5] font-medium text-tm-text-2">
-            {via ? `On its way to you on ${via}.` : "On its way to you now."}
+            {via ? `On its way to you on ${via}.` : courier.window ? "Keep your phone close; the rider calls when they are near." : "On its way to you now."}
           </p>
         </div>
       </div>

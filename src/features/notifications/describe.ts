@@ -99,6 +99,8 @@ export function describeNotification(event: string, payload: Record<string, unkn
     }
     case "delivery_details_changed": {
       const to = str(p.deliver_to);
+      const window = str(p.window);
+      if (window) return { title: `Delivery window noted${orderNo && !many ? `: ${orderNo}` : ""}`, detail: `Preferred: ${window}`, href };
       return { title: `Delivery changed${orderNo && !many ? `: ${orderNo}` : ""}`, detail: to ? `It now goes to ${to}` : null, href };
     }
     case "courier_dispatched":

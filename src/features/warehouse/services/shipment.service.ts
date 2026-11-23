@@ -1,5 +1,8 @@
 import "server-only";
 
+import { slotText, windowProblem } from "@/features/order-delivery/delivery-windows";
+import { loadWindowSlots } from "@/features/order-delivery/services/delivery-change.service";
+import { listGroupWindowPrefs } from "@/db/queries/order-groups";
 import {
   insertOrderEvents,
   listOrderEventsForOrders,
@@ -203,6 +206,12 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
     driverId = driver.id;
   }
 
+  // 125: the window customers are given with the rider.
+  if (input.window) {
+    const problem = windowProblem(input.window.start, input.window.end);
+    if (problem) throw new APIError(400, problem);
+  }
+
   const events = await eventsByOrder(orders.map((o) => o.id));
   const occurredAt = input.occurred_at ?? new Date().toISOString();
   const result: MoveResult = { moved: 0, skipped: [], failed: [] };
@@ -245,7 +254,11 @@ export async function moveShipments(user: PlatformUser, input: MoveShipmentsInpu
           { actorId: user.id, actorRole: warehouseActorRole(user) },
           order.id,
           rider,
-          { packageId: packageByOrder.get(order.id) ?? null, notify: input.notify && first },
+          {
+            packageId: packageByOrder.get(order.id) ?? null,
+            notify: input.notify && first,
+            ...(input.window && { window: { start: new Date(input.window.start).toISOString(), end: new Date(input.window.end).toISOString() } }),
+          },
         );
         riderNotified.add(order.user_id);
         result.moved += 1;
@@ -546,5 +559,23 @@ async function audit(
     entityType: entityType as (typeof AUDIT_ENTITY_TYPES)[keyof typeof AUDIT_ENTITY_TYPES],
     entityId,
     metadata,
+  });
+}
+
+/**
+ * 125: each customer's preferred delivery window for what is selected, so the
+ * person sending a rider can give a window the customer asked for.
+ */
+export async function listWindowPrefs(
+  user: PlatformUser,
+  input: { package_ids: string[]; order_ids: string[] },
+): Promise<Array<{ order_no: string; preference: string | null }>> {
+  requireWarehouse(user);
+  const { orders } = await resolveTargets(input.package_ids, input.order_ids);
+  const [prefs, slots] = await Promise.all([listGroupWindowPrefs(orders.map((o) => o.order_group_id ?? "")), loadWindowSlots()]);
+  return orders.map((o) => {
+    const key = o.order_group_id ? (prefs.get(o.order_group_id) ?? null) : null;
+    const slot = key ? slots.find((s) => s.key === key) : null;
+    return { order_no: o.order_no, preference: slot ? slotText(slot) : null };
   });
 }

@@ -33,10 +33,12 @@ interface CourierColumns {
   courier_dispatched_at: string | null;
   courier_dispatched_by: string | null;
   courier_last_notified_at: string | null;
+  window_start: string | null;
+  window_end: string | null;
 }
 
 const COURIER_SELECT =
-  "order_id, courier_name, courier_phone, courier_tracking_url, courier_provider, courier_dispatched_at, courier_dispatched_by, courier_last_notified_at";
+  "order_id, courier_name, courier_phone, courier_tracking_url, courier_provider, courier_dispatched_at, courier_dispatched_by, courier_last_notified_at, window_start, window_end";
 
 /** Null when no rider has been dispatched, even if the delivery row exists. */
 export function toOrderCourier(row: CourierColumns | null | undefined): OrderCourier | null {
@@ -50,6 +52,7 @@ export function toOrderCourier(row: CourierColumns | null | undefined): OrderCou
     dispatchedAt: row.courier_dispatched_at,
     dispatchedBy: row.courier_dispatched_by,
     lastNotifiedAt: row.courier_last_notified_at,
+    window: row.window_start && row.window_end ? { start: row.window_start, end: row.window_end } : null,
   };
 }
 
@@ -120,6 +123,8 @@ export interface CourierWrite {
   dispatchedBy: string;
   /** 101: who booked the ride. Defaults to our team. */
   arrangedBy?: "tomame" | "customer";
+  /** 125: the window given to the customer. Absent keeps the one on record; null clears it. */
+  window?: { start: string; end: string } | null;
 }
 
 /**
@@ -142,6 +147,7 @@ export async function upsertOrderCourier(input: CourierWrite): Promise<OrderCour
         courier_dispatched_at: input.dispatchedAt,
         courier_dispatched_by: input.dispatchedBy,
         courier_arranged_by: input.arrangedBy ?? "tomame",
+        ...(input.window !== undefined && { window_start: input.window?.start ?? null, window_end: input.window?.end ?? null }),
       },
       { onConflict: "order_id" },
     )

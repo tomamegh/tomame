@@ -230,6 +230,22 @@ function validateSettingValue(key: string, value: unknown): unknown {
     if (!parsed.success) throw new APIError(400, parsed.error.issues[0]?.message ?? "Invalid value");
     return parsed.data;
   }
+  if (key === "delivery_window_slots") {
+    // 125: customers pick from this list on the order page; a slot that parses
+    // badly would silently vanish from it.
+    const slot = z.object({
+      key: z.string().trim().min(1).max(40),
+      label: z.string().trim().min(1).max(40),
+      from: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Times are HH:MM, e.g. 09:00"),
+      to: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Times are HH:MM, e.g. 12:00"),
+    }).refine((s) => s.from < s.to, { message: "Each window must end after it starts" });
+    const parsed = z.array(slot).min(1).max(8).safeParse(value);
+    if (!parsed.success) {
+      throw new APIError(400, parsed.error.issues[0]?.message ?? 'A list like [{"key":"morning","label":"Morning","from":"09:00","to":"12:00"}]');
+    }
+    if (new Set(parsed.data.map((s) => s.key)).size !== parsed.data.length) throw new APIError(400, "Each window needs its own key.");
+    return parsed.data;
+  }
   if (key === "pickup_enabled" || key === "address_lookup_enabled") {
     // 088. Real JSONB booleans, like the tour switch below.
     if (typeof value !== "boolean") throw new APIError(400, "This setting is either true or false.");

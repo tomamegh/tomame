@@ -72,13 +72,19 @@ export const moveShipmentsSchema = z
     rider: courierHandoffSchema.nullish().transform((v) => v ?? null),
     /** 102: one of our drivers takes them. Their app then lists these orders. */
     driver_id: z.uuid().nullish().transform((v) => v ?? null),
+    /** 125: the delivery window given to the customers with the rider (usually 2 hours). */
+    window: z
+      .object({ start: z.iso.datetime({ offset: true }), end: z.iso.datetime({ offset: true }) })
+      .nullish()
+      .transform((v) => v ?? null),
   })
   .refine(hasTarget, { message: "Choose at least one package or order" })
   .refine((v) => (!v.rider && !v.driver_id) || v.stage === "out_for_delivery", {
     message: "A rider or driver goes with Out for delivery",
     path: ["rider"],
   })
-  .refine((v) => !(v.rider && v.driver_id), { message: "Choose our driver or another rider, not both", path: ["driver_id"] });
+  .refine((v) => !(v.rider && v.driver_id), { message: "Choose our driver or another rider, not both", path: ["driver_id"] })
+  .refine((v) => !v.window || !!v.rider || !!v.driver_id, { message: "A delivery window goes with a rider or driver", path: ["window"] });
 
 export const shipmentNoticeSchema = z
   .object({

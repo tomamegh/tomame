@@ -2,7 +2,8 @@ import "server-only";
 
 import { getDeliveryAddressById } from "@/db/queries/delivery-addresses";
 import { listActiveDeliveryZones, type DeliveryZoneRow } from "@/db/queries/delivery-zones";
-import { getOrderGroupById, updatePaidGroupDelivery, type OrderGroupRow } from "@/db/queries/order-groups";
+import { getOrderGroupById, setPaidGroupWindowPref, updatePaidGroupDelivery, type OrderGroupRow } from "@/db/queries/order-groups";
+import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { listOrdersByGroup } from "@/db/queries/orders";
 import { displayPhone, isContactPhone } from "@/features/addresses/phone";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
@@ -22,6 +23,7 @@ import { createClient } from "@/lib/supabase/server";
 import { whatsappMessages } from "@/lib/whatsapp/templates";
 
 import { deliveryLock, type DeliveryLock } from "../delivery-lock";
+import { parseWindowSlots, slotText, type WindowSlot } from "../delivery-windows";
 
 /**
  * A customer changes where a paid checkout is delivered, without messaging
@@ -48,6 +50,15 @@ export interface DeliveryChangeView {
   pickupZones: Array<{ id: string; name: string; note: string | null; sameFee: boolean }>;
   /** Every active door zone, for adding an address. */
   doorZones: DeliveryZoneRow[];
+  /** 125: the windows they may prefer, and the one they chose (a slot key) or null. */
+  windowSlots: WindowSlot[];
+  windowPref: string | null;
+}
+
+/** The admin's slots (125), or the defaults when the setting is missing. Never throws. */
+export async function loadWindowSlots(): Promise<WindowSlot[]> {
+  const settings = await getSiteSettingsMap().catch(() => ({}) as Record<string, unknown>);
+  return parseWindowSlots((settings as Record<string, unknown>).delivery_window_slots);
 }
 
 export type DeliveryChangeInput = { delivery_address_id: string } | { delivery_zone_id: string };
@@ -84,7 +95,7 @@ export async function getDeliveryChangeView(user: PlatformUser, orderId: string,
     throw error;
   }
   if (group.status !== "paid") return null;
-  const [lock, zones, pickupOn] = await Promise.all([lockFor(group, now), listActiveDeliveryZones(), isPickupEnabled()]);
+  const [lock, zones, pickupOn, windowSlots] = await Promise.all([lockFor(group, now), listActiveDeliveryZones(), isPickupEnabled(), loadWindowSlots()]);
   const fee = group.delivery_fee_ghs;
   return {
     orderGroupId: group.id,
@@ -97,7 +108,39 @@ export async function getDeliveryChangeView(user: PlatformUser, orderId: string,
       ? zones.filter((z) => z.kind === "pickup").map((z) => ({ id: z.id, name: z.name, note: z.note, sameFee: sameFee(z.fee_ghs, fee) }))
       : [],
     doorZones: zones.filter((z) => z.kind === "door"),
+    windowSlots,
+    windowPref: group.delivery_window_pref,
   };
+}
+
+/** 125: the customer's preferred delivery window for the checkout, under the same lock as the address. Null clears it. */
+export async function setDeliveryWindowPref(
+  user: PlatformUser,
+  orderId: string,
+  slotKey: string | null,
+  now: Date = new Date(),
+): Promise<{ changed: boolean; windowPref: string | null }> {
+  const group = await ownedGroup(user, orderId);
+  const lock = await lockFor(group, now);
+  if (!lock.editable) throw new APIError(409, lock.reason);
+  const slots = await loadWindowSlots();
+  const slot = slotKey ? slots.find((s) => s.key === slotKey) : null;
+  if (slotKey && !slot) throw new APIError(400, "That delivery window is not offered any more. Pick another.");
+  if (group.delivery_window_pref === slotKey) return { changed: false, windowPref: slotKey };
+
+  const updated = await setPaidGroupWindowPref(group.id, slotKey);
+  if (!updated) throw new APIError(409, "This order can no longer be changed. Refresh the page.");
+  await logAuditEvent({
+    actorId: user.id,
+    actorRole: AUDIT_ACTOR_ROLES.USER,
+    action: "order_group_delivery_window_chosen",
+    entityType: AUDIT_ENTITY_TYPES.ORDER_GROUP,
+    entityId: group.id,
+    metadata: { order_id: orderId, before: group.delivery_window_pref, after: slotKey },
+  });
+  const label = deliverToOf(updated.delivery_address)?.label ?? "your address";
+  await tellCustomer(user.id, orderId, updated, label, lock, now, slot ? slotText(slot) : "no preference");
+  return { changed: true, windowPref: slotKey };
 }
 
 export async function changeOrderDelivery(
@@ -151,7 +194,16 @@ export async function changeOrderDelivery(
   return { changed: true, deliverTo: after };
 }
 
-async function tellCustomer(userId: string, orderId: string, group: OrderGroupRow, label: string, lock: DeliveryLock, now: Date): Promise<void> {
+async function tellCustomer(
+  userId: string,
+  orderId: string,
+  group: OrderGroupRow,
+  label: string,
+  lock: DeliveryLock,
+  now: Date,
+  /** Set when what changed is the preferred window ("Afternoon, 12–3pm"). */
+  windowChange?: string,
+): Promise<void> {
   const orders = (await listOrdersByGroup(createAdminClient(), group.id)).filter((o) => o.status !== "cancelled");
   const first = orders.find((o) => o.id === orderId) ?? orders[0];
   if (!first) return;
@@ -161,17 +213,32 @@ async function tellCustomer(userId: string, orderId: string, group: OrderGroupRo
   await notifyCustomer({
     userId,
     event: DELIVERY_CHANGED_EVENT,
-    payload: { order_ids: orders.map((o) => o.id), order_no: first.order_no, order_count: orders.length, deliver_to: label, until, href: `/app/orders/${first.id}` },
+    payload: {
+      order_ids: orders.map((o) => o.id),
+      order_no: first.order_no,
+      order_count: orders.length,
+      deliver_to: label,
+      window: windowChange ?? null,
+      until,
+      href: `/app/orders/${first.id}`,
+    },
     template: deliveryDetailsChangedTemplate({
       deliverTo: deliverToOf(group.delivery_address),
       phone: phone ? displayPhone(phone) : null,
+      windowPref: windowChange ?? null,
       items: orders.map((o) => ({ orderNo: o.order_no, productName: o.product_name })),
       until,
       journeyUrl: `${env.app.url}/app/orders/${first.id}`,
     }),
     now,
     whatsapp: {
-      message: whatsappMessages.shipmentUpdate({ orderId: first.id, what, update: `Delivery changed to ${label}${phone ? `; our rider will call ${displayPhone(phone)}` : ""}` }),
+      message: whatsappMessages.shipmentUpdate({
+        orderId: first.id,
+        what,
+        update: windowChange
+          ? `Preferred delivery window: ${windowChange}`
+          : `Delivery changed to ${label}${phone ? `; our rider will call ${displayPhone(phone)}` : ""}`,
+      }),
       dedupeKey: `${DELIVERY_CHANGED_EVENT}:${group.id}:${group.updated_at}`,
     },
     source: "delivery-change",

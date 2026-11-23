@@ -39,7 +39,7 @@ import type { PlatformUser } from "@/features/users/types";
 import { mayEmailUser } from "@/lib/email/notify-preference";
 import { sendEmail } from "@/lib/email/transport";
 import { courierHandoffSchema } from "../schema";
-import { dispatchOrderCourier, getCourierForViewer } from "../services/courier.service";
+import { dispatchOrderCourier, getCourierForViewer, handOverToRider } from "../services/courier.service";
 import type { OrderCourier } from "../types";
 
 const admin = { id: "admin-1", app_metadata: { role: "admin" } } as unknown as PlatformUser;
@@ -72,6 +72,7 @@ function stored(overrides: Partial<OrderCourier> = {}): OrderCourier {
     dispatchedAt: "2026-09-30T11:00:00.000Z",
     dispatchedBy: "admin-1",
     lastNotifiedAt: "2026-09-30T11:00:00.000Z",
+    window: null,
     ...overrides,
   };
 }
@@ -88,6 +89,7 @@ beforeEach(() => {
     provider: w.provider,
     dispatchedAt: w.dispatchedAt,
     dispatchedBy: w.dispatchedBy,
+    window: w.window ?? null,
     lastNotifiedAt: null,
   }));
   vi.mocked(insertNotification).mockResolvedValue({ id: "n1" } as never);
@@ -202,6 +204,29 @@ describe("dispatchOrderCourier — re-sending", () => {
     const result = await dispatchOrderCourier(admin, "o1", input, NOW);
     expect(result.action).toBe("order_courier_updated");
     expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("handOverToRider with a delivery window (125)", () => {
+  const actor = { actorId: "w1", actorRole: "warehouse" as const };
+  const window = { start: "2026-09-30T13:00:00.000Z", end: "2026-09-30T15:00:00.000Z" };
+
+  it("stores the window and puts it in the timeline and the email", async () => {
+    await handOverToRider(actor, "o1", input, { window }, NOW);
+    expect(vi.mocked(upsertOrderCourier).mock.calls[0]![0].window).toEqual(window);
+    expect(vi.mocked(recordOrderEvent).mock.calls[0]![0].detail).toMatch(/^Arriving today, 1–3pm · Kofi/);
+    expect(vi.mocked(sendEmail).mock.calls[0]![0].html).toContain("today, 1–3pm");
+  });
+
+  it("is not a double submit when only the window changed", async () => {
+    vi.mocked(getOrderCourier).mockResolvedValue(stored({ lastNotifiedAt: "2026-09-30T11:59:30.000Z" }));
+    const result = await handOverToRider(actor, "o1", input, { window }, NOW);
+    expect(result.action).toBe("order_courier_updated");
+  });
+
+  it("keeps the window on record when the caller gives none", async () => {
+    await handOverToRider(actor, "o1", input, {}, NOW);
+    expect(vi.mocked(upsertOrderCourier).mock.calls[0]![0]).not.toHaveProperty("window");
   });
 });
 

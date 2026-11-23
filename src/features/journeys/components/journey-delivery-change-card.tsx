@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, HouseLine, LockSimple, MapPin, Phone, Plus, Storefront } from "@phosphor-icons/react/ssr";
+import { CheckCircle, Clock, HouseLine, LockSimple, MapPin, Phone, Plus, Storefront } from "@phosphor-icons/react/ssr";
 
 import { AddressFormDialog } from "@/features/addresses/components/address-form-dialog";
 import { addressBlockLines } from "@/features/addresses/format";
@@ -10,6 +10,7 @@ import { useAddresses, useUpdateAddress } from "@/features/addresses/hooks/useAd
 import { displayPhone, isContactPhone } from "@/features/addresses/phone";
 import type { DeliveryAddress } from "@/features/addresses/types";
 import type { DeliveryChangeView } from "@/features/order-delivery/services/delivery-change.service";
+import { slotText } from "@/features/order-delivery/delivery-windows";
 import { apiFetch } from "@/lib/api-client";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
@@ -55,7 +56,7 @@ export function JourneyDeliveryChangeCard({
   const router = useRouter();
   const { data: saved } = useAddresses(addresses, true);
   const updateAddress = useUpdateAddress();
-  const [mode, setMode] = useState<"idle" | "choose" | "phone">("idle");
+  const [mode, setMode] = useState<"idle" | "choose" | "phone" | "window">("idle");
   const [busy, setBusy] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const current = view.current;
@@ -84,6 +85,29 @@ export function JourneyDeliveryChangeCard({
     }
   };
 
+  const chooseWindow = async (slot: string | null) => {
+    setBusy(true);
+    try {
+      const res = await apiFetch<{ data: { changed: boolean } }>(`/api/orders/${orderId}/delivery-window`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slot }),
+      });
+      const chosen = view.windowSlots.find((w) => w.key === slot);
+      toast.success(
+        res.data.changed
+          ? { title: chosen ? "Delivery window noted" : "Window preference cleared", description: chosen ? `${slotText(chosen)}. We confirm the exact 2 hours with the rider's name.` : undefined }
+          : { title: "Nothing to change" },
+      );
+      setMode("idle");
+      router.refresh();
+    } catch (error) {
+      toast.error({ title: "Couldn't save the window", description: error instanceof Error ? error.message : "Try again." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const savePhone = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!currentAddress) return;
@@ -103,6 +127,7 @@ export function JourneyDeliveryChangeCard({
   };
 
   const lock = view.lock;
+  const prefSlot = view.windowSlots.find((w) => w.key === view.windowPref) ?? null;
   const eligible = (a: DeliveryAddress) => !!a.delivery_zone_id && view.doorZoneIds.includes(a.delivery_zone_id);
   const scope = view.itemCount > 1 ? `all ${view.itemCount} items in this checkout` : "this order";
 
@@ -131,6 +156,17 @@ export function JourneyDeliveryChangeCard({
           {current.phone && (
             <p className="text-[13px] leading-[1.45] text-tm-text-2">
               Our rider calls <span className="tm-nums font-semibold text-tm-ink">{displayPhone(current.phone)}</span>
+            </p>
+          )}
+          {current.kind === "door" && (
+            <p className="text-[13px] leading-[1.45] text-tm-text-2" data-testid="delivery-window-pref">
+              {prefSlot ? (
+                <>
+                  Preferred window <span className="font-semibold text-tm-ink">{slotText(prefSlot)}</span>
+                </>
+              ) : (
+                "No preferred delivery window yet"
+              )}
             </p>
           )}
         </div>
@@ -177,6 +213,49 @@ export function JourneyDeliveryChangeCard({
               Change phone number
             </button>
           )}
+          {current.kind === "door" && view.windowSlots.length > 0 && (
+            <button type="button" className={PILL} onClick={() => setMode("window")}>
+              <Clock className="size-4" aria-hidden />
+              {prefSlot ? "Change delivery window" : "Choose a delivery window"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {lock.editable && mode === "window" && (
+        <div className="flex flex-col gap-2.5 rounded-2xl bg-tm-paper p-3.5" data-testid="delivery-window-picker">
+          <p className="text-[13px] leading-[1.45] font-semibold text-tm-ink">When are you usually home?</p>
+          <p className="text-[12px] leading-[1.45] text-tm-text-2">
+            We aim for it. The exact 2-hour window comes with the rider&apos;s name on the day it goes out.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {view.windowSlots.map((slot) => {
+              const selected = slot.key === view.windowPref;
+              return (
+                <button
+                  key={slot.key}
+                  type="button"
+                  aria-pressed={selected}
+                  disabled={busy}
+                  onClick={() => chooseWindow(slot.key)}
+                  className={cn(PILL, selected && "border-2 border-tm-coral bg-[#FFF8F5]")}
+                >
+                  {selected && <CheckCircle weight="fill" className="size-4 text-tm-coral" aria-hidden />}
+                  {slotText(slot)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {view.windowPref && (
+              <button type="button" disabled={busy} className={PILL} onClick={() => chooseWindow(null)}>
+                Any time is fine
+              </button>
+            )}
+            <button type="button" disabled={busy} className={PILL} onClick={() => setMode("idle")}>
+              Keep it
+            </button>
+          </div>
         </div>
       )}
 

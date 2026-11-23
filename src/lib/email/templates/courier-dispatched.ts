@@ -30,6 +30,8 @@ export interface CourierDispatchedEmailData {
   providerName: string | null;
   /** True when this corrects an earlier message (a new link, a different rider). */
   isUpdate: boolean;
+  /** 125: the delivery window, already worded ("today, 1–3pm"), or null. */
+  windowText?: string | null;
 }
 
 export function courierDispatchedTemplate(data: CourierDispatchedEmailData) {
@@ -60,7 +62,7 @@ export function courierDispatchedTemplate(data: CourierDispatchedEmailData) {
     body: `
       ${eyebrow(data.isUpdate ? "Rider details updated" : "Out for delivery", "green")}
       ${heading("Your package is on its way to you")}
-      ${paragraph(`${who} has your package${via} and is heading to you now.${data.isUpdate ? " These details replace the ones we sent before." : ""}`)}
+      ${paragraph(`${who} has your package${via} and is heading to you${data.windowText ? `, arriving <strong>${escapeHtml(data.windowText)}</strong>` : " now"}.${data.isUpdate ? " These details replace the ones we sent before." : ""}`)}
       ${callLine}
       ${cta}
       ${summaryCard({
@@ -68,6 +70,7 @@ export function courierDispatchedTemplate(data: CourierDispatchedEmailData) {
         title: product,
         rows: [
           ["Order", escapeHtml(data.orderNo)],
+          data.windowText ? ["Arriving", escapeHtml(data.windowText)] : null,
           data.quantity > 1 ? ["Quantity", String(data.quantity)] : null,
           rider ? ["Rider", rider] : null,
           data.phoneDisplay ? ["Rider's phone", escapeHtml(data.phoneDisplay)] : null,

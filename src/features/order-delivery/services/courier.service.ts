@@ -1,5 +1,6 @@
 import "server-only";
 
+import { windowText } from "../delivery-windows";
 import {
   getCourierOrder,
   getOrderCourier,
@@ -74,6 +75,8 @@ export interface HandOverOptions {
   packageId?: string | null;
   /** false when the caller tells this customer once for several orders. */
   notify?: boolean;
+  /** 125: the delivery window given to the customer. Absent keeps the one on record. */
+  window?: { start: string; end: string } | null;
 }
 
 /**
@@ -98,7 +101,8 @@ export async function handOverToRider(
   }
 
   const previous = await getOrderCourier(orderId);
-  if (previous && sameDetails(previous, input) && previous.lastNotifiedAt) {
+  const sameWindow = opts.window === undefined || JSON.stringify(previous?.window ?? null) === JSON.stringify(opts.window ?? null);
+  if (previous && sameDetails(previous, input) && sameWindow && previous.lastNotifiedAt) {
     const age = now.getTime() - Date.parse(previous.lastNotifiedAt);
     if (age >= 0 && age < DUPLICATE_WINDOW_MS) {
       return { courier: previous, action: "duplicate", notification: "skipped" };
@@ -120,6 +124,7 @@ export async function handOverToRider(
     dispatchedAt: previous?.dispatchedAt ?? nowIso,
     dispatchedBy: actor.actorId,
     arrangedBy: opts.arrangedBy ?? "tomame",
+    ...(opts.window !== undefined && { window: opts.window }),
   });
 
   await logAuditEvent({
@@ -151,7 +156,7 @@ export async function handOverToRider(
     order_group_id: order.order_group_id,
     kind: "out_for_delivery",
     title: opts.title ?? (previous ? "Rider details updated" : "A rider has your package"),
-    detail: describeCourier(input),
+    detail: [saved.window ? `Arriving ${windowText(saved.window.start, saved.window.end, now)}` : null, describeCourier(input)].filter(Boolean).join(" · "),
     occurred_at: nowIso,
     created_by: actor.actorId,
     package_id: opts.packageId ?? null,
@@ -258,6 +263,7 @@ async function notifyCourierDispatched(
           trackingUrl: courier.trackingUrl,
           providerName,
           isUpdate,
+          windowText: courier.window ? windowText(courier.window.start, courier.window.end, now) : null,
         });
         try {
           await sendEmail({ to: email, subject: template.subject, html: template.html, text: template.text });

@@ -61,7 +61,7 @@ const bag = (over: Partial<BagView> = {}): BagView => ({
 const group = (over: Partial<groups.OrderGroupRow> = {}): groups.OrderGroupRow => ({
   id: "g1", user_id: "u1", payment_id: null, delivery_address_id: "a1", delivery_zone_id: "z1", delivery_address: null, item_count: 2,
   subtotal_usd: 15, tax_usd: 2, fee_usd: 1, store_shipping_usd: 0, freight_ghs: 40, consolidation_saving_ghs: 10, delivery_fee_ghs: 20, total_ghs: 160, total_pesewas: 16000,
-  status: "pending", created_at: "", updated_at: "", ...over,
+  status: "pending", delivery_window_pref: null, created_at: "", updated_at: "", ...over,
 });
 
 beforeEach(() => {

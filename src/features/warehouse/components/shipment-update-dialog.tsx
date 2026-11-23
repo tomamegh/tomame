@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BellIcon, BikeIcon, ClockAlertIcon, PhoneIcon, RouteIcon } from "lucide-react";
+import { BellIcon, BikeIcon, ClockAlertIcon, ClockIcon, PhoneIcon, RouteIcon } from "lucide-react";
 
 import { AdminButton } from "@/components/layout/admin/controls";
 import {
@@ -47,6 +47,15 @@ interface MoveResult {
   failed: Array<{ order_no: string; reason: string }>;
 }
 
+/** 125: start times for the 2-hour window staff give with the rider (Accra = UTC). */
+const WINDOW_STARTS = Array.from({ length: 21 }, (_, i) => `${String(8 + Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
+const WINDOW_HOURS = 2;
+
+function plusHours(hhmm: string, hours: number): string {
+  const [h, m] = hhmm.split(":").map(Number) as [number, number];
+  return `${String(h + hours).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 const FIELD =
   "h-10 w-full rounded-[12px] border border-tm-border bg-card px-3 text-[13.5px] font-medium text-tm-ink outline-none placeholder:text-tm-text-3 focus:border-tm-coral/60";
 
@@ -83,6 +92,9 @@ export function ShipmentUpdateDialog({
   const [riderKind, setRiderKind] = useState<"driver" | "other">("driver");
   const [notify, setNotify] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [windowDay, setWindowDay] = useState("");
+  const [windowFrom, setWindowFrom] = useState("");
+  const [prefs, setPrefs] = useState<Array<{ order_no: string; preference: string | null }> | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -98,10 +110,34 @@ export function ShipmentUpdateDialog({
     setDriverId("");
     setRiderKind(drivers.length > 0 ? "driver" : "other");
     setNotify(true);
+    setWindowDay(new Date().toISOString().slice(0, 10));
+    setWindowFrom("");
+    setPrefs(null);
   }, [open, suggestedStage, drivers.length]);
 
   const setting = mode === "move" ? settings[stage] : null;
   const riderStep = mode === "move" && stage === "out_for_delivery";
+
+  // 125: what the customers asked for, so the window given matches it.
+  const targetKey = `${targets.package_ids.join(",")}|${targets.order_ids.join(",")}`;
+  useEffect(() => {
+    if (!open || !riderStep) return;
+    let live = true;
+    warehouseRequest<Array<{ order_no: string; preference: string | null }>>("/api/warehouse/shipments/window-prefs", "POST", {
+      package_ids: targets.package_ids,
+      order_ids: targets.order_ids,
+    })
+      .then((rows) => {
+        if (live) setPrefs(rows);
+      })
+      .catch(() => {
+        if (live) setPrefs([]);
+      });
+    return () => {
+      live = false;
+    };
+    // targetKey stands for the two id lists, which are rebuilt on every render.
+  }, [open, riderStep, targetKey]);
   const fallbackContact = setting?.contact_phone
     ? `${setting.contact_name ? `${setting.contact_name} · ` : ""}${setting.contact_phone}`
     : null;
@@ -133,6 +169,10 @@ export function ShipmentUpdateDialog({
                 ? { courier_name: contactName, courier_phone: contactPhone, tracking_url: rideLink }
                 : null,
               driver_id: useDriver ? driverId : null,
+              window:
+                (useDriver || withRider) && windowDay && windowFrom
+                  ? { start: `${windowDay}T${windowFrom}:00Z`, end: `${windowDay}T${plusHours(windowFrom, WINDOW_HOURS)}:00Z` }
+                  : null,
             })
           : await warehouseRequest<MoveResult>("/api/warehouse/shipments/notice", "POST", {
               ...common,
@@ -344,6 +384,34 @@ export function ShipmentUpdateDialog({
                   : fallbackContact
                     ? `Leave blank to use this step's usual contact: ${fallbackContact}.`
                     : "Leave blank and customers are offered Tomame's WhatsApp."}
+              </span>
+            </div>
+          )}
+
+          {riderStep && (
+            <div className="flex flex-col gap-2 rounded-[16px] bg-tm-paper p-3" data-testid="dispatch-window">
+              <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-tm-ink">
+                <ClockIcon className="size-3.5" aria-hidden />
+                Arrives between (Accra time)
+              </span>
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">
+                <input type="date" value={windowDay} onChange={(e) => setWindowDay(e.target.value)} className={FIELD} aria-label="Delivery day" />
+                <select value={windowFrom} onChange={(e) => setWindowFrom(e.target.value)} className={FIELD} aria-label="Window start">
+                  <option value="">No window</option>
+                  {WINDOW_STARTS.map((t) => (
+                    <option key={t} value={t}>
+                      {t} – {plusHours(t, WINDOW_HOURS)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <span className="text-[12px] font-medium text-tm-text-3">
+                {prefs === null
+                  ? "Checking what customers asked for…"
+                  : prefs.some((p) => p.preference)
+                    ? `Asked for: ${prefs.map((p) => `${p.order_no} ${p.preference ?? "any time"}`).join(" · ")}`
+                    : "No customer here chose a window."}
+                {" "}Customers see the window with the rider&apos;s name.
               </span>
             </div>
           )}

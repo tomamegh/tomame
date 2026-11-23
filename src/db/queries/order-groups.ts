@@ -26,11 +26,13 @@ export interface OrderGroupRow {
   /** What Paystack is asked for: `round(total_ghs × 100)`. */
   total_pesewas: number;
   status: OrderGroupStatus;
+  /** 125: the preferred delivery window's slot key, or null. */
+  delivery_window_pref: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export type OrderGroupInsert = Omit<OrderGroupRow, "id" | "payment_id" | "created_at" | "updated_at">;
+export type OrderGroupInsert = Omit<OrderGroupRow, "id" | "payment_id" | "created_at" | "updated_at" | "delivery_window_pref">;
 
 /** The money columns checkout may correct once the orders exist (see checkout.service.ts). */
 export type OrderGroupMoneyPatch = Partial<
@@ -38,7 +40,7 @@ export type OrderGroupMoneyPatch = Partial<
 >;
 
 const COLUMNS =
-  "id, user_id, payment_id, delivery_address_id, delivery_zone_id, delivery_address, item_count, subtotal_usd, tax_usd, fee_usd, store_shipping_usd, freight_ghs, consolidation_saving_ghs, delivery_fee_ghs, total_ghs, total_pesewas, status, created_at, updated_at";
+  "id, user_id, payment_id, delivery_address_id, delivery_zone_id, delivery_address, item_count, subtotal_usd, tax_usd, fee_usd, store_shipping_usd, freight_ghs, consolidation_saving_ghs, delivery_fee_ghs, total_ghs, total_pesewas, status, delivery_window_pref, created_at, updated_at";
 
 // ── Queries (service role — every write is the server's) ────────────────────
 
@@ -141,6 +143,7 @@ function normalizeRow(row: Record<string, unknown>): OrderGroupRow {
     total_ghs: Number(row.total_ghs),
     total_pesewas: Number(row.total_pesewas),
     status: row.status as OrderGroupStatus,
+    delivery_window_pref: (row.delivery_window_pref as string | null) ?? null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
@@ -161,4 +164,27 @@ export async function updatePaidGroupDelivery(
     .maybeSingle();
   if (error) throw new Error(`Failed to change the delivery: ${error.message}`);
   return data ? normalizeRow(data) : null;
+}
+
+/** 125: the customer's preferred delivery window for a paid checkout. Null clears it. */
+export async function setPaidGroupWindowPref(id: string, slotKey: string | null): Promise<OrderGroupRow | null> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("order_groups")
+    .update({ delivery_window_pref: slotKey, delivery_window_pref_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("status", "paid")
+    .select(COLUMNS)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to save the delivery window: ${error.message}`);
+  return data ? normalizeRow(data) : null;
+}
+
+/** 125: the preferred window of each group, for staff at dispatch. */
+export async function listGroupWindowPrefs(ids: readonly string[]): Promise<Map<string, string | null>> {
+  const wanted = [...new Set(ids.filter(Boolean))];
+  if (wanted.length === 0) return new Map();
+  const { data, error } = await createAdminClient().from("order_groups").select("id, delivery_window_pref").in("id", wanted);
+  if (error) throw new Error(`Failed to load delivery windows: ${error.message}`);
+  return new Map(((data ?? []) as Array<{ id: string; delivery_window_pref: string | null }>).map((r) => [r.id, r.delivery_window_pref]));
 }

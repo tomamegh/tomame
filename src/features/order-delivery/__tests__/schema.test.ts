@@ -156,6 +156,7 @@ describe("courierHint", () => {
     dispatchedAt: "2026-09-30T10:00:00Z",
     dispatchedBy: "a1",
     lastNotifiedAt: "2026-09-30T10:00:00Z",
+    window: null,
   };
 
   it("shows only while in transit", () => {

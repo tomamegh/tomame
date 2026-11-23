@@ -17,6 +17,8 @@ export interface OrderCourier {
   /** The admin who last saved and sent it. */
   dispatchedBy: string | null;
   lastNotifiedAt: string | null;
+  /** 125: the delivery window staff gave the customer, when they gave one. */
+  window: { start: string; end: string } | null;
 }
 
 /** What the admin card shows under "Last sent". */
