@@ -118,7 +118,7 @@ export type WorkedExampleRowKey =
   | "item"
   | "tax"
   | "fee"
-  | "freight"
+  | "freight" | "handling"
   | "customs"
   | "exchange_rate";
 

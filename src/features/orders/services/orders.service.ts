@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { handlingGhsOf } from "@/lib/pricing/handling";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { buildOrderIntake } from "./order-intake.service";
 import { allowedTransitionsFrom } from "./order-transitions";
@@ -243,6 +244,7 @@ export function emailPricing(p: Order["pricing"] | null | undefined): PricingBre
     valueFeeUsd: p.value_fee_usd,
     storeShippingUsd: p.store_shipping_usd ?? 0,
     flatRateGhs: p.flat_rate_ghs,
+    handlingGhs: handlingGhsOf(p),
     exchangeRate: p.exchange_rate,
     totalGhs: p.total_ghs,
   };

@@ -8,6 +8,7 @@ import {
   ChatCircleDots,
   DeviceMobile,
   Eye,
+  HandCoins,
   HandHeart,
   HouseLine,
   Lightning,
@@ -65,6 +66,7 @@ export const RECEIPT_ROW_ICONS: Record<WorkedExampleRowKey, Icon> = {
   tax: Bank,
   fee: HandHeart,
   freight: AirplaneTilt,
+  handling: HandCoins,
   customs: ShieldCheck,
   exchange_rate: ArrowsLeftRight,
 };

@@ -93,7 +93,7 @@ describe("hero example: Oraimo BoomPop N, $49.99 at $1 = GH₵12.25", () => {
     expect((await priceHero(0.9)).total_ghs).toBe(801.03);
   });
 
-  it("renders the 1 lb freight as GH₵110.25 ($9) and prints customs at zero without moving the total", async () => {
+  it("renders the 1 lb freight as GH₵73.50 ($6) plus a GH₵36.75 ($3) handling line, customs at zero, without moving the total (Fix 7)", async () => {
     const breakdown = await priceHero(0.6);
     const example = buildWorkedExample(
       { ...DEFAULT_WORKED_EXAMPLE_INPUT, item_price_usd: 49.99, weight_lbs: 0.6, price_presets_usd: [49.99] },
@@ -102,7 +102,11 @@ describe("hero example: Oraimo BoomPop N, $49.99 at $1 = GH₵12.25", () => {
     expect(example.total_ghs_display).toBe("GH₵801.03");
     expect(example.rows.find((r) => r.key === "tax")).toMatchObject({ value: "$4.40" });
     expect(example.rows.find((r) => r.key === "tax")?.label).toContain("8.8%");
-    expect(example.rows.find((r) => r.key === "freight")?.value).toContain("GH₵110.25");
+    expect(example.rows.find((r) => r.key === "freight")?.value).toBe("GH₵73.50 (≈ $6.00)");
+    expect(example.rows.find((r) => r.key === "handling")).toMatchObject({ label: "Handling fee", value: "GH₵36.75 (≈ $3.00)" });
+    // The brief's acceptance test: the lines add up to the total.
+    const usdLines = breakdown.subtotal_usd + breakdown.tax_usd + breakdown.value_fee_usd;
+    expect(Math.round((usdLines * breakdown.exchange_rate + 73.5 + 36.75) * 100) / 100).toBe(breakdown.total_ghs);
     const byKey = Object.fromEntries(example.rows.map((row) => [row.key, row]));
     expect(byKey.fee?.label).toBe("Tomame fee – 4% flat");
     expect(byKey.freight?.label).toContain("Freight, incl. customs & clearance");

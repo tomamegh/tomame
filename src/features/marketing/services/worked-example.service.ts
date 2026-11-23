@@ -3,7 +3,8 @@ import "server-only";
 import { calculatePricing } from "@/features/pricing/services/pricing.service";
 import type { PricingBreakdown } from "@/lib/pricing";
 import { taxRowLabel } from "@/lib/pricing/tax-label";
-import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, feeRowLabel } from "@/config/price-story";
+import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, HANDLING_ROW_LABEL, feeRowLabel } from "@/config/price-story";
+import { freightExHandlingGhs, handlingGhsOf } from "@/lib/pricing/handling";
 import { getSiteSettingsMap } from "@/db/queries/site-settings";
 import { logger } from "@/lib/logger";
 import { workedExampleInputSchema } from "../schema";
@@ -98,11 +99,16 @@ export function buildWorkedExample(
   // Freight is a GHS charge added after conversion (calculator.ts). Weight-based
   // groups also report the pre-conversion USD; flat/fixed groups do not, so we
   // derive the USD echo from the applied rate.
+  // Fix 7: the handling fee is its own row; freight here is without it.
+  const handlingGhs = handlingGhsOf(breakdown);
+  const handlingUsd = handlingGhs > 0 ? (breakdown.handling_fee_usd ?? handlingGhs / breakdown.exchange_rate) : 0;
+  const freightGhs = freightExHandlingGhs(breakdown);
   const freightUsd =
-    breakdown.freight_usd ??
-    (breakdown.exchange_rate > 0
-      ? breakdown.flat_rate_ghs / breakdown.exchange_rate
-      : 0);
+    breakdown.freight_usd != null
+      ? breakdown.freight_usd - handlingUsd
+      : breakdown.exchange_rate > 0
+        ? freightGhs / breakdown.exchange_rate
+        : 0;
 
   // Everything charged in USD, converted: total minus the GHS-side freight.
   const usdComponentGhs = breakdown.total_ghs - breakdown.flat_rate_ghs;
@@ -132,10 +138,21 @@ export function buildWorkedExample(
     {
       key: "freight",
       label: freightLabel(input, breakdown),
-      value: `${formatGhs(breakdown.flat_rate_ghs)} (≈ ${formatUsd(freightUsd)})`,
+      value: `${formatGhs(freightGhs)} (≈ ${formatUsd(freightUsd)})`,
       bar_pct: toBarPct(freightUsd, subtotalUsd),
       tone: "muted",
     },
+    ...(handlingGhs > 0
+      ? [
+          {
+            key: "handling" as const,
+            label: HANDLING_ROW_LABEL,
+            value: `${formatGhs(handlingGhs)} (≈ ${formatUsd(handlingUsd)})`,
+            bar_pct: toBarPct(handlingUsd, subtotalUsd),
+            tone: "muted" as const,
+          },
+        ]
+      : []),
     {
       // Display only: customs is inside the freight above, and adds nothing.
       key: "customs",

@@ -182,6 +182,8 @@ export interface BagView {
   /** Σ the stores' own shipping to our warehouse (USD), already inside each line's total. */
   store_shipping_usd: number;
   freight_ghs: number;
+  /** Fix 7: the part of `freight_ghs` that is the handling fee ($3 per weight-priced line), shown as its own row. */
+  handling_ghs?: number;
   /** Σ chargeable weight over the boxes, for "1 box, 5.4 lb". */
   boxed_weight_lbs: number;
   total_ghs: number;

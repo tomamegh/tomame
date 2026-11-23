@@ -1,6 +1,6 @@
 import { formatGhs, formatUsd } from "@/features/marketing/format";
 import { taxGroupRowLabel, type TaxFacts } from "@/lib/pricing/tax-label";
-import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, feeRowLabel } from "@/config/price-story";
+import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, HANDLING_ROW_LABEL, feeRowLabel } from "@/config/price-story";
 import type { BagBox, BagLine, BagLinePending, BagView } from "../types";
 
 /** "Fri 12 Sep" — the box's departure day. Null when the region has no schedule. */
@@ -140,7 +140,10 @@ export function buildBagSummaryRows(view: BagView): BagSummaryRow[] {
   }
   const boxes = view.boxes.length;
   const freightLabel = boxes > 0 ? `${FREIGHT_ROW_LABEL} · ${boxes} box${boxes === 1 ? "" : "es"}, ${formatLbs(view.boxed_weight_lbs)}` : FREIGHT_ROW_LABEL;
-  rows.push({ key: "freight", label: freightLabel, value: formatGhs(view.freight_ghs) });
+  // Fix 7: the handling fee is its own row, taken out of freight; the total is unchanged.
+  const handling = view.handling_ghs ?? 0;
+  rows.push({ key: "freight", label: freightLabel, value: formatGhs(Math.round((view.freight_ghs - handling) * 100) / 100) });
+  if (handling > 0) rows.push({ key: "handling", label: HANDLING_ROW_LABEL, value: formatGhs(handling) });
   // Display only: customs sits inside the freight above.
   rows.push({ key: "customs", label: CUSTOMS_ROW_LABEL, value: CUSTOMS_ROW_VALUE, tone: "muted" });
   if (view.consolidation_saving_ghs > 0) {

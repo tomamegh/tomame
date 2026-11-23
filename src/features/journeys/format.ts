@@ -5,7 +5,8 @@ import type {
 import type { OrderPhotoKind } from "@/db/queries/order-photos";
 import { formatGhs, formatUsd } from "@/features/marketing/format";
 import { taxRowLabel } from "@/lib/pricing/tax-label";
-import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, feeRowLabel } from "@/config/price-story";
+import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, HANDLING_ROW_LABEL, feeRowLabel } from "@/config/price-story";
+import { freightExHandlingGhs, handlingGhsOf } from "@/lib/pricing/handling";
 import type { OrderPricingBreakdown } from "@/features/orders/types";
 import type { JourneyCtaKind, JourneyEta } from "./types";
 
@@ -204,11 +205,14 @@ export function paidRows(pricing: OrderPricingBreakdown): PaidRow[] {
   }
 
   if (pricing.flat_rate_ghs > 0) {
+    // Fix 7: the handling fee is its own line, taken out of freight; the total is unchanged.
     rows.push({
       key: "freight",
       label: FREIGHT_ROW_LABEL,
-      value: formatGhs(pricing.flat_rate_ghs),
+      value: formatGhs(freightExHandlingGhs(pricing)),
     });
+    const handling = handlingGhsOf(pricing);
+    if (handling > 0) rows.push({ key: "handling", label: HANDLING_ROW_LABEL, value: formatGhs(handling) });
   }
 
   // Display only, on every receipt even at zero: customs sits inside freight.

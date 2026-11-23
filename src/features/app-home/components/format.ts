@@ -12,7 +12,8 @@
  */
 
 import { taxRowLabel } from "@/lib/pricing/tax-label";
-import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, feeRowLabel } from "@/config/price-story";
+import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, HANDLING_ROW_LABEL, feeRowLabel } from "@/config/price-story";
+import { freightExHandlingGhs, handlingGhsOf } from "@/lib/pricing/handling";
 import type { PricingBreakdown } from "@/lib/pricing";
 import { formatRatePill } from "@/components/layout/app/links";
 import {
@@ -175,7 +176,7 @@ export function safeImageSrc(url: string | null): string | null {
 
 // ── Receipt ──────────────────────────────────────────────────────────────────
 
-export type ReceiptRowIcon = "item" | "tax" | "fee" | "shipping" | "freight" | "customs" | "rate";
+export type ReceiptRowIcon = "item" | "tax" | "fee" | "shipping" | "freight" | "handling" | "customs" | "rate";
 
 export interface ReceiptRow {
   key: ReceiptRowIcon;
@@ -256,12 +257,15 @@ export function buildReceiptRows(pricing: PricingBreakdown): ReceiptRow[] {
     // Freight is 0 only because no rule priced it; "GH₵0.00" would read as free.
     rows.push({ key: "freight", icon: "freight", label: FREIGHT_ROW_LABEL, value: "To confirm" });
   } else if (Number.isFinite(pricing.flat_rate_ghs)) {
+    // Fix 7: the handling fee is its own line, taken out of freight; the total is unchanged.
     rows.push({
       key: "freight",
       icon: "freight",
       label: FREIGHT_ROW_LABEL,
-      value: formatGhs(pricing.flat_rate_ghs),
+      value: formatGhs(freightExHandlingGhs(pricing)),
     });
+    const handling = handlingGhsOf(pricing);
+    if (handling > 0) rows.push({ key: "handling", icon: "handling", label: HANDLING_ROW_LABEL, value: formatGhs(handling) });
   }
   // Display only, on every breakdown: customs sits inside the freight above.
   rows.push({ key: "customs", icon: "customs", label: CUSTOMS_ROW_LABEL, value: CUSTOMS_ROW_VALUE });

@@ -136,6 +136,12 @@ export interface PricingBreakdown {
   freight_usd?: number;
   freight_rate_per_lb?: number;
   handling_fee_usd?: number;
+  /**
+   * Fix 7: the handling fee at `exchange_rate`, the part of `flat_rate_ghs`
+   * every breakdown shows as its own "Handling fee" line. Weight-based groups
+   * only; read it through `handlingGhsOf` (lib/pricing/handling.ts).
+   */
+  handling_ghs?: number;
   weight_lbs?: number;
   weight_source?: "listed" | "estimated" | "default" | "minimum";
   /** The store's shipping service the line is priced with, when one was chosen or named. */
@@ -362,6 +368,11 @@ export class PricingCalculator {
    * are on the subtotal only, and store_shipping_usd = the store's per-unit
    * shipping (converted like the item price) × quantity.
    *
+   * For a weight-based group, freight_ghs = (chargeable lb × $/lb + handling_fee_usd)
+   * × exchange_rate: the handling fee is once per product line, and every
+   * customer breakdown shows it as its own "Handling fee" line (handling_ghs,
+   * site brief Fix 7). Flat-rate and fixed-freight groups carry no handling fee.
+   *
    * `fx` is required on purpose: pass `null` to price at today's live rate, or
    * a lock's frozen pair to price at the rate the customer was promised. Making
    * callers say which one they mean is what stops a lock being silently
@@ -532,7 +543,7 @@ export class PricingCalculator {
         valueFeePct,
         freightUsd * fxRate,
         `${weight} lb${sourceNote}${qtyNote} × $${ratePerLb}/lb + $${handlingUsd} handling = $${freightUsd.toFixed(2)}`,
-        { weight_lbs: weight, weight_source: weightSource, freight_usd: freightUsd, freight_rate_per_lb: ratePerLb, handling_fee_usd: handlingUsd },
+        { weight_lbs: weight, weight_source: weightSource, freight_usd: freightUsd, freight_rate_per_lb: ratePerLb, handling_fee_usd: handlingUsd, handling_ghs: r2(handlingUsd * fxRate) },
       );
     }
 

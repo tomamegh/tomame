@@ -78,13 +78,14 @@ export default async function AdminSettingsPage() {
             The formula
           </h2>
           <p className="tm-nums text-[14px] leading-[1.6] font-semibold text-tm-ink">
-            (item + tax + item × fee + store shipping) × exchange rate + freight
+            (item + tax + item × fee + store shipping) × exchange rate + freight + handling fee
           </p>
           <p className="max-w-[72ch] text-[13px] leading-[1.55] font-medium text-tm-text-2">
             Freight is charged per item and takes one of four shapes: a group&rsquo;s flat cedi
             rate, a pre-negotiated rate for a recognised product, a weight expression built from
             the constants below, or nothing at all, in which case the product is sent to a human
-            instead of being priced.
+            instead of being priced. The handling fee is charged once per product line on
+            weight-priced items only, and every customer breakdown shows it as its own line.
           </p>
         </div>
       </AdminCard>

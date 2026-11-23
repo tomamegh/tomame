@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { handlingGhsOf } from "@/lib/pricing/handling";
 import { logger } from "@/lib/logger";
 import { REGION_TO_PRICING } from "@/features/extraction/url";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
@@ -113,6 +114,7 @@ async function sendReviewEmail(
                     valueFeeUsd: p.value_fee_usd,
                     storeShippingUsd: p.store_shipping_usd ?? 0,
                     flatRateGhs: p.flat_rate_ghs,
+                    handlingGhs: handlingGhsOf(p),
                     exchangeRate: p.exchange_rate,
                     totalGhs: p.total_ghs,
                   }

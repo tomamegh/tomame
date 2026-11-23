@@ -19,6 +19,12 @@ export const FREIGHT_LABEL = "Freight, incl. customs & clearance – no extra ch
 /** The freight row label in a breakdown. Never bare "Freight". */
 export const FREIGHT_ROW_LABEL = "Freight, incl. customs & clearance";
 
+/**
+ * Fix 7: the handling fee's own row, beside freight. Charged once per product
+ * line on weight-priced items (pricing_constants.handling_fee_usd).
+ */
+export const HANDLING_ROW_LABEL = "Handling fee";
+
 /** The rest of `FREIGHT_LABEL`, for a breakdown that draws a sub-line. */
 export const FREIGHT_ROW_SUBLINE = "no extra charge on delivery";
 

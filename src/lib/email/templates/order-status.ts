@@ -13,7 +13,7 @@ import {
   link,
 } from "./layout";
 import { taxRowLabel } from "@/lib/pricing/tax-label";
-import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, feeRowLabel } from "@/config/price-story";
+import { CUSTOMS_ROW_LABEL, CUSTOMS_ROW_VALUE, FREIGHT_ROW_LABEL, HANDLING_ROW_LABEL, feeRowLabel } from "@/config/price-story";
 import { CUSTOMER_STAGE_NAMES } from "@/config/tracking-copy";
 
 interface OrderEmailData {
@@ -48,6 +48,8 @@ export interface PricingBreakdownData {
   /** The store's own shipping to our warehouse, line total. Absent/0 hides the row. */
   storeShippingUsd?: number;
   flatRateGhs: number;
+  /** Fix 7: the part of `flatRateGhs` that is the handling fee, printed as its own row. Absent/0 hides it. */
+  handlingGhs?: number;
   exchangeRate: number;
   totalGhs: number;
 }
@@ -125,7 +127,8 @@ export function breakdownRows(p: PricingBreakdownData): SummaryRows {
     ],
     [escapeHtml(feeRowLabel(p.valueFeePercentage)), usd(p.valueFeeUsd)],
     p.storeShippingUsd ? ["Store shipping", usd(p.storeShippingUsd)] : null,
-    [escapeHtml(FREIGHT_ROW_LABEL), ghs(p.flatRateGhs)],
+    [escapeHtml(FREIGHT_ROW_LABEL), ghs(Math.round((p.flatRateGhs - (p.handlingGhs ?? 0)) * 100) / 100)],
+    p.handlingGhs ? [escapeHtml(HANDLING_ROW_LABEL), ghs(p.handlingGhs)] : null,
     CUSTOMS_ROW,
     ["Rate", `1 USD = ${p.exchangeRate} GHS`],
   ];

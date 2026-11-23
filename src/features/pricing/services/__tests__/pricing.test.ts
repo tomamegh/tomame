@@ -753,6 +753,8 @@ describe("PricingCalculator without usable constants", () => {
       flat_rate_ghs: 313.63, total_ghs: 7872.51, total_pesewas: 787251, total_usd: 495.75,
       fee_calculation_note: "1.5 lb (minimum) × 2 × $5.5/lb + $3.25 handling = $19.75",
       weight_lbs: 1.5, weight_source: "minimum", freight_usd: 19.75, freight_rate_per_lb: 5.5, handling_fee_usd: 3.25,
+      // Fix 7: the handling fee at the applied rate, shown as its own line; the total is unchanged.
+      handling_ghs: 51.61,
     });
   });
 });

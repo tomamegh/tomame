@@ -28,6 +28,7 @@ import { listActiveDeliveryZones, type DeliveryZoneRow } from "@/db/queries/deli
 import type { DeliveryAddress } from "@/features/addresses/types";
 import { packLines, type BoxConstants, type PackedBox } from "./box-packing";
 import { quoteExpired } from "../quote-clock";
+import { handlingGhsOf } from "@/lib/pricing/handling";
 import { listNextDepartures, type FlightDepartureRow } from "@/db/queries/flight-departures";
 import type { ExtractionResult } from "@/features/extraction/types";
 import type { Viewer } from "@/features/quotes/types";
@@ -1006,6 +1007,8 @@ export function summarize(cartId: string | null, lines: BagLine[], packed: Packe
     fee_usd: sum((p) => p.value_fee_usd),
     store_shipping_usd: sum((p) => p.store_shipping_usd ?? 0),
     freight_ghs: sum((p) => p.flat_rate_ghs),
+    // Fix 7: the handling fee inside freight_ghs, shown as its own row.
+    handling_ghs: sum((p) => handlingGhsOf(p)),
     boxed_weight_lbs: r2(packed.boxes.reduce((acc, b) => acc + b.weight_lbs, 0)),
     total_ghs: totalGhs,
     total_usd: totalUsd,
