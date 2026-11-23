@@ -72,18 +72,25 @@ export interface CspOptions {
   isProd: boolean;
   /** Allow the Meta Pixel's hosts (see above). Off unless the pixel id is configured. */
   metaPixel?: boolean;
+  /**
+   * Allow Google's own sign-in button (Google Identity Services): its script,
+   * stylesheet, the button iframe and its calls, all under accounts.google.com/gsi/.
+   * Off unless `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is set (2026-11-23).
+   */
+  googleSignIn?: boolean;
 }
 
-export function buildCsp({ supabaseOrigin, isProd, metaPixel = false }: CspOptions): string {
-  const pixelScript = metaPixel ? " https://connect.facebook.net" : "";
-  const pixelConnect = metaPixel ? " https://www.facebook.com https://connect.facebook.net" : "";
+export function buildCsp({ supabaseOrigin, isProd, metaPixel = false, googleSignIn = false }: CspOptions): string {
+  const gsi = "https://accounts.google.com/gsi/";
+  const pixelScript = (metaPixel ? " https://connect.facebook.net" : "") + (googleSignIn ? ` ${gsi}client` : "");
+  const pixelConnect = (metaPixel ? " https://www.facebook.com https://connect.facebook.net" : "") + (googleSignIn ? ` ${gsi}` : "");
   const scriptSrc = isProd
     ? `script-src 'self' 'unsafe-inline'${pixelScript}`
     : `script-src 'self' 'unsafe-inline' 'unsafe-eval'${pixelScript}`;
   const directives = [
     `default-src 'self'`,
     scriptSrc,
-    `style-src 'self' 'unsafe-inline'`,
+    `style-src 'self' 'unsafe-inline'${googleSignIn ? ` ${gsi}style` : ""}`,
     `img-src 'self' data: blob: https:`,
     `font-src 'self' data:`,
     `connect-src 'self' ${supabaseOrigin}${pixelConnect}`,
@@ -95,7 +102,7 @@ export function buildCsp({ supabaseOrigin, isProd, metaPixel = false }: CspOptio
     // `'strict-dynamic'` is refused outright.
     `manifest-src 'self'`,
     `worker-src 'self'`,
-    `frame-src 'none'`,
+    googleSignIn ? `frame-src ${gsi}` : `frame-src 'none'`,
     `frame-ancestors 'none'`,
     `object-src 'none'`,
     `base-uri 'self'`,

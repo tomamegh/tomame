@@ -61,4 +61,15 @@ describe("buildCsp", () => {
       "connect-src 'self' https://project.supabase.co https://www.facebook.com https://connect.facebook.net",
     );
   });
+
+  it("admits Google's own sign-in button only when it is configured, and nothing else from Google", () => {
+    const off = buildCsp({ ...base, isProd: true });
+    expect(off).not.toContain("accounts.google.com");
+    expect(off).toContain("frame-src 'none'");
+    const on = buildCsp({ ...base, isProd: true, googleSignIn: true });
+    expect(on).toContain("https://accounts.google.com/gsi/client");
+    expect(on).toContain("frame-src https://accounts.google.com/gsi/");
+    expect(on).toMatch(/connect-src [^;]*https:\/\/accounts\.google\.com\/gsi\//);
+    expect(on).toMatch(/style-src [^;]*https:\/\/accounts\.google\.com\/gsi\/style/);
+  });
 });

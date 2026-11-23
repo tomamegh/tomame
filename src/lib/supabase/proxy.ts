@@ -24,6 +24,7 @@ export async function updateSession(request: NextRequest) {
     supabaseOrigin,
     isProd: process.env.NODE_ENV === "production",
     metaPixel: Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim()),
+    googleSignIn: Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim()),
   });
 
   let supabaseResponse = NextResponse.next({

@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "@/lib/sonner";
 import Image from "next/image";
 
+import { GoogleIdentityButton } from "./google-identity-button";
+
 /**
  * "Continue with Google", on both the sign-in and the create-account screens.
  *
@@ -30,6 +32,15 @@ import Image from "next/image";
  * authenticated browser off the site.
  */
 function SocialAuthButtons() {
+  // Google's own button when a client id is configured: Google then names
+  // tomame.ca, not our Supabase project, on its account picker (2026-11-23).
+  return GOOGLE_CLIENT_ID ? <GoogleIdentityButton clientId={GOOGLE_CLIENT_ID} fallback={<RedirectGoogleButton />} /> : <RedirectGoogleButton />;
+}
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || null;
+
+/** The redirect sign-in through Supabase: Google shows the Supabase project's address. The fallback. */
+function RedirectGoogleButton() {
   const handleGoogleSignin = async () => {
     const supabase = createClient();
 
