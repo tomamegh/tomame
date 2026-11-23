@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { AdminPage, AdminStat } from "@/components/layout/admin/admin-page";
+import { AdminCard, AdminPage, AdminStat } from "@/components/layout/admin/admin-page";
 import { listAdminBoxes } from "@/db/queries/admin-boxes";
 import type { BoxStatus } from "@/db/queries/consolidation-boxes";
 import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
@@ -19,6 +19,7 @@ import { formatAdminDateTime } from "@/features/orders/components/admin-order-di
 import { listUpcomingDepartures } from "@/db/queries/flight-departures";
 import { RunScheduleButton } from "@/features/bag/components/admin-box-actions";
 import { departureLine } from "@/features/bag/components/box-departure";
+import { AdminDepartures } from "@/features/bag/components/admin-departures";
 
 export const metadata: Metadata = { title: "Boxes · Admin" };
 
@@ -48,7 +49,7 @@ export default async function AdminBoxesPage({
     listAdminBoxes({ status }),
     getPricingConstantsMap(),
     listRegions(),
-    listUpcomingDepartures(4),
+    listUpcomingDepartures(6),
   ]);
 
   const constants: BoxConstants = {
@@ -126,6 +127,13 @@ export default async function AdminBoxesPage({
           tone={nextDeparture ? "neutral" : "muted"}
         />
       </div>
+
+      <AdminCard
+        title="Flights"
+        blurb="Move or cancel a flight here. Its boxes follow, and every customer whose delivery date changes gets one message with the new date."
+      >
+        <AdminDepartures departures={departures} />
+      </AdminCard>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <AdminFilterPills pills={pills} label="Filter boxes by status" />

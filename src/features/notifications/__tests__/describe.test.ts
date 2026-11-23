@@ -28,6 +28,20 @@ describe("describeNotification", () => {
     expect(describeNotification("paste_priced", { href: "//evil.example" }).href).toBeNull();
   });
 
+  it("names a new delivery date, and the tracking message's firm date", () => {
+    expect(describeNotification("delivery_date_changed", { order_count: 2, change: "moved", delivery_on: "2026-11-30", href: "/app/orders/x" })).toEqual({
+      title: "New delivery date for 2 of your orders",
+      detail: "Their flight moved. Now by Mon 30 Nov",
+      href: "/app/orders/x",
+    });
+    expect(describeNotification("delivery_date_changed", { order_count: 1, order_no: "TM-1", change: "cancelled", delivery_on: "2026-12-05" })).toMatchObject({
+      title: "New delivery date: TM-1",
+      detail: "Its flight was cancelled. Now by Sat 5 Dec",
+    });
+    expect(describeNotification("store_tracking_added", { order_count: 1, order_no: "TM-1", delivery_on: "2026-12-01" }).detail).toBe("At your door by Tue 1 Dec");
+    expect(describeNotification("store_tracking_added", { order_count: 1, order_no: "TM-1" }).detail).toBe("It is on its way to our US hub");
+  });
+
   it("humanises an unknown event rather than printing the slug", () => {
     expect(describeNotification("welcome_back_admin", {}).title).toBe("Welcome back");
   });

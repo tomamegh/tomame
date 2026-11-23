@@ -23,6 +23,8 @@ export interface ShipmentUpdateEmailData {
   message: string | null;
   /** Delay only: the revised date, already formatted ("Fri 14 Nov"). */
   expectedOn: string | null;
+  /** The row's label for `expectedOn`; "New estimate" when absent. */
+  expectedLabel?: string;
   items: Array<{ orderNo: string; productName: string }>;
   contact: { name: string | null; phone: string; hours: string | null } | null;
   /** Deep link to the first order's journey. */
@@ -39,7 +41,7 @@ export function shipmentUpdateTemplate(data: ShipmentUpdateEmailData) {
   const rows = data.items.map(
     (item) => [escapeHtml(item.orderNo), escapeHtml(item.productName)] as [string, string],
   );
-  if (data.expectedOn) rows.push(["New estimate", escapeHtml(data.expectedOn)]);
+  if (data.expectedOn) rows.push([data.expectedLabel ?? "New estimate", escapeHtml(data.expectedOn)]);
 
   const contactLine = data.contact
     ? `Questions about this step? Call or WhatsApp ${

@@ -118,6 +118,8 @@ export interface AdminConfirmProps {
   /** Optional second block — a before/after figure, a list of what moves. */
   detail?: React.ReactNode;
   confirmLabel: string;
+  /** The dismiss button; "Cancel" unless that would read as the action itself. */
+  cancelLabel?: string;
   onConfirm: () => void;
   busy?: boolean;
 }
@@ -129,6 +131,7 @@ export function AdminConfirm({
   consequence,
   detail,
   confirmLabel,
+  cancelLabel = "Cancel",
   onConfirm,
   busy = false,
 }: AdminConfirmProps) {
@@ -149,7 +152,7 @@ export function AdminConfirm({
           </div>
         ) : null}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={busy}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             onClick={(event) => {
               // Keep the dialog mounted while the write runs, so the spinner

@@ -97,6 +97,8 @@ export const AUDIT_ENTITY_TYPES = {
   QUOTE_CHECK: "quote_check",
   /** 103. A quote's server snapshot, when staff correct its price. */
   EXTRACTION: "extraction",
+  /** 124. A flight moved or cancelled by ops; its orders are re-dated. */
+  FLIGHT_DEPARTURE: "flight_departure",
 } as const;
 
 export type AuditEntityType =
