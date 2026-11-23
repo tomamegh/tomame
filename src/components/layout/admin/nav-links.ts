@@ -149,6 +149,8 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
     links: [
       { title: "Users", url: "/admin/users", icon: UsersRoundIcon },
       { title: "Notifications", url: "/admin/notifications", icon: BellIcon },
+      // 119: messages to customers, shown in-app as a pop-up and in the bell.
+      { title: "Communication", url: "/admin/communications", icon: MegaphoneIcon },
       // 140: who uses the shopping assistant, and how much, per day.
       { title: "AI use", url: "/admin/ai-usage", icon: SparklesIcon },
       // Absence detection: jobs, payments and messages that have gone quiet.

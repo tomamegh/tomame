@@ -9,7 +9,8 @@ import { useMarkAllNotificationsRead } from "@/features/notifications/hooks/useN
 import type { Notification } from "@/features/notifications/types";
 import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
-import { formatNotificationEvent, formatNotificationStamp, formatUnreadCount } from "../format";
+import { formatNotificationStamp, formatUnreadCount } from "../format";
+import { describeNotification } from "@/features/notifications/describe";
 import { useUpdateAccountProfile } from "../hooks/useAccountProfile";
 import { accountTabHref } from "../tabs";
 import { AccountEmpty, AccountPanel } from "./account-panel";
@@ -182,6 +183,7 @@ export function AccountNotificationsPanel({
  */
 function NotificationRow({ item }: { item: Notification }) {
   const unread = item.read_at === null;
+  const copy = describeNotification(item.event, item.payload ?? {});
 
   return (
     <li className="flex items-start gap-3 border-b border-tm-hairline py-3 last:border-b-0">
@@ -192,23 +194,21 @@ function NotificationRow({ item }: { item: Notification }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className={cn("text-sm leading-none", unread ? "font-bold" : "font-semibold")}>
-          {formatNotificationEvent(item.event)}
-        </span>
-        <span className="text-xs leading-none text-tm-text-3">
-          {formatNotificationStamp(item.sent_at ?? item.created_at)} · {item.channel}
-        </span>
+        {/* One wording for every notification, shared with the bell (describe.ts). */}
+        {copy.href ? (
+          <Link href={copy.href} className={cn("text-sm leading-snug hover:underline", unread ? "font-bold" : "font-semibold")}>
+            {copy.title}
+          </Link>
+        ) : (
+          <span className={cn("text-sm leading-snug", unread ? "font-bold" : "font-semibold")}>{copy.title}</span>
+        )}
+        {copy.detail ? <span className="text-[13px] leading-snug text-tm-text-2">{copy.detail}</span> : null}
+        <span className="text-xs leading-none text-tm-text-3">{formatNotificationStamp(item.sent_at ?? item.created_at)}</span>
       </div>
 
-      {item.status !== "sent" ? (
-        <span
-          className={cn(
-            "shrink-0 rounded-full px-2.5 py-1 text-[11px] leading-none font-bold capitalize",
-            item.status === "failed" ? "bg-tm-tint text-tm-coral-strong" : "bg-tm-amber-bg text-tm-amber",
-          )}
-        >
-          {item.status}
-        </span>
+      {/* A customer only needs to know when an email did not reach them; "pending" is our bookkeeping. */}
+      {item.status === "failed" ? (
+        <span className="shrink-0 rounded-full bg-tm-tint px-2.5 py-1 text-[11px] leading-none font-bold text-tm-coral-strong">Email didn&apos;t send</span>
       ) : null}
     </li>
   );

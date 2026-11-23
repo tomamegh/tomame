@@ -17,6 +17,8 @@ import {
 } from "@/features/notifications/hooks/useNotifications";
 import { cn } from "@/lib/utils";
 import { NOTIFICATION_KINDS, notificationKind, type NotificationKind } from "@/features/notifications/notification-kind";
+import { describeNotification } from "@/features/notifications/describe";
+import { useAnnouncementReceipt, useAnnouncements } from "@/features/announcements/hooks/useAnnouncements";
 import { notificationsLabel } from "./links";
 import { FOCUS_RING, NAV_ICON_BUTTON } from "./styles";
 
@@ -53,7 +55,13 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
   // Fix 8: a simple filter, and opening one marks it read.
   const [kind, setKind] = useState<NotificationKind | "all">("all");
 
-  const unread = liveUnread ?? initialUnreadCount;
+  // 119: messages from the communication center sit above the list until dismissed.
+  const { data: announcements } = useAnnouncements();
+  const announcementReceipt = useAnnouncementReceipt();
+  const messages = kind === "all" || kind === "account" ? (announcements ?? []) : [];
+  const unseenMessages = (announcements ?? []).filter((a) => !a.seen).length;
+
+  const unread = (liveUnread ?? initialUnreadCount) + unseenMessages;
   const all = data?.notifications ?? [];
   const notifications = kind === "all" ? all : all.filter((n) => notificationKind(n.event) === kind);
   const markOpened = (id: string, readAt: string | null) => {
@@ -131,7 +139,33 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
             <li className="px-4 py-6 text-sm text-tm-text-3">Loading…</li>
           )}
 
-          {!isPending && notifications.length === 0 && (
+          {messages.map((message) => (
+            <li key={`announcement-${message.id}`} className="border-b border-tm-hairline bg-tm-pill-bg/40 px-4 py-3">
+              <p className="text-[11px] leading-none font-bold text-tm-coral-strong">From Tomame</p>
+              <p className="mt-1 text-[13px] leading-snug font-semibold text-tm-ink">
+                {message.link_href ? (
+                  <Link href={message.link_href} onClick={() => setOpen(false)} className={cn("rounded-sm hover:underline", FOCUS_RING)}>
+                    {message.title}
+                  </Link>
+                ) : (
+                  message.title
+                )}
+              </p>
+              <p className="mt-0.5 line-clamp-3 text-[12px] leading-snug text-tm-text-2">{message.body}</p>
+              <p className="tm-nums mt-1 flex items-center gap-2 text-[11px] text-tm-text-3">
+                {formatWhen(message.created_at)}
+                <button
+                  type="button"
+                  onClick={() => announcementReceipt.mutate({ id: message.id, dismissed: true })}
+                  className={cn("rounded-sm font-semibold text-tm-coral hover:text-tm-coral-strong", FOCUS_RING)}
+                >
+                  Dismiss
+                </button>
+              </p>
+            </li>
+          ))}
+
+          {!isPending && notifications.length === 0 && messages.length === 0 && (
             <li className="px-4 py-6 text-sm text-tm-text-3">
               {kind === "all" ? <>Nothing yet. We&rsquo;ll tell you when a parcel moves.</> : "Nothing of this kind."}
             </li>
@@ -152,8 +186,7 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
                 <div className={cn(notification.read_at !== null && "pl-4")}>
                   <p className="text-[13px] leading-snug font-semibold text-tm-ink">
                     {(() => {
-                      const href = notificationHref(notification.event, notification.payload);
-                      const title = notificationTitle(notification.event, notification.payload);
+                      const { href, title } = describeNotification(notification.event, notification.payload);
                       return href ? (
                         <Link
                           href={href}
@@ -170,6 +203,10 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
                       );
                     })()}
                   </p>
+                  {(() => {
+                    const { detail } = describeNotification(notification.event, notification.payload);
+                    return detail ? <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-tm-text-2">{detail}</p> : null;
+                  })()}
                   <p className="tm-nums mt-0.5 flex items-center gap-2 text-[11px] text-tm-text-3">
                     {formatWhen(notification.created_at)}
                     {notification.read_at === null ? (
@@ -190,68 +227,6 @@ export function NotificationBell({ initialUnreadCount }: NotificationBellProps) 
       </PopoverContent>
     </Popover>
   );
-}
-
-/**
- * `notifications.event` is a machine slug. The known ones get a sentence; the
- * paste events name the store, because "Your link is priced" on its own does
- * not say WHICH link when three were pasted. Anything unmapped is humanised
- * rather than shown raw or dropped.
- */
-function notificationTitle(event: string, payload: Record<string, unknown>): string {
-  const host = typeof payload.store_host === "string" ? payload.store_host : null;
-  const orderNo = typeof payload.order_no === "string" ? payload.order_no : null;
-  const stageTitle = typeof payload.stage_title === "string" ? payload.stage_title : null;
-  const many = typeof payload.order_count === "number" && payload.order_count > 1;
-  const known: Record<string, string> = {
-    order_placed: "Order placed",
-    order_placed_admin: orderNo ? `New order ${orderNo} (staff copy)` : "New order (staff copy)",
-    price_drop: "A price you're watching dropped",
-    paste_priced: host ? `Your ${host} link is priced` : "Your link is priced",
-    paste_unreadable: host ? `We couldn't read your ${host} link` : "We couldn't read your link",
-    payment_expired: "Your payment did not go through",
-    order_expired_unpaid: "We closed an unpaid order",
-    order_repriced: "The total of your unpaid order changed",
-    // 075: a payload `is_update` means new rider details replaced the first ones.
-    // 098: one entry per move, naming the step.
-    shipment_update: stageTitle
-      ? many
-        ? `${stageTitle}: ${payload.order_count} of your orders`
-        : `${stageTitle}${orderNo ? `: ${orderNo}` : ""}`
-      : "Your parcel moved",
-    shipment_delay: orderNo && !many ? `${orderNo} is running late` : "Your parcel is running late",
-    store_tracking_added: many ? `The store has shipped ${payload.order_count} of your orders` : `The store has shipped${orderNo ? ` ${orderNo}` : " your order"}`,
-    courier_dispatched:
-      payload.is_update === true ? "Your rider's details changed" : "A rider has your package",
-    /*
-      The car enquiry answers. `accepted` deliberately does NOT say "sold" or
-      "bought": accepting an offer records that we agreed a figure and takes no
-      money, and this entry links straight to a page with a Buy button on it.
-      Overstating it there is how somebody ends up believing they own a car they
-      have not paid for.
-    */
-    car_enquiry_answered: "We have answered you about a car",
-    car_enquiry_accepted: "Your offer on a car was accepted",
-    car_enquiry_declined: "Your offer on a car was declined",
-  };
-  if (known[event]) return known[event];
-  const words = event.replace(/_/g, " ").trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-/**
- * Where a notification leads, when it leads anywhere.
- *
- * The paste events carry a relative `href` written by the server
- * (`notifyPasteFinished`); an order names its id. Only same-origin paths are
- * honoured — the payload is data written by our own jobs, but a link out of the
- * bell must never leave the app on the strength of a JSON field.
- */
-function notificationHref(event: string, payload: Record<string, unknown>): string | null {
-  const href = typeof payload.href === "string" ? payload.href : null;
-  if (href && href.startsWith("/") && !href.startsWith("//")) return href;
-  if (event === "order_placed" && typeof payload.orderId === "string") return `/app/orders/${payload.orderId}`;
-  return null;
 }
 
 /** Short, absolute and unambiguous — "12 Sep · 14:02". */

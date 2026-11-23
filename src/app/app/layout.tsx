@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { getAppChrome } from "@/features/app-shell/services/app-chrome.service";
 import { getOnboardingSignals } from "@/features/onboarding/services/onboarding-state.service";
 import { OnboardingTour } from "@/features/onboarding/components";
+import { AnnouncementPopup } from "@/features/announcements/components/announcement-popup";
 
 /**
  * The signed-in app shell — `design/TmNavLight.dc.html` plus the 390px bottom
@@ -79,6 +80,11 @@ export default async function AppDashboardLayout({
         makes the signals available on every /app render.
       */}
       {chrome.isAuthenticated && <OnboardingTour signals={onboarding} />}
+
+      {/* 119: a message from the communication center, once, after the tour. */}
+      {chrome.isAuthenticated && (
+        <AnnouncementPopup tourPending={onboarding.tourEnabled && !onboarding.onboardingCompletedAt && !onboarding.onboardingDismissedAt} />
+      )}
     </div>
   );
 }

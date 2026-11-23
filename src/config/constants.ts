@@ -44,6 +44,7 @@ export const AUDIT_ENTITY_TYPES = {
   POLICY: "policy",
   CONSOLIDATION_BOX: "consolidation_box",
   CART: "cart",
+  ANNOUNCEMENT: "announcement",
   /**
    * 054. A parcel photograph is a picture of one named customer's property, and
    * a hold stops their shipment — both are state changes on someone's order and
