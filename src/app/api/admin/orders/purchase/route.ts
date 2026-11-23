@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     return successResponse({
       purchased: result.purchased.map((o) => o.id),
       refused: result.refused,
+      notes: result.notes,
     });
   } catch (error) {
     return errorResponse(error);

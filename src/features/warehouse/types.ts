@@ -72,6 +72,8 @@ export interface WarehouseItem {
   customer_key: string;
   recipient: WarehouseRecipient;
   special_instructions: string | null;
+  /** 141: the store's tracking page, when it gave a link and no number. Staff only. */
+  store_tracking_url: string | null;
   created_at: string;
 }
 

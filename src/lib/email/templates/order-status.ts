@@ -189,7 +189,13 @@ export function orderProcessingTemplate(data: OrderEmailData) {
   const store = (data.storeTracking ?? []).filter((t) => t.number.trim());
   const storeRows: SummaryRows = store.map(
     (t, i) =>
-      [store.length > 1 ? `Store tracking ${i + 1}` : "Store tracking", `<span style="word-break:break-all;">${escapeHtml(`${t.carrier} ${t.number}`)}</span>`] as const,
+      [
+        store.length > 1 ? `Store tracking ${i + 1}` : "Store tracking",
+        // 141: a store tracking page (Amazon's Share tracking) is a link, not a number.
+        /^https:\/\//i.test(t.number)
+          ? `<a href="${escapeHtml(t.number)}" style="color:inherit;font-weight:600;">Open the store's tracking page</a>`
+          : `<span style="word-break:break-all;">${escapeHtml(`${t.carrier} ${t.number}`)}</span>`,
+      ] as const,
   );
   return renderEmail("We've purchased your item", {
     preheader: `${data.productName} is purchased and on its way to our hub.`,

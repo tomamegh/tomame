@@ -67,7 +67,7 @@ export function ItemNextStep({ item, isAdmin, sameCheckout }: { item: BoardItem;
           {stage === "purchased" || stage === "on_way" ? (
             <AdminButton variant={stage === "purchased" ? "primary" : "secondary"} className={stage === "on_way" ? "border-white/15 bg-white/10 text-white hover:bg-white/20" : undefined} onClick={() => setSheet("tracking")}>
               <LinkIcon className="size-4" aria-hidden />
-              {item.tracking.length ? "Store tracking" : "Add tracking"}
+              {item.tracking.length || item.store_tracking_url ? "Store tracking" : "Add tracking"}
             </AdminButton>
           ) : null}
           {stage === "on_way" || stage === "purchased" ? (

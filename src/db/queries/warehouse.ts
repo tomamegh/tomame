@@ -104,6 +104,8 @@ export interface WarehouseOrderRow {
   hold_reason: string | null;
   order_group_id: string | null;
   consolidation_box_id: string | null;
+  /** 141: the store's tracking page when it gave a link and no number. */
+  store_tracking_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -135,7 +137,7 @@ const PACKAGE_COLUMNS =
 const ITEM_COLUMNS = "id, package_id, order_id, description, quantity, added_by, created_at";
 
 const ORDER_COLUMNS =
-  "id, order_no, user_id, status, product_name, product_url, product_image_url, quantity, special_instructions, pricing, extraction_metadata, held_at, hold_reason, order_group_id, consolidation_box_id, created_at, updated_at";
+  "id, order_no, user_id, status, product_name, product_url, product_image_url, quantity, special_instructions, pricing, extraction_metadata, held_at, hold_reason, order_group_id, consolidation_box_id, store_tracking_url, created_at, updated_at";
 
 /** Numeric columns arrive from PostgREST as strings; the DTOs want numbers. */
 function toPackageRow(raw: Record<string, unknown>): PackageRow {
@@ -393,6 +395,14 @@ export async function listWarehouseOrders(filters: {
 }
 
 /** Look an order up by the number on its paperwork, "TM-00042". */
+/** 141: set or clear the store tracking link on orders. Returns the ids written. */
+export async function setOrdersStoreTrackingUrl(orderIds: string[], url: string | null): Promise<string[]> {
+  if (orderIds.length === 0) return [];
+  const { data, error } = await createAdminClient().from("orders").update({ store_tracking_url: url }).in("id", orderIds).select("id");
+  if (error) throw new Error(`Could not save the tracking link: ${error.message}`);
+  return (data ?? []).map((r: { id: string }) => r.id);
+}
+
 export async function getWarehouseOrderByNo(orderNo: string): Promise<WarehouseOrderRow | null> {
   const { data, error } = await createAdminClient()
     .from("orders")

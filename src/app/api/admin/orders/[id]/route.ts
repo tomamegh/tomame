@@ -69,8 +69,8 @@ export async function PATCH(
     // "Mark as purchased" also registers the store's tracking for the hub and
     // records what the store charged (103).
     if (status === "processing") {
-      const { order } = await markOrderPurchased(admin, id, { store_tracking, share_store_tracking, store_paid_price, store_paid_currency });
-      return successResponse(order);
+      const { order, leftOut } = await markOrderPurchased(admin, id, { store_tracking, share_store_tracking, store_paid_price, store_paid_currency });
+      return successResponse({ ...order, tracking_left_out: leftOut });
     }
     // Spread straight through: the service's parameter is snake_case now, so the
     // field names on the wire, in the schema, in the service and in the columns

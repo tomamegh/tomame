@@ -14,12 +14,15 @@ import { readTrackingEntries } from "../inbound/tracking-link";
 import type { BoardItem, BoardTracking } from "../types";
 import { pluralise, sanitiseDecimal } from "./format";
 import { errorText, warehouseRequest } from "./warehouse-actions";
+import { StoreLinkRow } from "./store-link-row";
 import { ItemThumb } from "./warehouse-ui";
 
 /**
  * The two sheets the board opens: "Mark purchased" (admins) and "Store
  * tracking" (staff). Nothing in either is required: a number that is not a
- * tracking number is left out and named, never a reason to refuse.
+ * tracking number is left out and named, never a reason to refuse. A store
+ * tracking page with no number in it (Amazon's Share tracking) is kept as a
+ * link (141).
  */
 
 const INPUT =
@@ -48,7 +51,7 @@ function ShareTick({ checked, onChange, orderNo }: { checked: boolean; onChange:
     <label className="flex cursor-pointer items-start gap-3 rounded-[14px] border border-tm-border bg-card px-3 py-2.5">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 size-4 accent-tm-coral" />
       <span className="text-[12.5px] leading-[1.45] font-medium text-tm-text-2">
-        <span className="block text-[13px] font-semibold text-tm-ink">Show the store&apos;s tracking number to the customer</span>
+        <span className="block text-[13px] font-semibold text-tm-ink">Show the store&apos;s tracking to the customer</span>
         Off: they see {orderNo} and Tomame&apos;s tracking page only.
       </span>
     </label>
@@ -58,7 +61,8 @@ function ShareTick({ checked, onChange, orderNo }: { checked: boolean; onChange:
 function TrackingField({ value, onChange, label, autoFocus }: { value: string; onChange: (v: string) => void; label: string; autoFocus?: boolean }) {
   const entries = useMemo(() => readTrackingEntries(value), [value]);
   const bad = entries.filter((e) => e.problem);
-  const links = entries.filter((e) => !e.problem && e.number !== e.input);
+  const links = entries.filter((e) => !e.problem && !e.link && e.number !== e.input);
+  const kept = entries.filter((e) => !e.problem && e.link);
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-[13px] font-semibold text-tm-ink">{label}</span>
@@ -76,8 +80,11 @@ function TrackingField({ value, onChange, label, autoFocus }: { value: string; o
           {bad.map((b) => `“${b.input.length > 40 ? `${b.input.slice(0, 40)}…` : b.input}”: ${b.problem}`).join(" ")}
           {" "}It will be left out; everything else still saves.
         </span>
-      ) : links.length > 0 ? (
-        <span className="text-[12px] font-medium text-tm-green-ink">Read from the link: {links.map((l) => l.number).join(", ")}</span>
+      ) : links.length > 0 || kept.length > 0 ? (
+        <span className="text-[12px] font-medium text-tm-green-ink">
+          {links.length > 0 ? `Read from the link: ${links.map((l) => l.number).join(", ")}. ` : ""}
+          {kept.length > 0 ? "Kept as the store's tracking page: staff can open it, the customer too if you tick below. Add the carrier's number later so the hub's scan finds it." : ""}
+        </span>
       ) : (
         <span className="text-[12px] font-medium text-tm-text-3">Optional. Separate several with commas. A carrier link works too.</span>
       )}
@@ -136,11 +143,12 @@ export function PurchaseSheet({
     setBusy(true);
     const purchased: string[] = [];
     const refused: Array<{ order_id: string; reason: string }> = [];
+    const serverNotes: string[] = [];
     try {
       for (let i = 0; i < all.length; i += PURCHASE_BATCH) {
         const ids = all.slice(i, i + PURCHASE_BATCH).map((o) => o.order_id);
         try {
-          const res = await apiFetch<{ data: { purchased: string[]; refused: Array<{ order_id: string; reason: string }> } }>(
+          const res = await apiFetch<{ data: { purchased: string[]; refused: Array<{ order_id: string; reason: string }>; notes?: string[] } }>(
             "/api/admin/orders/purchase",
             {
               method: "POST",
@@ -149,7 +157,7 @@ export function PurchaseSheet({
                 order_ids: ids,
                 ...(good.length > 0
                   ? {
-                      store_tracking: good.map((g) => ({ tracking_number: g.number, store_order_ref: storeRef.trim() || null })),
+                      store_tracking: good.map((g) => ({ tracking_number: g.link ?? g.number, store_order_ref: storeRef.trim() || null })),
                       share_store_tracking: share,
                     }
                   : {}),
@@ -159,6 +167,7 @@ export function PurchaseSheet({
           );
           purchased.push(...res.data.purchased);
           refused.push(...res.data.refused);
+          for (const note of res.data.notes ?? []) if (!serverNotes.includes(note)) serverNotes.push(note);
         } catch (error) {
           refused.push(...ids.map((id) => ({ order_id: id, reason: errorText(error) })));
         }
@@ -168,6 +177,7 @@ export function PurchaseSheet({
       const notes = [
         leftOut.length ? `Left out “${leftOut.join("”, “")}”: not a tracking number. Add it from the order.` : null,
         refused.length ? refused.map((r) => `${name(r.order_id)}: ${r.reason}`).join(" · ") : null,
+        ...serverNotes,
       ].filter(Boolean);
       if (purchased.length) {
         const title = `${pluralise(purchased.length, "item")} marked purchased`;
@@ -282,6 +292,7 @@ export function TrackingSheet({
 
   const one = items.length === 1 ? items[0]! : null;
   const existing = one?.tracking ?? [];
+  const existingLink = one?.store_tracking_url ?? null;
   if (items.length === 0) return null;
 
   const done = () => {
@@ -314,6 +325,10 @@ export function TrackingSheet({
     }
     setBusy("save");
     try {
+      if (fixing && good[0]?.link) {
+        toast.error({ title: "A link cannot replace a number", description: "Paste the carrier's number here, or add the link as new tracking." });
+        return;
+      }
       if (fixing && good[0]) {
         await warehouseRequest(`/api/warehouse/inbound/${fixing.parcel_id}`, "PATCH", { tracking_number: good[0].number });
         toast.success({ title: "Tracking corrected", description: "The customer is not messaged about a correction." });
@@ -323,7 +338,7 @@ export function TrackingSheet({
           "POST",
           {
             order_ids: items.map((i) => i.order_id),
-            tracking_numbers: good.slice(0, 5).map((g) => g.number),
+            tracking_numbers: good.slice(0, 5).map((g) => g.link ?? g.number),
             ...(storeRef.trim() ? { store_order_ref: storeRef.trim() } : {}),
             share_store_tracking: share,
           },
@@ -354,7 +369,7 @@ export function TrackingSheet({
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle className="font-display text-[20px] font-bold text-tm-ink">
-              {fixing ? "Correct the tracking" : existing.length ? "Store tracking" : "Add store tracking"}
+              {fixing ? "Correct the tracking" : existing.length || existingLink ? "Store tracking" : "Add store tracking"}
             </DialogTitle>
             <DialogDescription className="text-[13px] font-medium text-tm-text-2">
               {one ? one.order_no : pluralise(items.length, "order")}. The hub&apos;s scan finds the order by this number when the parcel lands.
@@ -390,11 +405,12 @@ export function TrackingSheet({
               ))}
             </ul>
           ) : null}
+          {one && existingLink && !fixing ? <StoreLinkRow orderId={one.order_id} url={existingLink} /> : null}
 
           <TrackingField
             value={tracking}
             onChange={setTracking}
-            label={fixing ? `Correct ${fixing.display} to` : existing.length ? "Add another number or link" : "Tracking number or link"}
+            label={fixing ? `Correct ${fixing.display} to` : existing.length || existingLink ? "Add another number or link" : "Tracking number or link"}
             autoFocus
           />
           {fixing ? null : (

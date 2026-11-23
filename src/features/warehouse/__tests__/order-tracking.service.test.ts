@@ -6,12 +6,17 @@ vi.mock("@/db/queries/inbound-parcels", () => ({ listInboundLinks: vi.fn(async (
 vi.mock("@/features/notifications/services/customer-notify.service", () => ({ notifyCustomer: vi.fn(async () => undefined) }));
 vi.mock("@/features/warehouse/services/warehouse.service", () => ({ listWarehouseItemsByIds: vi.fn() }));
 vi.mock("@/features/warehouse/services/inbound.service", () => ({ registerInboundTracking: vi.fn() }));
+vi.mock("@/features/warehouse/services/store-link.service", () => ({
+  checkStoreLink: vi.fn(async () => null),
+  setStoreTrackingLink: vi.fn(async (_u: unknown, orders: Array<{ order_id: string }>) => orders.map((o) => o.order_id)),
+}));
 
 import { listInboundLinks } from "@/db/queries/inbound-parcels";
 import { notifyCustomer } from "@/features/notifications/services/customer-notify.service";
 import type { PlatformUser } from "@/features/users/types";
 import { registerInboundTracking } from "@/features/warehouse/services/inbound.service";
 import { listWarehouseItemsByIds } from "@/features/warehouse/services/warehouse.service";
+import { checkStoreLink, setStoreTrackingLink } from "@/features/warehouse/services/store-link.service";
 
 import { addOrdersStoreTracking } from "../services/order-tracking.service";
 import type { InboundParcel, WarehouseItem } from "../types";
@@ -84,5 +89,35 @@ describe("addOrdersStoreTracking", () => {
     expect(out.refused.map((r) => r.order_no)).toEqual(["TM-a", "TM-b"]);
     expect(out.refused[0]!.reason).toMatch(/Mark it purchased/);
     expect(out.refused[1]!.input).toBe("123");
+  });
+
+  it("keeps a store tracking link with no number, and tells the customer once (141)", async () => {
+    vi.mocked(listWarehouseItemsByIds).mockResolvedValue([item("a")]);
+    const out = await addOrdersStoreTracking(operator, {
+      order_ids: ["a"],
+      tracking_numbers: ["https://a.co/d/0c8Ijdes https://a.co/d/0c8Ijdes"],
+      share_store_tracking: true,
+    });
+    expect(out.added).toEqual(["a"]);
+    expect(out.refused).toEqual([]);
+    expect(registerInboundTracking).not.toHaveBeenCalled();
+    expect(setStoreTrackingLink).toHaveBeenCalledWith(operator, [expect.objectContaining({ order_id: "a" })], "https://a.co/d/0c8Ijdes");
+    expect(out.notified).toBe(1);
+    expect(JSON.stringify(vi.mocked(notifyCustomer).mock.calls[0]![0].whatsapp.message)).toContain("https://a.co/d/0c8Ijdes");
+  });
+
+  it("names a link the server finds is not tracking, and saves the number beside it", async () => {
+    vi.mocked(listWarehouseItemsByIds).mockResolvedValue([item("a")]);
+    vi.mocked(checkStoreLink).mockResolvedValueOnce("That link opens the product page, not tracking.");
+    const out = await addOrdersStoreTracking(operator, { order_ids: ["a"], tracking_numbers: ["https://a.co/d/prod123", "1Z999AA10123456784"] });
+    expect(out.added).toEqual(["a"]);
+    expect(out.refused).toEqual([{ order_no: null, input: "https://a.co/d/prod123", reason: "That link opens the product page, not tracking." }]);
+    expect(setStoreTrackingLink).not.toHaveBeenCalled();
+  });
+
+  it("says nothing when the order already had a tracking link", async () => {
+    vi.mocked(listWarehouseItemsByIds).mockResolvedValue([item("a", { store_tracking_url: "https://a.co/d/old" })]);
+    await addOrdersStoreTracking(operator, { order_ids: ["a"], tracking_numbers: ["1Z999AA10123456784"] });
+    expect(notifyCustomer).not.toHaveBeenCalled();
   });
 });

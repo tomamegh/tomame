@@ -1034,6 +1034,7 @@ export async function hydrateItems(orders: WarehouseOrderRow[]): Promise<Warehou
         profileById.get(order.user_id) ?? null,
       ),
       special_instructions: order.special_instructions?.trim() || null,
+      store_tracking_url: order.store_tracking_url ?? null,
       created_at: order.created_at,
     };
   });

@@ -146,6 +146,7 @@ export default async function WarehouseItemPage({ params }: { params: Promise<{ 
             orderId={item.order_id}
             orderNo={item.order_no}
             parcels={inbound}
+            storeTrackingUrl={item.store_tracking_url}
             canAdd={item.order_status === "paid" || item.order_status === "processing"}
             orderStatus={item.order_status}
           />

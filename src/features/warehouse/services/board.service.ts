@@ -63,7 +63,7 @@ async function toBoardItems(orders: Awaited<ReturnType<typeof listWarehouseOrder
     const stage = boardStageOf({
       order_status: item.order_status,
       received: !!item.received,
-      has_tracking: own.length > 0,
+      has_tracking: own.length > 0 || !!item.store_tracking_url,
       package_status: item.package?.status ?? null,
       events: events.get(item.order_id) ?? [],
     });

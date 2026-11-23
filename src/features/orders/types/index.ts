@@ -84,6 +84,8 @@ export interface Order {
   updated_at: string;
   // Joined from order_deliveries (present on admin fetch)
   tracking_url?: string | null;
+  /** 141: the store's tracking page for the trip to the US hub, when it gave a link and no number. Staff only. */
+  store_tracking_url?: string | null;
   delivery_notes?: string | null;
 }
 

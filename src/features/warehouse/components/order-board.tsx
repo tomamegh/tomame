@@ -121,7 +121,9 @@ function contextLine(item: BoardItem): string {
       return "No store tracking yet";
     case "on_way": {
       const [first, ...rest] = item.tracking;
-      return first ? `${first.carrier_label} ${first.display}${rest.length ? ` +${rest.length}` : ""}` : "On its way";
+      if (first) return `${first.carrier_label} ${first.display}${rest.length ? ` +${rest.length}` : ""}`;
+      // 141: only the store's tracking page so far; the scan needs the number.
+      return item.store_tracking_url ? "Store tracking link · no number to scan yet" : "On its way";
     }
     case "at_hub":
       return `Arrived ${relativeInline(item.received?.at)}`;

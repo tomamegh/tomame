@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
 import type { Order } from "../types";
 import { orderEtaFields } from "./admin-order-display";
 import { mayEditEtaWindow, transitionsFor, type AdminTransition } from "./admin-transitions";
-import { awbInputProblem, trackingInputProblem } from "@/features/warehouse/inbound/tracking-number";
+import { readTrackingEntry } from "@/features/warehouse/inbound/tracking-link";
+import { awbInputProblem } from "@/features/warehouse/inbound/tracking-number";
 import { CANCEL_REASON_KEYS, CANCEL_REASONS, type CancelReason } from "@/config/cancel-reasons";
 
 /**
@@ -120,7 +121,9 @@ function TransitionControl({
   const storePaidNumber = Number(storePaid);
   const quotedPrice = order.extraction_metadata?.product?.price ?? null;
   // A number that does not look like tracking is left out and named, never a reason to refuse the purchase.
-  const validTracking = filledTracking.filter((t) => trackingInputProblem(t) == null);
+  // 141: a store tracking page with no number (Amazon's Share tracking) is valid too, kept as a link.
+  const validTracking = filledTracking.filter((t) => readTrackingEntry(t).problem == null);
+  const trackingNumbers = validTracking.filter((t) => !readTrackingEntry(t).link);
   const skippedTracking = filledTracking.length - validTracking.length;
   const [alsoPurchase, setAlsoPurchase] = useState<string[]>([]);
   // 113 (Fix 12): in transit is the Delta Cargo leg: an air waybill, or a reason there is none.
@@ -154,7 +157,7 @@ function TransitionControl({
 
       // The whole checkout in one store order: one request moves them all.
       if (isPurchase && alsoPurchase.length > 0) {
-        const res = await apiFetch<{ data: { purchased: string[]; refused: Array<{ order_id: string; reason: string }> } }>("/api/admin/orders/purchase", {
+        const res = await apiFetch<{ data: { purchased: string[]; refused: Array<{ order_id: string; reason: string }>; notes?: string[] } }>("/api/admin/orders/purchase", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -168,7 +171,9 @@ function TransitionControl({
         toast.success({
           title: `${purchased.length} order${purchased.length === 1 ? "" : "s"} marked purchased`,
           description:
-            (refused.length > 0 ? `Not moved: ${refused.map((r) => `${names.get(r.order_id) ?? "an order"} (${r.reason})`).join("; ")}.` : "Each customer has been emailed.") + skippedNote,
+            (refused.length > 0 ? `Not moved: ${refused.map((r) => `${names.get(r.order_id) ?? "an order"} (${r.reason})`).join("; ")}.` : "Each customer has been emailed.") +
+            skippedNote +
+            (res.data.notes?.length ? ` ${res.data.notes.join(" ")}` : ""),
         });
         setAlsoPurchase([]);
         startTransition(() => router.refresh());
@@ -184,7 +189,7 @@ function TransitionControl({
         if (etaTo) body.eta_to = etaTo;
       }
 
-      await apiFetch(`/api/admin/orders/${order.id}`, {
+      const moved = await apiFetch<{ data?: { tracking_left_out?: string | null } }>(`/api/admin/orders/${order.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -195,9 +200,13 @@ function TransitionControl({
           ? {
               title: "Marked as purchased",
               description:
-                (validTracking.length > 0
-                  ? `The hub now expects ${validTracking.length === 1 ? "this parcel" : `${validTracking.length} parcels`}. Continue at the warehouse from here.`
-                  : "The customer has been emailed. Add the store tracking when you have it.") + skippedNote,
+                (trackingNumbers.length > 0
+                  ? `The hub now expects ${trackingNumbers.length === 1 ? "this parcel" : `${trackingNumbers.length} parcels`}. Continue at the warehouse from here.`
+                  : validTracking.length > 0
+                    ? "The store's tracking link is on the order. Add the carrier's number when you have it, so the hub's scan finds it."
+                    : "The customer has been emailed. Add the store tracking when you have it.") +
+                skippedNote +
+                (moved?.data?.tracking_left_out ? ` ${moved.data.tracking_left_out}` : ""),
             }
           : { title: "Order moved", description: transition.blurb },
       );
@@ -465,8 +474,8 @@ function PurchaseFields({
               aria-label={`Store tracking number ${i + 1}`}
               value={value}
               onChange={(event) => onTracking(tracking.map((t, j) => (j === i ? event.target.value : t)))}
-              placeholder="1Z999AA10123456784"
-              aria-invalid={value.trim() && trackingInputProblem(value) ? true : undefined}
+              placeholder="1Z999AA10123456784, or the store's tracking link"
+              aria-invalid={value.trim() && readTrackingEntry(value.trim()).problem ? true : undefined}
               className={cn(INPUT, "tm-nums aria-invalid:border-tm-coral")}
             />
             {tracking.length > 1 ? (
@@ -482,11 +491,18 @@ function PurchaseFields({
           </div>
         ))}
         {tracking.map((value, i) => {
-          const problem = value.trim() ? trackingInputProblem(value) : null;
-          return problem ? (
-            <p key={`p-${i}`} role="alert" className="text-[12.5px] leading-[1.45] font-medium text-tm-coral-strong">
-              {tracking.length > 1 ? `Parcel ${i + 1}: ` : ""}
-              {problem}
+          const entry = value.trim() ? readTrackingEntry(value.trim()) : null;
+          if (entry?.problem) {
+            return (
+              <p key={`p-${i}`} role="alert" className="text-[12.5px] leading-[1.45] font-medium text-tm-coral-strong">
+                {tracking.length > 1 ? `Parcel ${i + 1}: ` : ""}
+                {entry.problem}
+              </p>
+            );
+          }
+          return entry?.link ? (
+            <p key={`p-${i}`} className="text-[12.5px] leading-[1.45] font-medium text-tm-green-ink">
+              Kept as the store&apos;s tracking page. Add the carrier&apos;s number later so the hub&apos;s scan finds it.
             </p>
           ) : null;
         })}

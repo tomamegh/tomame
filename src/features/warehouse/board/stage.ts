@@ -120,7 +120,7 @@ export interface BoardStageInput {
   order_status: string;
   /** Logged in at the hub (a `hub_received` event). */
   received: boolean;
-  /** At least one store tracking number on the order. */
+  /** At least one store tracking number, or the store's tracking link (141), on the order. */
   has_tracking: boolean;
   /** The package it is in, if any. */
   package_status: "packing" | "sealed" | "shipped" | "voided" | null;

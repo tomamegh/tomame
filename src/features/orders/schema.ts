@@ -108,7 +108,8 @@ export const updateOrderStatusSchema = z
     store_tracking: z
       .array(
         z.object({
-          tracking_number: z.string().trim().min(6, "That is too short to be a tracking number").max(120),
+          // A number, a carrier link, or a store tracking page (141): links run long.
+          tracking_number: z.string().trim().min(6, "That is too short to be a tracking number").max(500),
           store_order_ref: z.string().trim().max(80).optional().nullable(),
         }),
       )

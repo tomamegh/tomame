@@ -2,8 +2,9 @@ import "server-only";
 
 import { APIError } from "@/lib/auth/api-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { trackingInputProblem } from "@/features/warehouse/inbound/tracking-number";
+import { readTrackingEntry } from "@/features/warehouse/inbound/tracking-link";
 import { registerInboundTracking } from "@/features/warehouse/services/inbound.service";
+import { checkStoreLink, setStoreTrackingLink } from "@/features/warehouse/services/store-link.service";
 import type { InboundParcel } from "@/features/warehouse/types";
 import type { PlatformUser } from "@/features/users/types";
 import type { Order } from "../types";
@@ -24,6 +25,11 @@ import { AUDIT_ACTOR_ROLES, AUDIT_ENTITY_TYPES } from "@/config/constants";
  *  3. the email carries the store tracking only when the admin ticked
  *     "include it": by default customers see Tomame's number alone (086).
  *
+ * A tracking page with no number in it (Amazon's Share tracking, a.co/d/…) is
+ * kept on the order as a link (141). One the server finds is not tracking (a
+ * product page behind a short link) is left out and named, never a reason to
+ * refuse the purchase.
+ *
  * Lives outside orders.service because it reaches into the warehouse, and the
  * warehouse already imports orders.service; this keeps that one-directional.
  */
@@ -39,16 +45,29 @@ export interface PurchaseInput {
 export interface PurchaseResult {
   order: Order;
   parcels: InboundParcel[];
+  /** A pasted link that was not kept, with why. */
+  leftOut: string | null;
 }
 
 export async function markOrderPurchased(user: PlatformUser, orderId: string, input: PurchaseInput): Promise<PurchaseResult> {
-  const entries = (input.store_tracking ?? []).filter((t) => t.tracking_number.trim());
+  const read = (input.store_tracking ?? [])
+    .filter((t) => t.tracking_number.trim())
+    .map((t) => ({ ...t, read: readTrackingEntry(t.tracking_number.trim()) }));
 
   // Everything that can refuse is checked BEFORE any parcel is written, so a
   // bad number or an order in the wrong state leaves nothing half done.
-  for (const entry of entries) {
-    const problem = trackingInputProblem(entry.tracking_number);
-    if (problem) throw new APIError(400, problem);
+  for (const entry of read) {
+    if (entry.read.problem) throw new APIError(400, entry.read.problem);
+  }
+  const entries = read.filter((e) => !e.read.link).map((e) => ({ tracking_number: e.read.number, store_order_ref: e.store_order_ref }));
+  let link = read.findLast((e) => e.read.link)?.read.link ?? null;
+  let leftOut: string | null = null;
+  if (link) {
+    const problem = await checkStoreLink(link);
+    if (problem) {
+      leftOut = `Left out ${link}: ${problem}`;
+      link = null;
+    }
   }
   const order = await getOrderById(createAdminClient(), orderId);
   if (!order) throw new APIError(404, "Order not found");
@@ -70,10 +89,15 @@ export async function markOrderPurchased(user: PlatformUser, orderId: string, in
     );
   }
 
-  const share = input.share_store_tracking === true && parcels.length > 0;
+  if (link) await setStoreTrackingLink(user, [{ order_id: orderId, order_no: order.order_no ?? null }], link);
+
+  const share = input.share_store_tracking === true && (parcels.length > 0 || link != null);
   const updated = await updateOrderStatusAdmin(createAdminClient(), user, orderId, "processing", undefined, {
     ...(share && {
-      customerStoreTracking: parcels.map((p) => ({ carrier: p.carrier_label, number: p.tracking_display })),
+      customerStoreTracking: [
+        ...parcels.map((p) => ({ carrier: p.carrier_label, number: p.tracking_display })),
+        ...(link ? [{ carrier: "Tracking page", number: link }] : []),
+      ],
     }),
   });
 
@@ -81,7 +105,7 @@ export async function markOrderPurchased(user: PlatformUser, orderId: string, in
   if (input.store_paid_price != null && input.store_paid_price > 0) {
     await recordStorePrice(user, order, input.store_paid_price, input.store_paid_currency);
   }
-  return { order: updated, parcels };
+  return { order: updated, parcels, leftOut };
 }
 
 /**
@@ -125,6 +149,8 @@ export interface PurchaseManyResult {
   purchased: Order[];
   /** Orders that could not move, each with the reason, so the screen names them. */
   refused: Array<{ order_id: string; reason: string }>;
+  /** Tracking left out (a link that is not tracking), once each. */
+  notes: string[];
 }
 
 /**
@@ -136,18 +162,20 @@ export interface PurchaseManyResult {
 export async function markOrdersPurchased(user: PlatformUser, orderIds: readonly string[], input: PurchaseManyInput): Promise<PurchaseManyResult> {
   const purchased: Order[] = [];
   const refused: PurchaseManyResult["refused"] = [];
+  const notes = new Set<string>();
   for (const orderId of [...new Set(orderIds)]) {
     try {
-      const { order } = await markOrderPurchased(user, orderId, {
+      const { order, leftOut } = await markOrderPurchased(user, orderId, {
         store_tracking: input.store_tracking,
         share_store_tracking: input.share_store_tracking,
         store_paid_price: input.store_paid_prices?.[orderId],
         store_paid_currency: input.store_paid_currency,
       });
       purchased.push(order);
+      if (leftOut) notes.add(leftOut);
     } catch (error) {
       refused.push({ order_id: orderId, reason: error instanceof Error ? error.message : "Could not move this order" });
     }
   }
-  return { purchased, refused };
+  return { purchased, refused, notes: [...notes] };
 }

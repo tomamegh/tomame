@@ -8,9 +8,10 @@ import { env } from "@/lib/env";
 import { requireWarehouse } from "@/lib/auth/guards";
 import { whatsappMessages } from "@/lib/whatsapp/templates";
 
-import { trackingFromLink } from "../inbound/tracking-link";
+import { readTrackingEntry } from "../inbound/tracking-link";
 import type { InboundParcel, WarehouseItem } from "../types";
 import { registerInboundTracking } from "./inbound.service";
+import { checkStoreLink, setStoreTrackingLink } from "./store-link.service";
 import { listWarehouseItemsByIds } from "./warehouse.service";
 
 export const STORE_TRACKING_EVENT = "store_tracking_added";
@@ -37,7 +38,8 @@ export interface AddTrackingResult {
  * once (one store order for a whole checkout). Each number goes through
  * `registerInboundTracking` (086, validated per Fix 12), so the hub's scan
  * finds the orders when the parcel lands. A link is turned into its number
- * first.
+ * first; a tracking page with no number in it (Amazon's Share tracking) is kept
+ * on the order as a link (141), which staff can open but the hub cannot scan.
  *
  * The customer hears once: the first time an order gets tracking while it is
  * still on its way to the hub. Corrections and extra numbers say nothing. The
@@ -45,11 +47,24 @@ export interface AddTrackingResult {
  */
 export async function addOrdersStoreTracking(user: PlatformUser, input: AddTrackingInput, now: Date = new Date()): Promise<AddTrackingResult> {
   requireWarehouse(user);
-  const numbers = [...new Set(input.tracking_numbers.map((n) => trackingFromLink(n) ?? n.trim()).filter(Boolean))];
-  const items = await listWarehouseItemsByIds(user, input.order_ids);
-  const before = new Set((await listInboundLinks({ orderIds: items.map((i) => i.order_id) })).map((l) => l.order_id));
-
+  const entries = input.tracking_numbers.map((n) => readTrackingEntry(n.trim())).filter((e) => e.input);
+  const numbers = [...new Set(entries.filter((e) => !e.link).map((e) => e.number).filter(Boolean))];
   const result: AddTrackingResult = { added: [], refused: [], notified: 0 };
+
+  // The last link pasted wins; one that is not tracking is named and left out.
+  let link: string | null = null;
+  for (const entry of entries.filter((e) => e.link)) {
+    const problem = entry.problem ?? (await checkStoreLink(entry.link!));
+    if (problem) result.refused.push({ order_no: null, input: entry.input, reason: problem });
+    else link = entry.link;
+  }
+
+  const items = await listWarehouseItemsByIds(user, input.order_ids);
+  const before = new Set([
+    ...(await listInboundLinks({ orderIds: items.map((i) => i.order_id) })).map((l) => l.order_id),
+    ...items.filter((i) => i.store_tracking_url).map((i) => i.order_id),
+  ]);
+
   const firstTime: Array<{ item: WarehouseItem; parcels: InboundParcel[] }> = [];
   for (const id of input.order_ids) {
     if (!items.some((i) => i.order_id === id)) result.refused.push({ order_no: null, input: null, reason: "Order not found" });
@@ -68,13 +83,21 @@ export async function addOrdersStoreTracking(user: PlatformUser, input: AddTrack
         result.refused.push({ order_no: item.order_no, input: number, reason: error instanceof Error ? error.message : "Could not save it" });
       }
     }
-    if (parcels.length === 0) continue;
+    let linked = false;
+    if (link) {
+      try {
+        linked = (await setStoreTrackingLink(user, [item], link)).length > 0;
+      } catch (error) {
+        result.refused.push({ order_no: item.order_no, input: link, reason: error instanceof Error ? error.message : "Could not save the link" });
+      }
+    }
+    if (parcels.length === 0 && !linked) continue;
     result.added.push(item.order_id);
     if (!before.has(item.order_id) && item.order_status === "processing" && !item.received) firstTime.push({ item, parcels });
   }
 
   for (const group of byCustomer(firstTime)) {
-    await tellCustomer(group, input.share_store_tracking === true, now);
+    await tellCustomer(group, input.share_store_tracking === true, link, now);
     result.notified += 1;
   }
   return result;
@@ -86,12 +109,15 @@ function byCustomer(rows: Array<{ item: WarehouseItem; parcels: InboundParcel[] 
   return [...out.values()];
 }
 
-async function tellCustomer(rows: Array<{ item: WarehouseItem; parcels: InboundParcel[] }>, share: boolean, now: Date): Promise<void> {
+async function tellCustomer(rows: Array<{ item: WarehouseItem; parcels: InboundParcel[] }>, share: boolean, link: string | null, now: Date): Promise<void> {
   const first = rows[0]!.item;
   const what = rows.length === 1 ? `order ${first.order_no}` : `${rows.length} of your orders`;
   const description = "The store has shipped it to our US hub. We'll tell you when it arrives.";
   const shared = share
-    ? [...new Map(rows.flatMap((r) => r.parcels).map((p) => [p.id, `${p.carrier_label} ${p.tracking_display}`])).values()].join(", ")
+    ? [
+        ...new Map(rows.flatMap((r) => r.parcels).map((p) => [p.id, `${p.carrier_label} ${p.tracking_display}`])).values(),
+        ...(link ? [link] : []),
+      ].join(", ") || null
     : null;
   const message = shared ? `Store tracking: ${shared}` : null;
   const template = shipmentUpdateTemplate({

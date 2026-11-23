@@ -121,7 +121,7 @@ export default async function AdminOrderDetailPage({
       })
     : null;
   // From purchase onwards the store's tracking belongs on this page too.
-  const showInbound = order.status === "processing" || inbound.length > 0;
+  const showInbound = order.status === "processing" || inbound.length > 0 || !!order.store_tracking_url;
 
   return (
     <AdminPage
@@ -182,7 +182,9 @@ export default async function AdminOrderDetailPage({
           orderId={order.id}
           orderNo={order.order_no}
           parcels={inbound}
+          storeTrackingUrl={order.store_tracking_url ?? null}
           canAdd={order.status === "processing"}
+          orderStatus={order.status}
         />
       ) : null}
 

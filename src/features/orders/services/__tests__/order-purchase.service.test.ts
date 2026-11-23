@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => ({})) }));
 vi.mock("@/features/warehouse/services/inbound.service", () => ({ registerInboundTracking: vi.fn() }));
+vi.mock("@/features/warehouse/services/store-link.service", () => ({ checkStoreLink: vi.fn(async () => null), setStoreTrackingLink: vi.fn(async () => ["o1"]) }));
 vi.mock("../orders.service", () => ({ getOrderById: vi.fn(), updateOrderStatusAdmin: vi.fn() }));
 vi.mock("@/db/queries/order-store-price", () => ({ recordStorePaidPrice: vi.fn() }));
 vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn() }));
@@ -10,6 +11,7 @@ vi.mock("@/features/audit/services/audit.service", () => ({ logAuditEvent: vi.fn
 import { recordStorePaidPrice } from "@/db/queries/order-store-price";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { registerInboundTracking } from "@/features/warehouse/services/inbound.service";
+import { checkStoreLink, setStoreTrackingLink } from "@/features/warehouse/services/store-link.service";
 import type { InboundParcel } from "@/features/warehouse/types";
 import type { PlatformUser } from "@/features/users/types";
 import { purchaseOrdersSchema, updateOrderStatusSchema } from "../../schema";
@@ -29,6 +31,27 @@ beforeEach(() => {
 });
 
 describe("markOrderPurchased", () => {
+  it("keeps Amazon's Share tracking link on the order and shares it when asked (141)", async () => {
+    const result = await markOrderPurchased(admin, "o1", {
+      store_tracking: [{ tracking_number: "https://a.co/d/0c8Ijdes https://a.co/d/0c8Ijdes" }],
+      share_store_tracking: true,
+    });
+    expect(registerInboundTracking).not.toHaveBeenCalled();
+    expect(setStoreTrackingLink).toHaveBeenCalledWith(admin, [{ order_id: "o1", order_no: null }], "https://a.co/d/0c8Ijdes");
+    expect(updateOrderStatusAdmin).toHaveBeenCalledWith(expect.anything(), admin, "o1", "processing", undefined, {
+      customerStoreTracking: [{ carrier: "Tracking page", number: "https://a.co/d/0c8Ijdes" }],
+    });
+    expect(result.leftOut).toBeNull();
+  });
+
+  it("still marks it purchased when the server finds the link is not tracking, and names it", async () => {
+    vi.mocked(checkStoreLink).mockResolvedValueOnce("That link opens the product page, not tracking.");
+    const result = await markOrderPurchased(admin, "o1", { store_tracking: [{ tracking_number: "https://a.co/d/prod123" }] });
+    expect(setStoreTrackingLink).not.toHaveBeenCalled();
+    expect(updateOrderStatusAdmin).toHaveBeenCalled();
+    expect(result.leftOut).toMatch(/product page/);
+  });
+
   it("registers each store parcel as expected, then moves the order to processing", async () => {
     const result = await markOrderPurchased(admin, "o1", {
       store_tracking: [{ tracking_number: "1Z999AA10123456784", store_order_ref: "114-1" }, { tracking_number: "  " }],

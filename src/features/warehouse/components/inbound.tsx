@@ -19,7 +19,8 @@ import { toast } from "@/lib/sonner";
 import { cn } from "@/lib/utils";
 
 import { trackingInputProblem } from "../inbound/tracking-number";
-import { trackingFromLink } from "../inbound/tracking-link";
+import { readTrackingEntry } from "../inbound/tracking-link";
+import { StoreLinkRow } from "./store-link-row";
 import { inboundParcelPath, type InboundOrderRef, type InboundParcel, type InboundStatus } from "../types";
 import { STAGE_META, formatDateTime, sanitiseDecimal } from "./format";
 import { errorText, warehouseRequest } from "./warehouse-actions";
@@ -86,12 +87,15 @@ export function OrderInboundPanel({
   orderId,
   orderNo,
   parcels,
+  storeTrackingUrl = null,
   canAdd,
   orderStatus,
 }: {
   orderId: string;
   orderNo: string;
   parcels: InboundParcel[];
+  /** 141: the store's tracking page, when it gave a link and no number. */
+  storeTrackingUrl?: string | null;
   canAdd: boolean;
   /** A bought order's first tracking tells the customer (order-tracking.service). */
   orderStatus?: string;
@@ -101,9 +105,12 @@ export function OrderInboundPanel({
   const [storeRef, setStoreRef] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // "Number or link": a carrier link is read for its number first.
-  const number = trackingFromLink(tracking) ?? tracking;
-  const problem = tracking.trim() ? trackingInputProblem(number) : null;
+  // "Number or link": a carrier link is read for its number first; a store
+  // tracking page with no number (Amazon's Share tracking) is kept as a link (141).
+  const entry = tracking.trim() ? readTrackingEntry(tracking.trim()) : null;
+  const number = entry?.link ?? entry?.number ?? tracking;
+  // A link is kept on a bought order only: before that there is no store parcel to follow.
+  const problem = entry?.link && orderStatus !== "processing" ? "Mark it purchased first, then add the store's tracking link." : (entry?.problem ?? null);
   const add = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!tracking.trim() || problem) return;
@@ -116,8 +123,8 @@ export function OrderInboundPanel({
           ...(storeRef.trim() ? { store_order_ref: storeRef.trim() } : {}),
         });
         toast.success({
-          title: "Tracking added",
-          description: `Scanning it at the hub now opens ${orderNo}.${res.notified ? " The customer was told the store has shipped it." : ""}`,
+          title: entry?.link ? "Tracking link added" : "Tracking added",
+          description: `${entry?.link ? "The hub scans by number, so add the carrier's number when you have it." : `Scanning it at the hub now opens ${orderNo}.`}${res.notified ? " The customer was told the store has shipped it." : ""}`,
         });
         setTracking("");
         setStoreRef("");
@@ -149,6 +156,7 @@ export function OrderInboundPanel({
         <TruckIcon className="size-4 text-tm-text-3" aria-hidden />
         <h2 className="font-display text-[17px] leading-none font-bold text-tm-ink">Store tracking</h2>
       </div>
+      {storeTrackingUrl ? <StoreLinkRow orderId={orderId} url={storeTrackingUrl} canRemove={canAdd} /> : null}
       {parcels.length === 0 ? (
         <p className="text-[13px] font-medium text-tm-text-3">
           No store tracking number yet. Add the one from the store&apos;s shipping email so the scan finds this order.
@@ -165,7 +173,7 @@ export function OrderInboundPanel({
       {canAdd ? (
         <form onSubmit={add} className="flex flex-col gap-2 border-t border-tm-hairline pt-3">
           <label htmlFor="inbound-tracking" className="text-[12.5px] font-semibold text-tm-ink">
-            Add a tracking number
+            Add a tracking number or the store&apos;s tracking link
           </label>
           <input
             id="inbound-tracking"
@@ -173,11 +181,11 @@ export function OrderInboundPanel({
             onChange={(e) => setTracking(e.target.value)}
             autoComplete="off"
             spellCheck={false}
-            maxLength={120}
-            placeholder="1Z…, TBA…, 9400…"
+            maxLength={500}
+            placeholder="1Z…, TBA…, 9400…, or a.co/d/…"
             aria-invalid={problem ? true : undefined}
             aria-describedby={problem ? "inbound-tracking-problem" : undefined}
-            className="h-10 w-full rounded-[12px] border border-tm-border bg-card px-3 font-mono text-[13.5px] font-semibold text-tm-ink uppercase outline-none placeholder:font-sans placeholder:normal-case focus:border-tm-coral/60 aria-invalid:border-tm-coral"
+            className="h-10 w-full rounded-[12px] border border-tm-border bg-card px-3 font-mono text-[13.5px] font-semibold text-tm-ink outline-none placeholder:font-sans placeholder:normal-case focus:border-tm-coral/60 aria-invalid:border-tm-coral"
           />
           {problem ? (
             <p id="inbound-tracking-problem" role="alert" className="text-[12.5px] leading-[1.45] font-medium text-tm-coral-strong">
