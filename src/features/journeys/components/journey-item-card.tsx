@@ -1,4 +1,5 @@
 import { StoreImage as Image } from "@/components/store-image";
+import { orderSupportMessage } from "@/config/tracking-copy";
 import { ArrowSquareOut, ChatsCircle, Storefront } from "@phosphor-icons/react/ssr";
 
 import { formatLbs } from "@/features/bag/components/format";
@@ -10,6 +11,8 @@ export interface JourneyItemCardProps {
   note: string | null;
   /** From `site_settings.whatsapp_number`; the button is omitted when unset. */
   whatsappHref: string | null;
+  /** Where the order is ("In flight to Accra"), carried into the chat so nobody has to ask. */
+  stageLabel?: string | null;
   /** Named in the WhatsApp message so the agent knows which parcel is meant. */
   orderNo: string;
 }
@@ -29,7 +32,7 @@ export interface JourneyItemCardProps {
  *
  * Enters on the mock's `tmUp .5s .08s`.
  */
-export function JourneyItemCard({ item, note, whatsappHref, orderNo }: JourneyItemCardProps) {
+export function JourneyItemCard({ item, note, whatsappHref, orderNo, stageLabel = null }: JourneyItemCardProps) {
   const meta = [item.variant, `Qty ${item.quantity}`, item.weightLbs != null ? formatLbs(item.weightLbs) : null]
     .filter((part): part is string => !!part)
     .join(" · ");
@@ -88,7 +91,7 @@ export function JourneyItemCard({ item, note, whatsappHref, orderNo }: JourneyIt
 
       {whatsappHref && (
         <a
-          href={`${whatsappHref}?text=${encodeURIComponent(`Hi Tomame, a question about ${orderNo}.`)}`}
+          href={`${whatsappHref}?text=${encodeURIComponent(orderSupportMessage(orderNo, stageLabel))}`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex h-12 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tm-border bg-card text-sm leading-none font-semibold"

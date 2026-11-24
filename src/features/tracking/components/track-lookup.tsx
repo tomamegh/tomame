@@ -189,7 +189,11 @@ export function TrackLookup({ initialQuery, whatsappNumber = null }: TrackLookup
             </form>
           ) : null}
           <div className="border-t border-[#F5EEE9] pt-[18px]">
-            <WhatsAppButton number={whatsappNumber} text={orderSupportMessage(result.reference)} label={TRACK_WHATSAPP_CTA} />
+            <WhatsAppButton
+              number={whatsappNumber}
+              text={orderSupportMessage(result.reference, "stageLabel" in result ? result.stageLabel : null)}
+              label={TRACK_WHATSAPP_CTA}
+            />
           </div>
         </section>
       ) : null}

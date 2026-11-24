@@ -271,6 +271,7 @@ export function JourneyDetailView({ journey, paymentOutcome, courier, deliveryCh
           item={journey.item}
           note={journey.note}
           whatsappHref={journey.whatsappHref}
+          stageLabel={journey.stageLabel}
           orderNo={journey.orderNo}
         />
       </div>

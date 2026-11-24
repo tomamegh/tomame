@@ -45,7 +45,11 @@ export function waMeHref(number: string | null | undefined, text?: string | null
   return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
 }
 
-/** The prefilled support message for one order. */
-export function orderSupportMessage(reference: string): string {
-  return `Hi Tomame, I have a question about my order ${reference}.`;
+/**
+ * The prefilled support message for one order: its number and, when known,
+ * where it is (Seamless Roadmap, Initiative 4), so nobody has to ask which order.
+ */
+export function orderSupportMessage(reference: string, stage?: string | null, about?: string | null): string {
+  const where = stage?.trim() ? ` (${stage.trim()})` : "";
+  return `Hi Tomame, I have a question about my order ${reference}${where}.${about?.trim() ? ` ${about.trim()}` : ""}`;
 }

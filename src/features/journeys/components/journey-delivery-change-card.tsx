@@ -1,5 +1,6 @@
 "use client";
 
+import { orderSupportMessage } from "@/config/tracking-copy";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, Clock, HouseLine, LockSimple, MapPin, Phone, Plus, Storefront } from "@phosphor-icons/react/ssr";
@@ -46,8 +47,13 @@ export function JourneyDeliveryChangeCard({
   deliverTo,
   addresses,
   whatsappHref,
+  orderNo,
+  stageLabel,
 }: {
   orderId: string;
+  /** For the WhatsApp message, so the team knows which order and where it is. */
+  orderNo: string;
+  stageLabel: string | null;
   view: DeliveryChangeView;
   deliverTo: JourneyDeliverTo | null;
   addresses: DeliveryAddress[];
@@ -184,7 +190,12 @@ export function JourneyDeliveryChangeCard({
           <span>
             {lock.reason}{" "}
             {whatsappHref ? (
-              <a href={whatsappHref} target="_blank" rel="noreferrer" className="font-semibold text-tm-coral hover:underline">
+              <a
+                href={`${whatsappHref}${whatsappHref.includes("?") ? "&" : "?"}text=${encodeURIComponent(orderSupportMessage(orderNo, stageLabel, "I'd like to change the delivery."))}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-tm-coral hover:underline"
+              >
                 Need a change? Message us on WhatsApp.
               </a>
             ) : (

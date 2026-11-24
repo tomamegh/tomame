@@ -83,6 +83,8 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
                 deliverTo={journey.deliverTo}
                 addresses={addresses}
                 whatsappHref={journey.whatsappHref}
+                orderNo={journey.orderNo}
+                stageLabel={journey.stageLabel}
               />
             ) : null
           }
