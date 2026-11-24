@@ -40,7 +40,11 @@ export const FINDER = {
   /** Tries before a run is failed for good. */
   maxAttempts: 2,
   understandTimeoutMs: 12_000,
-  shortlistTimeoutMs: 15_000,
+  /**
+   * Reading ~40 titles and naming every reject takes Haiku about 15 s (prod p50 14.6 s, 2026-11-24). At 15 s, 15 of
+   * 37 runs timed out and fell back to the all-words keyword match, which finds nothing for "Kirkland beard spray".
+   */
+  shortlistTimeoutMs: 40_000,
   /** One store's search page. ScraperAPI eBay measured at 25 s. */
   storeSearchTimeoutMs: 75_000,
   /** The freight inspector, when a candidate's freight is still being checked. */
