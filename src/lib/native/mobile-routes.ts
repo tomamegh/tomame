@@ -26,6 +26,12 @@ export function mobilePathFor(pathname: string, search: URLSearchParams): string
   // A specific tab (addresses, security…) is managed on the website's page for now.
   if (path === "/app/account" && !search.get("tab")) return "/m/account";
   if (path === "/app/find") return "/m/chat";
+  // The website's Browse (the priced catalogue) is the app's Shop; same query names.
+  if (path === "/app/orders/new" && search.get("mode") === "browse") {
+    const rest = new URLSearchParams(search);
+    rest.delete("mode");
+    return rest.toString() ? `/m/shop?${rest.toString()}` : "/m/shop";
+  }
 
   if (path === "/app/orders") {
     if (search.get("payment") === "success") {

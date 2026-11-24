@@ -19,6 +19,11 @@ describe("mobilePathFor", () => {
     expect(map(`/app/find/chat/${ORDER}`)).toBe(`/m/chat/${ORDER}`);
   });
 
+  it("opens the priced catalogue (the website's Browse) as the app's Shop", () => {
+    expect(map("/app/orders/new?mode=browse")).toBe("/m/shop");
+    expect(map("/app/orders/new?mode=browse&category=Headphones&sort=price_asc")).toBe("/m/shop?category=Headphones&sort=price_asc");
+  });
+
   it("lands a settled payment on the Paid screen with its group", () => {
     expect(map(`/app/orders?payment=success&group=${ORDER}`)).toBe(`/m/paid?group=${ORDER}`);
     expect(map("/app/orders?payment=success")).toBe("/m/paid");

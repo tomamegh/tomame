@@ -25,7 +25,6 @@ import { getGhsRate } from "@/lib/exchange-rates/service";
 import { getSharedMediaOverrides } from "@/features/marketing/services/media-overrides.service";
 import { getHeroProduct } from "@/features/marketing/services/hero-product.service";
 import { isAuthenticated } from "@/lib/supabase/current-user";
-import { StandaloneHomeRedirect } from "@/features/pwa/components";
 
 export const metadata: Metadata = {
   // Absolute: it already carries the brand, so the root "%s · Tomame" template must not add it again.
@@ -114,7 +113,6 @@ export default async function HomePage() {
         The installed app has no use for the sales pitch — it goes straight to
         `/app`. Renders nothing in a browser tab.
       */}
-      <StandaloneHomeRedirect />
       <LandingHero
         usdToGhs={usdToGhs}
         originLabel={primary ? originLabel(primary) : "the USA"}

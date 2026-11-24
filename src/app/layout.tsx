@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { MetaPixel } from "@/components/analytics/meta-pixel";
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
-import { InstallPrompt, PwaSplash, ServiceWorkerRegistrar } from "@/features/pwa/components";
+import { InstallPrompt, PwaSplash, ServiceWorkerRegistrar, StandaloneAppRouter } from "@/features/pwa/components";
 import { appleStartupImages } from "@/features/pwa/lib/apple-startup-images";
 import { APP_THEME_COLOR } from "@/features/pwa/lib/splash-theme";
 
@@ -130,6 +130,7 @@ export default function RootLayout({
           }}
         />
         <InstallPrompt />
+        <StandaloneAppRouter />
         <ServiceWorkerRegistrar />
         {/* Off unless NEXT_PUBLIC_META_PIXEL_ID is set; skips staff consoles. */}
         <MetaPixel />

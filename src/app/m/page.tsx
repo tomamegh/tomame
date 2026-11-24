@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { CaretRight, Check, Package } from "@phosphor-icons/react/ssr";
+import { BellRinging, CaretRight, Check, Package } from "@phosphor-icons/react/ssr";
 
 import { readQuoteSessionFromCookies } from "@/lib/quote-session";
 import { getHomeView } from "@/features/app-home/services/home.service";
@@ -38,6 +38,10 @@ export default async function MobileHomePage() {
             <span className="live-dot" />$1 = GH₵{rate.applied_rate.toFixed(2)}
           </span>
         ) : null}
+        <Tap href="/m/watch" className="bell" aria-label={drops.length ? `Price watch, ${drops.length} dropped` : "Price watch"}>
+          <BellRinging size={18} />
+          {drops.length > 0 && <span className="dot" />}
+        </Tap>
         <Tap href="/m/account" className="avatar" aria-label="Account">{initial}</Tap>
       </header>
 
@@ -70,7 +74,7 @@ export default async function MobileHomePage() {
 
       {priced.length > 0 && (
         <>
-          <div className="section-h"><h2>Landed in Accra</h2><Tap href="/m/chat" className="link">Ask for more</Tap></div>
+          <div className="section-h"><h2>Landed in Accra</h2><Tap href="/m/shop" className="link">See all</Tap></div>
           <div className="shelf">
             {priced.map((p) => (
               <Tap key={p.id} href={`/m/price?url=${encodeURIComponent(p.product_url)}`} className="pcard">

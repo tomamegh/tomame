@@ -4,7 +4,7 @@ import { BellRinging, TrendDown, TrendUp } from "@phosphor-icons/react/ssr";
 import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
 import { listWatches } from "@/features/watches/services/watches.service";
 import type { WatchListItem } from "@/features/watches/types";
-import { Tap } from "@/features/mobile/components/tap";
+import { NavBar, Tap } from "@/features/mobile/components/tap";
 import { Spark, Thumb } from "@/features/mobile/components/bits";
 import { PullToRefresh } from "@/features/mobile/components/gestures";
 import { AddWatch, StopWatching } from "@/features/mobile/components/watch-actions";
@@ -20,8 +20,9 @@ export default async function MobileWatchPage() {
 
   return (
     <>
+      <NavBar title="" back="Home" backHref="/m" />
       <PullToRefresh />
-      <div className="lt"><div><h1>Price watch</h1><p>We check every few hours. You hear first.</p></div></div>
+      <div className="lt" style={{ paddingTop: 4 }}><div><h1>Price watch</h1><p>We check every few hours. You hear first.</p></div></div>
       <AddWatch />
 
       {watches.length === 0 && (

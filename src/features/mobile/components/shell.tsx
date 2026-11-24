@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BellRinging, House, Package, ShoppingBagOpen, Sparkle } from "@phosphor-icons/react";
+import { House, Package, ShoppingBagOpen, Sparkle, Storefront } from "@phosphor-icons/react";
 
 import { cn } from "@/lib/utils";
 import { haptic, onAppResume, setStatusBar, tidyKeyboard } from "@/lib/native/bridge";
@@ -45,14 +45,18 @@ export function MobileShell({ bagCount, children }: { bagCount: number; children
 }
 
 const TABS = [
-  { href: "/m", label: "Home", Icon: House, match: (p: string) => p === "/m" || p.startsWith("/m/account") },
-  { href: "/m/watch", label: "Watch", Icon: BellRinging, match: (p: string) => p.startsWith("/m/watch") },
+  { href: "/m", label: "Home", Icon: House, match: (p: string) => p === "/m" || p.startsWith("/m/account") || p.startsWith("/m/watch") },
+  { href: "/m/shop", label: "Shop", Icon: Storefront, match: (p: string) => p.startsWith("/m/shop") },
   { href: "/m/chat", label: "Buy for me", Icon: Sparkle, match: (p: string) => p.startsWith("/m/chat") },
   { href: "/m/orders", label: "Orders", Icon: Package, match: (p: string) => p.startsWith("/m/orders") },
   { href: "/m/bag", label: "Bag", Icon: ShoppingBagOpen, match: (p: string) => p.startsWith("/m/bag") },
 ];
 
 function TabBar({ pathname, initialBagCount }: { pathname: string; initialBagCount: number }) {
+  // The tapped tab lights up at once, before its screen arrives from the server.
+  const [tapped, setTapped] = useState<string | null>(null);
+  useEffect(() => setTapped(null), [pathname]);
+  const current = tapped ?? pathname;
   // Shares the ["bag"] cache with the bag screen and add-to-bag, so the badge moves the
   // moment a line is added or removed anywhere in the app.
   const bag = useQuery({ queryKey: bagKeys.all, queryFn: fetchBag, staleTime: 30_000 });
@@ -76,10 +80,10 @@ function TabBar({ pathname, initialBagCount }: { pathname: string; initialBagCou
   return (
     <nav className="tabbar" aria-label="Tomame">
       {TABS.map(({ href, label, Icon, match }) => {
-        const on = match(pathname);
+        const on = match(current);
         if (href === "/m/chat") {
           return (
-            <Link key={href} href={href} className={cn("tab tab-ai", on && "on")} onClick={() => haptic("light")} aria-current={on ? "page" : undefined}>
+            <Link key={href} href={href} className={cn("tab tab-ai", on && "on")} onClick={() => { haptic("light"); setTapped(href); }} aria-current={on ? "page" : undefined}>
               <span className="orb"><Icon size={26} weight="fill" /></span>
               <span>{label}</span>
             </Link>
@@ -93,6 +97,7 @@ function TabBar({ pathname, initialBagCount }: { pathname: string; initialBagCou
             onClick={() => {
               haptic("select");
               if (on) window.scrollTo({ top: 0, behavior: "smooth" });
+              else setTapped(href);
             }}
             aria-current={on ? "page" : undefined}
           >

@@ -12,11 +12,11 @@ import {
  * an installed app: without it iOS opens the site in a browser tab with the
  * address bar showing, and Chrome never offers to install at all.
  *
- * `start_url` is `/app`, not `/`. Someone who put Tomame on their home screen
- * wants the shopping surface, not the marketing landing page they were sold on
- * once. Signed-out visitors are not stranded — `src/proxy.ts` bounces `/app` to
- * `/auth/login?next=/app`, so the first launch after install is a login and
- * every launch after that lands on Home.
+ * `start_url` is `/m`: installed Tomame is the app (Kelvin, 2026-11-23), the same
+ * screens as the iPhone app, not the website. Signed-out visitors are not
+ * stranded — `src/proxy.ts` sends `/m` to `/m/welcome`, so the first launch is a
+ * sign-in and every launch after it lands on the app's Home. `StandaloneAppRouter`
+ * keeps an installed copy on `/m` when a link opens a website page.
  *
  * `id` is pinned so a future change to `start_url` updates the installed app
  * in place rather than appearing as a second, duplicate icon.
@@ -28,7 +28,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Tomame",
     description:
       "Buy from Amazon, eBay, Walmart and more with Mobile Money. One landed price in cedis, delivered to your door in Ghana.",
-    start_url: "/app",
+    start_url: "/m",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
