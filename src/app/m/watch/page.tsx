@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { BellRinging, TrendDown, TrendUp } from "@phosphor-icons/react/ssr";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { currentUser } from "@/features/mobile/services/session.service";
 import { listWatches } from "@/features/watches/services/watches.service";
 import type { WatchListItem } from "@/features/watches/types";
 import { NavBar, Tap } from "@/features/mobile/components/tap";
@@ -12,7 +12,7 @@ import { ago, ghs0 } from "@/features/mobile/format";
 
 /** Price watch: drops first, then everything being watched. The cron re-reads prices; this reads its results. */
 export default async function MobileWatchPage() {
-  const user = await getAuthenticatedUser();
+  const user = await currentUser();
   if (!user) redirect("/m/welcome?next=%2Fm%2Fwatch");
   const { watches } = await listWatches(user.id);
   const drops = watches.filter((w) => w.stats.direction === "drop");
@@ -65,7 +65,7 @@ function WatchCard({ item: { watch, stats }, fresh = false }: { item: WatchListI
       </div>
       <div className="acts">
         <StopWatching id={watch.id} />
-        <Tap href={`/m/price?url=${encodeURIComponent(watch.product_url)}`} className="btn btn-primary" haptic="medium">Price it now</Tap>
+        <Tap href={`/m/price?url=${encodeURIComponent(watch.product_url)}&t=${encodeURIComponent(watch.product_name ?? "")}&img=${encodeURIComponent(watch.product_image_url ?? "")}`} className="btn btn-primary" haptic="medium">Price it now</Tap>
       </div>
     </div>
   );

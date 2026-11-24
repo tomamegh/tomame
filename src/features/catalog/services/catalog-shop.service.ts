@@ -7,6 +7,7 @@ import {
   type CatalogShopHit,
   type CatalogShopQuery,
   type CatalogStore,
+  getCatalogProductById,
 } from "@/db/queries/catalog";
 import { CATALOG_CORE_STORES } from "@/config/catalog";
 import type { PricingCalculator } from "@/lib/pricing/calculator";
@@ -199,4 +200,15 @@ export function toShopFacets(rows: readonly CatalogFacetRow[]): ShopFacets {
     ratings: SHOP_RATINGS.map((value) => ({ value, count: count("rating", String(value)) })),
     range: min != null && max != null ? { min, max } : null,
   };
+}
+
+/**
+ * One shop listing, priced on today's calculator: what the app's product view opens on the
+ * instant it is tapped, before the store is asked for the live price.
+ */
+export async function getShopProduct(id: string): Promise<ShopProduct | null> {
+  const row = await getCatalogProductById(id);
+  if (!row) return null;
+  const [priced] = await priceRows([row as CatalogShopHit]);
+  return priced ?? null;
 }

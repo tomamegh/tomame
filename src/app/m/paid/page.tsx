@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { currentUser } from "@/features/mobile/services/session.service";
 import { getJourneys, getPaidBagConfirmation } from "@/features/journeys/services/journeys.service";
 import { Celebrate } from "@/features/mobile/components/celebrate";
 import { Tap } from "@/features/mobile/components/tap";
@@ -9,7 +9,7 @@ import { ghs2 } from "@/features/mobile/format";
 
 /** After a settled payment: the confirmation, the promised date, and the way to the tracker. */
 export default async function MobilePaidPage({ searchParams }: { searchParams: Promise<{ group?: string }> }) {
-  const user = await getAuthenticatedUser();
+  const user = await currentUser();
   if (!user) redirect("/m/welcome");
   const { group } = await searchParams;
   const [paid, journeys] = await Promise.all([getPaidBagConfirmation(user.id, group), getJourneys(user)]);

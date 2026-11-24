@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { CalendarCheck, CaretRight, Check, LockSimple, MapTrifold, Motorcycle, Phone, Sparkle } from "@phosphor-icons/react/ssr";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { currentUser } from "@/features/mobile/services/session.service";
 import { getJourneyDetail } from "@/features/journeys/services/journey-detail.service";
 import { getCourierForViewer } from "@/features/order-delivery/services/courier.service";
 import { describePlan } from "@/features/journeys/delivery-plan";
@@ -15,7 +15,7 @@ import { ago, shortDate } from "@/features/mobile/format";
 
 /** The live tracker: where the parcel is on the JFK → ACC route, the six stops, the code at the door. */
 export default async function MobileOrderPage({ params }: { params: Promise<{ id: string }> }) {
-  const [{ id }, user] = await Promise.all([params, getAuthenticatedUser()]);
+  const [{ id }, user] = await Promise.all([params, currentUser()]);
   if (!user) redirect(`/m/welcome?next=${encodeURIComponent(`/m/orders/${id}`)}`);
 
   let journey, courier;

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { currentUser } from "@/features/mobile/services/session.service";
 import { FinderChatScreen } from "@/features/finder/components/chat/finder-chat-screen";
 import { finderRunIdSchema } from "@/features/finder/schema";
 import { getChatView, listChatHistory, listPastedLinks } from "@/features/finder/services/finder-chat.service";
@@ -12,7 +12,7 @@ import { ChatFrame } from "@/features/mobile/components/chat-frame";
 export default async function MobileChatPage({ params }: { params: Promise<{ id: string }> }) {
   const id = finderRunIdSchema.safeParse((await params).id);
   if (!id.success) notFound();
-  const [user, cookieStore] = await Promise.all([getAuthenticatedUser(), cookies()]);
+  const [user, cookieStore] = await Promise.all([currentUser(), cookies()]);
   const viewer = { userId: user?.id ?? null, sessionId: readQuoteSessionFromCookies(cookieStore) };
   const [view, history, pastes] = await Promise.all([getChatView(id.data, viewer), listChatHistory(viewer, 30), listPastedLinks(viewer)]);
   if (!view) notFound();

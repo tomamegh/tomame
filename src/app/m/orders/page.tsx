@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { CheckCircle, CreditCard, Package } from "@phosphor-icons/react/ssr";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { currentUser } from "@/features/mobile/services/session.service";
 import { getJourneys } from "@/features/journeys/services/journeys.service";
 import type { JourneyRow } from "@/features/journeys/types";
 import { Tap } from "@/features/mobile/components/tap";
@@ -13,7 +13,7 @@ type Tab = "active" | "done";
 
 /** Orders: what is on its way (and what still needs paying), then what arrived. */
 export default async function MobileOrdersPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const user = await getAuthenticatedUser();
+  const user = await currentUser();
   if (!user) redirect("/m/welcome?next=%2Fm%2Forders");
   const tab: Tab = (await searchParams).tab === "done" ? "done" : "active";
   const { rows } = await getJourneys(user);

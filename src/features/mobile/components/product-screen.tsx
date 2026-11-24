@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { BellSimpleRinging, CalendarCheck, CaretDown, ShoppingBagOpen, LockSimple, Minus, Plus, Scales, ShareNetwork, WarningCircle } from "@phosphor-icons/react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { BellSimpleRinging, CalendarCheck, CaretDown, ShoppingBagOpen, LockSimple, Minus, Plus, Scales, ShareNetwork, Star, WarningCircle } from "@phosphor-icons/react";
 
 import { apiFetch } from "@/lib/api-client";
 import type { ApiSuccessResponse } from "@/types/api";
@@ -15,7 +15,9 @@ import { formatEtaWindow } from "@/features/journeys/format";
 import { useAddToBag } from "@/features/bag/hooks/useAddToBag";
 import { useCreateWatch } from "@/features/watches/hooks/useWatches";
 import { cn } from "@/lib/utils";
-import { ghs0, ghs2 } from "../format";
+import { ghs0, ghs2, storeLabel } from "../format";
+import { compactCount } from "../shop-format";
+import { Tap } from "./tap";
 import { NavBar } from "./tap";
 import { StoreTag } from "./bits";
 
@@ -24,12 +26,56 @@ type ViewQuote = Quote & { product_url: string; is_watching: boolean; rechecking
 /** Keep asking while the quote is still being priced or its freight is being checked. */
 const busy = (q: ViewQuote | undefined) => !q || q.rechecking || q.freight_check != null || (!q.pricing && !q.pricing_unavailable_reason);
 
+/** What the shop already knows about a listing: shown the instant it is tapped. */
+export interface ProductSeed {
+  title: string;
+  image: string | null;
+  store: string;
+  totalGhs: number | null;
+  rating: number | null;
+  reviews: number | null;
+  productUrl: string;
+}
+
 /**
  * A product, priced to the door: `GET /api/extractions/:id` (the website's quote call), add to bag,
  * and watch the price. The landed total and every breakdown row come from the server.
+ *
+ * Opened from the Shop it starts from the catalogue's `seed` (picture, title, its priced figure)
+ * while `POST /api/products/extract` confirms today's price and stock with the store; the live
+ * quote then takes over. No chat is started (Kelvin, 2026-11-24).
  */
-export function ProductScreen({ id }: { id: string }) {
+export function ProductScreen({ id: givenId, seed }: { id: string | null; seed?: ProductSeed }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const [id, setId] = useState<string | null>(givenId);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+
+  // From the shop: ask the store for today's price once, then hand over to the live quote.
+  useEffect(() => {
+    if (id || !seed) return;
+    let alive = true;
+    apiFetch<ApiSuccessResponse<Quote>>("/api/products/extract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_url: seed.productUrl }),
+    }).then(
+      ({ data }) => {
+        if (!alive) return;
+        if (!data.extraction_cache_id) {
+          setConfirmError(data.pricing_unavailable_reason ?? "The store didn't give us a price just now.");
+          return;
+        }
+        queryClient.setQueryData(["m-quote", data.extraction_cache_id, 1], { ...data, product_url: seed.productUrl, is_watching: false, rechecking: false });
+        haptic("light");
+        setId(data.extraction_cache_id);
+      },
+      (e: unknown) => alive && setConfirmError(e instanceof Error ? e.message : "We couldn't reach the store just now."),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [id, seed, queryClient]);
   const [qty, setQty] = useState(1);
   const add = useAddToBag();
   const watch = useCreateWatch();
@@ -37,6 +83,7 @@ export function ProductScreen({ id }: { id: string }) {
   const imgRef = useRef<HTMLImageElement>(null);
 
   const quote = useQuery({
+    enabled: id != null,
     queryKey: ["m-quote", id, qty],
     queryFn: async () => (await apiFetch<ApiSuccessResponse<ViewQuote>>(`/api/extractions/${id}?quantity=${qty}`)).data,
     placeholderData: (prev) => prev,
@@ -46,7 +93,10 @@ export function ProductScreen({ id }: { id: string }) {
   const p = q?.pricing ?? null;
   const isWatching = watching ?? q?.is_watching ?? false;
   const eta = p ? formatEtaWindow({ from: p.delivery_eta_from ?? null, to: p.delivery_eta_to ?? null, source: "estimated" }) : null;
-  const canAdd = !!p && !q?.pay_hold && !add.isPending;
+  const canAdd = !!id && !!p && !q?.pay_hold && !add.isPending;
+  const confirming = !id && !!seed && !confirmError;
+  const image = q?.product.image ?? seed?.image ?? null;
+  const title = q?.product.title ?? seed?.title ?? null;
 
   const flyToBag = () => {
     const from = imgRef.current?.getBoundingClientRect();
@@ -67,9 +117,9 @@ export function ProductScreen({ id }: { id: string }) {
   return (
     <>
       <NavBar
-        title={q?.product.title ?? "Product"}
+        title={title ?? "Product"}
         back="Back"
-        backHref="/m"
+        backHref={seed ? "/m/shop" : "/m"}
         actions={
           <button
             type="button"
@@ -77,7 +127,8 @@ export function ProductScreen({ id }: { id: string }) {
             aria-label="Share"
             onClick={() => {
               haptic("light");
-              if (q) void share({ title: q.product.title ?? "Tomame", url: q.product_url });
+              const url = q?.product_url ?? seed?.productUrl;
+              if (url) void share({ title: title ?? "Tomame", url });
             }}
           >
             <ShareNetwork size={18} />
@@ -86,18 +137,38 @@ export function ProductScreen({ id }: { id: string }) {
       />
 
       <div className="hero-img up">
-        {q?.product.image ? (
-          <img ref={imgRef} src={q.product.image} alt={q.product.title ?? ""} referrerPolicy="no-referrer" />
+        {image ? (
+          <img ref={imgRef} src={image} alt={title ?? ""} referrerPolicy="no-referrer" />
         ) : (
           <div className="shimmer" style={{ width: "70%", height: "70%" }} />
         )}
       </div>
 
       <div className="pd">
-        <StoreTag store={q?.platform ?? null} country={q?.country === "USA" ? "USA" : q?.country === "UK" ? "UK" : q?.country ?? null} />
-        <h2>{q?.product.title ?? <span className="shimmer" style={{ display: "block", height: 26, width: "80%" }} />}</h2>
+        <StoreTag store={q?.platform ?? seed?.store ?? null} country={q?.country === "USA" ? "USA" : q?.country === "UK" ? "UK" : q?.country ?? (seed ? "USA" : null)} />
+        <h2>{title ?? <span className="shimmer" style={{ display: "block", height: 26, width: "80%" }} />}</h2>
+        {seed?.rating != null && seed.rating > 0 && (
+          <span className="sc-r" style={{ marginTop: 6 }}><Star size={13} weight="fill" />{seed.rating.toFixed(1)}{seed.reviews ? <small>({compactCount(seed.reviews)} reviews)</small> : null}</span>
+        )}
 
-        {p ? (
+        {confirming ? (
+          <div className="confirming">
+            <div className="big-price">
+              {seed?.totalGhs != null ? <b className="nums">{ghs0(seed.totalGhs)}</b> : <span className="shimmer" style={{ width: 170, height: 40 }} />}
+              <span>to your door<br />in Accra, all in</span>
+            </div>
+            <div className="confirm-bar"><span /></div>
+            <p className="confirm-note">Confirming today&apos;s price and stock at {storeLabel(seed!.store)}…</p>
+          </div>
+        ) : confirmError && !id ? (
+          <>
+            {seed?.totalGhs != null && (
+              <div className="big-price"><b className="nums">{ghs0(seed.totalGhs)}</b><span>last price we saw,<br />to your door</span></div>
+            )}
+            <p className="note" style={{ display: "flex", gap: 8 }}><WarningCircle size={18} weight="fill" style={{ flex: "none" }} />{confirmError}</p>
+            <div style={{ marginTop: 12 }}><Tap href={`/m/price?url=${encodeURIComponent(seed!.productUrl)}`} className="btn btn-ghost btn-block">Ask Buy for me to price it</Tap></div>
+          </>
+        ) : p ? (
           <>
             <div className="big-price">
               <b className="nums">{ghs0(p.total_ghs)}</b>
@@ -174,7 +245,7 @@ export function ProductScreen({ id }: { id: string }) {
             if (!canAdd) return;
             haptic("medium");
             add.mutate(
-              { extraction_cache_id: id, quantity: qty },
+              { extraction_cache_id: id!, quantity: qty },
               {
                 onSuccess: () => {
                   flyToBag();
@@ -191,7 +262,7 @@ export function ProductScreen({ id }: { id: string }) {
           }}
         >
           <ShoppingBagOpen size={20} weight="bold" />
-          {add.isPending ? "Adding…" : p ? `Add to bag · ${ghs0(p.total_ghs)}` : "Add to bag"}
+          {add.isPending ? "Adding…" : confirming ? "Confirming price…" : p ? `Add to bag · ${ghs0(p.total_ghs)}` : "Add to bag"}
         </button>
       </div>
     </>

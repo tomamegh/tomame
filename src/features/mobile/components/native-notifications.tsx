@@ -49,10 +49,23 @@ export function NativeNotifications() {
         // Reminders are a nicety: a failed sync leaves the last set in place.
       }
     };
-    void sync();
-    const offResume = onAppResume(() => void sync());
+    // Never on the first paint: it waits until the screen is up, and runs at most every 30 min.
+    const KEY = "tm-reminders-synced";
+    const maybeSync = () => {
+      try {
+        const last = Number(window.localStorage.getItem(KEY) ?? 0);
+        if (Date.now() - last < 30 * 60_000) return;
+        window.localStorage.setItem(KEY, String(Date.now()));
+      } catch {
+        // No storage: sync anyway.
+      }
+      void sync();
+    };
+    const first = window.setTimeout(maybeSync, 6000);
+    const offResume = onAppResume(maybeSync);
     const offTap = onNotificationTap((href) => router.push(href));
     return () => {
+      window.clearTimeout(first);
       offResume();
       offTap();
     };

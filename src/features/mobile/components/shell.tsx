@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { House, Package, ShoppingBagOpen, Sparkle, Storefront } from "@phosphor-icons/react";
 
 import { cn } from "@/lib/utils";
-import { haptic, onAppResume, setStatusBar, tidyKeyboard } from "@/lib/native/bridge";
+import { haptic, setStatusBar, tidyKeyboard } from "@/lib/native/bridge";
 import { bagKeys, fetchBag } from "@/features/bag/hooks/useAddToBag";
 import { NativeNotifications } from "./native-notifications";
 
@@ -59,7 +59,9 @@ function TabBar({ pathname, initialBagCount }: { pathname: string; initialBagCou
   const current = tapped ?? pathname;
   // Shares the ["bag"] cache with the bag screen and add-to-bag, so the badge moves the
   // moment a line is added or removed anywhere in the app.
-  const bag = useQuery({ queryKey: bagKeys.all, queryFn: fetchBag, staleTime: 30_000 });
+  // Reads the shared ["bag"] cache without fetching it on every screen: the bag screen and
+  // add-to-bag keep it current, and the server's count fills in until they have.
+  const bag = useQuery({ queryKey: bagKeys.all, queryFn: fetchBag, enabled: false });
   const count = bag.data?.item_count ?? initialBagCount;
   const [bump, setBump] = useState(false);
   const last = useRef(count);
@@ -74,8 +76,6 @@ function TabBar({ pathname, initialBagCount }: { pathname: string; initialBagCou
   }, [count]);
 
   // Coming back to the app re-reads the bag: a payment or another device may have changed it.
-  const refetch = bag.refetch;
-  useEffect(() => onAppResume(() => void refetch()), [refetch]);
 
   return (
     <nav className="tabbar" aria-label="Tomame">
@@ -83,7 +83,7 @@ function TabBar({ pathname, initialBagCount }: { pathname: string; initialBagCou
         const on = match(current);
         if (href === "/m/chat") {
           return (
-            <Link key={href} href={href} className={cn("tab tab-ai", on && "on")} onClick={() => { haptic("light"); setTapped(href); }} aria-current={on ? "page" : undefined}>
+            <Link key={href} href={href} prefetch className={cn("tab tab-ai", on && "on")} onClick={() => { haptic("light"); setTapped(href); }} aria-current={on ? "page" : undefined}>
               <span className="orb"><Icon size={26} weight="fill" /></span>
               <span>{label}</span>
             </Link>
@@ -93,6 +93,7 @@ function TabBar({ pathname, initialBagCount }: { pathname: string; initialBagCou
           <Link
             key={href}
             href={href}
+            prefetch
             className={cn("tab", on && "on")}
             onClick={() => {
               haptic("select");

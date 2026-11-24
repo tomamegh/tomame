@@ -2,7 +2,11 @@ import type { Metadata, Viewport } from "next";
 
 import "@/features/mobile/mobile.css";
 import { MobileShell } from "@/features/mobile/components/shell";
-import { getAppChrome } from "@/features/app-shell/services/app-chrome.service";
+import { cookies } from "next/headers";
+
+import { getBagCount } from "@/features/bag/services/bag.service";
+import { readQuoteSessionFromCookies } from "@/lib/quote-session";
+import { currentUser } from "@/features/mobile/services/session.service";
 
 export const metadata: Metadata = {
   title: { absolute: "Tomame" },
@@ -29,6 +33,8 @@ export const viewport: Viewport = {
  * from the root layout.
  */
 export default async function MobileLayout({ children }: { children: React.ReactNode }) {
-  const chrome = await getAppChrome();
-  return <MobileShell bagCount={chrome.bagCount ?? 0}>{children}</MobileShell>;
+  // Only what the frame draws (the bag badge), on the same user lookup as the screen inside it.
+  const [user, cookieStore] = await Promise.all([currentUser(), cookies()]);
+  const bagCount = user ? await getBagCount({ userId: user.id, sessionId: readQuoteSessionFromCookies(cookieStore) }).catch(() => 0) : 0;
+  return <MobileShell bagCount={bagCount}>{children}</MobileShell>;
 }

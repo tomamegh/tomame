@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { BellSimpleRinging, CaretRight, ChatCircleDots, HouseLine, Receipt, ShieldCheck, Wallet } from "@phosphor-icons/react/ssr";
 
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { currentUser } from "@/features/mobile/services/session.service";
 import { getJourneys } from "@/features/journeys/services/journeys.service";
 import { listWatches } from "@/features/watches/services/watches.service";
 import { listAddresses } from "@/features/addresses/services/addresses.service";
@@ -10,7 +10,7 @@ import { HapticsControls, SignOutCell } from "@/features/mobile/components/accou
 
 /** Account. Profile and counts from the same services as the website; detailed settings open its pages. */
 export default async function MobileAccountPage() {
-  const user = await getAuthenticatedUser();
+  const user = await currentUser();
   if (!user) redirect("/m/welcome?next=%2Fm%2Faccount");
   const [journeys, watches, addresses] = await Promise.all([getJourneys(user), listWatches(user.id), listAddresses(user.id)]);
   const name = [user.profile.first_name, user.profile.last_name].filter(Boolean).join(" ") || user.email || "Your account";

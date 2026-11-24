@@ -225,6 +225,21 @@ export async function listCatalogCategories(): Promise<CatalogCategoryCount[]> {
  * still decline them, and a product we hold is worth showing as "open it and we
  * will price it live" instead of being silently missing from its own category.
  */
+/** One catalogue listing by id, in the search-hit shape the pricing reads. Null when gone. */
+export async function getCatalogProductById(id: string): Promise<CatalogSearchHit | null> {
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("catalog_products")
+    .select(
+      "id, store, external_id, title, image_url, product_url, price_usd, currency, rating, review_count, category, last_seen_at, weight_lbs",
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to load catalog product: ${error.message}`);
+  return data ? ({ ...(data as object), rank: 0 } as unknown as CatalogSearchHit) : null;
+}
+
 export async function listCatalogProductsByCategory(input: {
   category: string;
   limit: number;

@@ -531,3 +531,10 @@ html:has(.tm-m.chat-lock), body:has(.tm-m.chat-lock) { height: 100%; overflow: h
 /* Home: Price watch moved off the tab bar to a bell by the avatar. */
 .tm-m .bell { position: relative; width: 34px; height: 34px; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 1px var(--m-border); display: grid; place-items: center; color: var(--m-ink); flex: none; }
 .tm-m .bell .dot { position: absolute; top: 5px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--m-coral); box-shadow: 0 0 0 2px #fff; }
+
+/* Product view, confirming today's price with the store */
+.tm-m .confirming .big-price b { opacity: 0.55; }
+.tm-m .confirm-bar { position: relative; height: 5px; margin-top: 12px; border-radius: 3px; background: var(--m-hairline); overflow: hidden; }
+.tm-m .confirm-bar span { position: absolute; top: 0; bottom: 0; width: 40%; border-radius: 3px; background: var(--m-grad); animation: m-confirm 1.25s var(--m-ease) infinite; }
+@keyframes m-confirm { from { left: -40%; } to { left: 100%; } }
+.tm-m .confirm-note { margin-top: 8px; font-size: 13.5px; color: var(--m-text-2); font-weight: 550; }

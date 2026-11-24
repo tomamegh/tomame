@@ -1,7 +1,7 @@
 import { ArrowRight, CaretLeft, MagnifyingGlass, ShieldCheck, Star, Storefront, X } from "@phosphor-icons/react/ssr";
 
-import { listBrowsableCategories } from "@/features/catalog/services/catalog-search.service";
-import { getShopDepartmentGroups, getShopPage, type ShopDepartmentGroup, type ShopProduct } from "@/features/catalog/services/catalog-shop.service";
+import { getShopPage, type ShopDepartmentGroup, type ShopProduct } from "@/features/catalog/services/catalog-shop.service";
+import { cachedShopCategories, cachedShopFront } from "@/features/mobile/services/shop-cache.service";
 import { isGroupedView, parseShopParams, type ShopSearchParams, type ShopSort, type ShopState } from "@/features/catalog/shop-params";
 import { departmentImage } from "@/features/catalog/components/department-images";
 import { resolveCatalogQuery } from "@/features/catalog/components/format";
@@ -33,7 +33,7 @@ export default async function MobileShopPage({ searchParams }: { searchParams: P
   const params = await searchParams;
   let categories: { category: string; count: number }[] = [];
   try {
-    categories = (await listBrowsableCategories()).filter((c) => c.count > 0);
+    categories = (await cachedShopCategories()).filter((c) => c.count > 0);
   } catch (error) {
     logger.error("m/shop: could not list catalogue categories", { error: error instanceof Error ? error.message : String(error) });
   }
@@ -77,7 +77,7 @@ export default async function MobileShopPage({ searchParams }: { searchParams: P
 
 /** The front page: a mixed "Popular now" row, a few department shelves, then every category. */
 async function Front({ categories }: { categories: { category: string; count: number }[] }) {
-  const groups = await getShopDepartmentGroups(SHELF_READ).catch(() => [] as ShopDepartmentGroup[]);
+  const groups = await cachedShopFront(SHELF_READ).catch(() => [] as ShopDepartmentGroup[]);
   if (groups.length === 0) return <Empty />;
   const shelves = groups
     .map((g) => ({ ...g, products: distinctByTitle(g.products.filter(priced)).slice(0, SHELF_SHOW) }))
@@ -195,7 +195,7 @@ const priced = (p: ShopProduct) => p.total_ghs != null && !p.unpriceable && !!p.
 /** A product: picture on white with the store on it, two lines of title, rating, the landed price. */
 function Card({ p, size = "md" }: { p: ShopProduct; size?: "md" | "lg" | "grid" }) {
   return (
-    <Tap href={`/m/price?url=${encodeURIComponent(p.product_url)}`} className={cn("sc", size)}>
+    <Tap href={`/m/item/${p.id}`} className={cn("sc", size)}>
       <span className="sc-img">
         {p.image_url ? <img src={p.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <Storefront size={28} />}
         <span className="sc-store">{storeLabel(p.store)}</span>

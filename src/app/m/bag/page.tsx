@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { listActiveDeliveryZones } from "@/db/queries/delivery-zones";
 import { findLatestPendingGroupForUser } from "@/db/queries/order-groups";
 import { listAddresses } from "@/features/addresses/services/addresses.service";
-import { getAuthenticatedUser } from "@/features/auth/services/auth.service";
+import { currentUser } from "@/features/mobile/services/session.service";
 import { getBag } from "@/features/bag/services/bag.service";
 import { isPickupEnabled } from "@/features/bag/services/delivery-settings.service";
 import { getBagPaymentSettings } from "@/features/payments/services/payment-channels.service";
@@ -14,7 +14,7 @@ import { BagScreen } from "@/features/mobile/components/bag-screen";
 
 /** The bag, read the same way as the website's `/app/bag`. */
 export default async function MobileBagPage() {
-  const user = await getAuthenticatedUser();
+  const user = await currentUser();
   if (!user) redirect("/m/welcome?next=%2Fm%2Fbag");
   const [cookieStore, zones, payment, addresses, pendingGroup, pickupEnabled, momoPrefill] = await Promise.all([
     cookies(),
