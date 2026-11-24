@@ -143,8 +143,8 @@ export interface ShopDepartmentGroup {
 }
 
 /** The grouped front page: every department's first few, priced on one calculator. */
-export async function getShopDepartmentGroups(): Promise<ShopDepartmentGroup[]> {
-  const rows = await readDepartmentTops(SHOP_GROUP_SIZE);
+export async function getShopDepartmentGroups(perGroup: number = SHOP_GROUP_SIZE): Promise<ShopDepartmentGroup[]> {
+  const rows = await readDepartmentTops(perGroup);
   if (rows.length === 0) return [];
   const priced = await priceRows(rows);
 

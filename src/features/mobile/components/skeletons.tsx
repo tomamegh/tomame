@@ -67,16 +67,12 @@ export function ListSkeleton({ rows = 4, title = 130 }: { rows?: number; title?:
 export function GridSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading">
-      <Title wide={90} />
-      <div style={{ margin: "0 16px" }}><Bar w="100%" h={48} r={16} /></div>
-      <div className="shelf" style={{ marginTop: 14 }}>
-        {Array.from({ length: 5 }, (_, i) => (
-          <div key={i} style={{ flex: "none", textAlign: "center" }}><Bar w={64} h={64} r={20} /><Bar w={52} h={10} mt={6} /></div>
-        ))}
-      </div>
-      <div className="pgrid">
-        {Array.from({ length: 6 }, (_, i) => (
-          <div key={i}><Bar w="100%" h={160} r={20} /><Bar w="80%" mt={10} /><Bar w="45%" h={18} mt={8} /></div>
+      <div className="shop-top" style={{ position: "static" }}><Bar w={90} h={30} r={10} /><Bar w="100%" h={46} r={14} mt={10} /></div>
+      <div className="cat-chips">{[0, 1, 2, 3].map((i) => <Bar key={i} w={92} h={38} r={19} />)}</div>
+      <div className="section-h"><Bar w={130} h={20} /></div>
+      <div className="shelf-rail">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="sc lg"><Bar w="100%" h={196} r={18} /><Bar w="85%" mt={10} /><Bar w="45%" h={18} mt={8} /></div>
         ))}
       </div>
     </div>
