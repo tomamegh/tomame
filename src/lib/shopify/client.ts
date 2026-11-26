@@ -179,6 +179,18 @@ export function shopifyMarketQuery(market: ShopifyMarket): string {
   return `country=${market}&currency=${MARKET_CURRENCY[market]}`;
 }
 
+/** A Shopify product link that opens in `market`, so a page read (and the buyer) sees that market's price. */
+export function withShopifyMarket(url: string, market: ShopifyMarket): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.set("country", market);
+    u.searchParams.set("currency", MARKET_CURRENCY[market]);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 /** Both records merged: `.json` for price + currency + grams, `.js` for availability. Null when the store is not Shopify (or has the endpoints off). */
 export async function fetchShopifyProduct(url: string, opts: { timeoutMs?: number; signal?: AbortSignal; market?: ShopifyMarket } = {}): Promise<ShopifyProduct | null> {
   const target = shopifyHandleOf(url);

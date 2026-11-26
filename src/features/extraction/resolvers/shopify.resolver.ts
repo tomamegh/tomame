@@ -3,6 +3,7 @@ import { fetchShopifyProduct, shopifyHandleOf, shopifyVariantIdOf, type ShopifyM
 import { inferRegion, type Region } from "../url";
 import { hasRequiredFields } from "./merge";
 import { addVariant, cleanTitle, normalizeImages, salePrice } from "../scrapers/parse";
+import { MAX_VARIANT_CHOICES, type VariantChoices } from "../variant-choices";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
 
 /** The store's own product record: above every vendor's read of its page. */
@@ -20,6 +21,28 @@ function pickVariant(product: ShopifyProduct, variantId: number | null): Shopify
 /** The market to price in: the store's registered region, a UK address, else our US hub. */
 export function shopifyMarketFor(url: string, region: Region | null): ShopifyMarket {
   return (region ?? inferRegion(url, null)) === "UK" ? "GB" : "US";
+}
+
+/** Every variant the store sells, for the quote screen's picker; null when there is only one. */
+export function shopifyVariantChoices(product: ShopifyProduct, selectedId: number | null): VariantChoices | null {
+  const named = product.options.map((o, i) => ({ ...o, i })).filter((o) => o.name.toLowerCase() !== "title" && o.values.length > 0);
+  if (named.length === 0 || product.variants.length < 2 || product.variants.length > MAX_VARIANT_CHOICES) return null;
+  const choices = product.variants
+    .filter((v) => v.id > 0)
+    .map((v) => ({
+      id: String(v.id),
+      options: Object.fromEntries(named.flatMap((o): Array<[string, string]> => {
+        const value = v.options[o.i];
+        return value ? [[o.name, value]] : [];
+      })),
+      available: v.available,
+    }));
+  return {
+    via: "shopify",
+    options: named.map((o) => ({ name: o.name, values: o.values })),
+    choices,
+    selectedId: selectedId != null ? String(selectedId) : null,
+  };
 }
 
 export function mapShopifyProduct(product: ShopifyProduct, sourceUrl: string, fallbackCurrency: string): PartialProduct {
@@ -71,6 +94,7 @@ export function mapShopifyProduct(product: ShopifyProduct, sourceUrl: string, fa
       sku: variant?.sku ?? null,
       ...(sale.listPrice != null ? { listPrice: sale.listPrice } : {}),
       priceSource: "shopify",
+      variantChoices: shopifyVariantChoices(product, variant?.id ?? null),
       // The classifier reads these: Shopify's product type and tags are the store's own taxonomy.
       categoryText: product.product_type,
       breadcrumbs: [product.product_type, ...product.tags.slice(0, 8)].filter((s): s is string => !!s),

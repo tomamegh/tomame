@@ -6,7 +6,9 @@ import { enqueueExtractionRequest, type RequestViewer } from "@/db/queries/extra
 import { getCategoryPricingMap } from "@/db/queries/pricing-groups";
 import { getScraperForStore, SUPPORTED_STORE_NAMES } from "./scrapers";
 import { reviveRegion } from "./region-revive";
-import { storeForUrl, type StoreDefinition } from "./stores";
+import { GENERIC_STORE, storeForUrl, type StoreDefinition } from "./stores";
+import { shopifyHandleOf, withShopifyMarket } from "@/lib/shopify/client";
+import { shopifyMarketFor } from "./resolvers/shopify.resolver";
 import { resolveProduct, continueResolve, type ChainOutcome } from "./resolvers";
 import { hasRequiredFields, hasWeight } from "./resolvers/merge";
 import { extractionQualityOf } from "./quality";
@@ -14,7 +16,7 @@ import { storeSaysUnavailable } from "./stock-signals";
 import { classifyCategory } from "./category.service";
 import { inspectFreight, planFreightInspection } from "@/features/pricing/services/freight-inspector.service";
 import { freightCheckDue } from "@/features/pricing/freight-inspection";
-import { hashUrl, inferRegion, isShortUrl, parseUrl, regionForUrl, resolveShortUrl, usEbayItemUrl, type Region } from "./url";
+import { hashUrl, inferRegion, isShortUrl, parseUrl, regionForUrl, resolveShortUrl, usEbayItemUrl, withoutMarketSubfolder, type Region } from "./url";
 import type { ExtractionResult } from "./types";
 
 export interface ExtractionResponse extends ExtractionResult {
@@ -57,7 +59,15 @@ export async function prepareProductUrl(rawUrl: string): Promise<PreparedUrl> {
   }
   resolved = usEbayItemUrl(resolved);
 
-  const store = storeForUrl(resolved);
+  let store = storeForUrl(resolved);
+  // An unregistered store is read in our hub's market, not the country in the
+  // link or the one our server's IP lands in: Shopify priced a US dress in GBP
+  // from prod and in AUD from Ghana (2026-11-26).
+  if (store === GENERIC_STORE) {
+    resolved = withoutMarketSubfolder(resolved);
+    if (shopifyHandleOf(resolved)) resolved = withShopifyMarket(resolved, shopifyMarketFor(resolved, null));
+    store = storeForUrl(resolved);
+  }
   if (!store) {
     throw new APIError(400, `That link doesn't point at an online store we can read. We read ${SUPPORTED_STORE_NAMES.join(", ")} and most other stores.`);
   }

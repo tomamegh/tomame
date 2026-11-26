@@ -39,6 +39,8 @@ import { QuoteGapFillers } from "./quote-gap-fillers";
 import { QuoteMobileHeader } from "./quote-mobile-header";
 import { QuoteReceiptCard } from "./quote-receipt-card";
 import { QuoteSkeleton } from "./quote-skeleton";
+import { VariantPickerCard } from "./variant-picker";
+import { variantChoicesOf } from "@/features/extraction/variant-choices";
 
 /** Mirrors `createOrderSchema` in `src/features/orders/schema.ts`. */
 const QUANTITY_MIN = 1;
@@ -160,6 +162,8 @@ export function QuoteView({
   // Count in the bag after this screen added the line, so the CTA can hand off
   // to the bag instead of adding the same product a second time by accident.
   const [addedCount, setAddedCount] = useState<number | null>(null);
+  // Another size or colour is another quote: "Added" belonged to the previous one.
+  useEffect(() => setAddedCount(null), [extractionId]);
 
   // Monotonic guard: a slow quantity=1 response must never overwrite a fast
   // quantity=3 one. `AbortController` alone does not cover a response that is
@@ -629,7 +633,11 @@ export function QuoteView({
             country={gapCountry}
             onCountryChange={setGapCountry}
           />
-          <ProductColourCard product={quote.product} />
+          {quote.extraction_cache_id && variantChoicesOf(quote.product) ? (
+            <VariantPickerCard extractionId={quote.extraction_cache_id} product={quote.product} busy={repricing} />
+          ) : (
+            <ProductColourCard product={quote.product} />
+          )}
           <BuyerNoteCard
             value={instructions}
             onChange={setInstructions}

@@ -97,6 +97,20 @@ export function defaultCurrencyForUrl(url: string): string {
   return "USD";
 }
 
+/**
+ * A Shopify Markets subfolder (`/en-gh/products/x`, `/gb/products/x`) makes the
+ * store price for that country: SKIMS `/en-gh/` showed $57.33 for a $54.60 short
+ * (2026-11-26). We buy in the store's home market, so the subfolder is dropped.
+ */
+const MARKET_SUBFOLDER = /^\/[a-z]{2}(?:-[a-z]{2})?(?=\/(?:collections\/[^/]+\/)?products\/)/i;
+
+export function withoutMarketSubfolder(raw: string): string {
+  const u = parseUrl(raw);
+  if (!u || !MARKET_SUBFOLDER.test(u.pathname)) return raw;
+  u.pathname = u.pathname.replace(MARKET_SUBFOLDER, "");
+  return u.toString();
+}
+
 /** Strip fragments and tracking params; sort the rest. Used for cache keys. */
 export function normalizeUrl(raw: string): string {
   const u = parseUrl(raw);

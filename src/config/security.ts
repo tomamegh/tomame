@@ -60,6 +60,12 @@ export const RATE_LIMIT = {
   /** Paste-queue cache hits: no vendor call, but each one still writes a row. 5x the read budget. */
   extractionCacheHit: { windowMs: 10 * 60 * 1000, maxRequests: 50 },
   /**
+   * Size/colour picks on a quote (POST /api/extractions/:id/variant). Each is
+   * normally one read of the store's own product record (free, ~300 ms), so it
+   * gets more room than a paste.
+   */
+  variantPick: { windowMs: 10 * 60 * 1000, maxRequests: 30 },
+  /**
    * Public tracking lookup (086, `POST /api/track`) — 30 per 15 minutes per
    * caller: the signed-in user's id, or the IP for a visitor (so customers
    * behind one carrier NAT who are signed in do not share a budget). A
