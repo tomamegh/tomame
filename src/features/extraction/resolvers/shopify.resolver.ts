@@ -1,5 +1,6 @@
 import { logger } from "@/lib/logger";
-import { fetchShopifyProduct, shopifyHandleOf, shopifyVariantIdOf, type ShopifyProduct } from "@/lib/shopify/client";
+import { fetchShopifyProduct, shopifyHandleOf, shopifyVariantIdOf, type ShopifyMarket, type ShopifyProduct } from "@/lib/shopify/client";
+import { inferRegion, type Region } from "../url";
 import { hasRequiredFields } from "./merge";
 import { addVariant, cleanTitle, normalizeImages, salePrice } from "../scrapers/parse";
 import type { ExtractionResolver, PartialProduct, ResolveContext, ResolverResult } from "./types";
@@ -14,6 +15,11 @@ function pickVariant(product: ShopifyProduct, variantId: number | null): Shopify
     if (exact) return exact;
   }
   return product.variants.find((v) => v.available !== false && v.price != null) ?? product.variants[0] ?? null;
+}
+
+/** The market to price in: the store's registered region, a UK address, else our US hub. */
+export function shopifyMarketFor(url: string, region: Region | null): ShopifyMarket {
+  return (region ?? inferRegion(url, null)) === "UK" ? "GB" : "US";
 }
 
 export function mapShopifyProduct(product: ShopifyProduct, sourceUrl: string, fallbackCurrency: string): PartialProduct {
@@ -89,7 +95,7 @@ export const shopifyResolver: ExtractionResolver = {
   async resolve(ctx: ResolveContext): Promise<ResolverResult> {
     if (ctx.deadline - Date.now() < 2_000) return { product: {} };
     try {
-      const product = await fetchShopifyProduct(ctx.url, { signal: ctx.signal });
+      const product = await fetchShopifyProduct(ctx.url, { signal: ctx.signal, market: shopifyMarketFor(ctx.url, ctx.store.region) });
       if (!product) return { product: {} };
       const mapped = mapShopifyProduct(product, ctx.url, ctx.store.currency);
       const messages: string[] = [];

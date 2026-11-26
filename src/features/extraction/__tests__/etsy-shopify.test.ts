@@ -12,7 +12,7 @@ vi.mock("@/lib/env", () => ({
 
 import { etsyScraper, etsyShippingText, parseEtsyShippingText } from "../scrapers/etsy";
 import { fetchShopifyProduct, shopifyHandleOf, shopifyVariantIdOf } from "@/lib/shopify/client";
-import { mapShopifyProduct, shopifyResolver } from "../resolvers/shopify.resolver";
+import { mapShopifyProduct, shopifyMarketFor, shopifyResolver } from "../resolvers/shopify.resolver";
 import { platformHtmlResolver } from "../resolvers/platform-html.resolver";
 import { resolveProduct, resolversForStore } from "../resolvers/chain";
 import { STORES, storeForUrl } from "../stores";
@@ -128,8 +128,10 @@ describe("Shopify", () => {
   it("merges .json (price, currency, grams) with .js (availability), skips the sold-out variant, and never follows a redirect", async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       expect(init?.redirect).toBe("manual");
-      if (url.endsWith("/products/gloss-bomb.json")) return respond(productJson);
-      if (url.endsWith("/products/gloss-bomb.js")) return respond(productJs);
+      expect(url).toContain("?country=US&currency=USD");
+      const path = new URL(url).pathname;
+      if (path.endsWith("/products/gloss-bomb.json")) return respond(productJson);
+      if (path.endsWith("/products/gloss-bomb.js")) return respond(productJs);
       return respond({}, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -152,9 +154,21 @@ describe("Shopify", () => {
   it("a store without the endpoints is simply not Shopify; a GBP store's currency comes from .json", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => respond("<html>", 404)));
     expect(await fetchShopifyProduct("https://www.lg.com/products/tv")).toBeNull();
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.endsWith(".json") ? respond({ product: { ...productJson.product, variants: [{ ...productJson.product.variants[0], price: "18.00", price_currency: "GBP" }] } }) : respond({}, 404))));
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (new URL(url).pathname.endsWith(".json") ? respond({ product: { ...productJson.product, variants: [{ ...productJson.product.variants[0], price: "18.00", price_currency: "GBP" }] } }) : respond({}, 404))));
     const gb = (await fetchShopifyProduct("https://www.boohoo.com/products/dress"))!;
     expect(mapShopifyProduct(gb, "https://www.boohoo.com/products/dress", "GBP")).toMatchObject({ price: 18, currency: "GBP" });
+    vi.unstubAllGlobals();
+  });
+
+  it("names the market so Shopify does not price by our server's IP: US by default, GB for UK stores", async () => {
+    expect(shopifyMarketFor("https://www.thedressoutlet.com/products/dress", null)).toBe("US");
+    expect(shopifyMarketFor("https://www.boohoo.com/products/dress", "UK")).toBe("GB");
+    expect(shopifyMarketFor("https://shop.example.co.uk/products/dress", null)).toBe("GB");
+    expect(shopifyMarketFor("https://www.example.com/products/dress", "USA")).toBe("US");
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (urls.push(url), respond({}, 404))));
+    await fetchShopifyProduct("https://www.boohoo.com/products/dress?variant=12345", { market: "GB" });
+    expect(urls).toEqual(["https://www.boohoo.com/products/dress.json?country=GB&currency=GBP", "https://www.boohoo.com/products/dress.js?country=GB&currency=GBP"]);
     vi.unstubAllGlobals();
   });
 

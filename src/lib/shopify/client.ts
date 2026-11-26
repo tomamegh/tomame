@@ -166,16 +166,30 @@ function toGrams(weight: number, unit: string): number | null {
   }
 }
 
+/** A Shopify Markets market we buy in: our US hub or our UK hub. */
+export type ShopifyMarket = "US" | "GB";
+const MARKET_CURRENCY: Record<ShopifyMarket, string> = { US: "USD", GB: "GBP" };
+
+/**
+ * Shopify Markets prices a request by the caller's IP unless the market is
+ * named, so a US store read from a European server answered in GBP or EUR.
+ * `?country=&currency=` pins it; a store without that market keeps its own currency.
+ */
+export function shopifyMarketQuery(market: ShopifyMarket): string {
+  return `country=${market}&currency=${MARKET_CURRENCY[market]}`;
+}
+
 /** Both records merged: `.json` for price + currency + grams, `.js` for availability. Null when the store is not Shopify (or has the endpoints off). */
-export async function fetchShopifyProduct(url: string, opts: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<ShopifyProduct | null> {
+export async function fetchShopifyProduct(url: string, opts: { timeoutMs?: number; signal?: AbortSignal; market?: ShopifyMarket } = {}): Promise<ShopifyProduct | null> {
   const target = shopifyHandleOf(url);
   if (!target) return null;
   const timeoutMs = opts.timeoutMs ?? 4_000;
+  const query = shopifyMarketQuery(opts.market ?? "US");
   const t0 = Date.now();
   try {
     const [json, js] = await Promise.all([
-      getJson(`${target.origin}/products/${target.handle}.json`, timeoutMs, opts.signal).then(fromProductJson).catch(() => null),
-      getJson(`${target.origin}/products/${target.handle}.js`, timeoutMs, opts.signal).then(fromProductJs).catch(() => null),
+      getJson(`${target.origin}/products/${target.handle}.json?${query}`, timeoutMs, opts.signal).then(fromProductJson).catch(() => null),
+      getJson(`${target.origin}/products/${target.handle}.js?${query}`, timeoutMs, opts.signal).then(fromProductJs).catch(() => null),
     ]);
     const product = json ?? js;
     if (!product) {
