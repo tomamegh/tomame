@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { chosenOptionsOf, itemOptionQuestions } from "@/features/extraction/item-options";
 import {
   AdminBadge,
   AdminCard,
@@ -178,6 +179,37 @@ function JourneyCard({ order, index }: { order: Order; index: number }) {
  * actually read off the page — including what it could NOT read, which is what
  * `messages` holds and what usually explains a `needs_review` flag.
  */
+/**
+ * What size, colour or other option to buy (142). The store link alone often
+ * does not say, so this is the customer's answer, checked against the listing.
+ * An order from before 142 for an item that has options says so in red rather
+ * than leaving the buyer to guess.
+ */
+function ChosenOptionsBox({ order }: { order: Order }) {
+  const chosen = chosenOptionsOf(order.chosen_options);
+  const asked = order.extraction_metadata ? itemOptionQuestions(order.extraction_metadata) : [];
+  if (!chosen && asked.length === 0) return null;
+  return (
+    <div className={chosen ? "rounded-[14px] border border-tm-coral/40 bg-tm-tint px-4 py-3" : "rounded-[14px] border border-destructive/40 bg-destructive/5 px-4 py-3"}>
+      <p className="mb-1.5 text-[11.5px] leading-none font-semibold text-tm-text-2">Buy this option</p>
+      {chosen ? (
+        <dl className="flex flex-wrap gap-x-5 gap-y-1.5">
+          {Object.entries(chosen).map(([name, value]) => (
+            <div key={name} className="flex items-baseline gap-1.5">
+              <dt className="text-[12.5px] text-tm-text-2">{name}</dt>
+              <dd className="text-[15px] leading-tight font-semibold text-tm-ink">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="text-[13px] leading-[1.5] font-medium text-destructive">
+          The customer was not asked for the {asked.map((q) => q.name.toLowerCase()).join(" / ")}. Confirm it with them before buying.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ProductCard({ order, index }: { order: Order; index: number }) {
   const snapshot = order.extraction_metadata;
   const product = snapshot?.product;
@@ -202,6 +234,8 @@ function ProductCard({ order, index }: { order: Order; index: number }) {
             {order.product_url}
           </a>
         </div>
+
+        <ChosenOptionsBox order={order} />
 
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Fact label="Quantity" value={String(order.quantity)} />

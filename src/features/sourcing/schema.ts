@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { chosenOptionsSchema } from "@/features/bag/schema";
 
 import { normaliseGhanaPhone } from "@/features/order-delivery/schema";
 
@@ -56,6 +57,8 @@ export const createSourcingRequestSchema = z.object({
   /** The customer's guess at the price, for the buyer's benefit only. */
   estimated_price_usd: z.coerce.number().positive().max(100_000).optional(),
   origin_country: z.enum(["USA", "UK", "CHINA"]).optional(),
+  /** 142: the size/colour picked on the quote; goes onto the bag line. */
+  chosen_options: chosenOptionsSchema.optional(),
 });
 
 export type CreateSourcingRequestInput = z.infer<typeof createSourcingRequestSchema>;

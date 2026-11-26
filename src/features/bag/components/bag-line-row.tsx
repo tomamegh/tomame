@@ -9,6 +9,7 @@ import { formatGhs } from "@/features/marketing/format";
 import { cn } from "@/lib/utils";
 import type { BagLine } from "../types";
 import { describePendingWait, formatLineMeta, formatLineUsd, hostOf } from "./format";
+import { BagLineOptions } from "./bag-line-options";
 
 export interface BagLineRowProps {
   line: BagLine;
@@ -149,6 +150,7 @@ export function BagLineRow({
               Note: {line.special_instructions}
             </span>
           )}
+          {!wait && <BagLineOptions line={line} />}
         </div>
       </div>
 

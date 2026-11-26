@@ -1,4 +1,5 @@
 import "server-only";
+import { chosenOptionsOf } from "@/features/extraction/item-options";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { PricingBreakdown } from "@/lib/pricing";
 import type { Viewer } from "@/features/quotes/types";
@@ -43,6 +44,8 @@ export interface CartItemRow {
   sourced_price_usd: number | null;
   /** The store shipping service the customer chose (093); null = the cheapest the snapshot offers. */
   store_shipping_code: string | null;
+  /** 142: the size/colour/other options the customer chose, e.g. {"Size":"M"}; null = none yet. */
+  chosen_options?: Record<string, string> | null;
   /** Add-to-bag-time breakdown. Informational; every render re-prices. */
   pricing: PricingBreakdown | null;
   /** 115: when `pricing` was struck. Older than 24 hours = the quote has expired (Fix 14). */
@@ -62,13 +65,14 @@ export interface CartItemInsert {
   gap_price_usd: number | null;
   gap_origin_country: OriginCountry | null;
   store_shipping_code?: string | null;
+  chosen_options?: Record<string, string> | null;
   pricing: PricingBreakdown | null;
   quote_lock_id: string | null;
 }
 
 const CART_COLUMNS = "id, user_id, session_id, status, delivery_zone_id, delivery_address_id, order_group_id, created_at, updated_at";
 const ITEM_COLUMNS =
-  "id, cart_id, extraction_cache_id, extraction_request_id, quantity, special_instructions, gap_price_usd, gap_origin_country, sourced_price_usd, store_shipping_code, pricing, quoted_at, quote_lock_id, consolidation_box_id, created_at, updated_at";
+  "id, cart_id, extraction_cache_id, extraction_request_id, quantity, special_instructions, gap_price_usd, gap_origin_country, sourced_price_usd, store_shipping_code, chosen_options, pricing, quoted_at, quote_lock_id, consolidation_box_id, created_at, updated_at";
 
 // ── Carts (service role — every write is the server's) ──────────────────────
 
@@ -192,7 +196,7 @@ export async function insertCartItem(input: CartItemInsert): Promise<CartItemRow
 
 export async function updateCartItem(
   id: string,
-  patch: Partial<Pick<CartItemRow, "quantity" | "special_instructions" | "gap_price_usd" | "gap_origin_country" | "sourced_price_usd" | "store_shipping_code" | "pricing" | "quoted_at" | "quote_lock_id" | "consolidation_box_id" | "extraction_cache_id">>,
+  patch: Partial<Pick<CartItemRow, "quantity" | "special_instructions" | "gap_price_usd" | "gap_origin_country" | "sourced_price_usd" | "store_shipping_code" | "chosen_options" | "pricing" | "quoted_at" | "quote_lock_id" | "consolidation_box_id" | "extraction_cache_id">>,
 ): Promise<CartItemRow | null> {
   const client = createAdminClient();
   const { data, error } = await client
@@ -284,6 +288,7 @@ function normalizeItem(row: Record<string, unknown>): CartItemRow {
     gap_origin_country: (row.gap_origin_country as OriginCountry | null) ?? null,
     sourced_price_usd: row.sourced_price_usd == null ? null : Number(row.sourced_price_usd),
     store_shipping_code: (row.store_shipping_code as string | null) ?? null,
+    chosen_options: chosenOptionsOf(row.chosen_options),
     pricing: (row.pricing as PricingBreakdown | null) ?? null,
     quoted_at: (row.quoted_at as string | null) ?? null,
     quote_lock_id: (row.quote_lock_id as string | null) ?? null,

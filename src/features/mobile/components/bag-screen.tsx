@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, CreditCard, HandSwipeLeft, ShoppingBagOpen, HouseLine, Minus, Package, Plus, Storefront } from "@phosphor-icons/react";
 
@@ -9,6 +9,7 @@ import { toast } from "@/lib/sonner";
 import { useBag, useRemoveBagLine, useSetBagDelivery, useUpdateBagLine } from "@/features/bag/hooks/useBag";
 import { useBagPayment } from "@/features/bag/hooks/useBagPayment";
 import { bagPayGate } from "@/features/bag/components/bag-pay-gate";
+import { BagLineOptions } from "@/features/bag/components/bag-line-options";
 import { buildBagSummaryRows, formatBoxTitle, formatLineMeta } from "@/features/bag/components/format";
 import type { BagLine, BagView } from "@/features/bag/types";
 import type { DeliveryAddress } from "@/features/addresses/types";
@@ -122,8 +123,8 @@ export function BagScreen({ initialBag, zones, addresses, channels, pickupEnable
 
           <div className="card lines up">
             {bag.lines.map((line) => (
+              <Fragment key={line.id}>
               <SwipeRow
-                key={line.id}
                 onRemove={() =>
                   remove.mutate(
                     { id: line.id },
@@ -139,6 +140,9 @@ export function BagScreen({ initialBag, zones, addresses, channels, pickupEnable
               >
                 <LineBody line={line} onQty={(q) => update.mutate({ id: line.id, quantity: q }, { onError: (e) => toast.error({ title: "Could not change it", description: e.message }) })} />
               </SwipeRow>
+              {/* 142: the size/colour, asked outside the swipe row so its buttons are not swipes. */}
+              <BagLineOptions line={line} />
+              </Fragment>
             ))}
           </div>
           <p className="hint"><HandSwipeLeft size={15} weight="bold" />Swipe left to remove, right to watch</p>

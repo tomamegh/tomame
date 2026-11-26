@@ -32,6 +32,8 @@ export const createOrderSchema = z.object({
     .positive("Quantity must be at least 1")
     .max(100, "Quantity exceeds maximum allowed")
     .default(1),
+  /** 142: the size/colour the customer chose; re-checked against the snapshot in `createOrder`. */
+  chosen_options: z.record(z.string().trim().min(1).max(40), z.string().trim().max(60)).optional(),
   /** Only used when the store region could not be determined. */
   origin_country: z.enum(["USA", "UK", "CHINA"], { error: "Origin country must be USA, UK, or CHINA" }).optional(),
   special_instructions: z

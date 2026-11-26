@@ -36,6 +36,8 @@ export function bagPayGate({ bag, isSignedIn, contact, addresses, momoReady }: B
     // A held line (price or stock being confirmed, or unavailable) cannot be
     // paid for; checkout would refuse it with a 409 (pay-gate.ts).
     bag.has_pay_holds === true ||
+    // 142: a line without its size/colour; checkout refuses it.
+    bag.has_missing_options === true ||
     (isSignedIn && !bag.delivery) ||
     (isSignedIn && !hasContact) ||
     (isSignedIn && addressPhoneIncomplete) ||

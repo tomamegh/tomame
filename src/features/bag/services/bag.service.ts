@@ -18,6 +18,7 @@ import type { QuoteCheckRow } from "@/db/queries/quote-checks";
 import { isPayablePricing } from "@/lib/pricing/payable";
 import { applyRateLock } from "@/features/quotes/services/quote-lock.service";
 import { pickProductColour } from "@/features/quotes/components/format";
+import { chosenOptionsOf, itemOptionQuestions, resolveChosenOptions, type ChosenOptions } from "@/features/extraction/item-options";
 import { findStore } from "@/features/extraction/stores";
 import { getPricingConstantsMap } from "@/db/queries/pricing-constants";
 import { listRegions, type RegionRow } from "@/db/queries/regions";
@@ -135,6 +136,7 @@ export async function previewBatch(viewer: Viewer, extractionIds: readonly strin
       gap_origin_country: null,
       sourced_price_usd: null,
       store_shipping_code: null,
+      chosen_options: null,
     };
     lines.push(toLine(source, snapshot, { ...priced, payHold: payHoldOf({ extraction: snapshot.result, checks: checks.get(id) ?? [] }) }));
   }
@@ -189,9 +191,10 @@ export async function addToBag(viewer: Viewer, input: AddToBagInput): Promise<Ad
   // A choice made on this add wins; otherwise the line keeps the one it had.
   const shippingCode = input.store_shipping_code === undefined ? existing?.store_shipping_code ?? null : input.store_shipping_code;
   const priced = await priceSnapshot(viewer, snapshot.result, input.extraction_cache_id!, quantity, gapPrice, gapCountry, sourcedPrice, shippingCode);
+  const chosen = answeredOptions(snapshot.result, existing?.chosen_options ?? null, input.chosen_options);
 
   const row = existing
-    ? await updateLineRow(existing.id, { quantity, special_instructions: note, gap_price_usd: gapPrice, gap_origin_country: gapCountry, store_shipping_code: shippingCode, pricing: priced.pricing, quoted_at: new Date().toISOString(), quote_lock_id: priced.pricing?.rate_lock_id ?? existing.quote_lock_id })
+    ? await updateLineRow(existing.id, { quantity, special_instructions: note, gap_price_usd: gapPrice, gap_origin_country: gapCountry, store_shipping_code: shippingCode, chosen_options: chosen, pricing: priced.pricing, quoted_at: new Date().toISOString(), quote_lock_id: priced.pricing?.rate_lock_id ?? existing.quote_lock_id })
     : await insertCartItem({
         cart_id: cart.id,
         extraction_cache_id: input.extraction_cache_id!,
@@ -201,6 +204,7 @@ export async function addToBag(viewer: Viewer, input: AddToBagInput): Promise<Ad
         gap_price_usd: gapPrice,
         gap_origin_country: gapCountry,
         store_shipping_code: shippingCode,
+        chosen_options: chosen,
         pricing: priced.pricing,
         quote_lock_id: priced.pricing?.rate_lock_id ?? null,
       });
@@ -241,13 +245,15 @@ async function addPasteToBag(viewer: Viewer, input: AddToBagInput, requestId: st
   const note = input.special_instructions?.trim() || existing?.special_instructions || null;
 
   const row = existing
-    ? await updateLineRow(existing.id, { quantity, special_instructions: note })
+    ? await updateLineRow(existing.id, { quantity, special_instructions: note, ...(input.chosen_options && { chosen_options: chosenOptionsOf({ ...existing.chosen_options, ...input.chosen_options }) }) })
     : await insertCartItem({
         cart_id: cart.id,
         extraction_cache_id: null,
         extraction_request_id: requestId,
         quantity,
         special_instructions: note,
+        // Not checked yet: the questions come with the read. `toLine` checks them then.
+        chosen_options: chosenOptionsOf(input.chosen_options),
         gap_price_usd: input.estimated_price_usd ?? null,
         gap_origin_country: input.origin_country ?? null,
         // Nothing to snapshot yet; the line prices itself on the next bag read.
@@ -280,6 +286,7 @@ export async function updateBagLine(viewer: Viewer, lineId: string, input: Updat
     const updated = await updateLineRow(row.id, {
       quantity: input.quantity ?? row.quantity,
       special_instructions: input.special_instructions === undefined ? row.special_instructions : input.special_instructions,
+      ...(input.chosen_options && { chosen_options: chosenOptionsOf({ ...row.chosen_options, ...input.chosen_options }) }),
     });
     await touchCart(row.cart_id);
     const { pending, productUrl } = await pendingStateFor(viewer, updated);
@@ -293,7 +300,8 @@ export async function updateBagLine(viewer: Viewer, lineId: string, input: Updat
   const note = input.special_instructions === undefined ? row.special_instructions : input.special_instructions;
   const shippingCode = input.store_shipping_code === undefined ? row.store_shipping_code : input.store_shipping_code;
   const priced = await priceSnapshot(viewer, snapshot.result, row.extraction_cache_id, quantity, row.gap_price_usd, row.gap_origin_country, row.sourced_price_usd, shippingCode);
-  const updated = await updateLineRow(row.id, { quantity, special_instructions: note, store_shipping_code: shippingCode, pricing: priced.pricing, quoted_at: new Date().toISOString(), quote_lock_id: priced.pricing?.rate_lock_id ?? row.quote_lock_id });
+  const chosen = input.chosen_options === undefined ? row.chosen_options : answeredOptions(snapshot.result, row.chosen_options ?? null, input.chosen_options);
+  const updated = await updateLineRow(row.id, { quantity, special_instructions: note, store_shipping_code: shippingCode, chosen_options: chosen, pricing: priced.pricing, quoted_at: new Date().toISOString(), quote_lock_id: priced.pricing?.rate_lock_id ?? row.quote_lock_id });
   await touchCart(row.cart_id);
   return toLine(updated, snapshot, priced);
 }
@@ -940,13 +948,28 @@ type Snapshot = { id: string; productUrl: string; result: ExtractionResult } | n
 /** The cart-row fields a line is shaped from; a batch preview builds one without a cart. */
 type LineSource = Pick<
   CartItemRow,
-  "id" | "extraction_cache_id" | "quantity" | "special_instructions" | "gap_price_usd" | "gap_origin_country" | "sourced_price_usd" | "store_shipping_code"
+  "id" | "extraction_cache_id" | "quantity" | "special_instructions" | "gap_price_usd" | "gap_origin_country" | "sourced_price_usd" | "store_shipping_code" | "chosen_options"
 >;
+
+/**
+ * The line's answers after this change, checked against what the snapshot asks
+ * (142): new answers win, earlier ones stay, anything the item does not ask or
+ * a value the store does not sell is dropped. Null when nothing is answered.
+ */
+function answeredOptions(result: ExtractionResult, previous: ChosenOptions | null, next: ChosenOptions | undefined): ChosenOptions | null {
+  const { chosen } = resolveChosenOptions(itemOptionQuestions(result), { ...previous, ...next });
+  return Object.keys(chosen).length ? chosen : null;
+}
 
 function toLine(row: LineSource, snapshot: Snapshot, priced: Priced): BagLine {
   const product = snapshot?.result.product ?? null;
   const colour = product ? pickProductColour(product) : null;
-  const variantParts = [colour?.selected ?? null, product?.size ?? null].filter((v): v is string => !!v);
+  const questions = snapshot ? itemOptionQuestions(snapshot.result) : [];
+  const { chosen, missing } = resolveChosenOptions(questions, row.chosen_options);
+  // What the customer is buying, in the store's words; the listing's own text when nothing was asked.
+  const variantParts = questions.length
+    ? Object.values(chosen)
+    : [colour?.selected ?? null, product?.size ?? null].filter((v): v is string => !!v);
   return {
     id: row.id,
     extraction_cache_id: row.extraction_cache_id,
@@ -968,6 +991,7 @@ function toLine(row: LineSource, snapshot: Snapshot, priced: Priced): BagLine {
     gap_origin_country: row.gap_origin_country,
     sourced_price_usd: row.sourced_price_usd,
     store_shipping_code: row.store_shipping_code,
+    options: { questions, chosen, missing },
     // Attached by `getBag` in one query for the whole bag, never per line.
     sourcing: null,
     freight_checking: priced.freightChecking === true,
@@ -1017,6 +1041,7 @@ export function summarize(cartId: string | null, lines: BagLine[], packed: Packe
     rate_locked_until: locks[0] ?? null,
     has_unpriced_lines: priced.length < lines.length,
     has_pending_lines: lines.some((l) => l.pending != null),
+    has_missing_options: lines.some((l) => (l.options?.missing.length ?? 0) > 0),
     has_freight_checks: lines.some((l) => l.freight_checking),
     has_pay_holds: lines.some((l) => l.pay_hold != null && l.pay_hold.kind !== "freight_check"),
     // `unavailable` counts too: a buyer has said we cannot get it, so the line

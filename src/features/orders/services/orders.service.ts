@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { itemOptionQuestions, resolveChosenOptions } from "@/features/extraction/item-options";
 import { handlingGhsOf } from "@/lib/pricing/handling";
 import { logAuditEvent } from "@/features/audit/services/audit.service";
 import { buildOrderIntake } from "./order-intake.service";
@@ -460,6 +461,8 @@ export async function createOrder(
     links.sourced_origin_country ?? null,
   );
   const { pricing, needs_review: needsReview, review_reasons: reviewReasons } = intake;
+  // 142: only answers the snapshot asks for, in the store's own values; pinned ones from the link itself.
+  const { chosen } = resolveChosenOptions(intake.extraction_metadata ? itemOptionQuestions(intake.extraction_metadata) : [], input.chosen_options);
 
   const orderToCreate = {
     user_id: user.id,
@@ -470,6 +473,7 @@ export async function createOrder(
     quantity: input.quantity,
     origin_country: intake.origin_country,
     special_instructions: input.special_instructions ?? null,
+    chosen_options: Object.keys(chosen).length ? chosen : null,
     pricing,
     status: "pending",
     needs_review: needsReview,

@@ -72,6 +72,8 @@ export interface SourcingRequestInput {
   /** Who the buyer calls (097), already normalised by the schema: phone is E.164. */
   contact_name: string;
   contact_phone: string;
+  /** 142: the size/colour picked on the quote, for the bag line. */
+  chosen_options?: Record<string, string>;
 }
 
 export interface SourcingRequestResult {
@@ -136,6 +138,7 @@ export async function requestSourcing(
   const added = await addToBag(viewer, {
     extraction_cache_id: input.extraction_cache_id,
     quantity: input.quantity,
+    ...(input.chosen_options && { chosen_options: input.chosen_options }),
     // The customer's guesses are NOT written onto the line as gap-fillers. They
     // are a hint for the buyer, and a hint must not become a number the bag
     // would price and the customer could pay against.

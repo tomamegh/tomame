@@ -139,6 +139,18 @@ describe("checkoutBag", () => {
     expect(createOrder).not.toHaveBeenCalled();
   });
 
+  it("142: refuses a line without its size, and gives each order the size its line chose", async () => {
+    const sized = (chosen: Record<string, string>, missing: string[]) => ({ questions: [{ name: "Size", values: ["S", "M"], pinned: null }], chosen, missing });
+    vi.mocked(getBag).mockResolvedValue(bag({ lines: [line("a", 100, { options: sized({}, ["Size"]) })] }));
+    await expect(checkoutBag(user, viewer, {})).rejects.toMatchObject({ statusCode: 409, message: "Choose the size for Item a so we buy the right one." });
+    expect(groups.insertOrderGroup).not.toHaveBeenCalled();
+
+    vi.mocked(getBag).mockResolvedValue(bag({ lines: [line("a", 100, { options: sized({ Size: "M" }, []) }), line("b", 50)] }));
+    await checkoutBag(user, viewer, {});
+    expect(vi.mocked(createOrder).mock.calls[0]![2]).toMatchObject({ chosen_options: { Size: "M" } });
+    expect(vi.mocked(createOrder).mock.calls[1]![2]).not.toHaveProperty("chosen_options");
+  });
+
   it("refuses without a delivery choice and with an unpriced line", async () => {
     vi.mocked(getBag).mockResolvedValue(bag({ delivery: null, delivery_fee_ghs: 0 }));
     await expect(checkoutBag(user, viewer, {})).rejects.toMatchObject({ statusCode: 400, message: "Choose where to deliver first" });

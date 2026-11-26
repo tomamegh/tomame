@@ -41,6 +41,8 @@ import { QuoteReceiptCard } from "./quote-receipt-card";
 import { QuoteSkeleton } from "./quote-skeleton";
 import { VariantPickerCard } from "./variant-picker";
 import { variantChoicesOf } from "@/features/extraction/variant-choices";
+import { itemOptionQuestions, resolveChosenOptions } from "@/features/extraction/item-options";
+import { ItemOptionsCard } from "./item-options-card";
 
 /** Mirrors `createOrderSchema` in `src/features/orders/schema.ts`. */
 const QUANTITY_MIN = 1;
@@ -162,6 +164,8 @@ export function QuoteView({
   // Count in the bag after this screen added the line, so the CTA can hand off
   // to the bag instead of adding the same product a second time by accident.
   const [addedCount, setAddedCount] = useState<number | null>(null);
+  // The size/colour answers the item asks for (142); sent with the line, checked server-side.
+  const [chosenOptions, setChosenOptions] = useState<Record<string, string>>({});
   // Another size or colour is another quote: "Added" belonged to the previous one.
   useEffect(() => setAddedCount(null), [extractionId]);
 
@@ -334,6 +338,7 @@ export function QuoteView({
 
   const addLineToBag = useCallback(() => {
     if (!quote || !quote.extraction_cache_id) return;
+    const answered = resolveChosenOptions(itemOptionQuestions(quote), chosenOptions).chosen;
 
     // Identity and intent only. Price, currency, weight, region and the whole
     // breakdown are decided server-side from the stored snapshot; the two
@@ -346,6 +351,7 @@ export function QuoteView({
         ...(priceMissing && gapPriceValue != null ? { estimated_price_usd: gapPriceValue } : {}),
         ...(countryMissing && gapCountry ? { origin_country: gapCountry } : {}),
         ...(shippingCode ? { store_shipping_code: shippingCode } : {}),
+        ...(Object.keys(answered).length ? { chosen_options: answered } : {}),
       },
       {
         onSuccess: (result) => {
@@ -375,7 +381,7 @@ export function QuoteView({
     // below the early returns, so they cannot be listed themselves). Without
     // it a customer who typed a missing price and pressed Add sent the value
     // from an earlier render: the line went into the bag unpriced.
-  }, [addToBag, instructions, quantity, quote, router, gapPriceUsd, gapCountry, shippingCode, checkout]);
+  }, [addToBag, instructions, quantity, quote, router, gapPriceUsd, gapCountry, shippingCode, checkout, chosenOptions]);
 
   /**
    * "Ask us to source this" — the CTA an unpriceable item gets instead of a
@@ -396,6 +402,7 @@ export function QuoteView({
     // is a hook, so it is declared above the early returns that guard that
     // value's existence.
     const hintUsd = parsePositiveUsd(gapPriceUsd);
+    const answered = resolveChosenOptions(itemOptionQuestions(quote), chosenOptions).chosen;
     requestSourcing(
       {
         extraction_cache_id: quote.extraction_cache_id,
@@ -406,6 +413,7 @@ export function QuoteView({
         // charged against, and it can never become that price.
         ...(hintUsd != null ? { estimated_price_usd: hintUsd } : {}),
         ...(gapCountry ? { origin_country: gapCountry } : {}),
+        ...(Object.keys(answered).length ? { chosen_options: answered } : {}),
       },
       {
         onSuccess: (result) => {
@@ -431,7 +439,7 @@ export function QuoteView({
         },
       },
     );
-  }, [quote, quantity, gapPriceUsd, gapCountry, requestSourcing, router, signIn]);
+  }, [quote, quantity, gapPriceUsd, gapCountry, requestSourcing, router, signIn, chosenOptions]);
 
   /**
    * The CTA itself. Signed out goes straight to sign-in: the request needs an
@@ -440,13 +448,18 @@ export function QuoteView({
    */
   const askToSource = useCallback(() => {
     if (!quote?.extraction_cache_id) return;
+    const { missing } = resolveChosenOptions(itemOptionQuestions(quote), chosenOptions);
+    if (missing.length) {
+      toast.error({ title: `Choose your ${missing.join(" and ").toLowerCase()} first`, description: "So our buyer gets the right one." });
+      return;
+    }
     if (!isAuthenticated) {
       signIn();
       return;
     }
     setContactMounted(true);
     setContactOpen(true);
-  }, [quote, isAuthenticated, signIn]);
+  }, [quote, isAuthenticated, signIn, chosenOptions]);
 
   if (loadError && !quote) return <QuoteLoadError message={loadError} />;
   if (!quote || !receivedAt) return <QuoteSkeleton />;
@@ -490,6 +503,11 @@ export function QuoteView({
     // price.
     repriceFailed: loadError != null,
   }) && !checkingFreight;
+  // 142: the size/colour the store link does not fix, which the customer must answer.
+  const optionQuestions = itemOptionQuestions(quote);
+  const openQuestions = optionQuestions.filter((q) => !q.pinned);
+  const missingOptions = resolveChosenOptions(optionQuestions, chosenOptions).missing;
+  const canAdd = canContinue && missingOptions.length === 0;
 
   const gallery = quote.product.images.length
     ? quote.product.images
@@ -501,8 +519,9 @@ export function QuoteView({
   const payHold = quote.pay_hold ?? null;
   const unavailable = payHold?.kind === "unavailable";
   // The bar's one-line reason while a price or stock check holds payment.
-  const holdNote =
-    payHold && payHold.kind !== "freight_check" && !unavailable ? `${payHold.message}. You can still add it to your bag.` : null;
+  const holdNote = missingOptions.length
+    ? `Choose your ${missingOptions.join(" and ").toLowerCase()} to continue.`
+    : payHold && payHold.kind !== "freight_check" && !unavailable ? `${payHold.message}. You can still add it to your bag.` : null;
   const currencySymbol = quote.product.currency?.toUpperCase() === "GBP" ? "£" : "$";
 
   return (
@@ -605,7 +624,8 @@ export function QuoteView({
             currencySymbol={currencySymbol}
             onContinue={addLineToBag}
             onPayNow={checkout ? () => setCheckoutOpen(true) : undefined}
-            canContinue={canContinue && !!quote.extraction_cache_id}
+            canContinue={canAdd && !!quote.extraction_cache_id}
+            optionsNote={missingOptions.length ? `Choose your ${missingOptions.join(" and ").toLowerCase()} below to continue.` : null}
             continuePending={addingToBag}
             addedCount={addedCount}
             needsSourcing={sourcingNeeded}
@@ -635,6 +655,14 @@ export function QuoteView({
           />
           {quote.extraction_cache_id && variantChoicesOf(quote.product) ? (
             <VariantPickerCard extractionId={quote.extraction_cache_id} product={quote.product} busy={repricing} />
+          ) : openQuestions.length > 0 ? (
+            <ItemOptionsCard
+              className="sm:col-span-2"
+              questions={openQuestions}
+              value={chosenOptions}
+              onChange={(name, value) => setChosenOptions((prev) => ({ ...prev, [name]: value }))}
+              missing={missingOptions}
+            />
           ) : (
             <ProductColourCard product={quote.product} />
           )}
@@ -659,7 +687,7 @@ export function QuoteView({
       />
 
       <QuoteActionBar
-        canContinue={canContinue && !!quote.extraction_cache_id}
+        canContinue={canAdd && !!quote.extraction_cache_id}
         continuePending={addingToBag}
         addedCount={addedCount}
         repricing={repricing}

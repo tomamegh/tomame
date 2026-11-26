@@ -75,6 +75,12 @@ export async function checkoutBag(user: PlatformUser, viewer: Viewer, input: Che
   }
   // A line whose freight weight is still being checked is unpriced for a few
   // seconds on purpose: what it would have charged may still move. Also a wait.
+  // 142: staff cannot buy the right item without its size/colour.
+  const unanswered = bag.lines.find((l) => (l.options?.missing.length ?? 0) > 0);
+  if (unanswered?.options) {
+    const what = unanswered.options.missing.join(" and ").toLowerCase();
+    throw new APIError(409, `Choose the ${what} for ${unanswered.product.title ?? "an item in your bag"} so we buy the right one.`);
+  }
   if (bag.has_freight_checks) {
     throw new APIError(409, "We are still checking the freight on one of your items. Give it a few seconds and try again.");
   }
@@ -221,6 +227,7 @@ function orderInputFor(line: BagLine): Parameters<typeof createOrder>[2] {
     ...(line.gap_price_usd != null && { estimated_price_usd: line.gap_price_usd }),
     ...(line.gap_origin_country && { origin_country: line.gap_origin_country }),
     ...(line.store_shipping_code && { store_shipping_code: line.store_shipping_code }),
+    ...(line.options && Object.keys(line.options.chosen).length > 0 && { chosen_options: line.options.chosen }),
   };
 }
 

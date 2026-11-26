@@ -42,6 +42,8 @@ export interface Order {
   quantity: number;
   origin_country: OriginCountry;
   special_instructions: string | null;
+  /** 142: the size/colour/other options the customer is buying, e.g. {"Size":"M"}. Null on older orders and items without options. */
+  chosen_options?: Record<string, string> | null;
   pricing: OrderPricingBreakdown;
   tracking_number: string | null;
   /** 113: why it went in transit without a Delta Cargo air waybill (admin path). */

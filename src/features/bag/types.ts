@@ -1,3 +1,4 @@
+import type { ItemOptionQuestion } from "@/features/extraction/item-options";
 import type { PricingBreakdown } from "@/lib/pricing";
 import type { OriginCountry } from "@/features/orders/types";
 import type { PayHold } from "@/features/extraction/pay-gate";
@@ -43,6 +44,14 @@ export interface BagLineSourcing {
 }
 
 /** One line of the bag, re-priced on every read from the server-owned snapshot. */
+/** Size/colour the customer is buying (142): what the item asks, what they answered, what is still open. */
+export interface BagLineOptions {
+  questions: ItemOptionQuestion[];
+  chosen: Record<string, string>;
+  /** Option names still unanswered. Pay waits until this is empty. */
+  missing: string[];
+}
+
 export interface BagLine {
   id: string;
   /** Null until the paste has been read; `pending` then says where it has got to. */
@@ -76,6 +85,8 @@ export interface BagLine {
   sourced_price_usd: number | null;
   /** The store shipping service the customer chose on the quote; null = the cheapest offered. */
   store_shipping_code: string | null;
+  /** Absent on a line still being read. */
+  options?: BagLineOptions;
   /** Non-null when a buyer is (or was) answering this line by hand. */
   sourcing: BagLineSourcing | null;
   /**
@@ -198,6 +209,8 @@ export interface BagView {
   has_unpriced_lines: boolean;
   /** True while any line is still being read. Checkout is refused until it clears. */
   has_pending_lines: boolean;
+  /** 142: a line still needs its size/colour. Pay waits. */
+  has_missing_options?: boolean;
   /** True while any line's freight is being checked. Checkout is refused until it clears. */
   has_freight_checks: boolean;
   /**

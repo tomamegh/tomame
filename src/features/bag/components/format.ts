@@ -314,6 +314,12 @@ export function payBlockReason(view: BagView, ctx: PayBlockContext): string | nu
   if (notComing > 0) return `We can't get ${countItems(notComing)}. Remove ${pronoun(notComing, "it", "them")} to pay for the rest.`;
   if (sourcing.length > 0) return `A buyer is pricing ${countItems(sourcing.length)}. Pay opens once ${pronoun(sourcing.length, "it's", "they're")} priced.`;
 
+  const unanswered = lines.filter((l) => (l.options?.missing.length ?? 0) > 0);
+  if (unanswered.length > 0) {
+    const what = [...new Set(unanswered.flatMap((l) => l.options!.missing))].join(" or ").toLowerCase();
+    return `Choose the ${what} for ${countItems(unanswered.length)} so we buy the right one.`;
+  }
+
   const held = lines.map((l) => l.pay_hold).filter((h): h is NonNullable<BagLine["pay_hold"]> => h != null && h.kind !== "freight_check");
   const gone = held.filter((h) => h.kind === "unavailable").length;
   if (gone > 0) return `${pronoun(gone, "1 item is", `${gone} items are`)} no longer available. Remove ${pronoun(gone, "it", "them")} to pay for the rest.`;

@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+/** Size/colour answers by option name. Checked against the snapshot's questions server-side (item-options.ts). */
+export const chosenOptionsSchema = z
+  .record(z.string().trim().min(1).max(40), z.string().trim().max(60))
+  .refine((v) => Object.keys(v).length <= 6, { message: "Too many options" });
+
 /**
  * What the browser may say when adding to the bag: WHICH stored quote, how many,
  * a note, and the two gap-fillers the quote screen offers only when the
@@ -22,6 +27,8 @@ export const addToBagSchema = z
     origin_country: z.enum(["USA", "UK", "CHINA"]).optional(),
     /** The store shipping service chosen on the quote, by the snapshot's own code. Null = cheapest. */
     store_shipping_code: z.string().trim().min(1).max(80).nullable().optional(),
+    /** The size/colour the customer picked on the quote. */
+    chosen_options: chosenOptionsSchema.optional(),
   })
   .refine((v) => !!v.extraction_cache_id !== !!v.extraction_request_id, {
     message: "Name either a quote or a pasted link",
@@ -33,8 +40,9 @@ export const updateBagLineSchema = z
     quantity: z.number().int().min(1).max(100).optional(),
     special_instructions: z.string().trim().max(1000).nullable().optional(),
     store_shipping_code: z.string().trim().min(1).max(80).nullable().optional(),
+    chosen_options: chosenOptionsSchema.optional(),
   })
-  .refine((v) => v.quantity != null || v.special_instructions !== undefined || v.store_shipping_code !== undefined, { message: "Nothing to update" });
+  .refine((v) => v.quantity != null || v.special_instructions !== undefined || v.store_shipping_code !== undefined || v.chosen_options !== undefined, { message: "Nothing to update" });
 export type UpdateBagLineInput = z.infer<typeof updateBagLineSchema>;
 
 export const bagLineIdSchema = z.uuid("Unknown bag line");

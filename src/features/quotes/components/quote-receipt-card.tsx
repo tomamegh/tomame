@@ -77,6 +77,8 @@ export interface QuoteReceiptCardProps {
   onPayNow?: () => void;
   /** False when a gap is unfilled or the last re-price failed. */
   canContinue: boolean;
+  /** Why the CTA is waiting on the customer (e.g. "Choose your size below"), under the button. */
+  optionsNote?: string | null;
   /** Nobody has confirmed we can buy this (065): the CTA asks a person instead. */
   needsSourcing?: boolean;
   onAskToSource?: () => void;
@@ -119,6 +121,7 @@ export function QuoteReceiptCard({
   addedCount,
   onPayNow,
   canContinue,
+  optionsNote = null,
   needsSourcing = false,
   onAskToSource,
   sourcePending = false,
@@ -301,6 +304,12 @@ export function QuoteReceiptCard({
               {!continuePending && <Tote weight="bold" className="size-[18px]" aria-hidden />}
               {ctaLabel({ continuePending, checking, unavailable })}
             </Button>
+          )}
+
+          {optionsNote && (
+            <p className="tm-caption text-center font-semibold text-tm-coral-strong" role="status">
+              {optionsNote}
+            </p>
           )}
 
           {!needsSourcing && (
