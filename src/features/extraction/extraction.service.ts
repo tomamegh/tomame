@@ -60,12 +60,13 @@ export async function prepareProductUrl(rawUrl: string): Promise<PreparedUrl> {
   resolved = usEbayItemUrl(resolved);
 
   let store = storeForUrl(resolved);
-  // An unregistered store is read in our hub's market, not the country in the
-  // link or the one our server's IP lands in: Shopify priced a US dress in GBP
-  // from prod and in AUD from Ghana (2026-11-26).
-  if (store === GENERIC_STORE) {
+  // A store without a scraper of its own (unregistered, or a named store such as
+  // SKIMS) is read in our hub's market, not the country in the link or the one
+  // our server's IP lands in: Shopify priced a US dress in GBP from prod and in
+  // AUD from Ghana, and SKIMS /en-gh/ in Ghana dollars (2026-11-26).
+  if (store && store.providers === GENERIC_STORE.providers) {
     resolved = withoutMarketSubfolder(resolved);
-    if (shopifyHandleOf(resolved)) resolved = withShopifyMarket(resolved, shopifyMarketFor(resolved, null));
+    if (shopifyHandleOf(resolved)) resolved = withShopifyMarket(resolved, shopifyMarketFor(resolved, store.region));
     store = storeForUrl(resolved);
   }
   if (!store) {
