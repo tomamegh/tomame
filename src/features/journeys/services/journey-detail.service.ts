@@ -1,4 +1,5 @@
 import "server-only";
+import { offlineChannelLabel } from "@/features/payments/offline-channel";
 import { loadDeliveryPlanFacts } from "@/db/queries/delivery-plans";
 import { deliveryPlanFor } from "../delivery-plan";
 
@@ -242,7 +243,7 @@ async function loadPayment(
   return {
     // The admin's own label for the channel when it is one of theirs, so the
     // receipt says "MTN MoMo" rather than Paystack's "mobile_money".
-    channelLabel: raw ? (channels.find((c) => c.id === raw)?.label ?? raw) : null,
+    channelLabel: raw ? (offlineChannelLabel(raw) ?? channels.find((c) => c.id === raw)?.label ?? raw) : null,
     paidAt: row.created_at,
     reference: row.reference,
   };

@@ -68,4 +68,5 @@ export interface PaymentInsert {
   metadata?: Record<string, unknown> | null;
   order_group_id?: string | null;
   car_order_id?: string | null;
+  channel?: string | null;
 }

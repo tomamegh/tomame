@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { offlineChannelLabel } from "@/features/payments/offline-channel";
 import { chosenOptionsOf, itemOptionQuestions } from "@/features/extraction/item-options";
 import {
   AdminBadge,
@@ -499,7 +500,7 @@ function PaymentCard({
             tone={PAYMENT_STATUS_TONE[payment.status] ?? "neutral"}
           />
           <Fact label="Amount charged" value={formatGhs(payment.amount / 100)} />
-          <Fact label="Channel" value={payment.channel} fallback="Not recorded" />
+          <Fact label="Channel" value={offlineChannelLabel(payment.channel) ?? payment.channel} fallback="Not recorded" />
           <Fact label="Reference" value={payment.reference} />
           <Fact label="Taken" value={formatAdminDateTime(payment.created_at)} fallback="–" />
           {group ? (

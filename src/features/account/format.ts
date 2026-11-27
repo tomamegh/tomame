@@ -1,3 +1,4 @@
+import { offlineChannelLabel } from "@/features/payments/offline-channel";
 /**
  * Pure display helpers for the account screen.
  *
@@ -41,6 +42,8 @@ export function formatPaymentDate(iso: string): string {
  * capitalised, and the value is otherwise shown as it was recorded.
  */
 export function formatPaymentChannel(channel: string): string {
+  const offline = offlineChannelLabel(channel);
+  if (offline) return offline;
   const words = channel.trim().replace(/_/g, " ");
   if (words === "") return "";
   return words.charAt(0).toUpperCase() + words.slice(1);

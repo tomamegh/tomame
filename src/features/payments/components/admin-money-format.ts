@@ -1,3 +1,4 @@
+import { offlineChannelLabel } from "../offline-channel";
 import type { AdminTone } from "@/components/layout/admin";
 import { formatGhs } from "@/features/marketing/format";
 import type { AdminMoneyCustomer, AdminPaymentStatus } from "@/db/queries/admin-money";
@@ -66,6 +67,8 @@ export function transactionStatusLabel(status: string): string {
  */
 export function channelLabel(channel: string | null): string | null {
   if (!channel) return null;
+  const offline = offlineChannelLabel(channel);
+  if (offline) return offline;
   const cleaned = channel.replace(/_/g, " ").trim();
   if (!cleaned) return null;
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);

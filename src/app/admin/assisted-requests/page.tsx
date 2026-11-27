@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { AdminPage } from "@/components/layout/admin";
 import { AssistedQueue } from "@/features/assisted/components/assisted-queue";
+import { BuyForCustomer } from "@/features/assisted-orders/components/buy-for-customer";
 
 export const metadata: Metadata = {
   title: "Assisted requests · Admin",
@@ -21,6 +22,7 @@ export default function AdminAssistedRequestsPage() {
       title="Assisted requests"
       blurb="Customers whose link we could not read, in their own words. Each one has been told a person will get back to them, so work the top of the list first."
     >
+      <BuyForCustomer />
       <AssistedQueue />
     </AdminPage>
   );

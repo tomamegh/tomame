@@ -23,6 +23,7 @@ import {
   carChargeBlockedReason,
 } from "@/features/cars/car-orders.types";
 import { getPaymentChannel } from "@/features/payments/services/payment-channels.service";
+import { offlineChannelLabel } from "@/features/payments/offline-channel";
 import {
   initializeTransaction,
   verifyTransaction,
@@ -927,7 +928,7 @@ async function settleOrder(admin: SupabaseClient, payment: Payment, orderId: str
     title: "Payment received",
     // What they paid with, as Paystack reported it. Null rather than "card"
     // when the channel is unknown — an invented method is worse than none.
-    detail: payment.channel?.trim() || null,
+    detail: offlineChannelLabel(payment.channel) ?? (payment.channel?.trim() || null),
     occurred_at: payment.created_at,
   });
 
@@ -973,6 +974,55 @@ async function settleGroup(admin: SupabaseClient, payment: Payment, groupId: str
   // order's "paid" mail stands in for the whole bag.
   if (first) sendOrderStatusEmail(payment.user_id, first, "paid");
   return settledCount;
+}
+
+/**
+ * Staff took the money for a bag themselves (MoMo to Tomame, cash, a bank
+ * transfer) and placed the order for the customer: write a `success` payment
+ * for the group's own total and settle it on the same path as a Paystack charge,
+ * so the orders turn `paid`, the customer gets the "paid" email, notifications
+ * and order events, and the warehouse sees it like any other paid bag. Nothing
+ * is charged: the row records what staff say was received, under their name.
+ */
+export async function recordOfflineGroupPayment(
+  adminId: string,
+  groupId: string,
+  input: { method: string; reference?: string | null; note?: string | null },
+): Promise<{ payment: Payment; settled: number }> {
+  const group = await getOrderGroupById(groupId);
+  if (!group) throw new APIError(404, "Order group not found");
+  if (group.status !== "pending") throw new APIError(409, "This bag is not waiting for payment");
+
+  const admin = createAdminClient();
+  const payment = await insertPayment(admin, {
+    user_id: group.user_id,
+    reference: generatePaymentReference(),
+    amount: group.total_pesewas,
+    currency: "GHS",
+    status: PAYMENT_STATUSES.SUCCESS,
+    // What the order's "Payment received" line prints.
+    channel: `offline_${input.method}`,
+    order_group_id: groupId,
+    metadata: {
+      offline: true,
+      method: input.method,
+      external_reference: input.reference?.trim() || null,
+      note: input.note?.trim() || null,
+      recorded_by: adminId,
+    },
+  });
+  if (!payment) throw new APIError(500, "Could not record the payment");
+
+  await logAuditEvent({
+    actorId: adminId,
+    actorRole: AUDIT_ACTOR_ROLES.ADMIN,
+    action: "payment_recorded_offline",
+    entityType: AUDIT_ENTITY_TYPES.PAYMENT,
+    entityId: payment.id,
+    metadata: { orderGroupId: groupId, amount: group.total_pesewas, method: input.method, external_reference: input.reference ?? null },
+  });
+  const settled = await settleGroup(admin, payment, groupId);
+  return { payment, settled };
 }
 
 /**
